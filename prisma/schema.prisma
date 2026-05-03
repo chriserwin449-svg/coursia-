@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  sourceLinks String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  chapters    Chapter[]
+}
+
+model Chapter {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  summary   String   @default("")
+  order     Int
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  quiz      Quiz?
+  progress  ChapterProgress?
+}
+
+model Quiz {
+  id        String   @id @default(cuid())
+  questions String
+  chapterId String   @unique
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+}
+
+model ChapterProgress {
+  id         String   @id @default(cuid())
+  chapterId  String   @unique
+  chapter    Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  completed  Boolean  @default(false)
+  score      Int      @default(0)
+  completedAt DateTime?
+}
