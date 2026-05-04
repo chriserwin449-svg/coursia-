@@ -11,12 +11,23 @@ import {
 } from "lucide-react";
 import { useAppStore, type CourseData } from "@/lib/store";
 import { t } from "@/lib/i18n";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 
 export default function Library() {
   const [courses, setCourses] = useState<CourseData[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
 
   const lang = useAppStore((s) => s.lang);
   const tx = t(lang);
@@ -37,6 +48,7 @@ export default function Library() {
 
   const deleteCourse = async (id: string) => {
     setDeleting(id);
+    setDeleteTarget(null);
     try {
       await fetch(`/api/courses/${id}`, { method: "DELETE" });
       setCourses(courses.filter((c) => c.id !== id));
@@ -164,7 +176,10 @@ export default function Library() {
                       {course.overallProgress}%
                     </span>
                     <button
-                      onClick={(e) => { e.stopPropagation(); deleteCourse(course.id); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteTarget({ id: course.id, title: course.title });
+                      }}
                       disabled={deleting === course.id}
                       className="p-2.5 rounded-xl hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-all cursor-pointer"
                     >
@@ -207,6 +222,64 @@ export default function Library() {
           ))}
         </div>
       )}
+
+      {/* ── Delete Confirmation Dialog ── */}
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent className="glass rounded-3xl border-border sm:max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-5 h-5 text-destructive" />
+              </div>
+              <AlertDialogTitle className="text-xl font-extrabold text-foreground">
+                {lang === "fr" ? "Supprimer ce cours ?" : "Delete this course?"}
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-base text-muted-foreground leading-relaxed pt-1">
+              {lang === "fr" ? (
+                <>
+                  Tu es sur le point de supprimer <span className="font-bold text-foreground">&ldquo;{deleteTarget?.title}&rdquo;</span>.
+                  <br />
+                  Cette action est <span className="font-bold text-destructive">irréversible</span>. Tous les chapitres, quiz et ta progression seront définitivement supprimés.
+                </>
+              ) : (
+                <>
+                  You are about to delete <span className="font-bold text-foreground">&ldquo;{deleteTarget?.title}&rdquo;</span>.
+                  <br />
+                  This action is <span className="font-bold text-destructive">irreversible</span>. All chapters, quizzes and your progress will be permanently deleted.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 sm:gap-3 pt-2">
+            <AlertDialogCancel
+              onClick={() => setDeleteTarget(null)}
+              className="rounded-full px-6 py-3 font-bold cursor-pointer text-muted-foreground hover:text-foreground"
+            >
+              {lang === "fr" ? "Annuler" : "Cancel"}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTarget && deleteCourse(deleteTarget.id)}
+              disabled={!!deleting}
+              className="rounded-full px-6 py-3 font-bold cursor-pointer bg-destructive text-white hover:bg-destructive/90 border-0"
+            >
+              {deleting ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {lang === "fr" ? "Suppression..." : "Deleting..."}
+                </span>
+              ) : (
+                lang === "fr" ? "Oui, supprimer" : "Yes, delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

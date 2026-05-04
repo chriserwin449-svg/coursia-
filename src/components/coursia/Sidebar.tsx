@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Library, Route, GraduationCap, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { BookOpen, Library, Route, GraduationCap, PanelLeftClose, PanelLeftOpen, Tag } from "lucide-react";
 import { useAppStore, type AppView } from "@/lib/store";
 import { t } from "@/lib/i18n";
 
@@ -60,8 +60,8 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom section — Collapse toggle */}
-      <div className="px-2 md:px-3 py-4 border-t border-border">
+      {/* Bottom section — Collapse toggle + Offers */}
+      <div className="px-2 md:px-3 py-3 border-t border-border space-y-1">
         <button
           onClick={() => setCollapsed(!collapsed)}
           title={collapsed ? (lang === "fr" ? "Ouvrir" : "Open") : (lang === "fr" ? "Réduire" : "Collapse")}
@@ -77,6 +77,22 @@ export default function Sidebar() {
               </span>
             </>
           )}
+        </button>
+
+        {/* Offers link — subtle, at the very bottom */}
+        <button
+          onClick={() => setView("offers")}
+          title={collapsed ? tx.nav.offers : undefined}
+          className={`w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3 rounded-2xl transition-all duration-200 cursor-pointer ${
+            view === "offers"
+              ? "bg-gold/10 text-gold"
+              : "text-muted-foreground/50 hover:bg-white/5 hover:text-muted-foreground"
+          }`}
+        >
+          <Tag className="w-5 h-5 flex-shrink-0" />
+          <span className="hidden md:block text-sm font-semibold truncate">
+            {tx.nav.offers}
+          </span>
         </button>
       </div>
     </aside>
