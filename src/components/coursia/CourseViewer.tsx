@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   ChevronRight,
@@ -16,9 +15,13 @@ import {
   Trophy,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { useAppStore, type CourseData, type CourseChapter } from "@/lib/store";
+import { useAppStore, type CourseData, type CourseChapter, type QuizQuestion } from "@/lib/store";
+import { t } from "@/lib/i18n";
 
 export default function CourseViewer() {
+  const lang = useAppStore((s) => s.lang);
+  const tx = t(lang);
+
   const [course, setCourse] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [autoAdvance, setAutoAdvance] = useState(false);
@@ -44,7 +47,6 @@ export default function CourseViewer() {
       const data = await res.json();
       if (res.ok) {
         setCourse(data);
-        // Find first incomplete chapter
         const firstIncomplete = data.chapters.findIndex(
           (ch: CourseChapter) => !ch.progress?.completed
         );
@@ -86,18 +88,16 @@ export default function CourseViewer() {
 
   const handleQuizComplete = (passed: boolean) => {
     if (passed) {
-      // Check if course is complete
       if (course && currentChapterIndex === course.chapters.length - 1) {
         setShowCelebration(true);
-        setCelebrationMessage("🎉 Félicitations ! Tu as terminé le cours !");
-        // After a delay, go back to library
+        setCelebrationMessage(tx.viewer.courseDone);
         setTimeout(() => {
           setShowCelebration(false);
           setView("library");
         }, 3000);
       } else {
         setShowCelebration(true);
-        setCelebrationMessage("✅ Chapitre terminé ! Bravo !");
+        setCelebrationMessage(tx.viewer.chapterDone);
         setTimeout(() => {
           setShowCelebration(false);
           setShowQuiz(false);
@@ -115,7 +115,7 @@ export default function CourseViewer() {
   // Auto-advance logic
   useEffect(() => {
     if (autoAdvance && autoAdvanceRef.current) {
-      clearInterval(autoAdvanceRef.current);
+      clearTimeout(autoAdvanceRef.current);
     }
     if (autoAdvance) {
       autoAdvanceRef.current = setTimeout(() => {
@@ -153,10 +153,10 @@ export default function CourseViewer() {
   // Loading state
   if (loading || !course || !currentChapter) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen animate-fade-in">
         <div className="text-center">
           <Loader2 className="w-10 h-10 animate-spin text-mauve mx-auto mb-4" />
-          <p className="text-muted-foreground text-lg">Chargement du cours...</p>
+          <p className="text-muted-foreground text-lg">{tx.viewer.loading}</p>
         </div>
       </div>
     );
@@ -165,95 +165,88 @@ export default function CourseViewer() {
   return (
     <>
       {/* Fullscreen overlay */}
-      <AnimatePresence>
-        {isFullscreen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-night flex flex-col"
-          >
-            {/* Fullscreen top bar */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => setIsFullscreen(false)}
-                  className="p-2 rounded-xl hover:bg-white/10 transition-all cursor-pointer"
-                >
-                  <Minimize2 className="w-5 h-5" />
-                </button>
-                <div>
-                  <p className="text-sm text-muted-foreground">{course.title}</p>
-                  <p className="font-bold">
-                    Chapitre {currentChapterIndex + 1} : {currentChapter.title}
-                  </p>
+      {isFullscreen && (
+        <div className="fixed inset-0 z-50 bg-night flex flex-col animate-fade-in">
+          {/* Fullscreen top bar */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setIsFullscreen(false)}
+                className="p-2 rounded-xl hover:bg-white/10 transition-all cursor-pointer"
+              >
+                <Minimize2 className="w-5 h-5" />
+              </button>
+              <div>
+                <p className="text-sm text-muted-foreground">{course.title}</p>
+                <p className="font-bold">
+                  {tx.viewer.chapterOf(currentChapterIndex + 1, course.chapters.length)} : {currentChapter.title}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full glass">
+                <span className="text-sm font-semibold">
+                  {currentChapterIndex + 1} / {course.chapters.length}
+                </span>
+                <div className="w-32 h-2 rounded-full bg-night overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-mauve to-gold transition-all duration-1000 ease-out"
+                    style={{
+                      width: `${((currentChapterIndex + 1) / course.chapters.length) * 100}%`,
+                    }}
+                  />
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full glass">
-                  <span className="text-sm font-semibold">
-                    {currentChapterIndex + 1} / {course.chapters.length}
-                  </span>
-                  <div className="w-32 h-2 rounded-full bg-night overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-mauve to-gold"
-                      style={{
-                        width: `${((currentChapterIndex + 1) / course.chapters.length) * 100}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-                <button
-                  onClick={goToPrev}
-                  disabled={currentChapterIndex === 0}
-                  className="p-2 rounded-xl hover:bg-white/10 transition-all disabled:opacity-30 cursor-pointer"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={goToNext}
-                  disabled={currentChapterIndex === course.chapters.length - 1}
-                  className="p-2 rounded-xl hover:bg-white/10 transition-all disabled:opacity-30 cursor-pointer"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
+              <button
+                onClick={goToPrev}
+                disabled={currentChapterIndex === 0}
+                className="p-2 rounded-xl hover:bg-white/10 transition-all disabled:opacity-30 cursor-pointer"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                onClick={goToNext}
+                disabled={currentChapterIndex === course.chapters.length - 1}
+                className="p-2 rounded-xl hover:bg-white/10 transition-all disabled:opacity-30 cursor-pointer"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
             </div>
+          </div>
 
-            {/* Fullscreen content */}
-            <div className="flex-1 overflow-y-auto px-8 py-10">
-              <div className="fullscreen-content prose prose-invert max-w-none">
-                <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
-              </div>
+          {/* Fullscreen content */}
+          <div className="flex-1 overflow-y-auto px-8 py-10">
+            <div className="fullscreen-content prose prose-invert max-w-none animate-fade-in-slide-right">
+              <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
             </div>
+          </div>
 
-            {/* Fullscreen bottom */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-border/50">
-              <p className="text-sm text-muted-foreground">
-                Utilise les flèches ← → ou Espace pour naviguer
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setAutoAdvance(!autoAdvance)}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold transition-all cursor-pointer ${
-                    autoAdvance
-                      ? "bg-gold/20 text-gold border border-gold/30"
-                      : "glass text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  Auto 5s
-                </button>
-                {currentChapter.progress?.completed && (
-                  <span className="flex items-center gap-1 px-4 py-2 rounded-full bg-green-500/20 text-green-400 text-sm font-semibold">
-                    <CheckCircle2 className="w-4 h-4" />
-                    Terminé
-                  </span>
-                )}
-              </div>
+          {/* Fullscreen bottom */}
+          <div className="flex items-center justify-between px-6 py-4 border-t border-border/50">
+            <p className="text-sm text-muted-foreground">
+              {tx.viewer.navHint}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAutoAdvance(!autoAdvance)}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all cursor-pointer ${
+                  autoAdvance
+                    ? "bg-gold/20 text-gold border border-gold/30"
+                    : "glass text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tx.viewer.autoAdvance}
+              </button>
+              {currentChapter.progress?.completed && (
+                <span className="flex items-center gap-1 px-4 py-2 rounded-full bg-green-500/20 text-green-400 text-sm font-semibold">
+                  <CheckCircle2 className="w-4 h-4" />
+                  {tx.viewer.completed}
+                </span>
+              )}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
 
       {/* Normal view */}
       <div className="flex h-screen">
@@ -266,21 +259,19 @@ export default function CourseViewer() {
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-all mb-3 cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="text-sm font-semibold">Retour</span>
+              <span className="text-sm font-semibold">{tx.viewer.back}</span>
             </button>
             <h2 className="font-bold text-lg leading-tight line-clamp-2">{course.title}</h2>
             {/* Overall progress */}
             <div className="mt-3">
               <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                <span>Progression</span>
+                <span>{tx.viewer.progress}</span>
                 <span className="font-bold">{course.overallProgress}%</span>
               </div>
               <div className="w-full h-2 rounded-full bg-night overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${course.overallProgress}%` }}
-                  transition={{ duration: 1 }}
-                  className="h-full rounded-full bg-gradient-to-r from-mauve to-gold"
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-mauve to-gold transition-all duration-1000 ease-out"
+                  style={{ width: `${course.overallProgress}%` }}
                 />
               </div>
             </div>
@@ -325,11 +316,11 @@ export default function CourseViewer() {
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold line-clamp-2">
-                        Ch. {ch.order} — {ch.title}
+                        {tx.viewer.chapterOf(ch.order, course.chapters.length)} — {ch.title}
                       </p>
                       {isCompleted && (
                         <p className="text-xs text-green-400 mt-0.5">
-                          Score : {ch.progress?.score}%
+                          {tx.viewer.score} : {ch.progress?.score}%
                         </p>
                       )}
                     </div>
@@ -344,7 +335,7 @@ export default function CourseViewer() {
             <div className="p-4 border-t border-border">
               <div className="p-3 rounded-2xl bg-gold/10 border border-gold/20 text-center">
                 <Trophy className="w-6 h-6 text-gold mx-auto mb-1" />
-                <p className="text-sm font-bold text-gold">Cours Terminé !</p>
+                <p className="text-sm font-bold text-gold">{tx.viewer.courseComplete}</p>
               </div>
             </div>
           )}
@@ -357,7 +348,7 @@ export default function CourseViewer() {
             <div>
               <h2 className="text-xl md:text-2xl font-bold">{currentChapter.title}</h2>
               <p className="text-sm text-muted-foreground">
-                Chapitre {currentChapter.order} sur {course.chapters.length}
+                {tx.viewer.chapterOf(currentChapter.order, course.chapters.length)}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -367,7 +358,7 @@ export default function CourseViewer() {
                   className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 text-sm font-bold hover:bg-green-500/20 transition-all cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  Terminé ✓
+                  {tx.viewer.completed} ✓
                 </button>
               ) : (
                 <button
@@ -375,7 +366,7 @@ export default function CourseViewer() {
                   className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-gold/10 text-gold border border-gold/20 text-sm font-bold hover:bg-gold/20 transition-all cursor-pointer"
                 >
                   <HelpCircle className="w-4 h-4" />
-                  Quiz
+                  {tx.viewer.quiz}
                 </button>
               )}
               <button
@@ -383,156 +374,101 @@ export default function CourseViewer() {
                 className="flex items-center gap-2 px-5 py-2.5 rounded-full glass text-sm font-bold hover:bg-white/10 transition-all cursor-pointer"
               >
                 <Maximize2 className="w-4 h-4" />
-                <span className="hidden md:inline">Agrandir</span>
+                <span className="hidden md:inline">{tx.viewer.enlarge}</span>
               </button>
             </div>
           </div>
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto">
-            <AnimatePresence mode="wait">
-              {!showQuiz ? (
-                <motion.div
-                  key={`chapter-${currentChapter.id}`}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.3 }}
-                  className="max-w-3xl mx-auto px-6 py-8"
-                >
-                  <div className="prose prose-invert max-w-none
-                    prose-headings:font-extrabold prose-headings:text-foreground
-                    prose-h1:text-3xl prose-h2:text-2xl prose-h2:mt-10 prose-h2:mb-4
-                    prose-h3:text-xl prose-h3:mt-8 prose-h3:mb-3
-                    prose-p:text-lg prose-p:leading-relaxed prose-p:text-foreground/90
-                    prose-li:text-lg prose-li:text-foreground/90
-                    prose-strong:text-foreground
-                    prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-lg
-                    prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-6
-                    prose-a:text-mauve-light
-                  ">
-                    <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
-                  </div>
+            {!showQuiz ? (
+              <div
+                key={`chapter-${currentChapter.id}`}
+                className="max-w-3xl mx-auto px-6 py-8 animate-fade-in-slide-right"
+              >
+                <div className="prose prose-invert max-w-none
+                  prose-headings:font-extrabold prose-headings:text-foreground
+                  prose-h1:text-3xl prose-h2:text-2xl prose-h2:mt-10 prose-h2:mb-4
+                  prose-h3:text-xl prose-h3:mt-8 prose-h3:mb-3
+                  prose-p:text-lg prose-p:leading-relaxed prose-p:text-foreground/90
+                  prose-li:text-lg prose-li:text-foreground/90
+                  prose-strong:text-foreground
+                  prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-lg
+                  prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-6
+                  prose-a:text-mauve-light
+                ">
+                  <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
+                </div>
 
-                  {/* Navigation buttons */}
-                  <div className="flex items-center justify-between mt-12 pt-6 border-t border-border">
-                    <button
-                      onClick={goToPrev}
-                      disabled={currentChapterIndex === 0}
-                      className="flex items-center gap-2 px-6 py-3 rounded-full glass text-sm font-bold hover:bg-white/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                      Précédent
-                    </button>
-                    <button
-                      onClick={() => setShowQuiz(true)}
-                      className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold hover:from-mauve-light hover:to-mauve transition-all cursor-pointer"
-                    >
-                      {currentChapter.progress?.completed
-                        ? "Refaire le Quiz"
-                        : "Passer le Quiz"}
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="quiz"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="max-w-3xl mx-auto px-6 py-8"
-                >
-                  {/* QuizPanel is rendered inline */}
-                  <QuizPanel
-                    chapterId={currentChapter.id}
-                    courseId={course.id}
-                    onComplete={handleQuizComplete}
-                    onBack={() => setShowQuiz(false)}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
+                {/* Navigation buttons */}
+                <div className="flex items-center justify-between mt-12 pt-6 border-t border-border">
+                  <button
+                    onClick={goToPrev}
+                    disabled={currentChapterIndex === 0}
+                    className="flex items-center gap-2 px-6 py-3 rounded-full glass text-sm font-bold hover:bg-white/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    {tx.viewer.previous}
+                  </button>
+                  <button
+                    onClick={() => setShowQuiz(true)}
+                    className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold hover:from-mauve-light hover:to-mauve transition-all cursor-pointer"
+                  >
+                    {currentChapter.progress?.completed
+                      ? tx.viewer.redoQuiz
+                      : tx.viewer.quiz}
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                key="quiz"
+                className="max-w-3xl mx-auto px-6 py-8 animate-fade-in-slide-right"
+              >
+                <QuizPanel
+                  chapterId={currentChapter.id}
+                  courseId={course.id}
+                  onComplete={handleQuizComplete}
+                  onBack={() => setShowQuiz(false)}
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Celebration overlay */}
-      <AnimatePresence>
-        {showCelebration && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-night/80 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0 }}
-              transition={{ type: "spring", stiffness: 200, damping: 15 }}
-              className="text-center p-12 rounded-3xl glass"
-            >
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.2 }}
-                className="text-6xl mb-6"
-              >
-                🎉
-              </motion.div>
-              <motion.h2
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="text-3xl font-extrabold gradient-text mb-4"
-              >
-                {useAppStore.getState().celebrationMessage}
-              </motion.h2>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.6 }}
-              >
-                {/* Sparkle particles */}
-                {[...Array(8)].map((_, i) => (
-                  <motion.div
-                    key={i}
-                    className="absolute w-2 h-2 rounded-full bg-gold"
-                    initial={{
-                      x: 0,
-                      y: 0,
-                      opacity: 1,
-                    }}
-                    animate={{
-                      x: (Math.random() - 0.5) * 300,
-                      y: (Math.random() - 0.5) * 300,
-                      opacity: 0,
-                      scale: 0,
-                    }}
-                    transition={{
-                      delay: 0.5 + i * 0.1,
-                      duration: 1,
-                    }}
-                    style={{
-                      left: "50%",
-                      top: "50%",
-                      position: "absolute",
-                    }}
-                  />
-                ))}
-              </motion.div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {showCelebration && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-night/80 backdrop-blur-sm animate-fade-in">
+          <div className="text-center p-12 rounded-3xl glass animate-celebrate relative">
+            <div className="text-6xl mb-6">🎉</div>
+            <h2 className="text-3xl font-extrabold gradient-text mb-4 animate-fade-in-slide-up">
+              {useAppStore.getState().celebrationMessage}
+            </h2>
+            {/* Sparkle particles */}
+            {[...Array(8)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-2 h-2 rounded-full bg-gold"
+                style={{
+                  left: "50%",
+                  top: "50%",
+                  position: "absolute",
+                  animation: `float-up 1s ease-out ${0.5 + i * 0.1}s forwards`,
+                  opacity: 0,
+                  transform: `translate(${(Math.random() - 0.5) * 300}px, ${(Math.random() - 0.5) * 300}px)`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
 // Inline Quiz Panel component
-import { QuizQuestion } from "@/lib/store";
-
 function QuizPanel({
   chapterId,
   courseId,
@@ -544,6 +480,9 @@ function QuizPanel({
   onComplete: (passed: boolean) => void;
   onBack: () => void;
 }) {
+  const lang = useAppStore((s) => s.lang);
+  const tx = t(lang);
+
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
@@ -611,23 +550,19 @@ function QuizPanel({
 
   if (result) {
     return (
-      <div className="text-center py-10">
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring" }}
-        >
+      <div className="text-center py-10 animate-fade-in">
+        <div className="animate-celebrate inline-block">
           <div className="text-6xl mb-4">{result.passed ? "🎉" : "💪"}</div>
           <h3 className="text-2xl font-extrabold mb-2">
-            {result.passed ? "Bravo !" : "Presque !"}
+            {result.passed ? tx.viewer.bravo : tx.viewer.almost}
           </h3>
           <p className="text-lg text-muted-foreground mb-4">
-            Score : <span className="font-bold text-foreground">{result.score}%</span>{" "}
+            {tx.viewer.score} : <span className="font-bold text-foreground">{result.score}%</span>{" "}
             ({result.correct}/{result.total})
           </p>
           {!result.passed && (
             <p className="text-muted-foreground mb-6">
-              Il faut au moins 60% pour débloquer le chapitre suivant. Relis le contenu et réessaie !
+              {tx.viewer.retryDesc}
             </p>
           )}
           {!result.passed && (
@@ -639,10 +574,10 @@ function QuizPanel({
               }}
               className="px-8 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold cursor-pointer"
             >
-              Relire le Chapitre
+              {tx.viewer.retry}
             </button>
           )}
-        </motion.div>
+        </div>
       </div>
     );
   }
@@ -650,26 +585,24 @@ function QuizPanel({
   const allAnswered = questions.every((_, i) => answers[i] !== undefined);
 
   return (
-    <div>
+    <div className="animate-fade-in">
       <div className="flex items-center justify-between mb-8">
         <button
           onClick={onBack}
           className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span className="font-semibold">Retour au cours</span>
+          <span className="font-semibold">{tx.viewer.backToCourse}</span>
         </button>
-        <h3 className="text-xl font-bold">Quiz du Chapitre</h3>
+        <h3 className="text-xl font-bold">{tx.viewer.quizTitle}</h3>
       </div>
 
       <div className="space-y-6">
         {questions.map((q, qi) => (
-          <motion.div
+          <div
             key={qi}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: qi * 0.05 }}
-            className="glass rounded-2xl p-6"
+            className="glass rounded-2xl p-6 animate-fade-in-slide-up"
+            style={{ animationDelay: `${qi * 0.05}s`, animationFillMode: "both" }}
           >
             <p className="text-lg font-bold mb-4">
               <span className="text-mauve-light">Q{qi + 1}.</span> {q.question}
@@ -692,7 +625,7 @@ function QuizPanel({
                 </button>
               ))}
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
 
@@ -706,15 +639,15 @@ function QuizPanel({
           {submitting ? (
             <span className="flex items-center gap-2">
               <Loader2 className="w-5 h-5 animate-spin" />
-              Correction...
+              {tx.viewer.correcting}
             </span>
           ) : (
-            "Valider mes Réponses"
+            tx.viewer.submit
           )}
         </button>
         {!allAnswered && (
           <p className="text-sm text-muted-foreground mt-3">
-            Réponds à toutes les questions pour valider
+            {tx.viewer.answerAll}
           </p>
         )}
       </div>

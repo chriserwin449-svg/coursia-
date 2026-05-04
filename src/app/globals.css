@@ -138,6 +138,55 @@
   border: 1px solid rgba(124, 92, 191, 0.15);
 }
 
+/* Fade / slide animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInSlideRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fadeInSlideLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fadeInSlideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes widthGrow {
+  from { width: 0%; }
+  to { width: var(--target-width, 100%); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-fade-in-slide-right {
+  animation: fadeInSlideRight 0.3s ease-out forwards;
+}
+
+.animate-fade-in-slide-up {
+  animation: fadeInSlideUp 0.4s ease-out forwards;
+}
+
+/* Journey & component fade-in helpers (opacity 0 until animation fires) */
+.fade-in {
+  opacity: 0;
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.fade-in-up {
+  opacity: 0;
+  animation: fadeInSlideUp 0.5s ease-out forwards;
+}
+
 /* Celebration animation */
 @keyframes celebrate {
   0% { transform: scale(0); opacity: 0; }

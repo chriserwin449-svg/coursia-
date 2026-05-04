@@ -1,17 +1,22 @@
 "use client";
 
-import { BookOpen, Library, Route, GraduationCap } from "lucide-react";
+import { BookOpen, Library, Route, CreditCard, GraduationCap, Globe } from "lucide-react";
 import { useAppStore, type AppView } from "@/lib/store";
-
-const NAV_ITEMS: { view: AppView; label: string; icon: typeof BookOpen }[] = [
-  { view: "create", label: "Créer", icon: BookOpen },
-  { view: "library", label: "Mes Cours", icon: Library },
-  { view: "journey", label: "Mon Parcours", icon: Route },
-];
+import { t } from "@/lib/i18n";
 
 export default function Sidebar() {
   const view = useAppStore((s) => s.view);
   const setView = useAppStore((s) => s.setView);
+  const lang = useAppStore((s) => s.lang);
+  const setLang = useAppStore((s) => s.setLang);
+  const tx = t(lang);
+
+  const NAV_ITEMS: { view: AppView; label: string; icon: typeof BookOpen }[] = [
+    { view: "create", label: tx.nav.create, icon: BookOpen },
+    { view: "library", label: tx.nav.library, icon: Library },
+    { view: "journey", label: tx.nav.journey, icon: Route },
+    { view: "offers", label: tx.nav.offers, icon: CreditCard },
+  ];
 
   return (
     <aside className="fixed left-0 top-0 h-full w-[72px] md:w-64 bg-night-light border-r border-border z-40 flex flex-col">
@@ -21,7 +26,7 @@ export default function Sidebar() {
           <GraduationCap className="w-5 h-5 text-white" />
         </div>
         <span className="hidden md:block text-xl font-extrabold gradient-text">
-          Coursia
+          {tx.app.name}
         </span>
       </div>
 
@@ -48,12 +53,20 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom section */}
-      <div className="px-3 py-4 border-t border-border">
-        <div className="hidden md:block glass rounded-2xl p-4 text-center">
-          <p className="text-xs text-muted-foreground mb-1">Ton apprentissage</p>
-          <p className="text-lg font-bold gradient-text">Illimité</p>
-        </div>
+      {/* Bottom section — Language toggle */}
+      <div className="px-2 md:px-3 py-4 border-t border-border">
+        <button
+          onClick={() => setLang(lang === "fr" ? "en" : "fr")}
+          className="w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3.5 rounded-2xl text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all duration-200 cursor-pointer"
+        >
+          <Globe className="w-5 h-5 flex-shrink-0" />
+          <span className="hidden md:block text-base font-semibold">
+            {lang === "fr" ? "Français" : "English"}
+          </span>
+          <span className="hidden md:inline-flex ml-auto text-xs font-bold px-2.5 py-1 rounded-full bg-mauve/15 text-mauve-light">
+            {lang === "fr" ? "FR" : "EN"}
+          </span>
+        </button>
       </div>
     </aside>
   );

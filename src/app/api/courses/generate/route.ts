@@ -4,7 +4,7 @@ import ZAI from "z-ai-web-dev-sdk";
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, sourceLinks = [] } = await request.json();
+    const { title, sourceLinks = [], level = 1, courseLang = "fr" } = await request.json();
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
@@ -16,7 +16,12 @@ export async function POST(request: NextRequest) {
       ? `\n\nVoici des liens de référence que l'utilisateur veut intégrer au cours :\n${sourceLinks.map((l: string) => `- ${l}`).join("\n")}`
       : "";
 
+    const levelLabels = ["Débutant", "Intermédiaire", "Avancé"];
+    const langLabels: Record<string, string> = { fr: "français", en: "anglais" };
+
     const systemPrompt = `Tu es un expert pédagogue et créateur de cours. Tu dois créer un cours complet, bien structuré et engaging sur le sujet donné.
+Le cours doit être rédigé entièrement en ${langLabels[courseLang] || "français"}.
+Le niveau de l'apprenant est : ${levelLabels[level] || "Intermédiaire"}. Adapte la complexité, le vocabulaire et les explications en conséquence.
 Tu DOIS répondre UNIQUEMENT en JSON valide, sans aucun texte avant ou après.
 Le format JSON doit être exactement :
 {

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
-export type AppView = "landing" | "create" | "library" | "viewer" | "journey";
+export type AppView = "landing" | "create" | "library" | "viewer" | "journey" | "offers";
+export type AppLang = "fr" | "en";
 
 export interface CourseChapter {
   id: string;
@@ -40,35 +41,22 @@ export interface CourseData {
 }
 
 interface AppState {
-  // Navigation
+  lang: AppLang;
+  setLang: (l: AppLang) => void;
   view: AppView;
   setView: (view: AppView) => void;
-
-  // Selected course for viewing
   selectedCourseId: string | null;
   setSelectedCourseId: (id: string | null) => void;
-
-  // Current chapter in viewer
   currentChapterIndex: number;
   setCurrentChapterIndex: (index: number) => void;
-
-  // Fullscreen mode
   isFullscreen: boolean;
   setIsFullscreen: (v: boolean) => void;
-
-  // Show quiz for current chapter
   showQuiz: boolean;
   setShowQuiz: (v: boolean) => void;
-
-  // Generation loading state
   isGenerating: boolean;
   setIsGenerating: (v: boolean) => void;
-
-  // Quiz submission state
   isSubmittingQuiz: boolean;
   setIsSubmittingQuiz: (v: boolean) => void;
-
-  // Celebration state
   showCelebration: boolean;
   setShowCelebration: (v: boolean) => void;
   celebrationMessage: string;
@@ -76,27 +64,22 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set) => ({
+  lang: "fr",
+  setLang: (lang) => set({ lang }),
   view: "landing",
   setView: (view) => set({ view, selectedCourseId: null, currentChapterIndex: 0, showQuiz: false, isFullscreen: false }),
-
   selectedCourseId: null,
   setSelectedCourseId: (id) => set({ selectedCourseId: id, currentChapterIndex: 0, showQuiz: false }),
-
   currentChapterIndex: 0,
   setCurrentChapterIndex: (index) => set({ currentChapterIndex: index, showQuiz: false }),
-
   isFullscreen: false,
   setIsFullscreen: (v) => set({ isFullscreen: v }),
-
   showQuiz: false,
   setShowQuiz: (v) => set({ showQuiz: v }),
-
   isGenerating: false,
   setIsGenerating: (v) => set({ isGenerating: v }),
-
   isSubmittingQuiz: false,
   setIsSubmittingQuiz: (v) => set({ isSubmittingQuiz: v }),
-
   showCelebration: false,
   setShowCelebration: (v) => set({ showCelebration: v }),
   celebrationMessage: "",
