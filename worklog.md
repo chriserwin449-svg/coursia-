@@ -188,3 +188,20 @@ Stage Summary:
 - Auto-advance 5s button removed
 - Final quiz generates 8 cross-chapter questions
 - All code compiles cleanly, lint passes, page loads correctly
+
+---
+Task ID: 3
+Agent: main
+Task: Fix two bugs: (1) Course viewer showing error page after generation, (2) Sidebar text overflow when collapsed
+
+Work Log:
+- Analyzed screenshot with VLM: confirmed user sees CourseViewer error/fallback state with "Retour" button after generating a course
+- Checked dev logs and found root cause: `PrismaClientValidationError: Unknown field 'finalQuiz' for include statement on model 'Course'`
+- The Turbopack dev server had cached the old Prisma client (before CourseQuiz/CourseProgress models were added)
+- Regenerated Prisma client with `npx prisma generate` and restarted dev server
+- For sidebar overflow: added `{!collapsed && ...}` conditions to hide "Coursia" text, nav labels, and offers label when sidebar is collapsed
+- All labels were previously using `hidden md:block` which only accounts for screen size, not collapsed state
+
+Stage Summary:
+- Bug 1 fixed: Restarting dev server loaded the new Prisma client with CourseQuiz/CourseProgress relations
+- Bug 2 fixed: Sidebar text now properly hidden when collapsed (Coursia name, nav labels, offers link)

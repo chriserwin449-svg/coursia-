@@ -29,9 +29,9 @@ export default function Sidebar() {
         <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-mauve to-mauve-dark flex items-center justify-center flex-shrink-0">
           <GraduationCap className="w-5 h-5 text-white" />
         </div>
-        <span className="hidden md:block text-xl font-extrabold gradient-text whitespace-nowrap">
+        {!collapsed && <span className="hidden md:block text-xl font-extrabold gradient-text whitespace-nowrap">
           {tx.app.name}
-        </span>
+        </span>}
       </div>
 
       {/* Nav Items */}
@@ -52,9 +52,9 @@ export default function Sidebar() {
               <item.icon
                 className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-mauve-light" : ""}`}
               />
-              <span className="hidden md:block text-base font-semibold truncate">
+              {!collapsed && <span className="hidden md:block text-base font-semibold truncate">
                 {item.label}
-              </span>
+              </span>}
             </button>
           );
         })}
@@ -72,7 +72,7 @@ export default function Sidebar() {
           ) : (
             <>
               <PanelLeftClose className="w-5 h-5 flex-shrink-0" />
-              <span className="hidden md:block text-base font-semibold">
+              <span className="hidden md:block text-base font-semibold truncate">
                 {lang === "fr" ? "Réduire" : "Collapse"}
               </span>
             </>
@@ -90,9 +90,9 @@ export default function Sidebar() {
           }`}
         >
           <Tag className="w-5 h-5 flex-shrink-0" />
-          <span className="hidden md:block text-sm font-semibold truncate">
+          {!collapsed && <span className="hidden md:block text-sm font-semibold truncate">
             {tx.nav.offers}
-          </span>
+          </span>}
         </button>
       </div>
     </aside>
