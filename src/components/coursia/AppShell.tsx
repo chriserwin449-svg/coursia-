@@ -20,15 +20,15 @@ export default function AppShell() {
         <LandingPage />
       ) : (
         <div className="min-h-screen">
-          {view !== "viewer" && <Sidebar />}
+          {/* Sidebar is ALWAYS visible in non-landing views (collapsed in viewer) */}
+          <Sidebar />
+          {/* TopBar visible everywhere except viewer (viewer has its own header) */}
           {view !== "viewer" && <TopBar />}
           <main
             className={`min-h-screen transition-all duration-300 ease-in-out ${
-              view !== "viewer"
-                ? collapsed
-                  ? "ml-[72px]"
-                  : "ml-[72px] md:ml-64"
-                : ""
+              collapsed
+                ? "ml-[72px]"
+                : "ml-[72px] md:ml-64"
             }`}
           >
             {view === "create" && <CreateCourse />}

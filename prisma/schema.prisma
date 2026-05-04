@@ -15,6 +15,8 @@ model Course {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   chapters    Chapter[]
+  finalQuiz   CourseQuiz?
+  progress    CourseProgress?
 }
 
 model Chapter {
@@ -43,4 +45,20 @@ model ChapterProgress {
   completed  Boolean  @default(false)
   score      Int      @default(0)
   completedAt DateTime?
+}
+
+model CourseQuiz {
+  id       String @id @default(cuid())
+  questions String
+  courseId  String @unique
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+}
+
+model CourseProgress {
+  id        String   @id @default(cuid())
+  courseId  String   @unique
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  completed Boolean  @default(false)
+  score     Int      @default(0)
+  passedAt  DateTime?
 }

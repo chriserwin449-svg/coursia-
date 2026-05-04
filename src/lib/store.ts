@@ -53,6 +53,8 @@ interface AppState {
   setIsFullscreen: (v: boolean) => void;
   showQuiz: boolean;
   setShowQuiz: (v: boolean) => void;
+  showFinalQuiz: boolean;
+  setShowFinalQuiz: (v: boolean) => void;
   isGenerating: boolean;
   setIsGenerating: (v: boolean) => void;
   isSubmittingQuiz: boolean;
@@ -77,17 +79,21 @@ export const useAppStore = create<AppState>((set) => ({
     view,
     currentChapterIndex: 0,
     showQuiz: false,
+    showFinalQuiz: false,
     isFullscreen: false,
     ...(view !== "viewer" ? { selectedCourseId: null } : {}),
+    ...(view === "viewer" ? { sidebarCollapsed: true } : {}),
   }),
   selectedCourseId: null,
-  setSelectedCourseId: (id) => set({ selectedCourseId: id, currentChapterIndex: 0, showQuiz: false }),
+  setSelectedCourseId: (id) => set({ selectedCourseId: id, currentChapterIndex: 0, showQuiz: false, showFinalQuiz: false, sidebarCollapsed: true }),
   currentChapterIndex: 0,
   setCurrentChapterIndex: (index) => set({ currentChapterIndex: index, showQuiz: false }),
   isFullscreen: false,
   setIsFullscreen: (v) => set({ isFullscreen: v }),
   showQuiz: false,
   setShowQuiz: (v) => set({ showQuiz: v }),
+  showFinalQuiz: false,
+  setShowFinalQuiz: (v) => set({ showFinalQuiz: v }),
   isGenerating: false,
   setIsGenerating: (v) => set({ isGenerating: v }),
   isSubmittingQuiz: false,

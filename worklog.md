@@ -155,3 +155,36 @@ Stage Summary:
 - The same bug affected opening any course from the Library (openCourse had the same pattern)
 - Added safety net: CourseViewer now shows a "Back to Library" button instead of being stuck forever if fetch fails
 - Key files modified: src/lib/store.ts (setView fix), src/components/coursia/CourseViewer.tsx (error handling)
+
+---
+Task ID: 2
+Agent: main
+Task: Redesign CourseViewer layout with new chapter panel, summary split, final quiz, and sidebar auto-collapse
+
+Work Log:
+- Modified `src/lib/store.ts`: Added `showFinalQuiz` state, made `setView("viewer")` auto-collapse sidebar, made `setSelectedCourseId` auto-collapse sidebar
+- Modified `src/components/coursia/AppShell.tsx`: Sidebar is now ALWAYS visible (even in viewer mode), TopBar hidden in viewer mode only
+- Completely rewrote `src/components/coursia/CourseViewer.tsx`:
+  - Removed old chapter sidebar (was built into CourseViewer)
+  - Removed auto-advance 5s feature
+  - New 3-column layout: [Collapsed Sidebar] | [Chapter Strip 264px] | [Content Area]
+  - Chapter strip is vertically scrollable with custom scrollbar
+  - Content area has summary card at top (with FileText icon), then markdown content, then navigation footer
+  - Navigation footer: Previous/Next buttons, Final Quiz button when all chapters complete
+  - Fullscreen mode also shows summary card above content
+  - Final Quiz: full-screen mandatory quiz, cannot go back, gold styling, warning banner
+  - Chapter quiz remains optional (can go back, not mandatory)
+- Modified `src/lib/i18n.ts`: Added FR/EN translations for summary, next, finalQuiz, finalQuizDesc, finalQuizRequired, finalQuizRequiredDesc, finalPassed, finalPassedDesc
+- Modified `prisma/schema.prisma`: Added `CourseQuiz` and `CourseProgress` models
+- Created `src/app/api/courses/[id]/final-quiz/route.ts`: POST generates 8-question final quiz from all chapters, PUT validates and saves course progress
+- Modified `src/app/api/courses/[id]/route.ts`: Added `finalQuiz` and `progress` includes, returns `courseCompleted` and `courseScore`
+- Ran `bun run db:push` to sync schema
+
+Stage Summary:
+- CourseViewer now has a clean 3-panel layout with auto-collapsed sidebar
+- Chapter list is a scrollable vertical strip between sidebar and content
+- Content area is split: summary card → markdown content → navigation
+- Chapter quizzes are optional; Final quiz is mandatory (cannot skip)
+- Auto-advance 5s button removed
+- Final quiz generates 8 cross-chapter questions
+- All code compiles cleanly, lint passes, page loads correctly

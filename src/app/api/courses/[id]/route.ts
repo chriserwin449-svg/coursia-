@@ -14,6 +14,8 @@ export async function GET(
           orderBy: { order: "asc" },
           include: { quiz: true, progress: true },
         },
+        finalQuiz: true,
+        progress: true,
       },
     });
 
@@ -54,6 +56,8 @@ export async function GET(
           : null,
       })),
       overallProgress,
+      courseCompleted: course.progress?.completed ?? false,
+      courseScore: course.progress?.score ?? 0,
     });
   } catch (error) {
     console.error("Fetch course error:", error);
