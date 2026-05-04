@@ -63,6 +63,10 @@ interface AppState {
   setCelebrationMessage: (msg: string) => void;
   sidebarCollapsed: boolean;
   setSidebarCollapsed: (v: boolean) => void;
+  randomTopic: string | null;
+  setRandomTopic: (topic: string | null) => void;
+  randomCourseLang: string;
+  setRandomCourseLang: (lang: string) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -88,4 +92,8 @@ export const useAppStore = create<AppState>((set) => ({
   setCelebrationMessage: (msg) => set({ celebrationMessage: msg }),
   sidebarCollapsed: false,
   setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
+  randomTopic: null,
+  setRandomTopic: (topic) => set({ randomTopic: topic }),
+  randomCourseLang: "fr",
+  setRandomCourseLang: (lang) => set({ randomCourseLang: lang }),
 }));

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Sparkles,
   Plus,
@@ -29,11 +29,32 @@ export default function CreateCourse() {
   const [linkInput, setLinkInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [randomTopic, setRandomTopic] = useState<string | null>(null);
   const [level, setLevel] = useState(1); // 0=Beginner, 1=Intermediate, 2=Advanced
   const [courseLang, setCourseLang] = useState("fr"); // "fr" or "en"
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [courses, setCourses] = useState<CourseData[]>([]);
+  const [showSuggested, setShowSuggested] = useState(false);
+  const [suggestedTopic, setSuggestedTopic] = useState("");
+
+  // ─── Store refs for random topic ────────────────────────────────────────
+  const storeRandomTopic = useAppStore((s) => s.randomTopic);
+  const storeRandomCourseLang = useAppStore((s) => s.randomCourseLang);
+  const setStoreRandomTopic = useAppStore((s) => s.setRandomTopic);
+  const prevRandomRef = useRef<string | null>(null);
+
+  // ─── React to random topic changes from TopBar (instant, no reload) ───
+  useEffect(() => {
+    if (storeRandomTopic && storeRandomTopic !== prevRandomRef.current) {
+      setTitle(storeRandomTopic);
+      setSuggestedTopic(storeRandomTopic);
+      setShowSuggested(true);
+      if (storeRandomCourseLang === "fr" || storeRandomCourseLang === "en") {
+        setCourseLang(storeRandomCourseLang);
+      }
+      prevRandomRef.current = storeRandomTopic;
+      setStoreRandomTopic(null); // consume it
+    }
+  }, [storeRandomTopic, storeRandomCourseLang, setStoreRandomTopic]);
 
   // ─── Rotating placeholder with typing/fade effect ────────────────────
   const placeholders = tx.create.placeholders;
@@ -74,21 +95,6 @@ export default function CreateCourse() {
       }
     }
   }, [charIndex, isTyping, isFading, placeholderIndex, placeholders, title]);
-
-  // ─── Pick up random topic from sessionStorage (from TopBar) ──────────
-  useEffect(() => {
-    const saved = sessionStorage.getItem("coursia_random_topic");
-    if (saved) {
-      setTitle(saved);
-      setRandomTopic(saved);
-      sessionStorage.removeItem("coursia_random_topic");
-    }
-    const savedLang = sessionStorage.getItem("coursia_random_lang");
-    if (savedLang === "fr" || savedLang === "en") {
-      setCourseLang(savedLang);
-      sessionStorage.removeItem("coursia_random_lang");
-    }
-  }, []);
 
   // ─── Fetch courses ────────────────────────────────────────────────────
   const fetchCourses = useCallback(async () => {
@@ -363,12 +369,12 @@ export default function CreateCourse() {
         )}
 
         {/* ─── Suggested topic banner ─── */}
-        {randomTopic && (
+        {showSuggested && suggestedTopic && (
           <div className="mb-6 p-4 rounded-2xl glass text-center transition-all duration-300">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
               ✨ {tx.create.suggested}
             </p>
-            <p className="text-lg font-extrabold gradient-text">{randomTopic}</p>
+            <p className="text-lg font-extrabold gradient-text">{suggestedTopic}</p>
           </div>
         )}
 

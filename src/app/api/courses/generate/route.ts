@@ -2,89 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 
-/**
- * Parse JSON from AI response — handles code blocks, smart quotes,
- * trailing commas, and truncation recovery.
- */
-function extractJSON(text: string): unknown {
-  // Strip markdown code blocks if present
-  let cleaned = text.trim();
-  const codeBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (codeBlockMatch) cleaned = codeBlockMatch[1].trim();
-
-  // Try direct parse
-  const direct = tryParseJSON(cleaned);
-  if (direct) return direct;
-
-  // Truncation recovery: find the start and try to close properly
-  const jsonStart = cleaned.indexOf("{");
-  if (jsonStart !== -1) {
-    let snippet = cleaned.slice(jsonStart);
-    const parsed = tryParseJSON(snippet);
-    if (parsed) return parsed;
-
-    // Try aggressive truncation fix: remove trailing incomplete chapter
-    // Find last complete "summary" field and close the JSON
-    const lastSummaryEnd = snippet.lastIndexOf('"summary"');
-    if (lastSummaryEnd !== -1) {
-      // Find the end of this summary value (closing quote)
-      const afterKey = snippet.slice(lastSummaryEnd + 10).trim();
-      if (afterKey.startsWith(":")) {
-        const valueStart = afterKey.indexOf('"');
-        if (valueStart !== -1) {
-          const valueRest = afterKey.slice(valueStart + 1);
-          // Find closing quote (not escaped)
-          let closeIdx = -1;
-          for (let i = 0; i < valueRest.length; i++) {
-            if (valueRest[i] === "\\") { i++; continue; }
-            if (valueRest[i] === '"') { closeIdx = i; break; }
-          }
-          if (closeIdx !== -1) {
-            // Count how many braces/brackets we need to close
-            const partialJSON = snippet.slice(0, jsonStart + snippet.length - (afterKey.length - valueStart - closeIdx - 1));
-            // Count open braces and brackets
-            let openBrace = 0, openBracket = 0;
-            for (const c of partialJSON) {
-              if (c === "{") openBrace++;
-              if (c === "}") openBrace--;
-              if (c === "[") openBracket++;
-              if (c === "]") openBracket--;
-            }
-            // Add missing closings
-            let closing = "";
-            // Close the current chapter object
-            closing += "}";
-            openBrace++;
-            // Close remaining
-            while (openBracket > 0) { closing += "]"; openBracket--; }
-            while (openBrace > 0) { closing += "}"; openBrace--; }
-            const fixed = partialJSON + closing;
-            const recovered = tryParseJSON(fixed);
-            if (recovered) return recovered;
-          }
-        }
-      }
-    }
-  }
-
-  return null;
-}
-
-/** Sleep helper */
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Retry a function with exponential backoff on rate limits */
-async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       return await fn();
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      const isRateLimit = msg.includes("429") || msg.includes("rate limit") || msg.includes("Too many requests");
-      if (isRateLimit && attempt < retries) {
-        const delay = 3000 * (attempt + 1); // 3s, 6s, 9s
-        console.warn(`Rate limited, retrying in ${delay / 1000}s (attempt ${attempt + 1}/${retries})...`);
-        await sleep(delay);
+      if (msg.includes("429") && attempt < retries) {
+        await sleep(2000 * (attempt + 1));
         continue;
       }
       throw error;
@@ -93,45 +20,140 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
   throw new Error("Max retries exceeded");
 }
 
+/* ── JSON extraction ────────────────────────────────────────────────── */
+
 function tryParseJSON(raw: string): unknown {
+  try {
+    const p = JSON.parse(raw);
+    if (p && typeof p === "object") return p;
+  } catch { /* */ }
+  try {
+    const p = JSON.parse(raw.replace(/,\s*([}\]])/g, "$1"));
+    if (p && typeof p === "object") return p;
+  } catch { /* */ }
+  try {
+    const p = JSON.parse(raw.replace(/[\u201C\u201D\u2018\u2019]/g, "'"));
+    if (p && typeof p === "object") return p;
+  } catch { /* */ }
+  return null;
+}
+
+function extractChapters(text: string): {
+  description: string;
+  chapters: Array<{ title: string; content: string; summary: string }>;
+} | null {
+  let cleaned = text.trim();
+  const cb = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (cb) cleaned = cb[1].trim();
+
+  const start = cleaned.indexOf("{");
+  if (start === -1) return null;
+  const snippet = cleaned.slice(start);
+
   // Direct parse
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") return parsed;
-  } catch { /* try fixing */ }
+  const direct = tryParseJSON(snippet);
+  if (direct) return validate(direct);
 
-  // Fix trailing commas
-  try {
-    const fixed = raw.replace(/,\s*([}\]])/g, "$1");
-    const parsed = JSON.parse(fixed);
-    if (parsed && typeof parsed === "object") return parsed;
-  } catch { /* try next */ }
+  // Truncation recovery: find all complete chapters
+  // Match each chapter object that has title, content, and summary
+  const chapterBlocks: string[] = [];
+  const regex = /\{"title"\s*:\s*"([^"]+)"\s*,\s*"content"\s*:\s*"/g;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(snippet)) !== null) {
+    chapterBlocks.push(m.index.toString());
+  }
 
-  // Fix smart quotes
-  try {
-    const fixed = raw
-      .replace(/[\u201C\u201D]/g, "'")
-      .replace(/[\u2018\u2019]/g, "'");
-    const parsed = JSON.parse(fixed);
-    if (parsed && typeof parsed === "object") return parsed;
-  } catch { /* try next */ }
+  // Try parsing from each position, keeping the most chapters we can
+  const positions = chapterBlocks.map(Number);
+  for (let i = positions.length; i >= 1; i--) {
+    // Build JSON up to i-th chapter's "summary" end
+    for (let j = 0; j < i; j++) {
+      const searchFrom = positions[j];
+      const remaining = snippet.slice(searchFrom);
+
+      // Find "summary" key after this position
+      const summaryIdx = remaining.indexOf('"summary"');
+      if (summaryIdx === -1) continue;
+
+      const afterSummary = remaining.slice(summaryIdx + 9).trim();
+      if (!afterSummary.startsWith(":")) continue;
+
+      const valStart = afterSummary.indexOf('"');
+      if (valStart === -1) continue;
+
+      const valRest = afterSummary.slice(valStart + 1);
+      let closeIdx = -1;
+      for (let k = 0; k < valRest.length; k++) {
+        if (valRest[k] === "\\") { k++; continue; }
+        if (valRest[k] === '"') { closeIdx = k; break; }
+      }
+      if (closeIdx === -1) continue;
+
+      const endPos = searchFrom + summaryIdx + 9 + afterSummary.length - valRest.length + closeIdx + 1;
+      const partial = snippet.slice(0, endPos);
+
+      // Count and close braces
+      let ob = 0, osb = 0;
+      for (const c of partial) {
+        if (c === "{") ob++;
+        if (c === "}") ob--;
+        if (c === "[") osb++;
+        if (c === "]") osb--;
+      }
+      let closing = "}";
+      ob++;
+      while (osb > 0) { closing += "]"; osb--; }
+      while (ob > 0) { closing += "}"; ob--; }
+
+      const fixed = tryParseJSON(partial + closing);
+      if (fixed) {
+        const result = validate(fixed);
+        if (result && result.chapters.length >= Math.min(i, 3)) return result;
+      }
+    }
+  }
 
   return null;
 }
 
-async function generateStructure(
+function validate(data: unknown): {
+  description: string;
+  chapters: Array<{ title: string; content: string; summary: string }>;
+} | null {
+  const d = data as Record<string, unknown>;
+  if (!d.chapters || !Array.isArray(d.chapters)) return null;
+
+  const description = typeof d.description === "string" ? d.description : "";
+  const chapters: Array<{ title: string; content: string; summary: string }> = [];
+
+  for (const ch of d.chapters) {
+    if (!ch || typeof ch !== "object") continue;
+    const c = ch as Record<string, unknown>;
+    if (
+      typeof c.title === "string" && c.title.trim() &&
+      typeof c.content === "string" && c.content.trim()
+    ) {
+      chapters.push({
+        title: c.title.trim(),
+        content: c.content.trim(),
+        summary: typeof c.summary === "string" ? c.summary.trim() : "",
+      });
+    }
+  }
+
+  return chapters.length > 0 ? { description, chapters } : null;
+}
+
+/* ── Generation approaches ───────────────────────────────────────────── */
+
+/** Attempt 1: Single call, very concise */
+async function generateSingleCall(
   zai: Awaited<ReturnType<typeof ZAI.create>>,
-  title: string,
-  courseLang: string,
-  level: number,
-  sourceLinks: string[],
+  title: string, courseLang: string, level: number, sourceLinks: string[],
 ) {
   const langLabels: Record<string, string> = { fr: "français", en: "english" };
   const levelLabels = ["Débutant", "Intermédiaire", "Avancé"];
-
-  const linksContext = sourceLinks.length > 0
-    ? `\nRéférences: ${sourceLinks.join(", ")}`
-    : "";
+  const links = sourceLinks.length > 0 ? `\nRéférences: ${sourceLinks.join(", ")}` : "";
 
   const completion = await withRetry(() =>
     zai.chat.completions.create({
@@ -139,88 +161,113 @@ async function generateStructure(
         {
           role: "assistant",
           content: [
-            "Tu es un expert pédagogue qui crée des plans de cours structurés en JSON.",
-            `Langue du cours: ${langLabels[courseLang] || "français"}.`,
-            `Niveau: ${levelLabels[level] || "Intermédiaire"}.`,
-            "",
-            "Réponds UNIQUEMENT avec ce JSON valide, rien d'autre :",
-            "{",
-            '  "description": "Description du cours en 1 phrase",',
-            '  "chapters": [',
-            '    {"title": "Titre", "summary": "Résumé de 15-20 mots"}',
-            "  ]",
-            "}",
+            `Expert pédagogue. Crée un cours en ${langLabels[courseLang] || "français"}. Niveau ${levelLabels[level] || "Intermédiaire"}.`,
+            "Réponds UNIQUEMENT avec ce JSON valide :",
+            '{"description":"...","chapters":[{"title":"...","content":"Markdown 100-140 mots","summary":"10 mots"}]}',
             "",
             "Règles STRICTES :",
-            "- Exactement 5 chapitres",
-            "- Titres progressifs et logiques",
-            "- Utilise UNIQUEMENT des apostrophes, JAMAIS de guillemets dans les valeurs",
-            "- Ne mets aucun texte avant ou après le JSON",
-            linksContext,
+            "- 5 chapitres exactement",
+            "- content: 100-140 mots MAX, très concis",
+            "- Utilise ## sous-titres, - listes, ** gras",
+            "- Aucun guillemet dans les valeurs (seulement apostrophes)",
+            "- Pas de texte avant/après le JSON" + links,
           ].join("\n"),
         },
-        {
-          role: "user",
-          content: `Crée le plan du cours sur: ${title}`,
-        },
+        { role: "user", content: `Cours concis sur: ${title}` },
       ],
       thinking: { type: "disabled" },
     })
   );
 
-  return completion.choices[0]?.message?.content || "";
+  const text = completion.choices[0]?.message?.content || "";
+  return extractChapters(text);
 }
 
-async function generateChapterContent(
+/** Attempt 2: Two-step — structure then content one by one */
+async function generateTwoStep(
   zai: Awaited<ReturnType<typeof ZAI.create>>,
-  title: string,
-  courseLang: string,
-  chapterTitle: string,
-  chapterSummary: string,
+  title: string, courseLang: string, level: number, sourceLinks: string[],
 ) {
-  const langInstructions: Record<string, string> = {
-    fr: "Rédige en français. Utilise UNIQUEMENT des apostrophes, JAMAIS de guillemets doubles dans le texte.",
-    en: "Write in English. Use ONLY apostrophes, NEVER double quotes in the text.",
+  const langLabels: Record<string, string> = { fr: "français", en: "english" };
+  const levelLabels = ["Débutant", "Intermédiaire", "Avancé"];
+  const links = sourceLinks.length > 0 ? `\nRéférences: ${sourceLinks.join(", ")}` : "";
+  const langNote = courseLang === "en" ? "Write in English." : "Rédige en français.";
+
+  // Step 1: structure
+  const structCompletion = await withRetry(() =>
+    zai.chat.completions.create({
+      messages: [
+        {
+          role: "assistant",
+          content: [
+            `Expert pédagogue. Crée un plan de cours en ${langLabels[courseLang] || "français"}. Niveau ${levelLabels[level]}.`,
+            "JSON UNIQUEMENT :",
+            '{"description":"...","chapters":[{"title":"...","summary":"10 mots"}]}',
+            "- 5 chapitres. Aucun guillemet dans les valeurs. Pas de texte avant/après." + links,
+          ].join("\n"),
+        },
+        { role: "user", content: `Plan du cours: ${title}` },
+      ],
+      thinking: { type: "disabled" },
+    })
+  );
+
+  let structText = structCompletion.choices[0]?.message?.content || "";
+  const cb = structText.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (cb) structText = cb[1].trim();
+  const structStart = structText.indexOf("{");
+  if (structStart !== -1) structText = structText.slice(structStart);
+
+  const struct = tryParseJSON(structText) as {
+    description?: string;
+    chapters?: Array<{ title: string; summary: string }>;
   };
 
-  const completion = await withRetry(() =>
-    zai.chat.completions.create({
-      messages: [
-        {
-          role: "assistant",
-          content: [
-            "Tu es un expert pédagogue. Tu écris le contenu d'un chapitre de cours en Markdown.",
-            langInstructions[courseLang] || langInstructions.fr,
-            "",
-            "Règles STRICTES :",
-            "- Contenu: 200-300 mots MAXIMUM",
-            "- Utilise ## pour 2-3 sous-titres",
-            "- Fais des listes avec -",
-            "- Utilise ** pour le gras",
-            "- Inclus un exemple concret",
-            "- Réponds avec UNIQUEMENT le texte Markdown, sans guillemets, sans backticks",
-          ].join("\n"),
-        },
-        {
-          role: "user",
-          content: `Cours: ${title}\nChapitre: ${chapterTitle}\nRésumé attendu: ${chapterSummary}\n\nÉcris le contenu de ce chapitre.`,
-        },
-      ],
-      thinking: { type: "disabled" },
-    })
-  );
+  if (!struct?.chapters?.length) throw new Error("Structure generation failed");
 
-  let content = completion.choices[0]?.message?.content || "";
+  const description = struct.description || "";
+  const chapterDefs = struct.chapters.slice(0, 5);
 
-  // Clean up: remove code blocks if the AI wrapped them
-  content = content.trim();
-  if (content.startsWith("```")) {
-    const lines = content.split("\n");
-    content = lines.slice(1, lines.length - (lines[lines.length - 1].trim() === "```" ? 1 : 0)).join("\n").trim();
+  // Step 2: content for each chapter (sequential, no delay)
+  const chapters: Array<{ title: string; content: string; summary: string }> = [];
+  for (const ch of chapterDefs) {
+    const contentCompletion = await withRetry(() =>
+      zai.chat.completions.create({
+        messages: [
+          {
+            role: "assistant",
+            content: [
+              "Expert pédagogue. Écris le contenu d'un chapitre en Markdown.",
+              langNote,
+              "- 100-150 mots MAX",
+              "- ## pour 2 sous-titres, - pour listes, ** pour gras",
+              "- Inclus un exemple court",
+              "- UNIQUEMENT le texte Markdown, sans guillemets, sans backticks",
+            ].join("\n"),
+          },
+          {
+            role: "user",
+            content: `Cours: ${title}\nChapitre: ${ch.title}\nRésumé: ${ch.summary}\n\nÉcris le contenu.`,
+          },
+        ],
+        thinking: { type: "disabled" },
+      })
+    );
+
+    let content = contentCompletion.choices[0]?.message?.content || "";
+    content = content.trim();
+    if (content.startsWith("```")) {
+      const lines = content.split("\n");
+      content = lines.slice(1, lines[lines.length - 1].trim() === "```" ? -1 : undefined).join("\n").trim();
+    }
+
+    chapters.push({ title: ch.title, content, summary: ch.summary || "" });
   }
 
-  return content;
+  return { description, chapters };
 }
+
+/* ── Main handler ────────────────────────────────────────────────────── */
 
 export async function POST(request: NextRequest) {
   try {
@@ -232,45 +279,27 @@ export async function POST(request: NextRequest) {
 
     const zai = await ZAI.create();
 
-    // ── Step 1: Generate course structure (titles + summaries) ──
-    const structureText = await generateStructure(zai, title, courseLang, level, sourceLinks);
-    const structure = extractJSON(structureText) as {
-      description?: string;
-      chapters?: Array<{ title: string; summary: string }>;
-    };
+    // Try single call first (fastest, ~8-10s)
+    let result = await generateSingleCall(zai, title, courseLang, level, sourceLinks);
 
-    if (!structure?.chapters || !Array.isArray(structure.chapters) || structure.chapters.length === 0) {
-      console.error("Failed to parse structure. Raw:", structureText.slice(0, 500));
-      throw new Error("L'IA n'a pas pu générer la structure du cours. Réessaie.");
+    // Fallback to 2-step if we got too few chapters
+    if (!result || result.chapters.length < 3) {
+      console.log(`Single call got ${result?.chapters.length || 0} chapters, falling back to 2-step...`);
+      result = await generateTwoStep(zai, title, courseLang, level, sourceLinks);
     }
 
-    const description = structure.description || "";
-    const chapters = structure.chapters.slice(0, 5); // max 5 chapters
-
-    // ── Step 2: Generate content for each chapter (sequential with delay to avoid rate limits) ──
-    const chaptersWithContent: Array<{ title: string; content: string; summary: string }> = [];
-    for (let i = 0; i < chapters.length; i++) {
-      const ch = chapters[i];
-      // Wait 2 seconds between calls to avoid rate limits
-      if (i > 0) await new Promise((r) => setTimeout(r, 2000));
-      const content = await generateChapterContent(
-        zai, title, courseLang, ch.title, ch.summary,
-      );
-      chaptersWithContent.push({
-        title: ch.title,
-        content,
-        summary: ch.summary || "",
-      });
+    if (!result || result.chapters.length === 0) {
+      throw new Error("L'IA n'a pas pu générer un cours valide. Réessaie.");
     }
 
-    // ── Step 3: Save to database ──
+    // Save to database
     const course = await db.course.create({
       data: {
         title: title.trim(),
-        description,
+        description: result.description,
         sourceLinks: JSON.stringify(sourceLinks),
         chapters: {
-          create: chaptersWithContent.map((ch, idx) => ({
+          create: result.chapters.map((ch, idx) => ({
             title: ch.title,
             content: ch.content,
             summary: ch.summary,
@@ -291,13 +320,7 @@ export async function POST(request: NextRequest) {
         createdAt: course.createdAt,
         chapters: course.chapters
           .sort((a, b) => a.order - b.order)
-          .map((ch) => ({
-            id: ch.id,
-            title: ch.title,
-            content: ch.content,
-            summary: ch.summary,
-            order: ch.order,
-          })),
+          .map((ch) => ({ id: ch.id, title: ch.title, content: ch.content, summary: ch.summary, order: ch.order })),
       },
     });
   } catch (error: unknown) {

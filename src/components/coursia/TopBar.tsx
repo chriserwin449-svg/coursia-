@@ -11,11 +11,12 @@ export default function TopBar() {
   const tx = t(lang);
   const setView = useAppStore((s) => s.setView);
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
+  const setRandomTopic = useAppStore((s) => s.setRandomTopic);
+  const setRandomCourseLang = useAppStore((s) => s.setRandomCourseLang);
 
   const [loadingRandom, setLoadingRandom] = useState(false);
   const [randomLang, setRandomLang] = useState<"fr" | "en">(lang);
 
-  // Keep randomLang in sync with UI language changes
   const updateLang = (newLang: "fr" | "en") => {
     setLang(newLang);
     setRandomLang(newLang);
@@ -27,9 +28,11 @@ export default function TopBar() {
       const res = await fetch("/api/courses/random", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
+      // Set topic + language directly in store → CreateCourse reacts instantly
+      setRandomTopic(data.topic.title);
+      setRandomCourseLang(randomLang);
+      // Navigate to create page
       setView("create");
-      sessionStorage.setItem("coursia_random_topic", data.topic.title);
-      sessionStorage.setItem("coursia_random_lang", randomLang);
     } catch {
       // silently fail
     } finally {
