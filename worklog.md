@@ -205,3 +205,24 @@ Work Log:
 Stage Summary:
 - Bug 1 fixed: Restarting dev server loaded the new Prisma client with CourseQuiz/CourseProgress relations
 - Bug 2 fixed: Sidebar text now properly hidden when collapsed (Coursia name, nav labels, offers link)
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix preview not working + Fix back button + Fix Coursia brand name overflow
+
+Work Log:
+- Investigated preview not working: dev server had crashed and all restart attempts failed
+- Discovered that `bun run dev` script used `tee` pipe which broke when shell session ended
+- Removed `tee` from dev script in package.json (changed to just `next dev -p 3000`)
+- Added `allowedDevOrigins: ["*"]` and CORS headers to next.config.ts for cross-origin preview
+- Found that `.zscripts/dev.sh` properly manages the dev server with `disown`
+- Restarted dev server using `bash .zscripts/dev.sh` which properly detaches the process
+- Fixed back button in CourseViewer.tsx: changed `setView("library")` to `setView("landing")` (2 places)
+- Fixed Coursia brand name overflow: added `overflow-hidden` to sidebar `<aside>` element
+- Server confirmed stable (alive after 60s, Caddy returning HTTP 200)
+
+Stage Summary:
+- Preview is working again (Caddy HTTP 200 on port 81 → Next.js on port 3000)
+- Back button now goes to landing/home page instead of library
+- Coursia brand name no longer overflows when sidebar is collapsed
+- Modified files: CourseViewer.tsx, Sidebar.tsx, next.config.ts, package.json
