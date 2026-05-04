@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Library, Route, CreditCard, GraduationCap, Globe } from "lucide-react";
+import { BookOpen, Library, Route, CreditCard, GraduationCap, PanelLeftClose, PanelLeftOpen, Sparkles } from "lucide-react";
 import { useAppStore, type AppView } from "@/lib/store";
 import { t } from "@/lib/i18n";
 
@@ -8,8 +8,9 @@ export default function Sidebar() {
   const view = useAppStore((s) => s.view);
   const setView = useAppStore((s) => s.setView);
   const lang = useAppStore((s) => s.lang);
-  const setLang = useAppStore((s) => s.setLang);
   const tx = t(lang);
+  const collapsed = useAppStore((s) => s.sidebarCollapsed);
+  const setCollapsed = useAppStore((s) => s.setSidebarCollapsed);
 
   const NAV_ITEMS: { view: AppView; label: string; icon: typeof BookOpen }[] = [
     { view: "create", label: tx.nav.create, icon: BookOpen },
@@ -19,25 +20,30 @@ export default function Sidebar() {
   ];
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-[72px] md:w-64 bg-night-light border-r border-border z-40 flex flex-col">
+    <aside
+      className={`fixed left-0 top-0 h-full z-40 flex flex-col border-r border-border bg-night-light transition-all duration-300 ease-in-out ${
+        collapsed ? "w-[72px]" : "w-[72px] md:w-64"
+      }`}
+    >
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 py-6 border-b border-border">
+      <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
         <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-mauve to-mauve-dark flex items-center justify-center flex-shrink-0">
           <GraduationCap className="w-5 h-5 text-white" />
         </div>
-        <span className="hidden md:block text-xl font-extrabold gradient-text">
+        <span className="hidden md:block text-xl font-extrabold gradient-text whitespace-nowrap">
           {tx.app.name}
         </span>
       </div>
 
       {/* Nav Items */}
-      <nav className="flex-1 py-6 px-2 md:px-3 space-y-1">
+      <nav className="flex-1 py-4 px-2 md:px-3 space-y-1">
         {NAV_ITEMS.map((item) => {
           const isActive = view === item.view;
           return (
             <button
               key={item.view}
               onClick={() => setView(item.view)}
+              title={collapsed ? item.label : undefined}
               className={`w-full flex items-center gap-3 px-3 py-3.5 rounded-2xl transition-all duration-200 cursor-pointer ${
                 isActive
                   ? "bg-mauve/20 text-mauve-light glow-mauve"
@@ -47,25 +53,47 @@ export default function Sidebar() {
               <item.icon
                 className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-mauve-light" : ""}`}
               />
-              <span className="hidden md:block text-base font-semibold">{item.label}</span>
+              <span className="hidden md:block text-base font-semibold truncate">
+                {item.label}
+              </span>
             </button>
           );
         })}
       </nav>
 
-      {/* Bottom section — Language toggle */}
-      <div className="px-2 md:px-3 py-4 border-t border-border">
+      {/* Bottom section — Offers CTA + Collapse toggle */}
+      <div className="px-2 md:px-3 py-4 border-t border-border space-y-2">
+        {/* Offers quick button (hidden when not collapsed since it's in nav) */}
+        {!collapsed && (
+          <button
+            onClick={() => setView("offers")}
+            className={`w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3 rounded-2xl transition-all duration-200 cursor-pointer bg-gradient-to-r from-gold/10 to-amber-500/10 text-gold hover:from-gold/20 hover:to-amber-500/20 ${
+                view === "offers" ? "ring-1 ring-gold/30" : ""
+              }`}
+          >
+            <Sparkles className="w-5 h-5 flex-shrink-0" />
+            <span className="hidden md:block text-sm font-bold">
+              {tx.nav.offers}
+            </span>
+          </button>
+        )}
+
+        {/* Collapse toggle button */}
         <button
-          onClick={() => setLang(lang === "fr" ? "en" : "fr")}
-          className="w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3.5 rounded-2xl text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all duration-200 cursor-pointer"
+          onClick={() => setCollapsed(!collapsed)}
+          title={collapsed ? (lang === "fr" ? "Ouvrir" : "Open") : (lang === "fr" ? "Réduire" : "Collapse")}
+          className="w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3 rounded-2xl text-muted-foreground hover:bg-white/5 hover:text-foreground transition-all duration-200 cursor-pointer"
         >
-          <Globe className="w-5 h-5 flex-shrink-0" />
-          <span className="hidden md:block text-base font-semibold">
-            {lang === "fr" ? "Français" : "English"}
-          </span>
-          <span className="hidden md:inline-flex ml-auto text-xs font-bold px-2.5 py-1 rounded-full bg-mauve/15 text-mauve-light">
-            {lang === "fr" ? "FR" : "EN"}
-          </span>
+          {collapsed ? (
+            <PanelLeftOpen className="w-5 h-5 flex-shrink-0" />
+          ) : (
+            <>
+              <PanelLeftClose className="w-5 h-5 flex-shrink-0" />
+              <span className="hidden md:block text-base font-semibold">
+                {lang === "fr" ? "Réduire" : "Collapse"}
+              </span>
+            </>
+          )}
         </button>
       </div>
     </aside>

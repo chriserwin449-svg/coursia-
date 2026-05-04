@@ -95,7 +95,7 @@ export default function OffersPage() {
         ];
 
   return (
-    <div className="min-h-screen bg-night p-4 sm:p-6 md:p-10 lg:p-14">
+    <div className="min-h-screen bg-night px-6 md:px-10 pt-20 pb-4 sm:pb-6 md:pb-10 lg:pb-14 md:pt-24">
       {/* Background glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-mauve/5 rounded-full blur-[150px]" />

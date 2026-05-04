@@ -61,6 +61,8 @@ interface AppState {
   setShowCelebration: (v: boolean) => void;
   celebrationMessage: string;
   setCelebrationMessage: (msg: string) => void;
+  sidebarCollapsed: boolean;
+  setSidebarCollapsed: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -84,4 +86,6 @@ export const useAppStore = create<AppState>((set) => ({
   setShowCelebration: (v) => set({ showCelebration: v }),
   celebrationMessage: "",
   setCelebrationMessage: (msg) => set({ celebrationMessage: msg }),
+  sidebarCollapsed: false,
+  setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
 }));

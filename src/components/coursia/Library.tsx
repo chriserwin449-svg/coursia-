@@ -60,8 +60,8 @@ export default function Library() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 md:py-12">
-      {/* Header - with proper margin from sidebar */}
+    <div className="max-w-6xl mx-auto px-6 md:px-10 pt-20 pb-8 md:pt-24 md:pb-16">
+      {/* Header */}
       <div className="flex items-center justify-between mb-10">
         <div>
           <h1 className="text-3xl md:text-4xl font-extrabold mb-2">

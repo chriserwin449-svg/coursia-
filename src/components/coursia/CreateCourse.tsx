@@ -7,8 +7,6 @@ import {
   X,
   Link as LinkIcon,
   Loader2,
-  Shuffle,
-  Wand2,
   BookOpen,
   ChevronRight,
   Signal,
@@ -32,7 +30,6 @@ export default function CreateCourse() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [randomTopic, setRandomTopic] = useState<string | null>(null);
-  const [loadingRandom, setLoadingRandom] = useState(false);
   const [level, setLevel] = useState(1); // 0=Beginner, 1=Intermediate, 2=Advanced
   const [courseLang, setCourseLang] = useState("fr"); // "fr" or "en"
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
@@ -77,6 +74,16 @@ export default function CreateCourse() {
       }
     }
   }, [charIndex, isTyping, isFading, placeholderIndex, placeholders, title]);
+
+  // ─── Pick up random topic from sessionStorage (from TopBar) ──────────
+  useEffect(() => {
+    const saved = sessionStorage.getItem("coursia_random_topic");
+    if (saved) {
+      setTitle(saved);
+      setRandomTopic(saved);
+      sessionStorage.removeItem("coursia_random_topic");
+    }
+  }, []);
 
   // ─── Fetch courses ────────────────────────────────────────────────────
   const fetchCourses = useCallback(async () => {
@@ -141,22 +148,6 @@ export default function CreateCourse() {
     }
   };
 
-  // ─── Random topic ─────────────────────────────────────────────────────
-  const generateRandom = async () => {
-    setLoadingRandom(true);
-    try {
-      const res = await fetch("/api/courses/random", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setRandomTopic(data.topic.title);
-      setTitle(data.topic.title);
-    } catch {
-      setError("Impossible de générer un sujet aléatoire");
-    } finally {
-      setLoadingRandom(false);
-    }
-  };
-
   // ─── Open a course ────────────────────────────────────────────────────
   const openCourse = (id: string) => {
     setSelectedCourseId(id);
@@ -165,7 +156,6 @@ export default function CreateCourse() {
 
   // ─── Helpers ──────────────────────────────────────────────────────────
   const levelLabels = tx.create.levels;
-  const levelIcons = [Signal, Signal, Signal];
   const courseLangLabels = tx.create.courseLangs;
 
   const formatDate = (dateStr: string) => {
@@ -178,7 +168,7 @@ export default function CreateCourse() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8 md:py-12">
+    <div className="max-w-3xl mx-auto px-6 md:px-10 pt-20 pb-8 md:pt-24 md:pb-16">
       {/* Header */}
       <div className="mb-8 text-center">
         <h1 className="text-3xl md:text-4xl font-extrabold mb-2">
@@ -377,8 +367,8 @@ export default function CreateCourse() {
           </div>
         )}
 
-        {/* ─── Generate + Random buttons ─── */}
-        <div className="flex items-center justify-center gap-3">
+        {/* ─── Generate button ─── */}
+        <div className="flex items-center justify-center">
           <button
             onClick={generateCourse}
             disabled={!title.trim() || loading}
@@ -393,21 +383,6 @@ export default function CreateCourse() {
               <>
                 <Sparkles className="w-5 h-5" />
                 <span>{tx.create.generate}</span>
-              </>
-            )}
-          </button>
-          <button
-            onClick={generateRandom}
-            disabled={loading || loadingRandom}
-            className="flex items-center justify-center gap-2 px-6 py-4 rounded-full bg-gold/10 text-gold border border-gold/20 text-base font-bold hover:bg-gold/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-          >
-            {loadingRandom ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                <Shuffle className="w-5 h-5" />
-                <span className="hidden sm:inline">{tx.create.random}</span>
-                <Wand2 className="w-5 h-5 sm:hidden" />
               </>
             )}
           </button>

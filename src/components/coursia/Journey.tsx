@@ -89,7 +89,7 @@ export default function Journey() {
         : tx.journey.scoreKeepGoing;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 md:py-16 fade-in">
+    <div className="max-w-5xl mx-auto px-6 md:px-10 pt-20 pb-8 md:pt-24 md:pb-16 fade-in">
       {/* Header */}
       <div className="mb-10">
         <h1 className="text-3xl md:text-4xl font-extrabold mb-3">
