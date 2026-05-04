@@ -134,3 +134,24 @@ Stage Summary:
 - Total generation time: ~20 seconds (6 API calls with delays)
 - Both French and English courses work correctly
 - Rate limit handling with automatic retries
+---
+Task ID: 1
+Agent: main
+Task: Fix infinite loading bug - course viewer stuck on "Chargement du cours..." spinner
+
+Work Log:
+- Analyzed the uploaded screenshot with VLM: confirmed user sees full-screen spinner with "Chargement du cours..." text
+- Examined dev logs: found no stuck API requests, indicating the issue is on the client side
+- Traced the code flow: CreateCourse.generateCourse() → setSelectedCourseId(course.id) → setView("viewer") → CourseViewer mounts
+- Found the ROOT CAUSE in src/lib/store.ts line 76: `setView` function was resetting `selectedCourseId` to `null` on EVERY view change, including when navigating TO the viewer
+- This caused a race condition: `setSelectedCourseId(course.id)` was immediately undone by `setView("viewer")` which reset it to `null`
+- CourseViewer mounted with `selectedCourseId = null`, so `fetchCourse()` returned early, leaving `loading = true` and `course = null` forever
+- Fixed by modifying `setView` to only clear `selectedCourseId` when navigating to non-viewer views: `...(view !== "viewer" ? { selectedCourseId: null } : {})`
+- Added error handling to CourseViewer: new `fetchError` state, graceful error screen with "Back to Library" button when course can't be loaded
+- Verified the fix compiles cleanly, passes lint, and the generate API + course fetch API both work correctly
+
+Stage Summary:
+- Fixed the critical infinite loading bug that prevented users from viewing generated courses
+- The same bug affected opening any course from the Library (openCourse had the same pattern)
+- Added safety net: CourseViewer now shows a "Back to Library" button instead of being stuck forever if fetch fails
+- Key files modified: src/lib/store.ts (setView fix), src/components/coursia/CourseViewer.tsx (error handling)

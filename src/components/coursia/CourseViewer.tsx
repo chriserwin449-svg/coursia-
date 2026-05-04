@@ -24,6 +24,7 @@ export default function CourseViewer() {
 
   const [course, setCourse] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState(false);
   const autoAdvanceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -42,10 +43,11 @@ export default function CourseViewer() {
   const fetchCourse = useCallback(async () => {
     if (!selectedCourseId) return;
     setLoading(true);
+    setFetchError(false);
     try {
       const res = await fetch(`/api/courses/${selectedCourseId}`);
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.chapters?.length > 0) {
         setCourse(data);
         const firstIncomplete = data.chapters.findIndex(
           (ch: CourseChapter) => !ch.progress?.completed
@@ -53,9 +55,11 @@ export default function CourseViewer() {
         if (firstIncomplete >= 0 && currentChapterIndex === 0) {
           setCurrentChapterIndex(firstIncomplete);
         }
+      } else {
+        setFetchError(true);
       }
     } catch {
-      // silently fail
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -150,7 +154,24 @@ export default function CourseViewer() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [isFullscreen, currentChapterIndex, goToNext, goToPrev, setIsFullscreen]);
 
-  // Loading state
+  // Loading / error state
+  if (!selectedCourseId || fetchError || (!loading && !course)) {
+    return (
+      <div className="flex items-center justify-center min-h-screen animate-fade-in">
+        <div className="text-center">
+          <div className="text-5xl mb-4 opacity-40">📚</div>
+          <p className="text-muted-foreground text-lg mb-6">{tx.viewer.back}</p>
+          <button
+            onClick={() => setView("library")}
+            className="px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all cursor-pointer"
+          >
+            {tx.viewer.back}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (loading || !course || !currentChapter) {
     return (
       <div className="flex items-center justify-center min-h-screen animate-fade-in">
