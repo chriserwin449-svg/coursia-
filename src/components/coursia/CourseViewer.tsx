@@ -130,7 +130,7 @@ export default function CourseViewer() {
       setTimeout(() => {
         setShowCelebration(false);
         setShowFinalQuiz(false);
-        setView("library");
+        setView("landing");
       }, 3000);
     } else {
       // Cannot skip - stay on final quiz
@@ -167,7 +167,7 @@ export default function CourseViewer() {
           <div className="text-5xl mb-4 opacity-40">📚</div>
           <p className="text-muted-foreground text-lg mb-6">{tx.viewer.back}</p>
           <button
-            onClick={() => setView("library")}
+            onClick={() => setView("landing")}
             className="px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all cursor-pointer"
           >
             {tx.viewer.back}
