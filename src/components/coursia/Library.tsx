@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   BookOpen,
   Trash2,
   ChevronRight,
   Library as LibraryIcon,
   Loader2,
-  RotateCcw,
+  Search,
 } from "lucide-react";
 import { useAppStore, type CourseData } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -16,6 +16,7 @@ export default function Library() {
   const [courses, setCourses] = useState<CourseData[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const lang = useAppStore((s) => s.lang);
   const tx = t(lang);
@@ -51,6 +52,17 @@ export default function Library() {
     return "from-mauve-dark to-mauve";
   };
 
+  // Filter courses by search query
+  const filteredCourses = useMemo(() => {
+    if (!searchQuery.trim()) return courses;
+    const q = searchQuery.toLowerCase().trim();
+    return courses.filter(
+      (c) =>
+        c.title.toLowerCase().includes(q) ||
+        (c.description && c.description.toLowerCase().includes(q))
+    );
+  }, [courses, searchQuery]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -62,25 +74,38 @@ export default function Library() {
   return (
     <div className="max-w-6xl mx-auto px-6 md:px-10 pt-20 pb-8 md:pt-24 md:pb-16">
       {/* Header */}
-      <div className="flex items-center justify-between mb-10">
-        <div>
-          <h1 className="text-3xl md:text-4xl font-extrabold mb-2">
-            <span className="gradient-text">{tx.library.title}</span>
-          </h1>
-          <p className="text-lg font-semibold text-muted-foreground">
-            {tx.library.courseCount(courses.length)}
-          </p>
-        </div>
-        <button
-          onClick={fetchCourses}
-          disabled={loading}
-          className="p-3 rounded-2xl glass hover:bg-white/10 transition-all cursor-pointer"
-        >
-          <RotateCcw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
-        </button>
+      <div className="mb-8">
+        <h1 className="text-3xl md:text-4xl font-extrabold mb-2">
+          <span className="gradient-text">{tx.library.title}</span>
+        </h1>
+        <p className="text-lg font-semibold text-muted-foreground">
+          {tx.library.courseCount(courses.length)}
+        </p>
       </div>
 
-      {/* Empty state */}
+      {/* Search bar */}
+      {courses.length > 0 && (
+        <div className="relative mb-8">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/50 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={tx.library.search}
+            className="w-full pl-12 pr-6 py-4 rounded-2xl bg-night border border-border text-foreground text-base font-semibold placeholder:text-muted-foreground/40 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Empty state — no courses at all */}
       {courses.length === 0 && (
         <div className="text-center py-24">
           <div className="w-24 h-24 rounded-3xl bg-mauve/10 flex items-center justify-center mx-auto mb-8">
@@ -98,10 +123,25 @@ export default function Library() {
         </div>
       )}
 
+      {/* No search results */}
+      {courses.length > 0 && filteredCourses.length === 0 && (
+        <div className="text-center py-16">
+          <div className="text-4xl mb-4 opacity-40">🔍</div>
+          <h3 className="text-xl font-extrabold mb-2">
+            {tx.library.noResults} &ldquo;{searchQuery}&rdquo;
+          </h3>
+          <p className="text-muted-foreground font-semibold">
+            {lang === "fr"
+              ? "Essaie un autre terme de recherche"
+              : "Try a different search term"}
+          </p>
+        </div>
+      )}
+
       {/* Course Grid */}
-      {courses.length > 0 && (
+      {filteredCourses.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {courses.map((course) => (
+          {filteredCourses.map((course) => (
             <div
               key={course.id}
               className="group glass rounded-3xl overflow-hidden hover:border-mauve/30 transition-all duration-300 cursor-pointer"

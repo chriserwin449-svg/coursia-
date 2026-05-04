@@ -54,3 +54,34 @@ Stage Summary:
 - All page content (Library, Journey, CreateCourse, Offers) is properly spaced from sidebar and top bar
 - "Mes Cours" title and Journey content no longer hidden behind sidebar
 - TopBar communicates random topic to CreateCourse via sessionStorage
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Remove Offres nav, add search bar, fix random course language, robust AI parsing
+
+Work Log:
+- Removed "Offres" from sidebar navigation (pricing section stays on landing page bottom with gold color)
+- Updated landing page CTA buttons (Monthly/Annual plan) to navigate to "create" instead of "offers"
+- Changed hero "Choisis ton plan" button to smooth-scroll to #pricing-section on landing page
+- Added 🇫🇷/🇬🇧 language selector pill next to random button in TopBar for choosing random course language
+- TopBar passes both random topic AND random language to CreateCourse via sessionStorage
+- CreateCourse now picks up random language from sessionStorage and pre-selects it
+- Replaced refresh button on Library page with a search bar (Search icon, filters by title/description)
+- Added search-empty state with "no results" message
+- Added i18n labels: library.search, library.noResults (FR + EN)
+- Fixed AI course generation JSON parsing: AI content was breaking due to embedded quotes/backticks in Markdown
+  - Implemented multi-strategy JSON extraction: code block (longest first), direct parse, description-based detection
+  - Added JSON fixing: trailing commas, smart quotes replacement
+  - Changed system prompt to explicitly forbid double quotes in content values
+  - Changed first message role from "assistant" to "system" for proper SDK usage
+- Fixed quiz generation API with same robust JSON extraction
+- Fixed random topic API with same robust JSON extraction
+- Successfully tested: course generation (7 chapters, ~12K chars), random topic, all APIs returning 200
+
+Stage Summary:
+- Sidebar nav: 3 items only (Créer, Mes Cours, Mon Parcours) - no more Offres
+- Pricing lives only on landing page with gold highlighting, scrollable from hero
+- TopBar: Random button + language selector (FR/EN pill) + UI language toggle
+- Library: Search bar replaces refresh button, filters courses by name/description
+- AI generation fully working with robust JSON parsing (tested with real API calls)

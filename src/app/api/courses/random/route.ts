@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 
 export async function POST(request: NextRequest) {
@@ -9,7 +8,7 @@ export async function POST(request: NextRequest) {
     const completion = await zai.chat.completions.create({
       messages: [
         {
-          role: "assistant",
+          role: "system",
           content: `Tu es un créateur de sujets d'apprentissage. Génère un sujet de cours aléatoire et intéressant.
 Tu DOIS répondre UNIQUEMENT avec un JSON valide contenant :
 {
@@ -18,24 +17,48 @@ Tu DOIS répondre UNIQUEMENT avec un JSON valide contenant :
 }
 
 Le sujet doit être varié et couvrir différents domaines : sciences, technologie, arts, histoire, philosophie, compétences pratiques, etc.
-Sois créatif et propose des sujets originaux.`
+Sois créatif et propose des sujets originaux.
+N'utilise pas de guillemets doubles dans les valeurs des champs.`
         },
         {
           role: "user",
-          content: "Propose un sujet de cours aléatoire et original que je pourrais apprendre."
+          content: "Propose un sujet de cours aléatoire et original que je pourrais apprendre.",
         },
       ],
       thinking: { type: "disabled" },
     });
 
     const responseText = completion.choices[0]?.message?.content || "";
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    
-    if (!jsonMatch) {
+
+    // Robust JSON extraction
+    let topic: unknown = null;
+
+    // Strategy 1: code block
+    const codeBlockMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      try { topic = JSON.parse(codeBlockMatch[1].trim()); } catch { /* next */ }
+    }
+
+    // Strategy 2: balanced braces
+    if (!topic) {
+      const jsonStart = responseText.indexOf("{");
+      if (jsonStart !== -1) {
+        let depth = 0;
+        let end = -1;
+        for (let i = jsonStart; i < responseText.length; i++) {
+          if (responseText[i] === "{") depth++;
+          if (responseText[i] === "}") { depth--; if (depth === 0) { end = i + 1; break; } }
+        }
+        if (end !== -1) {
+          try { topic = JSON.parse(responseText.slice(jsonStart, end)); } catch { /* give up */ }
+        }
+      }
+    }
+
+    if (!topic || typeof topic !== "object" || !("title" in topic)) {
       throw new Error("Failed to parse random topic");
     }
 
-    const topic = JSON.parse(jsonMatch[0]);
     return NextResponse.json({ success: true, topic });
   } catch (error: unknown) {
     console.error("Random course error:", error);

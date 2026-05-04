@@ -2,6 +2,83 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 
+/**
+ * Robustly extract and parse JSON from AI response text.
+ * The AI often wraps JSON in ```json ... ``` code blocks,
+ * and the markdown content may contain backticks, braces, or quotes.
+ */
+function extractJSON(text: string): unknown {
+  // Strategy 1: Find ```json blocks and try each one
+  const blockRegex = /```json\s*([\s\S]*?)```/g;
+  let match: RegExpExecArray | null;
+  const blocks: string[] = [];
+  while ((match = blockRegex.exec(text)) !== null) {
+    blocks.push(match[1]);
+  }
+
+  // Try the longest block first (most likely the complete JSON)
+  blocks.sort((a, b) => b.length - a.length);
+  for (const block of blocks) {
+    const result = tryParseJSON(block.trim());
+    if (result) return result;
+  }
+
+  // Strategy 2: Try to parse the entire response as JSON
+  const result = tryParseJSON(text.trim());
+  if (result) return result;
+
+  // Strategy 3: Try to find JSON by looking for the top-level structure
+  // Find the position of "description" key which is the first field
+  const descIdx = text.indexOf('"description"');
+  if (descIdx !== -1) {
+    // Find the opening { before it
+    let start = descIdx;
+    while (start > 0 && text[start] !== "{") start--;
+    if (text[start] === "{") {
+      // Find matching closing brace using balanced counting
+      let depth = 0;
+      let end = -1;
+      for (let i = start; i < text.length; i++) {
+        if (text[i] === "{") depth++;
+        if (text[i] === "}") { depth--; if (depth === 0) { end = i + 1; break; } }
+      }
+      if (end !== -1) {
+        const result = tryParseJSON(text.slice(start, end));
+        if (result) return result;
+      }
+    }
+  }
+
+  return null;
+}
+
+function tryParseJSON(raw: string): unknown {
+  // Direct parse
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch { /* try fixing */ }
+
+  // Try fixing common AI JSON issues:
+  // 1. Trailing commas before } or ]
+  try {
+    const fixed = raw.replace(/,\s*([}\]])/g, "$1");
+    const parsed = JSON.parse(fixed);
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch { /* try next */ }
+
+  // 2. Replace smart quotes with regular ones
+  try {
+    const fixed = raw
+      .replace(/[\u201C\u201D]/g, "'")
+      .replace(/[\u2018\u2019]/g, "'");
+    const parsed = JSON.parse(fixed);
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch { /* try next */ }
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { title, sourceLinks = [], level = 1, courseLang = "fr" } = await request.json();
@@ -13,67 +90,76 @@ export async function POST(request: NextRequest) {
     const zai = await ZAI.create();
 
     const linksContext = sourceLinks.length > 0
-      ? `\n\nVoici des liens de référence que l'utilisateur veut intégrer au cours :\n${sourceLinks.map((l: string) => `- ${l}`).join("\n")}`
+      ? `\nLiens de référence: ${sourceLinks.join(", ")}`
       : "";
 
     const levelLabels = ["Débutant", "Intermédiaire", "Avancé"];
-    const langLabels: Record<string, string> = { fr: "français", en: "anglais" };
+    const langLabels: Record<string, string> = { fr: "français", en: "english" };
 
-    const systemPrompt = `Tu es un expert pédagogue et créateur de cours. Tu dois créer un cours complet, bien structuré et engaging sur le sujet donné.
-Le cours doit être rédigé entièrement en ${langLabels[courseLang] || "français"}.
-Le niveau de l'apprenant est : ${levelLabels[level] || "Intermédiaire"}. Adapte la complexité, le vocabulaire et les explications en conséquence.
-Tu DOIS répondre UNIQUEMENT en JSON valide, sans aucun texte avant ou après.
-Le format JSON doit être exactement :
-{
-  "description": "Une brève description du cours (1-2 phrases)",
-  "chapters": [
-    {
-      "title": "Titre du chapitre",
-      "content": "Le contenu complet du chapitre en Markdown, avec des titres (##), des listes, du gras, etc. Le contenu doit être riche, détaillé et facile à comprendre. Inclus des exemples pratiques quand c'est possible. Chaque chapitre doit contenir au moins 300 mots.",
-      "summary": "Un résumé de 2-3 phrases du chapitre"
-    }
-  ]
-}
-
-Règles :
-- Crée entre 5 et 8 chapitres selon la complexité du sujet
-- Chaque chapitre doit être progressif et construire sur les précédents
-- Utilise du Markdown pour structurer le contenu
-- Les chapitres doivent être ordonnés logiquement
-- Inclus des exemples concrets et pratiques
-- Adapte la complexité au sujet${linksContext}`;
+    const systemPrompt = [
+      "Tu es un expert pédagogue. Tu crées des cours structurés en JSON.",
+      `Le cours doit être rédigé entièrement en ${langLabels[courseLang] || "français"}.`,
+      `Niveau: ${levelLabels[level] || "Intermédiaire"}.`,
+      "",
+      "FORMAT OBLIGATOIRE — réponds UNIQUEMENT avec ce JSON, ni plus ni moins :",
+      "{",
+      '  "description": "Description courte du cours",',
+      '  "chapters": [',
+      '    {',
+      '      "title": "Titre du chapitre",',
+      '      "content": "Contenu en Markdown. Au moins 300 mots. Utilise ## pour les sous-titres. Utilise UNIQUEMENT des apostrophes dans le texte, JAMAIS de guillemets. Fais des listes avec -. Mettre du **gras** avec **.",',
+      '      "summary": "Résumé court du chapitre"',
+      "    }",
+      "  ]",
+      "}",
+      "",
+      "Règles:",
+      "- Crée entre 5 et 7 chapitres",
+      "- Chaque chapitre: au moins 300 mots de contenu",
+      "- Chapitres progressifs et logiquement ordonnés",
+      "- Inclus des exemples concrets",
+      "- DANS LES VALEURS JSON: utilise UNIQUEMENT des apostrophes (') et JAMAIS de guillemets doubles (\")",
+      "- Ne mets aucun texte avant ou après le JSON" + linksContext,
+    ].join("\n");
 
     const completion = await zai.chat.completions.create({
       messages: [
-        { role: "assistant", content: systemPrompt },
-        { role: "user", content: `Crée un cours complet sur : ${title}` },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Crée un cours complet sur: ${title}` },
       ],
       thinking: { type: "disabled" },
     });
 
-    let responseText = completion.choices[0]?.message?.content || "";
-    
-    // Clean up response - extract JSON
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error("Failed to parse AI response");
+    const responseText = completion.choices[0]?.message?.content || "";
+    const courseData = extractJSON(responseText);
+
+    if (!courseData || typeof courseData !== "object") {
+      console.error("Failed to parse course JSON. Raw length:", responseText.length);
+      console.error("First 500:", responseText.slice(0, 500));
+      console.error("Last 200:", responseText.slice(-200));
+      throw new Error("L'IA n'a pas pu générer un cours valide. Réessaie.");
     }
 
-    const courseData = JSON.parse(jsonMatch[0]);
+    const data = courseData as { description?: string; chapters?: Array<{ title: string; content: string; summary: string }> };
 
-    if (!courseData.chapters || !Array.isArray(courseData.chapters) || courseData.chapters.length === 0) {
-      throw new Error("Invalid course structure");
+    if (!data.chapters || !Array.isArray(data.chapters) || data.chapters.length === 0) {
+      throw new Error("Invalid course structure - missing chapters");
     }
 
-    // Create course in database
+    for (const ch of data.chapters) {
+      if (!ch.title || !ch.content) {
+        throw new Error("Invalid chapter - missing title or content");
+      }
+    }
+
     const course = await db.course.create({
       data: {
         title: title.trim(),
-        description: courseData.description || "",
+        description: data.description || "",
         sourceLinks: JSON.stringify(sourceLinks),
         chapters: {
-          create: courseData.chapters.map(
-            (ch: { title: string; content: string; summary: string }, idx: number) => ({
+          create: data.chapters.map(
+            (ch, idx) => ({
               title: ch.title,
               content: ch.content,
               summary: ch.summary || "",

@@ -59,28 +59,51 @@ Règles :
     });
 
     const responseText = completion.choices[0]?.message?.content || "";
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
 
-    if (!jsonMatch) {
+    // Robust JSON extraction
+    let quizData: unknown = null;
+
+    // Strategy 1: Extract from ```json code block
+    const codeBlockMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+      try { quizData = JSON.parse(codeBlockMatch[1].trim()); } catch { /* next */ }
+    }
+
+    // Strategy 2: Find balanced JSON object
+    if (!quizData) {
+      const jsonStart = responseText.indexOf("{");
+      if (jsonStart !== -1) {
+        let depth = 0;
+        let end = -1;
+        for (let i = jsonStart; i < responseText.length; i++) {
+          if (responseText[i] === "{") depth++;
+          if (responseText[i] === "}") { depth--; if (depth === 0) { end = i + 1; break; } }
+        }
+        if (end !== -1) {
+          try { quizData = JSON.parse(responseText.slice(jsonStart, end)); } catch { /* give up */ }
+        }
+      }
+    }
+
+    if (!quizData) {
       throw new Error("Failed to parse quiz");
     }
 
-    const quizData = JSON.parse(jsonMatch[0]);
-
-    if (!quizData.questions || !Array.isArray(quizData.questions)) {
+    const quizDataValidated = quizData as { questions?: unknown[] };
+    if (!quizDataValidated.questions || !Array.isArray(quizDataValidated.questions)) {
       throw new Error("Invalid quiz structure");
     }
 
     const quiz = await db.quiz.create({
       data: {
         chapterId: chapter.id,
-        questions: JSON.stringify(quizData.questions),
+        questions: JSON.stringify(quizDataValidated.questions),
       },
     });
 
     return NextResponse.json({
       success: true,
-      quiz: { id: quiz.id, questions: quizData.questions },
+      quiz: { id: quiz.id, questions: quizDataValidated.questions },
     });
   } catch (error: unknown) {
     console.error("Quiz generation error:", error);

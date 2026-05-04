@@ -168,7 +168,10 @@ export default function LandingPage() {
               <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
             <button
-              onClick={() => setView("offers")}
+              onClick={() => {
+                const el = document.getElementById("pricing-section");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
               className="inline-flex items-center gap-2 px-8 py-4 rounded-full glass text-foreground font-semibold hover:border-mauve/30 transition-all duration-300 cursor-pointer text-base sm:text-lg"
             >
               {tx.landing.pricing.title}
@@ -303,7 +306,7 @@ export default function LandingPage() {
       </section>
 
       {/* ===== PRICING SECTION ===== */}
-      <section className="relative py-24 px-4">
+      <section id="pricing-section" className="relative py-24 px-4">
         {/* Background glow */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-mauve/5 rounded-full blur-[150px]" />
@@ -383,7 +386,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <button
-                onClick={() => setView("offers")}
+                onClick={() => setView("create")}
                 className="w-full py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve cursor-pointer"
               >
                 {tx.landing.pricing.monthly.cta}
@@ -429,7 +432,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <button
-                onClick={() => setView("offers")}
+                onClick={() => setView("create")}
                 className="w-full py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer"
               >
                 {tx.landing.pricing.annual.cta}

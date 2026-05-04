@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Library, Route, CreditCard, GraduationCap, PanelLeftClose, PanelLeftOpen, Sparkles } from "lucide-react";
+import { BookOpen, Library, Route, GraduationCap, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useAppStore, type AppView } from "@/lib/store";
 import { t } from "@/lib/i18n";
 
@@ -16,7 +16,6 @@ export default function Sidebar() {
     { view: "create", label: tx.nav.create, icon: BookOpen },
     { view: "library", label: tx.nav.library, icon: Library },
     { view: "journey", label: tx.nav.journey, icon: Route },
-    { view: "offers", label: tx.nav.offers, icon: CreditCard },
   ];
 
   return (
@@ -61,24 +60,8 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom section — Offers CTA + Collapse toggle */}
-      <div className="px-2 md:px-3 py-4 border-t border-border space-y-2">
-        {/* Offers quick button (hidden when not collapsed since it's in nav) */}
-        {!collapsed && (
-          <button
-            onClick={() => setView("offers")}
-            className={`w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3 rounded-2xl transition-all duration-200 cursor-pointer bg-gradient-to-r from-gold/10 to-amber-500/10 text-gold hover:from-gold/20 hover:to-amber-500/20 ${
-                view === "offers" ? "ring-1 ring-gold/30" : ""
-              }`}
-          >
-            <Sparkles className="w-5 h-5 flex-shrink-0" />
-            <span className="hidden md:block text-sm font-bold">
-              {tx.nav.offers}
-            </span>
-          </button>
-        )}
-
-        {/* Collapse toggle button */}
+      {/* Bottom section — Collapse toggle */}
+      <div className="px-2 md:px-3 py-4 border-t border-border">
         <button
           onClick={() => setCollapsed(!collapsed)}
           title={collapsed ? (lang === "fr" ? "Ouvrir" : "Open") : (lang === "fr" ? "Réduire" : "Collapse")}

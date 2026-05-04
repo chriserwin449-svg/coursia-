@@ -13,6 +13,7 @@ export default function TopBar() {
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
 
   const [loadingRandom, setLoadingRandom] = useState(false);
+  const [randomLang, setRandomLang] = useState<"fr" | "en">("fr");
 
   const generateRandom = async () => {
     setLoadingRandom(true);
@@ -20,10 +21,10 @@ export default function TopBar() {
       const res = await fetch("/api/courses/random", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      // Navigate to create page and set the title
+      // Navigate to create page and set the title + language
       setView("create");
-      // Store the random topic in sessionStorage for CreateCourse to pick up
       sessionStorage.setItem("coursia_random_topic", data.topic.title);
+      sessionStorage.setItem("coursia_random_lang", randomLang);
     } catch {
       // silently fail
     } finally {
@@ -37,6 +38,30 @@ export default function TopBar() {
         collapsed ? "ml-[72px]" : "ml-[72px] md:ml-64"
       }`}
     >
+      {/* Random course language selector (small FR/EN pill) */}
+      <div className="hidden sm:flex items-center rounded-2xl glass overflow-hidden">
+        <button
+          onClick={() => setRandomLang("fr")}
+          className={`px-2.5 py-2 text-xs font-bold transition-all cursor-pointer ${
+            randomLang === "fr"
+              ? "bg-mauve/20 text-mauve-light"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          🇫🇷
+        </button>
+        <button
+          onClick={() => setRandomLang("en")}
+          className={`px-2.5 py-2 text-xs font-bold transition-all cursor-pointer ${
+            randomLang === "en"
+              ? "bg-mauve/20 text-mauve-light"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          🇬🇧
+        </button>
+      </div>
+
       {/* Random course button */}
       <button
         onClick={generateRandom}
@@ -55,7 +80,7 @@ export default function TopBar() {
         )}
       </button>
 
-      {/* Language toggle */}
+      {/* Language toggle (UI language, not course language) */}
       <button
         onClick={() => setLang(lang === "fr" ? "en" : "fr")}
         title={lang === "fr" ? "Switch to English" : "Passer en Français"}

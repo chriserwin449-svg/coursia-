@@ -90,6 +90,8 @@ const fr = {
     chapters: "chapitres",
     completed: "terminés",
     continue: "Continuer",
+    search: "Rechercher un cours...",
+    noResults: "Aucun cours trouvé pour",
   },
   viewer: {
     loading: "Chargement du cours...",
@@ -244,6 +246,8 @@ const en = {
     chapters: "chapters",
     completed: "completed",
     continue: "Continue",
+    search: "Search for a course...",
+    noResults: "No courses found for",
   },
   viewer: {
     loading: "Loading course...",

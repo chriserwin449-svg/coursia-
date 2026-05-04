@@ -83,6 +83,11 @@ export default function CreateCourse() {
       setRandomTopic(saved);
       sessionStorage.removeItem("coursia_random_topic");
     }
+    const savedLang = sessionStorage.getItem("coursia_random_lang");
+    if (savedLang === "fr" || savedLang === "en") {
+      setCourseLang(savedLang);
+      sessionStorage.removeItem("coursia_random_lang");
+    }
   }, []);
 
   // ─── Fetch courses ────────────────────────────────────────────────────
