@@ -108,3 +108,29 @@ Stage Summary:
 - Journey page logic verified and working correctly
 - All stats properly calculated from database
 - Badge progression system fully functional
+
+---
+Task ID: 8
+Agent: Main Agent
+Task: Fix AI course generation - response truncation and rate limit issues
+
+Work Log:
+- Diagnosed root cause: AI was generating 5-7 chapters with 300+ words each = 16000+ chars JSON, which got truncated before closing braces
+- Rewrote /api/courses/generate/route.ts with 2-step approach:
+  1. Step 1: Generate course structure (titles + summaries) as short JSON (~500 chars)
+  2. Step 2: Generate each chapter content individually (200-300 words each)
+- Added sequential generation with 2-second delays between chapter calls to avoid rate limits
+- Added withRetry() helper with exponential backoff (3s, 6s, 9s) for 429 rate limit errors
+- Improved JSON extraction with truncation recovery logic
+- Added code block stripping for Markdown content responses
+- Reduced to exactly 5 chapters to balance quality and API call count
+- Tested FR generation: "Introduction à Python" - 5 chapters, all successful
+- Tested EN generation: "Web Development Fundamentals" - 5 chapters, all successful
+- Cleaned up test courses from database after testing
+
+Stage Summary:
+- Course generation now works reliably with internal AI (z-ai-web-dev-sdk)
+- No user API key needed - works out of the box
+- Total generation time: ~20 seconds (6 API calls with delays)
+- Both French and English courses work correctly
+- Rate limit handling with automatic retries
