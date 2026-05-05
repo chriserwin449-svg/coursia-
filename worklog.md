@@ -243,3 +243,25 @@ Stage Summary:
 - "Voir tout" button removed from Journey badges section
 - All badges always visible now
 - Modified file: src/components/coursia/Journey.tsx
+---
+Task ID: 3
+Agent: Main Agent
+Task: Implement web scraping for source links in course generation
+
+Work Log:
+- Invoked web-reader skill to learn z-ai-web-dev-sdk page_reader API
+- Added scrapeSourceLinks() function that uses zai.functions.invoke('page_reader') to extract content
+- Added htmlToPlainText() helper to clean HTML into readable text
+- Limited scraping to 5 links max with 3000 chars per page (token overflow prevention)
+- Added buildSourceContext() that formats scraped content into AI prompt context
+- Modified generateSingleCall() and generateTwoStep() to accept and use sourceContext
+- Both generation approaches now instruct AI to use scraped data for real facts/examples
+- API response now includes scrapedSources count
+- Lint passes clean, server compiles, Caddy returns 200
+
+Stage Summary:
+- AI now actually READS source link content before generating courses
+- Courses will be enriched with real data, concrete examples, and verifiable facts
+- Graceful fallback: if scraping fails for a link, it's silently skipped
+- Max 5 links scraped to keep generation time reasonable (~2-3s per link)
+- Modified file: src/app/api/courses/generate/route.ts

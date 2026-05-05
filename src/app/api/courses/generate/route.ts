@@ -20,6 +20,76 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
   throw new Error("Max retries exceeded");
 }
 
+/* ── Web scraping ──────────────────────────────────────────────────── */
+
+interface ScrapedPage {
+  title: string;
+  text: string;
+  url: string;
+}
+
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function scrapeSourceLinks(
+  zai: Awaited<ReturnType<typeof ZAI.create>>,
+  sourceLinks: string[],
+): Promise<ScrapedPage[]> {
+  const results: ScrapedPage[] = [];
+  const maxLinks = Math.min(sourceLinks.length, 5); // limit to 5 links max
+
+  for (let i = 0; i < maxLinks; i++) {
+    const url = sourceLinks[i];
+    if (!url || !url.startsWith("http")) continue;
+
+    try {
+      const result = await zai.functions.invoke("page_reader", { url });
+      const html = result.data?.html || "";
+      const text = htmlToPlainText(html);
+      const title = result.data?.title || url;
+
+      // Truncate long content (keep first ~3000 chars to avoid token overflow)
+      const truncatedText = text.length > 3000 ? text.slice(0, 3000) + "..." : text;
+
+      if (truncatedText.length > 50) {
+        results.push({ title, text: truncatedText, url });
+        console.log(`[scrape] OK: ${title} (${truncatedText.length} chars)`);
+      } else {
+        console.log(`[scrape] SKIP (too short): ${url}`);
+      }
+    } catch (error) {
+      console.error(`[scrape] FAIL: ${url}`, error instanceof Error ? error.message : error);
+    }
+  }
+
+  return results;
+}
+
+function buildSourceContext(scrapedPages: ScrapedPage[]): string {
+  if (scrapedPages.length === 0) return "";
+
+  const parts = scrapedPages.map((page, i) => {
+    return `--- Source ${i + 1}: ${page.title} ---\n${page.text}`;
+  });
+
+  return `\n\nVoici le contenu extrait des liens sources. Utilise ces informations pour enrichir le cours avec des données réelles, des exemples concrets et des faits vérifiables :\n\n${parts.join("\n\n")}`;
+}
+
 /* ── JSON extraction ────────────────────────────────────────────────── */
 
 function tryParseJSON(raw: string): unknown {
@@ -55,7 +125,6 @@ function extractChapters(text: string): {
   if (direct) return validate(direct);
 
   // Truncation recovery: find all complete chapters
-  // Match each chapter object that has title, content, and summary
   const chapterBlocks: string[] = [];
   const regex = /\{"title"\s*:\s*"([^"]+)"\s*,\s*"content"\s*:\s*"/g;
   let m: RegExpExecArray | null;
@@ -63,15 +132,12 @@ function extractChapters(text: string): {
     chapterBlocks.push(m.index.toString());
   }
 
-  // Try parsing from each position, keeping the most chapters we can
   const positions = chapterBlocks.map(Number);
   for (let i = positions.length; i >= 1; i--) {
-    // Build JSON up to i-th chapter's "summary" end
     for (let j = 0; j < i; j++) {
       const searchFrom = positions[j];
       const remaining = snippet.slice(searchFrom);
 
-      // Find "summary" key after this position
       const summaryIdx = remaining.indexOf('"summary"');
       if (summaryIdx === -1) continue;
 
@@ -92,7 +158,6 @@ function extractChapters(text: string): {
       const endPos = searchFrom + summaryIdx + 9 + afterSummary.length - valRest.length + closeIdx + 1;
       const partial = snippet.slice(0, endPos);
 
-      // Count and close braces
       let ob = 0, osb = 0;
       for (const c of partial) {
         if (c === "{") ob++;
@@ -149,11 +214,15 @@ function validate(data: unknown): {
 /** Attempt 1: Single call, very concise */
 async function generateSingleCall(
   zai: Awaited<ReturnType<typeof ZAI.create>>,
-  title: string, courseLang: string, level: number, sourceLinks: string[],
+  title: string, courseLang: string, level: number,
+  sourceLinks: string[], sourceContext: string,
 ) {
   const langLabels: Record<string, string> = { fr: "français", en: "english" };
   const levelLabels = ["Débutant", "Intermédiaire", "Avancé"];
   const links = sourceLinks.length > 0 ? `\nRéférences: ${sourceLinks.join(", ")}` : "";
+  const sourcePrompt = sourceContext
+    ? `\n\n${sourceContext}\n\nIMPORTANT: Utilise les informations ci-dessus pour enrichir le cours avec des faits réels, des données et des exemples concrets.`
+    : "";
 
   const completion = await withRetry(() =>
     zai.chat.completions.create({
@@ -170,7 +239,9 @@ async function generateSingleCall(
             "- content: 100-140 mots MAX, très concis",
             "- Utilise ## sous-titres, - listes, ** gras",
             "- Aucun guillemet dans les valeurs (seulement apostrophes)",
-            "- Pas de texte avant/après le JSON" + links,
+            "- Pas de texte avant/après le JSON",
+            links,
+            sourcePrompt,
           ].join("\n"),
         },
         { role: "user", content: `Cours concis sur: ${title}` },
@@ -186,12 +257,16 @@ async function generateSingleCall(
 /** Attempt 2: Two-step — structure then content one by one */
 async function generateTwoStep(
   zai: Awaited<ReturnType<typeof ZAI.create>>,
-  title: string, courseLang: string, level: number, sourceLinks: string[],
+  title: string, courseLang: string, level: number,
+  sourceLinks: string[], sourceContext: string,
 ) {
   const langLabels: Record<string, string> = { fr: "français", en: "english" };
   const levelLabels = ["Débutant", "Intermédiaire", "Avancé"];
   const links = sourceLinks.length > 0 ? `\nRéférences: ${sourceLinks.join(", ")}` : "";
   const langNote = courseLang === "en" ? "Write in English." : "Rédige en français.";
+  const sourcePrompt = sourceContext
+    ? `\n\n${sourceContext}\n\nIMPORTANT: Utilise les informations ci-dessus pour enrichir le cours avec des faits réels, des données et des exemples concrets.`
+    : "";
 
   // Step 1: structure
   const structCompletion = await withRetry(() =>
@@ -203,7 +278,9 @@ async function generateTwoStep(
             `Expert pédagogue. Crée un plan de cours en ${langLabels[courseLang] || "français"}. Niveau ${levelLabels[level]}.`,
             "JSON UNIQUEMENT :",
             '{"description":"...","chapters":[{"title":"...","summary":"10 mots"}]}',
-            "- 5 chapitres. Aucun guillemet dans les valeurs. Pas de texte avant/après." + links,
+            "- 5 chapitres. Aucun guillemet dans les valeurs. Pas de texte avant/après.",
+            links,
+            sourcePrompt,
           ].join("\n"),
         },
         { role: "user", content: `Plan du cours: ${title}` },
@@ -228,9 +305,13 @@ async function generateTwoStep(
   const description = struct.description || "";
   const chapterDefs = struct.chapters.slice(0, 5);
 
-  // Step 2: content for each chapter (sequential, no delay)
+  // Step 2: content for each chapter
   const chapters: Array<{ title: string; content: string; summary: string }> = [];
   for (const ch of chapterDefs) {
+    const chapterSourcePrompt = sourceContext
+      ? `\n\nRéférence les informations sources pertinentes pour ce chapitre :\n${sourceContext}`
+      : "";
+
     const contentCompletion = await withRetry(() =>
       zai.chat.completions.create({
         messages: [
@@ -241,8 +322,9 @@ async function generateTwoStep(
               langNote,
               "- 100-150 mots MAX",
               "- ## pour 2 sous-titres, - pour listes, ** pour gras",
-              "- Inclus un exemple court",
+              "- Inclus un exemple court ou une donnée concrète si possible",
               "- UNIQUEMENT le texte Markdown, sans guillemets, sans backticks",
+              chapterSourcePrompt,
             ].join("\n"),
           },
           {
@@ -279,13 +361,22 @@ export async function POST(request: NextRequest) {
 
     const zai = await ZAI.create();
 
+    // ── Step 0: Scrape source links to extract real content ──
+    let scrapedPages: ScrapedPage[] = [];
+    if (sourceLinks.length > 0) {
+      console.log(`[generate] Scraping ${sourceLinks.length} source link(s)...`);
+      scrapedPages = await scrapeSourceLinks(zai, sourceLinks);
+      console.log(`[generate] Successfully scraped ${scrapedPages.length}/${sourceLinks.length} links`);
+    }
+    const sourceContext = buildSourceContext(scrapedPages);
+
     // Try single call first (fastest, ~8-10s)
-    let result = await generateSingleCall(zai, title, courseLang, level, sourceLinks);
+    let result = await generateSingleCall(zai, title, courseLang, level, sourceLinks, sourceContext);
 
     // Fallback to 2-step if we got too few chapters
     if (!result || result.chapters.length < 3) {
       console.log(`Single call got ${result?.chapters.length || 0} chapters, falling back to 2-step...`);
-      result = await generateTwoStep(zai, title, courseLang, level, sourceLinks);
+      result = await generateTwoStep(zai, title, courseLang, level, sourceLinks, sourceContext);
     }
 
     if (!result || result.chapters.length === 0) {
@@ -312,6 +403,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      scrapedSources: scrapedPages.length,
       course: {
         id: course.id,
         title: course.title,
