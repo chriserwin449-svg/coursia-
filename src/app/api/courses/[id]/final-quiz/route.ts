@@ -151,7 +151,7 @@ export async function PUT(
     const score = Math.round((correctCount / questions.length) * 100);
     const passed = score >= 60;
 
-    await db.courseProgress.upsert({
+    const courseProgress = await db.courseProgress.upsert({
       where: { courseId },
       create: {
         courseId,
@@ -165,6 +165,27 @@ export async function PUT(
         passedAt: passed && !course.progress?.completed ? new Date() : course.progress?.passedAt,
       },
     });
+
+    // Award bonus flame points on course completion (first pass only)
+    if (passed && !courseProgress.flameAwarded) {
+      const bonusPoints = 100;
+      await db.appSettings.upsert({
+        where: { id: "main" },
+        create: { id: "main", flamePoints: bonusPoints },
+        update: { flamePoints: { increment: bonusPoints } },
+      });
+      await db.flameTransaction.create({
+        data: {
+          amount: bonusPoints,
+          reason: "course_complete",
+          courseId,
+        },
+      });
+      await db.courseProgress.update({
+        where: { courseId },
+        data: { flameAwarded: true },
+      });
+    }
 
     return NextResponse.json({
       success: true,

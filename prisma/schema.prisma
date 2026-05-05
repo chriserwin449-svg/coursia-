@@ -7,11 +7,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model AppSettings {
+  id          String @id @default("main")
+  flamePoints Int    @default(0)
+  updatedAt   DateTime @updatedAt
+}
+
+model FlameTransaction {
+  id          String   @id @default(cuid())
+  amount      Int      // positive = earned, negative = spent
+  reason      String   // "chapter_complete", "course_complete", "final_quiz", "course_creation"
+  courseId    String?
+  chapterId   String?
+  createdAt   DateTime @default(now())
+}
+
 model Course {
   id          String   @id @default(cuid())
   title       String
   description String   @default("")
   sourceLinks String   @default("[]")
+  flameCost   Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   chapters    Chapter[]
@@ -45,6 +61,7 @@ model ChapterProgress {
   completed  Boolean  @default(false)
   score      Int      @default(0)
   completedAt DateTime?
+  flameAwarded Boolean @default(false)
 }
 
 model CourseQuiz {
@@ -55,10 +72,11 @@ model CourseQuiz {
 }
 
 model CourseProgress {
-  id        String   @id @default(cuid())
-  courseId  String   @unique
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  completed Boolean  @default(false)
-  score     Int      @default(0)
-  passedAt  DateTime?
+  id           String   @id @default(cuid())
+  courseId     String   @unique
+  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  completed    Boolean  @default(false)
+  score        Int      @default(0)
+  passedAt     DateTime?
+  flameAwarded Boolean  @default(false)
 }

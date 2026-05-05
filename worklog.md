@@ -265,3 +265,28 @@ Stage Summary:
 - Graceful fallback: if scraping fails for a link, it's silently skipped
 - Max 5 links scraped to keep generation time reasonable (~2-3s per link)
 - Modified file: src/app/api/courses/generate/route.ts
+---
+Task ID: 4
+Agent: Main Agent
+Task: Implement Flame Points gamification system
+
+Work Log:
+- Updated Prisma schema: added AppSettings (flamePoints), FlameTransaction (amount, reason), flameAwarded to ChapterProgress and CourseProgress, flameCost to Course
+- Created src/lib/flames.ts: 7 flame types (Étincelle→Légende), 8 rewards, COURSE_CREATION_COST=100, helper functions
+- Created src/app/api/flames/route.ts: GET returns full flame state, POST awards/spends points
+- Updated chapter quiz API: awards flame points on quiz pass (calculateFlameEarned(score))
+- Updated final quiz API: awards 100 bonus flame points on course completion
+- Updated course generation API: checks balance, spends 100 flames, stores flameCost
+- Replaced Score Moyen in Journey.tsx with interactive Flame Points card (click opens modal)
+- Added flame details modal: balance display, flame type progression grid, rewards, activity history
+- Updated CreateCourse.tsx: shows flame balance/cost indicator, blocks generation if insufficient
+- Added all flame-related i18n strings (FR + EN)
+- Lint passes, server stable, Caddy 200
+
+Stage Summary:
+- Full flame points gamification system implemented
+- 7 flame tiers: ✨→🔥→🌋→💥→☄️→🌟→👑 (0 to 10,000 points)
+- Points earned: chapter quiz (score × 0.5), course completion (100 bonus)
+- Points spent: course creation (100 per course)
+- Interactive modal with flame types, rewards grid, transaction history
+- Course creation now costs 100 flame points

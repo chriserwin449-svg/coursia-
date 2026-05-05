@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
+import { calculateFlameEarned } from "@/lib/flames";
 
 export async function POST(
   request: NextRequest,
@@ -141,7 +142,7 @@ export async function PUT(
     const score = Math.round((correctCount / questions.length) * 100);
     const passed = score >= 60;
 
-    await db.chapterProgress.upsert({
+    const progress = await db.chapterProgress.upsert({
       where: { chapterId },
       create: {
         chapterId,
@@ -155,6 +156,28 @@ export async function PUT(
         completedAt: passed && !chapter.progress?.completed ? new Date() : chapter.progress?.completedAt,
       },
     });
+
+    // Award flame points if quiz passed and not already awarded
+    if (passed && !progress.flameAwarded) {
+      const flamePoints = calculateFlameEarned(score);
+      await db.appSettings.upsert({
+        where: { id: "main" },
+        create: { id: "main", flamePoints },
+        update: { flamePoints: { increment: flamePoints } },
+      });
+      await db.flameTransaction.create({
+        data: {
+          amount: flamePoints,
+          reason: "chapter_complete",
+          courseId: chapter.courseId,
+          chapterId,
+        },
+      });
+      await db.chapterProgress.update({
+        where: { chapterId },
+        data: { flameAwarded: true },
+      });
+    }
 
     return NextResponse.json({
       success: true,

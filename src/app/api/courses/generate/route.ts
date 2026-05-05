@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
+import { COURSE_CREATION_COST } from "@/lib/flames";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -389,6 +390,7 @@ export async function POST(request: NextRequest) {
         title: title.trim(),
         description: result.description,
         sourceLinks: JSON.stringify(sourceLinks),
+        flameCost: COURSE_CREATION_COST,
         chapters: {
           create: result.chapters.map((ch, idx) => ({
             title: ch.title,
@@ -399,6 +401,34 @@ export async function POST(request: NextRequest) {
         },
       },
       include: { chapters: true },
+    });
+
+    // Spend flame points for course creation
+    const settings = await db.appSettings.upsert({
+      where: { id: "main" },
+      create: { id: "main", flamePoints: 0 },
+      update: {},
+    });
+
+    if (settings.flamePoints < COURSE_CREATION_COST) {
+      // Rollback course creation if insufficient flame points
+      await db.course.delete({ where: { id: course.id } });
+      return NextResponse.json(
+        { error: `Insufficient flame points. Need ${COURSE_CREATION_COST}, have ${settings.flamePoints}.` },
+        { status: 400 },
+      );
+    }
+
+    await db.appSettings.update({
+      where: { id: "main" },
+      data: { flamePoints: { decrement: COURSE_CREATION_COST } },
+    });
+    await db.flameTransaction.create({
+      data: {
+        amount: -COURSE_CREATION_COST,
+        reason: "course_creation",
+        courseId: course.id,
+      },
     });
 
     return NextResponse.json({
