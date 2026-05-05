@@ -39,7 +39,6 @@ export default function Journey() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [badgeState, setBadgeState] = useState<BadgeState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showAllBadges, setShowAllBadges] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -254,25 +253,13 @@ export default function Journey() {
 
       {/* Badges Section */}
       <div className="mb-10">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Award className="w-6 h-6 text-gold" />
-            <h2 className="text-2xl font-extrabold">{tx.journey.myBadges}</h2>
-          </div>
-          <button
-            onClick={() => setShowAllBadges(!showAllBadges)}
-            className="text-sm font-semibold text-mauve-light hover:text-mauve-glow transition-colors cursor-pointer"
-          >
-            {showAllBadges ? tx.journey.showLess : tx.journey.showMore}
-          </button>
+        <div className="flex items-center gap-3 mb-6">
+          <Award className="w-6 h-6 text-gold" />
+          <h2 className="text-2xl font-extrabold">{tx.journey.myBadges}</h2>
         </div>
 
         <div
-          className={`grid grid-cols-2 md:grid-cols-4 gap-4 ${
-            !showAllBadges && BADGE_DEFINITIONS.length > 4
-              ? "max-h-80 overflow-hidden"
-              : ""
-          }`}
+          className="grid grid-cols-2 md:grid-cols-4 gap-4"
         >
           {BADGE_DEFINITIONS.map((badge, i) => {
             const earned = (stats?.completedCourses ?? 0) >= badge.threshold;

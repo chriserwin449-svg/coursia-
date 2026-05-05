@@ -226,3 +226,20 @@ Stage Summary:
 - Back button now goes to landing/home page instead of library
 - Coursia brand name no longer overflows when sidebar is collapsed
 - Modified files: CourseViewer.tsx, Sidebar.tsx, next.config.ts, package.json
+---
+Task ID: 2
+Agent: Main Agent
+Task: Remove "Voir tout" button from badges section in Journey page
+
+Work Log:
+- Analyzed uploaded screenshot to identify the "Voir tout" button
+- Found the button in Journey.tsx (lines 262-267) — toggle button for showAllBadges state
+- Removed showAllBadges state, the toggle button, and the max-h-80 overflow restriction
+- All badges now display without collapse
+- Cleaned up temporary debug files (custom-server.js, server-wrapper.js, watchdog.js, mini-services/dev-server)
+- Lint passes clean
+
+Stage Summary:
+- "Voir tout" button removed from Journey badges section
+- All badges always visible now
+- Modified file: src/components/coursia/Journey.tsx
