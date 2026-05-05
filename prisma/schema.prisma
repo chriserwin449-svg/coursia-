@@ -8,9 +8,10 @@ datasource db {
 }
 
 model AppSettings {
-  id          String @id @default("main")
-  flamePoints Int    @default(0)
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default("main")
+  flamePoints     Int      @default(0)
+  hasSubscription Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
 }
 
 model FlameTransaction {
@@ -33,6 +34,7 @@ model Course {
   chapters    Chapter[]
   finalQuiz   CourseQuiz?
   progress    CourseProgress?
+  sessions    StudySession[]
 }
 
 model Chapter {
@@ -79,4 +81,16 @@ model CourseProgress {
   score        Int      @default(0)
   passedAt     DateTime?
   flameAwarded Boolean  @default(false)
+  sessions     StudySession[]
+}
+
+model StudySession {
+  id             String   @id @default(cuid())
+  chapterId      String?
+  courseId       String
+  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseProgress CourseProgress? @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  startTime      DateTime
+  endTime        DateTime?
+  durationSeconds Int     @default(0)
 }

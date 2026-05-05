@@ -37,8 +37,9 @@ export default function CreateCourse() {
   const [showSuggested, setShowSuggested] = useState(false);
   const [suggestedTopic, setSuggestedTopic] = useState("");
   const [flamePoints, setFlamePoints] = useState<number | null>(null);
+  const [hasSubscription, setHasSubscription] = useState(false);
 
-  // Fetch flame points
+  // Fetch flame points & subscription status
   useEffect(() => {
     const fetchFlames = async () => {
       try {
@@ -46,13 +47,16 @@ export default function CreateCourse() {
         if (res.ok) {
           const data = await res.json();
           setFlamePoints(data.flamePoints);
+          setHasSubscription(data.hasSubscription ?? false);
         }
       } catch { /* ignore */ }
     };
     fetchFlames();
   }, []);
 
-  const canAffordCourse = flamePoints !== null && flamePoints >= 100;
+  // If user has subscription, no flame cost needed
+  const needsFlames = !hasSubscription;
+  const canAffordCourse = hasSubscription || (flamePoints !== null && flamePoints >= 100);
   const flameCost = 100;
 
   // ─── Store refs for random topic ────────────────────────────────────────
@@ -148,7 +152,7 @@ export default function CreateCourse() {
   // ─── Generate course ──────────────────────────────────────────────────
   const generateCourse = async () => {
     if (!title.trim()) return;
-    if (!canAffordCourse) {
+    if (needsFlames && !canAffordCourse) {
       setError(tx.create.notEnoughFlames.replace("{cost}", String(flameCost)));
       return;
     }
@@ -412,6 +416,7 @@ export default function CreateCourse() {
         {/* ─── Generate button ─── */}
         <div className="flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
+            {needsFlames && (
             <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${
               canAffordCourse
                 ? "bg-night/50 text-muted-foreground border border-border"
@@ -422,6 +427,7 @@ export default function CreateCourse() {
               <span className="text-muted-foreground">/</span>
               <span className={canAffordCourse ? "" : "text-red-400"}>{flameCost}</span>
             </div>
+            )}
             <button
               onClick={generateCourse}
               disabled={!title.trim() || loading || !canAffordCourse}

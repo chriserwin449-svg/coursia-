@@ -94,6 +94,16 @@ export const FLAME_TYPES: FlameType[] = [
 
 export const COURSE_CREATION_COST = 100;
 
+/**
+ * Calculate course completion bonus flame points.
+ * Only awarded if score >= 60 (passed).
+ */
+export function calculateCourseCompletionBonus(score: number): number {
+  if (score < 60) return 0;
+  // Scale from 30 (at 60%) to 75 (at 100%)
+  return Math.round(30 + (score - 60) * (45 / 40));
+}
+
 export interface FlameReward {
   id: string;
   name: string;
@@ -229,11 +239,14 @@ export function getFlameProgress(points: number): {
 
 /**
  * Calculate flame points earned from a quiz score (score 0-100).
- * Formula: Math.round(score * 0.5)
- * e.g. 100% = 50 pts, 80% = 40 pts, 60% = 30 pts
+ * HARD mode: Only earns points if score >= 80.
+ * Formula: Math.round(score * 0.15)
+ * e.g. 100% = 15 pts, 90% = 13 pts, 80% = 12 pts
+ * Below 80%: 0 pts
  */
 export function calculateFlameEarned(score: number): number {
-  return Math.round(score * 0.5);
+  if (score < 80) return 0;
+  return Math.round(score * 0.15);
 }
 
 /**

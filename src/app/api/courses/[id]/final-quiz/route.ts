@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
+import { calculateCourseCompletionBonus } from "@/lib/flames";
 
 export async function POST(
   _request: NextRequest,
@@ -167,8 +168,9 @@ export async function PUT(
     });
 
     // Award bonus flame points on course completion (first pass only)
+    // Harder earning: scaled bonus based on score
     if (passed && !courseProgress.flameAwarded) {
-      const bonusPoints = 100;
+      const bonusPoints = calculateCourseCompletionBonus(score);
       await db.appSettings.upsert({
         where: { id: "main" },
         create: { id: "main", flamePoints: bonusPoints },

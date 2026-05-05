@@ -27,6 +27,7 @@ export default function CourseViewer() {
   const [course, setCourse] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const [studySessionId, setStudySessionId] = useState<string | null>(null);
 
   const selectedCourseId = useAppStore((s) => s.selectedCourseId);
   const currentChapterIndex = useAppStore((s) => s.currentChapterIndex);
@@ -44,6 +45,46 @@ export default function CourseViewer() {
 
   const chapterListRef = useRef<HTMLDivElement>(null);
 
+  // ── Study session tracking ──
+  const startStudySession = useCallback(async (cId: string, chId?: string) => {
+    try {
+      const res = await fetch("/api/study-time", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start", courseId: cId, chapterId: chId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStudySessionId(data.sessionId);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const endStudySession = useCallback(async () => {
+    if (!studySessionId) return;
+    try {
+      await fetch("/api/study-time", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "end", sessionId: studySessionId }),
+      });
+    } catch { /* ignore */ }
+    setStudySessionId(null);
+  }, [studySessionId]);
+
+  // End session on unmount or view change
+  useEffect(() => {
+    return () => {
+      if (studySessionId) {
+        fetch("/api/study-time", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "end", sessionId: studySessionId }),
+        }).catch(() => {});
+      }
+    };
+  }, [studySessionId]);
+
   const fetchCourse = useCallback(async () => {
     if (!selectedCourseId) return;
     setLoading(true);
@@ -59,6 +100,8 @@ export default function CourseViewer() {
         if (firstIncomplete >= 0 && currentChapterIndex === 0) {
           setCurrentChapterIndex(firstIncomplete);
         }
+        // Start study session for this course
+        startStudySession(selectedCourseId, data.chapters[firstIncomplete >= 0 ? firstIncomplete : 0]?.id);
       } else {
         setFetchError(true);
       }
@@ -86,15 +129,20 @@ export default function CourseViewer() {
 
   const goToNext = () => {
     if (!course) return;
+    endStudySession();
     if (currentChapterIndex < course.chapters.length - 1) {
-      setCurrentChapterIndex(currentChapterIndex + 1);
+      const nextIdx = currentChapterIndex + 1;
+      setCurrentChapterIndex(nextIdx);
+      startStudySession(course.id, course.chapters[nextIdx]?.id);
     }
   };
 
   const goToPrev = () => {
-    if (currentChapterIndex > 0) {
-      setCurrentChapterIndex(currentChapterIndex - 1);
-    }
+    if (currentChapterIndex === 0) return;
+    endStudySession();
+    const prevIdx = currentChapterIndex - 1;
+    setCurrentChapterIndex(prevIdx);
+    startStudySession(course.id, course.chapters[prevIdx]?.id);
   };
 
   const isChapterUnlocked = (index: number) => {
@@ -110,9 +158,10 @@ export default function CourseViewer() {
     if (passed) {
       setShowCelebration(true);
       setCelebrationMessage(tx.viewer.chapterDone);
-      setTimeout(() => {
+ setTimeout(() => {
         setShowCelebration(false);
         setShowQuiz(false);
+        endStudySession();
         if (currentChapterIndex < (course?.chapters.length || 0) - 1) {
           setCurrentChapterIndex(currentChapterIndex + 1);
         }
@@ -130,6 +179,7 @@ export default function CourseViewer() {
       setTimeout(() => {
         setShowCelebration(false);
         setShowFinalQuiz(false);
+        endStudySession();
         setView("landing");
       }, 3000);
     } else {

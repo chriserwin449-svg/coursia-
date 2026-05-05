@@ -45,6 +45,7 @@ export async function GET() {
         completedChapters,
         totalStudyTime,
         averageScore: Math.round(averageScore),
+        flamePoints: 0, // flame points are fetched from /api/flames
       },
       badges: {
         earned: earnedBadges,

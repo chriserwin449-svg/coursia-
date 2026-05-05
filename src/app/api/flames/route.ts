@@ -49,6 +49,7 @@ export async function GET() {
       flameProgress,
       rewards,
       courseCreationCost: COURSE_CREATION_COST,
+      hasSubscription: settings.hasSubscription,
       totalEarned,
       totalSpent,
       transactions,

@@ -9,20 +9,12 @@ import {
   Award,
   Loader2,
   Star,
-  Flame,
+  Calendar,
+  TrendingUp,
   X,
-  ArrowUpRight,
-  ArrowDownLeft,
+  Flame,
 } from "lucide-react";
 import { BADGE_DEFINITIONS } from "@/lib/badges";
-import {
-  FLAME_TYPES,
-  FLAME_REWARDS,
-  COURSE_CREATION_COST,
-  getCurrentFlameType,
-  formatFlamePoints,
-} from "@/lib/flames";
-import type { FlameType, FlameReward as FlameRewardType } from "@/lib/flames";
 import { t } from "@/lib/i18n";
 import { useAppStore } from "@/lib/store";
 
@@ -42,48 +34,41 @@ interface BadgeState {
   progress: { current: number; next: number; percentage: number };
 }
 
-interface FlameState {
-  flamePoints: number;
-  flameType: FlameType;
-  flameProgress: { current: number; next: number; percentage: number };
-  rewards: FlameRewardType[];
-  courseCreationCost: number;
-  totalEarned: number;
-  totalSpent: number;
-  transactions: Array<{
-    id: string;
-    amount: number;
-    reason: string;
-    courseId: string | null;
-    chapterId: string | null;
-    createdAt: string;
-  }>;
+interface StudyTimeData {
+  today: number;
+  last3Days: number;
+  thisWeek: number;
+  thisMonth: number;
+  dailyBreakdown: Array<{ date: string; minutes: number; courses: number }>;
 }
+
+type StudyTimePeriod = "today" | "last3" | "week" | "month";
 
 export default function Journey() {
   const lang = useAppStore((s) => s.lang);
   const tx = t(lang);
   const [stats, setStats] = useState<Stats | null>(null);
   const [badgeState, setBadgeState] = useState<BadgeState | null>(null);
-  const [flameState, setFlameState] = useState<FlameState | null>(null);
+  const [studyTime, setStudyTime] = useState<StudyTimeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
-  const [showFlamePanel, setShowFlamePanel] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<StudyTimePeriod>("today");
+  const [showStudyDetail, setShowStudyDetail] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [badgesRes, flamesRes] = await Promise.all([
+        const [badgesRes, studyRes] = await Promise.all([
           fetch("/api/badges"),
-          fetch("/api/flames"),
+          fetch("/api/study-time"),
         ]);
         if (badgesRes.ok) {
           const data = await badgesRes.json();
           setStats(data.stats);
           setBadgeState(data.badges);
         }
-        if (flamesRes.ok) {
-          setFlameState(await flamesRes.json());
+        if (studyRes.ok) {
+          setStudyTime(await studyRes.json());
         }
       } catch {
         // silently fail
@@ -108,13 +93,27 @@ export default function Journey() {
   }
 
   const formatTime = (minutes: number) => {
-    if (minutes < 60) return `${minutes} ${tx.journey.min}`;
+    if (minutes < 1) return `0 ${tx.journey.min}`;
+    if (minutes < 60) return `${Math.round(minutes)} ${tx.journey.min}`;
     const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
+    const mins = Math.round(minutes % 60);
+    if (mins === 0) return `${hours}${tx.journey.hours}`;
     return `${hours}${tx.journey.hours} ${mins}${tx.journey.min}`;
   };
 
-  const currentFlame = flameState?.flameType ?? getCurrentFlameType(0);
+  const periodLabels: Record<StudyTimePeriod, string> = {
+    today: tx.journey.today,
+    last3: tx.journey.last3Days,
+    week: tx.journey.thisWeek,
+    month: tx.journey.thisMonth,
+  };
+
+  const periodValues: Record<StudyTimePeriod, number> = {
+    today: studyTime?.today ?? 0,
+    last3: studyTime?.last3Days ?? 0,
+    week: studyTime?.thisWeek ?? 0,
+    month: studyTime?.thisMonth ?? 0,
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-6 md:px-10 pt-20 pb-8 md:pt-24 md:pb-16 fade-in">
@@ -135,6 +134,7 @@ export default function Journey() {
             value: stats?.totalCourses ?? 0,
             color: "text-mauve-light",
             bgColor: "bg-mauve/10",
+            glowColor: "rgba(124, 92, 191, 0.3)",
             delay: "0ms",
           },
           {
@@ -143,6 +143,7 @@ export default function Journey() {
             value: stats?.completedCourses ?? 0,
             color: "text-gold",
             bgColor: "bg-gold/10",
+            glowColor: "rgba(212, 168, 67, 0.3)",
             delay: "50ms",
           },
           {
@@ -151,102 +152,98 @@ export default function Journey() {
             value: `${stats?.completedChapters ?? 0}/${stats?.totalChapters ?? 0}`,
             color: "text-green-400",
             bgColor: "bg-green-500/10",
+            glowColor: "rgba(34, 197, 94, 0.3)",
             delay: "100ms",
           },
           {
-            icon: Clock,
-            label: tx.journey.studyTime,
-            value: formatTime(stats?.totalStudyTime ?? 0),
-            color: "text-blue-400",
-            bgColor: "bg-blue-500/10",
+            icon: Flame,
+            label: tx.journey.flames,
+            value: stats?.averageScore ?? 0,
+            color: "text-orange-400",
+            bgColor: "bg-orange-500/10",
+            glowColor: "rgba(249, 115, 22, 0.3)",
             delay: "150ms",
+            isFlame: true,
           },
         ].map((stat) => (
           <div
             key={stat.label}
-            className="glass rounded-3xl p-5 text-center fade-in-up"
-            style={{ animationDelay: mounted ? stat.delay : "0ms" }}
+            className="glass rounded-3xl p-5 text-center fade-in-up card-hover-glow"
+            style={{ animationDelay: mounted ? stat.delay : "0ms", "--glow-color": stat.glowColor } as React.CSSProperties}
           >
             <div
               className={`w-12 h-12 rounded-2xl ${stat.bgColor} flex items-center justify-center mx-auto mb-3`}
             >
               <stat.icon className={`w-6 h-6 ${stat.color}`} />
             </div>
-            <p className="text-2xl font-extrabold mb-1">{stat.value}</p>
+            <p className="text-2xl font-extrabold mb-1">
+              {stat.isFlame ? `${stat.value} 🔥` : stat.value}
+            </p>
             <p className="text-sm text-muted-foreground">{stat.label}</p>
           </div>
         ))}
       </div>
 
-      {/* Flame Points + Next Badge Row */}
+      {/* Study Time + Next Badge Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
-        {/* Flame Points Card */}
-        <button
-          onClick={() => setShowFlamePanel(true)}
-          className="glass rounded-3xl p-6 fade-in-up text-left cursor-pointer hover:bg-white/5 transition-all duration-300 group"
-          style={{ animationDelay: mounted ? "200ms" : "0ms" }}
+        {/* Study Time Card - Clickable */}
+        <div
+          className="glass rounded-3xl p-6 fade-in-up card-hover-glow"
+          style={{ animationDelay: mounted ? "200ms" : "0ms", "--glow-color": "rgba(59, 130, 246, 0.3)" } as React.CSSProperties}
         >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{ backgroundColor: `${currentFlame.color}20` }}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+              <Clock className="w-5 h-5 text-blue-400" />
+            </div>
+            <h3 className="text-lg font-bold">{tx.journey.studyTime}</h3>
+            <button
+              onClick={() => setShowStudyDetail(true)}
+              className="ml-auto p-1.5 rounded-lg hover:bg-white/10 transition-all cursor-pointer"
+            >
+              <TrendingUp className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
+
+          {/* Time period tabs */}
+          <div className="flex gap-2 mb-4">
+            {(["today", "last3", "week", "month"] as StudyTimePeriod[]).map((period) => (
+              <button
+                key={period}
+                onClick={() => setSelectedPeriod(period)}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all duration-300 cursor-pointer ${
+                  selectedPeriod === period
+                    ? "bg-blue-500/15 text-blue-400 border border-blue-500/20"
+                    : "bg-night/50 text-muted-foreground hover:text-foreground border border-transparent"
+                }`}
               >
-                <Flame className="w-5 h-5" style={{ color: currentFlame.color }} />
-              </div>
-              <h3 className="text-lg font-bold">{tx.journey.flames}</h3>
-            </div>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ backgroundColor: `${currentFlame.color}15`, color: currentFlame.color }}>
-              {currentFlame.emoji} {lang === "fr" ? currentFlame.name : currentFlame.nameEn}
-            </span>
+                {periodLabels[period]}
+              </button>
+            ))}
           </div>
-          <div className="flex items-center gap-4">
-            <div className="relative w-24 h-24">
-              <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
-                <circle
-                  cx="50" cy="50" r="42" fill="none"
-                  stroke={currentFlame.color}
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={`${(flameState?.flameProgress.percentage ?? 0) * 2.64} 264`}
-                  className="score-ring-progress"
-                  style={{ filter: `drop-shadow(0 0 6px ${currentFlame.color}40)` }}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-lg font-extrabold" style={{ color: currentFlame.color }}>
-                  {flameState ? formatFlamePoints(flameState.flamePoints) : "0"}
-                </span>
-                <span className="text-[10px] text-muted-foreground">/ 10 000</span>
-              </div>
+
+          {/* Selected period value */}
+          <div className="flex items-center gap-3">
+            <div className="w-16 h-16 rounded-2xl bg-blue-500/10 flex items-center justify-center">
+              <Calendar className="w-8 h-8 text-blue-400" />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
-                <ArrowUpRight className="w-3 h-3 text-green-400" />
-                <span>+{flameState ? formatFlamePoints(flameState.totalEarned) : "0"} {tx.journey.totalEarned}</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <ArrowDownLeft className="w-3 h-3 text-red-400" />
-                <span>-{flameState ? formatFlamePoints(flameState.totalSpent) : "0"} {tx.journey.totalSpent}</span>
-              </div>
-              <div className="mt-3 w-full h-2 rounded-full bg-night overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-1000 ease-out"
-                  style={{
-                    width: mounted ? `${flameState?.flameProgress.percentage ?? 0}%` : "0%",
-                    background: `linear-gradient(90deg, ${currentFlame.color}, ${currentFlame.color}cc)`,
-                  }}
-                />
-              </div>
+            <div>
+              <p className="text-3xl font-extrabold text-blue-400">
+                {formatTime(periodValues[selectedPeriod])}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {selectedPeriod === "today" && tx.journey.studyTimeTodayDesc}
+                {selectedPeriod === "last3" && tx.journey.studyTime3DaysDesc}
+                {selectedPeriod === "week" && tx.journey.studyTimeWeekDesc}
+                {selectedPeriod === "month" && tx.journey.studyTimeMonthDesc}
+              </p>
             </div>
           </div>
-        </button>
+        </div>
 
         {/* Next Badge */}
         <div
-          className="glass rounded-3xl p-6 fade-in-up"
-          style={{ animationDelay: mounted ? "250ms" : "0ms" }}
+          className="glass rounded-3xl p-6 fade-in-up card-hover-glow"
+          style={{ animationDelay: mounted ? "250ms" : "0ms", "--glow-color": "rgba(212, 168, 67, 0.3)" } as React.CSSProperties}
         >
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-mauve/10 flex items-center justify-center">
@@ -301,12 +298,12 @@ export default function Journey() {
             return (
               <div
                 key={badge.id}
-                className={`rounded-3xl p-5 text-center transition-all duration-300 fade-in-up ${
+                className={`rounded-3xl p-5 text-center transition-all duration-300 fade-in-up card-hover-glow ${
                   earned
                     ? "glass border border-gold/20"
                     : "bg-night/50 border border-border opacity-50"
                 }`}
-                style={{ animationDelay: mounted ? `${300 + i * 40}ms` : "0ms" }}
+                style={{ animationDelay: mounted ? `${300 + i * 40}ms` : "0ms", "--glow-color": earned ? "rgba(212, 168, 67, 0.3)" : "rgba(124, 92, 191, 0.2)" } as React.CSSProperties}
               >
                 <div className={`text-4xl mb-3 ${earned ? "" : "grayscale opacity-40"}`}>{badge.emoji}</div>
                 <h4 className={`text-sm font-bold mb-1 ${earned ? "text-foreground" : "text-muted-foreground"}`}>{badge.name}</h4>
@@ -346,113 +343,80 @@ export default function Journey() {
         <p className="text-sm text-muted-foreground mt-4">— {tx.journey.quoteAuthor}</p>
       </div>
 
-      {/* ═══════════ FLAME DETAILS PANEL (Modal) ═══════════ */}
-      {showFlamePanel && flameState && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-night/80 backdrop-blur-sm animate-fade-in" onClick={() => setShowFlamePanel(false)}>
+      {/* ═══════════ STUDY TIME DETAIL PANEL (Modal) ═══════════ */}
+      {showStudyDetail && studyTime && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-night/80 backdrop-blur-sm animate-fade-in" onClick={() => setShowStudyDetail(false)}>
           <div className="bg-night-light border border-border rounded-3xl w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar mx-4 animate-fade-in-slide-up" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-night-light z-10">
+            <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-night-light z-10 rounded-t-3xl">
               <div className="flex items-center gap-3">
-                <Flame className="w-6 h-6" style={{ color: currentFlame.color }} />
-                <h2 className="text-xl font-extrabold">{tx.journey.myFlames}</h2>
+                <Clock className="w-6 h-6 text-blue-400" />
+                <h2 className="text-xl font-extrabold">{tx.journey.studyTimeDetail}</h2>
               </div>
-              <button onClick={() => setShowFlamePanel(false)} className="p-2 rounded-xl hover:bg-white/10 transition-all cursor-pointer">
+              <button onClick={() => setShowStudyDetail(false)} className="p-2 rounded-xl hover:bg-white/10 transition-all cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="p-6 space-y-6">
-              {/* Balance */}
-              <div className="text-center p-6 rounded-2xl" style={{ backgroundColor: `${currentFlame.color}08`, border: `1px solid ${currentFlame.color}20` }}>
-                <div className="text-5xl mb-2">{currentFlame.emoji}</div>
-                <p className="text-3xl font-extrabold" style={{ color: currentFlame.color }}>
-                  {formatFlamePoints(flameState.flamePoints)}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {lang === "fr" ? currentFlame.name : currentFlame.nameEn} — {lang === "fr" ? currentFlame.description : currentFlame.descriptionEn}
-                </p>
-                <div className="flex justify-center gap-6 mt-4 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1"><ArrowUpRight className="w-3 h-3 text-green-400" /> +{formatFlamePoints(flameState.totalEarned)}</span>
-                  <span className="flex items-center gap-1"><ArrowDownLeft className="w-3 h-3 text-red-400" /> -{formatFlamePoints(flameState.totalSpent)}</span>
-                </div>
-              </div>
-
-              {/* Flame Types Progression */}
-              <div>
-                <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4">{tx.journey.currentFlame}</h3>
-                <div className="grid grid-cols-7 gap-2">
-                  {FLAME_TYPES.map((ft) => {
-                    const isActive = ft.id === currentFlame.id;
-                    const isPast = flameState.flamePoints >= ft.minPoints;
-                    return (
-                      <div key={ft.id} className={`text-center p-2 rounded-xl transition-all ${isActive ? "scale-110" : ""} ${isPast ? "" : "opacity-30"}`}
-                        style={isActive ? { backgroundColor: `${ft.color}15`, border: `1px solid ${ft.color}30` } : {}}
-                      >
-                        <div className="text-xl">{ft.emoji}</div>
-                        <div className="text-[9px] text-muted-foreground mt-1 font-medium">{ft.minPoints > 0 ? `${ft.minPoints / 1000 >= 1 ? `${ft.minPoints / 1000}k` : ft.minPoints}` : "0"}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="mt-3 w-full h-2 rounded-full bg-night overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-1000"
-                    style={{
-                      width: `${flameState.flameProgress.percentage}%`,
-                      background: `linear-gradient(90deg, ${currentFlame.color}, ${currentFlame.color}aa)`,
-                    }}
-                  />
-                </div>
-              </div>
-
-              {/* Flame Rewards */}
-              <div>
-                <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4">{tx.journey.flameRewards}</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {flameState.rewards.map((reward) => (
-                    <div
-                      key={reward.id}
-                      className={`flex items-center gap-3 p-3 rounded-xl transition-all ${reward.isEarned ? "glass border border-gold/20" : "bg-night/50 opacity-50"}`}
-                    >
-                      <span className="text-2xl">{reward.emoji}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold truncate">{lang === "fr" ? reward.name : reward.nameEn}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">{formatFlamePoints(reward.points)} 🔥</p>
-                      </div>
-                      {reward.isEarned && <Star className="w-3.5 h-3.5 text-gold flex-shrink-0" />}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Recent Activity */}
-              {flameState.transactions.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4">{tx.journey.recentActivity}</h3>
-                  <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar">
-                    {flameState.transactions.map((tx_) => (
-                      <div key={tx_.id} className="flex items-center justify-between p-3 rounded-xl bg-night/50 text-sm">
-                        <div className="flex items-center gap-2">
-                          {tx_.amount > 0 ? (
-                            <ArrowUpRight className="w-4 h-4 text-green-400" />
-                          ) : (
-                            <ArrowDownLeft className="w-4 h-4 text-red-400" />
-                          )}
-                          <span className="text-muted-foreground">
-                            {tx_.reason === "chapter_complete" ? tx.journey.chapterFlame
-                              : tx_.reason === "course_complete" ? tx.journey.courseFlame
-                              : tx_.reason === "course_creation" ? tx.journey.courseCreationSpend
-                              : tx_.reason}
-                          </span>
-                        </div>
-                        <span className={`font-bold ${tx_.amount > 0 ? "text-green-400" : "text-red-400"}`}>
-                          {tx_.amount > 0 ? "+" : ""}{formatFlamePoints(tx_.amount)} 🔥
-                        </span>
-                      </div>
-                    ))}
+              {/* Summary cards */}
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: tx.journey.today, value: formatTime(studyTime.today), color: "text-blue-400", bg: "bg-blue-500/10" },
+                  { label: tx.journey.last3Days, value: formatTime(studyTime.last3Days), color: "text-blue-300", bg: "bg-blue-500/5" },
+                  { label: tx.journey.thisWeek, value: formatTime(studyTime.thisWeek), color: "text-blue-400", bg: "bg-blue-500/10" },
+                  { label: tx.journey.thisMonth, value: formatTime(studyTime.thisMonth), color: "text-blue-300", bg: "bg-blue-500/5" },
+                ].map((item) => (
+                  <div key={item.label} className="p-4 rounded-2xl glass text-center">
+                    <p className={`text-lg font-extrabold ${item.color}`}>{item.value}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{item.label}</p>
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
+
+              {/* Daily breakdown */}
+              <div>
+                <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4">
+                  {tx.journey.dailyBreakdown}
+                </h3>
+                {studyTime.dailyBreakdown.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Clock className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">{tx.journey.noStudyData}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                    {studyTime.dailyBreakdown.map((day) => {
+                      const maxMinutes = Math.max(...studyTime.dailyBreakdown.map(d => d.minutes), 1);
+                      const barWidth = Math.max(2, (day.minutes / maxMinutes) * 100);
+                      return (
+                        <div key={day.date} className="flex items-center gap-3 p-3 rounded-xl bg-night/50">
+                          <div className="w-16 text-xs font-bold text-muted-foreground flex-shrink-0">
+                            {new Date(day.date).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", {
+                              weekday: "short",
+                              day: "numeric",
+                              month: "short",
+                            })}
+                          </div>
+                          <div className="flex-1 h-6 rounded-full bg-night overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-blue-500/60 to-blue-400/60 transition-all duration-500 flex items-center justify-end pr-2"
+                              style={{ width: `${barWidth}%` }}
+                            >
+                              {day.minutes > 5 && (
+                                <span className="text-[10px] font-bold text-blue-100">{formatTime(day.minutes)}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-xs text-muted-foreground flex-shrink-0 w-16 text-right">
+                            {formatTime(day.minutes)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -403,12 +403,29 @@ export async function POST(request: NextRequest) {
       include: { chapters: true },
     });
 
-    // Spend flame points for course creation
+    // Spend flame points for course creation (skip if user has subscription)
     const settings = await db.appSettings.upsert({
       where: { id: "main" },
       create: { id: "main", flamePoints: 0 },
       update: {},
     });
+
+    if (settings.hasSubscription) {
+      return NextResponse.json({
+        success: true,
+        scrapedSources: scrapedPages.length,
+        course: {
+          id: course.id,
+          title: course.title,
+          description: course.description,
+          sourceLinks: JSON.parse(course.sourceLinks),
+          createdAt: course.createdAt,
+          chapters: course.chapters
+            .sort((a, b) => a.order - b.order)
+            .map((ch) => ({ id: ch.id, title: ch.title, content: ch.content, summary: ch.summary, order: ch.order })),
+        },
+      });
+    }
 
     if (settings.flamePoints < COURSE_CREATION_COST) {
       // Rollback course creation if insufficient flame points
