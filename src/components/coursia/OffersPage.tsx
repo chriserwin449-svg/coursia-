@@ -56,7 +56,7 @@ export default function OffersPage() {
           },
           {
             q: "Comment fonctionne la période d'essai gratuite ?",
-            a: "Avec le plan Découverte, tu peux créer 1 cours gratuitement pendant 3 jours. Aucune carte bancaire n'est requise pour commencer.",
+            a: "Avec le plan Découverte, tu peux créer 3 cours gratuitement pendant 7 jours. Tu peux lire et étudier tes cours pendant toute la période d'essai. Aucune carte bancaire n'est requise pour commencer.",
           },
           {
             q: "Quelle différence entre le plan Mensuel et Annuel ?",
@@ -78,7 +78,7 @@ export default function OffersPage() {
           },
           {
             q: "How does the free trial work?",
-            a: "With the Discovery plan, you can create 1 free course for 3 days. No credit card is required to get started.",
+            a: "With the Discovery plan, you can create 3 free courses for 7 days. You can read and study your courses during the entire trial period. No credit card is required to get started.",
           },
           {
             q: "What's the difference between Monthly and Annual?",

@@ -12,11 +12,12 @@ import {
   Calendar,
   TrendingUp,
   X,
-  Zap,
+  Flame,
 } from "lucide-react";
 import { BADGE_DEFINITIONS } from "@/lib/badges";
 import { t } from "@/lib/i18n";
 import { useAppStore } from "@/lib/store";
+import { getCurrentFlameType, getFlameProgress, formatFlamePoints } from "@/lib/flames";
 
 interface Stats {
   totalCourses: number;
@@ -42,6 +43,13 @@ interface StudyTimeData {
   dailyBreakdown: Array<{ date: string; minutes: number; courses: number }>;
 }
 
+interface FlameData {
+  flamePoints: number;
+  flameType: { id: string; name: string; nameEn: string; emoji: string; minPoints: number; maxPoints: number; color: string; description: string; descriptionEn: string };
+  flameProgress: { current: number; next: number; percentage: number };
+  hasSubscription: boolean;
+}
+
 type StudyTimePeriod = "today" | "last3" | "week" | "month";
 
 export default function Journey() {
@@ -50,6 +58,7 @@ export default function Journey() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [badgeState, setBadgeState] = useState<BadgeState | null>(null);
   const [studyTime, setStudyTime] = useState<StudyTimeData | null>(null);
+  const [flameData, setFlameData] = useState<FlameData | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<StudyTimePeriod>("today");
@@ -58,9 +67,10 @@ export default function Journey() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [badgesRes, studyRes] = await Promise.all([
+        const [badgesRes, studyRes, flamesRes] = await Promise.all([
           fetch("/api/badges"),
           fetch("/api/study-time"),
+          fetch("/api/flames"),
         ]);
         if (badgesRes.ok) {
           const data = await badgesRes.json();
@@ -69,6 +79,9 @@ export default function Journey() {
         }
         if (studyRes.ok) {
           setStudyTime(await studyRes.json());
+        }
+        if (flamesRes.ok) {
+          setFlameData(await flamesRes.json());
         }
       } catch {
         // silently fail
@@ -91,6 +104,12 @@ export default function Journey() {
       </div>
     );
   }
+
+  // ─── Flame bar data ────────────────────────────────────────────────────
+  const flamePoints = flameData?.flamePoints ?? 0;
+  const flameType = flameData?.flameType ?? getCurrentFlameType(flamePoints);
+  const flameProg = flameData?.flameProgress ?? getFlameProgress(flamePoints);
+  const isMaxFlame = flameType.minPoints === flameType.maxPoints;
 
   const formatTime = (minutes: number) => {
     if (minutes < 1) return `0 ${tx.journey.min}`;
@@ -125,64 +144,79 @@ export default function Journey() {
         <p className="text-muted-foreground text-lg">{tx.journey.subtitle}</p>
       </div>
 
-      {/* ═══ LEARNING PROGRESS BAR ═══ */}
-      {(() => {
-        const total = stats?.totalChapters ?? 0;
-        const completed = stats?.completedChapters ?? 0;
-        const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
-        const motivationalMsgs = lang === "fr"
-          ? ["Bien commencé ! Continue comme ça !", "Tu progresses bien, ne lâche rien !", "Impressionnant ! Tu es sur la bonne voie !", "Tu es une machine à apprendre !", "Champion ! Rien ne t'arrête !"]
-          : ["Great start! Keep going!", "You're making progress!", "Impressive! You're on the right track!", "You're a learning machine!", "Champion! Nothing stops you!"];
-        const msgIdx = Math.min(Math.floor(pct / 20), motivationalMsgs.length - 1);
-
-        return (
-          <div className="rounded-3xl p-6 mb-8 fade-in-up relative overflow-hidden border border-mauve/20" style={{ background: "linear-gradient(135deg, rgba(124, 92, 191, 0.08), rgba(234, 179, 8, 0.04))" }}>
-            <div className="absolute inset-0 pointer-events-none overflow-hidden">
-              <div className="absolute -top-10 -right-10 w-40 h-40 bg-mauve/10 rounded-full blur-[60px]" />
-              <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-gold/8 rounded-full blur-[50px]" />
-            </div>
-            <div className="relative z-10">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-mauve/15 flex items-center justify-center">
-                    <span className="text-2xl">📚</span>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold gradient-text">
-                      {lang === "fr" ? "Ma Progression" : "My Progress"}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">
-                      {completed}/{total} {lang === "fr" ? "chapitres complétés" : "chapters completed"} · {pct}%
-                    </p>
-                  </div>
-                </div>
-                <p className="text-sm font-semibold text-gold max-w-[200px] text-right">
-                  {total > 0 ? motivationalMsgs[msgIdx] : (lang === "fr" ? "Commence un cours pour voir ta progression !" : "Start a course to see your progress!")}
+      {/* ═══ FLAME PROGRESS BAR ═══ */}
+      <div className="rounded-3xl p-6 mb-8 fade-in-up relative overflow-hidden border border-gold/20" style={{ background: "linear-gradient(135deg, rgba(249, 115, 22, 0.08), rgba(234, 179, 8, 0.06), rgba(239, 68, 68, 0.04))" }}>
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-orange-500/10 rounded-full blur-[60px]" />
+          <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-gold/8 rounded-full blur-[50px]" />
+        </div>
+        <div className="relative z-10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500/20 to-gold/20 flex items-center justify-center">
+                <span className="text-2xl">{flameType.emoji}</span>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold" style={{ color: flameType.color }}>
+                  {lang === "fr" ? flameType.name : flameType.nameEn}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {formatFlamePoints(flamePoints)} {lang === "fr" ? "points de flamme" : "flame points"}
+                  {!isMaxFlame && (
+                    <span className="text-muted-foreground/60"> · {flameProg.percentage}% vers {(() => {
+                      const nextIdx = (["etincelle", "flamme", "brasier", "incendie", "meteor", "supernova", "legende"]).indexOf(flameType.id) + 1;
+                      const allTypes = [
+                        { fr: "Étincelle", en: "Spark" },
+                        { fr: "Flamme", en: "Flame" },
+                        { fr: "Brasier", en: "Brazier" },
+                        { fr: "Incendie", en: "Wildfire" },
+                        { fr: "Météore", en: "Meteor" },
+                        { fr: "Supernova", en: "Supernova" },
+                        { fr: "Légende", en: "Legend" },
+                      ];
+                      return nextIdx < allTypes.length ? allTypes[nextIdx][lang] : flameType.name;
+                    })()}</span>
+                  )}
                 </p>
               </div>
-              <div className="w-full h-4 rounded-full bg-night/80 overflow-hidden border border-mauve/10">
-                <div
-                  className="h-full rounded-full transition-all duration-1000 ease-out relative"
-                  style={{
-                    width: mounted ? `${Math.min(pct, 100)}%` : "0%",
-                    background: "linear-gradient(90deg, #7c5cbf, #d4a843, #eab308)",
-                    boxShadow: pct > 0 ? "0 0 15px rgba(234, 179, 8, 0.4)" : "none",
-                  }}
-                >
-                  {pct > 0 && (
-                    <div className="absolute inset-0 rounded-full overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-                    </div>
-                  )}
-                </div>
-              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Flame className="w-5 h-5 text-orange-400" />
+              <span className="text-2xl font-extrabold" style={{ color: flameType.color }}>
+                {flameType.emoji} {formatFlamePoints(flamePoints)}
+              </span>
             </div>
           </div>
-        );
-      })()}
+          <div className="w-full h-4 rounded-full bg-night/80 overflow-hidden border border-gold/10">
+            <div
+              className="h-full rounded-full transition-all duration-1000 ease-out relative"
+              style={{
+                width: mounted ? `${isMaxFlame ? 100 : Math.min(flameProg.percentage, 100)}%` : "0%",
+                background: `linear-gradient(90deg, ${flameType.color}, #eab308, #f97316)`,
+                boxShadow: flamePoints > 0 ? `0 0 15px ${flameType.color}60` : "none",
+              }}
+            >
+              {flamePoints > 0 && (
+                <div className="absolute inset-0 rounded-full overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                </div>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground/60 mt-2 text-center">
+            {isMaxFlame
+              ? (lang === "fr" ? "Tu as atteint le niveau maximum !" : "You reached the maximum level!")
+              : (lang === "fr"
+                ? `${flameProg.current} / ${flameType.maxPoints + 1 - flameType.minPoints} points dans ce palier`
+                : `${flameProg.current} / ${flameType.maxPoints + 1 - flameType.minPoints} points in this tier`
+              )
+            }
+          </p>
+        </div>
+      </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+      {/* Stats Grid — 3 columns (no Score moyen) */}
+      <div className="grid grid-cols-3 gap-4 mb-10">
         {[
           {
             icon: BookOpen,
@@ -210,15 +244,6 @@ export default function Journey() {
             bgColor: "bg-green-500/10",
             glowColor: "rgba(34, 197, 94, 0.3)",
             delay: "100ms",
-          },
-          {
-            icon: Zap,
-            label: lang === "fr" ? "Score moyen" : "Avg Score",
-            value: `${stats?.averageScore ?? 0}%`,
-            color: "text-gold",
-            bgColor: "bg-gold/10",
-            glowColor: "rgba(212, 168, 67, 0.3)",
-            delay: "150ms",
           },
         ].map((stat) => (
           <div

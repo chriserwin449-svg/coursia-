@@ -20,42 +20,42 @@ const testimonials = [
   {
     text: "Coursia m\u2019a permis d\u2019apprendre Python en une semaine ! Les chapitres sont super bien structur\u00e9s.",
     author: "Marie L.",
-    avatar: "Marie",
+    avatar: "/avatars/marie.jpg",
     roleFr: "\u00c9tudiante en informatique",
     roleEn: "CS Student",
   },
   {
     text: "Les quiz m\u2019aident vraiment \u00e0 retenir. J\u2019adore le syst\u00e8me de badges !",
     author: "Thomas R.",
-    avatar: "Thomas",
+    avatar: "/avatars/thomas.jpg",
     roleFr: "D\u00e9veloppeur web",
     roleEn: "Web Developer",
   },
   {
     text: "L\u2019IA g\u00e9n\u00e8re des cours incroyablement complets. Je recommande \u00e0 100%.",
     author: "Sarah K.",
-    avatar: "Sarah",
+    avatar: "/avatars/sarah.jpg",
     roleFr: "Designer UX",
     roleEn: "UX Designer",
   },
   {
     text: "Parfait pour r\u00e9viser avant les examens. J\u2019ai am\u00e9lior\u00e9 mes notes gr\u00e2ce \u00e0 Coursia.",
     author: "Lucas M.",
-    avatar: "Lucas",
+    avatar: "/avatars/lucas.jpg",
     roleFr: "\u00c9tudiant en m\u00e9decine",
     roleEn: "Medical Student",
   },
   {
     text: "L\u2019interface est magnifique et intuitive. Mieux que n\u2019importe quelle autre plateforme.",
     author: "Emma D.",
-    avatar: "Emma",
+    avatar: "/avatars/emma.jpg",
     roleFr: "Data analyst",
     roleEn: "Data Analyst",
   },
   {
     text: "J\u2019utilise Coursia tous les jours pour apprendre de nouvelles comp\u00e9tences.",
     author: "Nicolas B.",
-    avatar: "Nicolas",
+    avatar: "/avatars/nicolas.jpg",
     roleFr: "Entrepreneur",
     roleEn: "Entrepreneur",
   },
@@ -91,7 +91,7 @@ function TestimonialCard({
       <div className="flex items-center gap-3">
         <div className="w-11 h-11 rounded-full ring-2 ring-mauve/30 overflow-hidden bg-mauve/10 flex-shrink-0">
           <img
-            src={`https://api.dicebear.com/9.x/lorelei/svg?seed=${avatar}&backgroundColor=c0a0e0`}
+            src={avatar}
             alt={author}
             className="w-full h-full object-cover"
             loading="lazy"

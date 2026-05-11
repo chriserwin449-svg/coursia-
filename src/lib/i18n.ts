@@ -31,9 +31,9 @@ const fr = {
         name: "Découverte",
         price: "Gratuit",
         desc: "Parfait pour découvrir Coursia",
-        features: ["1 cours gratuit", "Génération par IA", "Quiz inclus", "Badges de progression"],
+        features: ["3 cours pendant 7 jours", "Génération par IA", "Quiz inclus", "Badges de progression", "Lecture illimitée pendant l'essai"],
         cta: "Commencer Gratuitement",
-        note: "Pendant 3 jours",
+        note: "7 jours d'essai",
       },
       monthly: {
         name: "Mensuel",
@@ -221,9 +221,9 @@ const en = {
         name: "Discovery",
         price: "Free",
         desc: "Perfect to discover Coursia",
-        features: ["1 free course", "AI generation", "Quizzes included", "Progress badges"],
+        features: ["3 courses for 7 days", "AI generation", "Quizzes included", "Progress badges", "Unlimited reading during trial"],
         cta: "Start Free",
-        note: "For 3 days",
+        note: "7-day trial",
       },
       monthly: {
         name: "Monthly",

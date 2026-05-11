@@ -11,7 +11,6 @@ import {
   ChevronRight,
   Signal,
   Globe,
-  Flame,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -36,28 +35,6 @@ export default function CreateCourse() {
   const [courses, setCourses] = useState<CourseData[]>([]);
   const [showSuggested, setShowSuggested] = useState(false);
   const [suggestedTopic, setSuggestedTopic] = useState("");
-  const [flamePoints, setFlamePoints] = useState<number | null>(null);
-  const [hasSubscription, setHasSubscription] = useState(false);
-
-  // Fetch flame points & subscription status
-  useEffect(() => {
-    const fetchFlames = async () => {
-      try {
-        const res = await fetch("/api/flames");
-        if (res.ok) {
-          const data = await res.json();
-          setFlamePoints(data.flamePoints);
-          setHasSubscription(data.hasSubscription ?? false);
-        }
-      } catch { /* ignore */ }
-    };
-    fetchFlames();
-  }, []);
-
-  // If user has subscription, no flame cost needed
-  const needsFlames = !hasSubscription;
-  const canAffordCourse = hasSubscription || (flamePoints !== null && flamePoints >= 100);
-  const flameCost = 100;
 
   // ─── Store refs for random topic ────────────────────────────────────────
   const storeRandomTopic = useAppStore((s) => s.randomTopic);
@@ -136,6 +113,15 @@ export default function CreateCourse() {
     fetchCourses();
   }, [fetchCourses]);
 
+  // ─── Clear suggested topic when user modifies title manually ────────
+  const handleTitleChange = (newTitle: string) => {
+    setTitle(newTitle);
+    if (newTitle.trim() !== suggestedTopic.trim()) {
+      setShowSuggested(false);
+      setSuggestedTopic("");
+    }
+  };
+
   // ─── Link management ──────────────────────────────────────────────────
   const addLink = () => {
     const trimmed = linkInput.trim();
@@ -152,10 +138,6 @@ export default function CreateCourse() {
   // ─── Generate course ──────────────────────────────────────────────────
   const generateCourse = async () => {
     if (!title.trim()) return;
-    if (needsFlames && !canAffordCourse) {
-      setError(tx.create.notEnoughFlames.replace("{cost}", String(flameCost)));
-      return;
-    }
     setLoading(true);
     setError("");
     setIsGenerating(true);
@@ -183,14 +165,7 @@ export default function CreateCourse() {
     } finally {
       setLoading(false);
       setIsGenerating(false);
-      // Refresh flame points after generation
-      try {
-        const res = await fetch("/api/flames");
-        if (res.ok) {
-          const data = await res.json();
-          setFlamePoints(data.flamePoints);
-        }
-      } catch { /* ignore */ }
+      fetchCourses();
     }
   };
 
@@ -236,7 +211,7 @@ export default function CreateCourse() {
             <input
               type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => handleTitleChange(e.target.value)}
               placeholder=""
               className="w-full px-6 py-5 rounded-2xl bg-night border border-border text-foreground text-lg font-bold placeholder:text-muted-foreground/50 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300"
               onKeyDown={(e) => e.key === "Enter" && generateCourse()}
@@ -415,37 +390,23 @@ export default function CreateCourse() {
 
         {/* ─── Generate button ─── */}
         <div className="flex items-center justify-center">
-          <div className="flex flex-col items-center gap-3">
-            {needsFlames && (
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${
-              canAffordCourse
-                ? "bg-night/50 text-muted-foreground border border-border"
-                : "bg-red-500/10 text-red-400 border border-red-500/20"
-            }`}>
-              <Flame className="w-4 h-4" />
-              <span>{flamePoints !== null ? flamePoints : "..."}</span>
-              <span className="text-muted-foreground">/</span>
-              <span className={canAffordCourse ? "" : "text-red-400"}>{flameCost}</span>
-            </div>
+          <button
+            onClick={generateCourse}
+            disabled={!title.trim() || loading}
+            className="flex items-center justify-center gap-3 px-8 py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg font-extrabold hover:from-mauve-light hover:to-mauve transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-mauve/25 hover:shadow-mauve/40 hover:scale-[1.02] active:scale-[0.98]"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>{tx.create.generating}</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5" />
+                <span>{tx.create.generate}</span>
+              </>
             )}
-            <button
-              onClick={generateCourse}
-              disabled={!title.trim() || loading || !canAffordCourse}
-              className="flex items-center justify-center gap-3 px-8 py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg font-extrabold hover:from-mauve-light hover:to-mauve transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-mauve/25 hover:shadow-mauve/40 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>{tx.create.generating}</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  <span>{tx.create.generate}</span>
-                </>
-              )}
-            </button>
-          </div>
+          </button>
         </div>
       </div>
 
