@@ -275,3 +275,39 @@
   color: #f0eef6;
   font-size: 1rem;
 }
+
+/* Course content headings - gradient text (mauve to gold) */
+.prose h1,
+.prose h2,
+.prose h3 {
+ background: linear-gradient(135deg, #9b7fd4, #d4a843);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Fullscreen content headings */
+.fullscreen-content h1,
+.fullscreen-content h2,
+.fullscreen-content h3 {
+ background: linear-gradient(135deg, #9b7fd4, #d4a843);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Confetti animation */
+@keyframes confetti-fall {
+  0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+.confetti-piece {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  animation: confetti-fall 3s ease-in forwards;
+  pointer-events: none;
+  z-index: 100;
+}

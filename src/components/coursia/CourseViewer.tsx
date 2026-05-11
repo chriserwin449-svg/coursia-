@@ -15,10 +15,12 @@ import {
   FileText,
   GraduationCap,
   AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useAppStore, type CourseData, type CourseChapter, type QuizQuestion } from "@/lib/store";
 import { t } from "@/lib/i18n";
+import Confetti from "@/components/coursia/Confetti";
 
 export default function CourseViewer() {
   const lang = useAppStore((s) => s.lang);
@@ -28,6 +30,8 @@ export default function CourseViewer() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [studySessionId, setStudySessionId] = useState<string | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [courseCompleted, setCourseCompleted] = useState(false);
 
   const selectedCourseId = useAppStore((s) => s.selectedCourseId);
   const currentChapterIndex = useAppStore((s) => s.currentChapterIndex);
@@ -94,6 +98,10 @@ export default function CourseViewer() {
       const data = await res.json();
       if (res.ok && data.chapters?.length > 0) {
         setCourse(data);
+        // Check if course was already completed
+        if (data.courseCompleted) {
+          setCourseCompleted(true);
+        }
         const firstIncomplete = data.chapters.findIndex(
           (ch: CourseChapter) => !ch.progress?.completed
         );
@@ -174,17 +182,23 @@ export default function CourseViewer() {
 
   const handleFinalQuizComplete = (passed: boolean) => {
     if (passed) {
+      setShowConfetti(true);
       setShowCelebration(true);
       setCelebrationMessage(tx.viewer.courseDone);
+      setCourseCompleted(true);
       setTimeout(() => {
         setShowCelebration(false);
         setShowFinalQuiz(false);
+        setShowConfetti(false);
         endStudySession();
-        setView("landing");
-      }, 3000);
+        // Unlock all chapters for re-study
+        if (course) {
+          setCurrentChapterIndex(0);
+        }
+        fetchCourse();
+      }, 4000);
     } else {
       // Cannot skip - stay on final quiz
-      // setShowFinalQuiz stays true
     }
   };
 
@@ -235,6 +249,91 @@ export default function CourseViewer() {
           <p className="text-muted-foreground text-lg">{tx.viewer.loading}</p>
         </div>
       </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // COURSE COMPLETED OVERVIEW — all chapters unlocked, green checks
+  // ══════════════════════════════════════════════════════════════════
+  if (courseCompleted && !showFinalQuiz && !showCelebration) {
+    return (
+      <>
+        <Confetti active={false} />
+        <div className="flex flex-col h-screen overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-night-light flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <Trophy className="w-6 h-6 text-gold" />
+              <div>
+                <h2 className="text-lg font-bold gradient-text">{course.title}</h2>
+                <p className="text-xs text-emerald-400 font-semibold">{tx.viewer.courseComplete}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="text-xs font-bold text-emerald-400">100%</span>
+            </div>
+          </div>
+
+          {/* Chapters grid - all unlocked, all green */}
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-3xl mx-auto">
+              <div className="text-center mb-8">
+                <div className="text-6xl mb-4">🎓</div>
+                <h2 className="text-2xl font-extrabold gradient-text mb-2">{tx.viewer.courseComplete}</h2>
+                <p className="text-muted-foreground">{lang === "fr" ? "Tu peux rejouer n'importe quel chapitre" : "You can replay any chapter"}</p>
+              </div>
+
+              <div className="space-y-3">
+                {course.chapters.map((ch, idx) => {
+                  const isActive = idx === currentChapterIndex;
+                  return (
+                    <button
+                      key={ch.id}
+                      onClick={() => {
+                        setCurrentChapterIndex(idx);
+                        setCourseCompleted(false);
+                      }}
+                      className={`w-full flex items-center gap-4 p-4 rounded-2xl text-left transition-all duration-200 cursor-pointer group ${
+                        isActive
+                          ? "bg-mauve/15 border-2 border-mauve/30"
+                          : "glass hover:bg-white/5"
+                      }`}
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
+                        <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm">{ch.title}</p>
+                        <p className="text-xs text-muted-foreground">{tx.viewer.chapterOf(idx + 1, course.chapters.length)}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full">
+                          {ch.progress?.score ?? 0}%
+                        </span>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground group-hover:text-mauve-light transition-colors">
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>{tx.viewer.redoQuiz}</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Back to library button */}
+              <div className="text-center mt-8">
+                <button
+                  onClick={() => setView("library")}
+                  className="px-8 py-3 rounded-full glass font-bold text-sm hover:bg-white/10 transition-all cursor-pointer"
+                >
+                  {tx.viewer.back}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -296,8 +395,8 @@ export default function CourseViewer() {
               </button>
               <div>
                 <p className="text-sm text-muted-foreground">{course.title}</p>
-                <p className="font-bold text-gold">
-                  {tx.viewer.chapterOf(currentChapterIndex + 1, course.chapters.length)} : <span className="text-gold">{currentChapter.title}</span>
+                <p className="font-bold gradient-text">
+                  {tx.viewer.chapterOf(currentChapterIndex + 1, course.chapters.length)} : <span>{currentChapter.title}</span>
                 </p>
               </div>
             </div>
@@ -338,7 +437,7 @@ export default function CourseViewer() {
                 </div>
               )}
               {/* Content */}
-              <div className="fullscreen-content prose prose-invert max-w-none animate-fade-in-slide-right prose-p:text-[1.65rem] prose-p:leading-[2.2] prose-p:mb-6 prose-h2:text-[2.25rem] prose-h2:text-gold prose-h2:mt-16 prose-h2:mb-8 prose-h3:text-[1.85rem] prose-h3:text-gold-light prose-h3:mt-12 prose-h3:mb-6 prose-li:text-[1.65rem] prose-li:my-3 prose-li:leading-[2] prose-ul:my-8 prose-ol:my-8 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
+              <div className="fullscreen-content prose prose-invert max-w-none animate-fade-in-slide-right prose-p:text-[1.65rem] prose-p:leading-[2.2] prose-p:mb-6 prose-h2:text-[2.25rem] prose-h2:mt-16 prose-h2:mb-8 prose-h3:text-[1.85rem] prose-h3:mt-12 prose-h3:mb-6 prose-li:text-[1.65rem] prose-li:my-3 prose-li:leading-[2] prose-ul:my-8 prose-ol:my-8 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
                 <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
               </div>
             </div>
@@ -346,6 +445,7 @@ export default function CourseViewer() {
         </div>
 
         {/* Celebration overlay */}
+        {showCelebration && <Confetti active={true} />}
         {showCelebration && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-night/80 backdrop-blur-sm animate-fade-in">
             <div className="text-center p-12 rounded-3xl glass animate-celebrate relative">
@@ -471,7 +571,7 @@ export default function CourseViewer() {
           {/* Content header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
             <div>
-              <h2 className="text-2xl md:text-3xl font-extrabold text-gold">{currentChapter.title}</h2>
+              <h2 className="text-2xl md:text-3xl font-extrabold gradient-text">{currentChapter.title}</h2>
               <p className="text-xs text-muted-foreground">
                 {tx.viewer.chapterOf(currentChapter.order, course.chapters.length)}
               </p>
@@ -522,9 +622,9 @@ export default function CourseViewer() {
                 {/* ── Course content (Markdown) ── */}
                 <div className="prose prose-invert max-w-none
                   prose-headings:font-extrabold
-                  prose-h1:text-4xl prose-h1:text-gold prose-h1:mt-14 prose-h1:mb-6
-                  prose-h2:text-[2rem] prose-h2:text-gold prose-h2:mt-14 prose-h2:mb-7
-                  prose-h3:text-[1.65rem] prose-h3:text-gold-light prose-h3:mt-12 prose-h3:mb-5
+                  prose-h1:text-4xl prose-h1:mt-14 prose-h1:mb-6
+                  prose-h2:text-[2rem] prose-h2:mt-14 prose-h2:mb-7
+                  prose-h3:text-[1.65rem] prose-h3:mt-12 prose-h3:mb-5
                   prose-p:text-[1.35rem] prose-p:leading-[2.2] prose-p:text-foreground/90 prose-p:mb-6
                   prose-li:text-[1.35rem] prose-li:text-foreground/90 prose-li:leading-[2] prose-li:my-3
                   prose-ul:my-8 prose-ol:my-8
@@ -532,7 +632,7 @@ export default function CourseViewer() {
                   prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-2 prose-code:py-1 prose-code:rounded-lg prose-code:text-[1.1rem]
                   prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-8 prose-pre:text-[1.1rem]
                   prose-a:text-mauve-light
-                  prose-blockquote:text-gold-light prose-blockquote:border-gold/30 prose-blockquote:my-8
+                  prose-blockquote:text-amber-300 prose-blockquote:border-gold/30 prose-blockquote:my-8
                   prose-hr:border-gold/20 prose-hr:my-12
                 ">
                   <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
@@ -597,6 +697,7 @@ export default function CourseViewer() {
       </div>
 
       {/* Celebration overlay */}
+      {showCelebration && <Confetti active={true} />}
       {showCelebration && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-night/80 backdrop-blur-sm animate-fade-in">
           <div className="text-center p-12 rounded-3xl glass animate-celebrate relative">

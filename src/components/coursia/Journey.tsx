@@ -48,6 +48,8 @@ interface FlameData {
   flameType: { id: string; name: string; nameEn: string; emoji: string; minPoints: number; maxPoints: number; color: string; description: string; descriptionEn: string };
   flameProgress: { current: number; next: number; percentage: number };
   hasSubscription: boolean;
+  totalEarned: number;
+  totalSpent: number;
 }
 
 type StudyTimePeriod = "today" | "last3" | "week" | "month";
@@ -145,19 +147,19 @@ export default function Journey() {
       </div>
 
       {/* ═══ FLAME PROGRESS BAR ═══ */}
-      <div className="rounded-3xl p-6 mb-8 fade-in-up relative overflow-hidden border border-gold/20" style={{ background: "linear-gradient(135deg, rgba(249, 115, 22, 0.08), rgba(234, 179, 8, 0.06), rgba(239, 68, 68, 0.04))" }}>
+      <div className="rounded-3xl p-6 mb-8 fade-in-up relative overflow-hidden border border-red-400/20" style={{ background: "linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(248, 113, 113, 0.06), rgba(220, 38, 38, 0.04))" }}>
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute -top-10 -right-10 w-40 h-40 bg-orange-500/10 rounded-full blur-[60px]" />
-          <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-gold/8 rounded-full blur-[50px]" />
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-red-500/10 rounded-full blur-[60px]" />
+          <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-red-400/8 rounded-full blur-[50px]" />
         </div>
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500/20 to-gold/20 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center">
                 <span className="text-2xl">{flameType.emoji}</span>
               </div>
               <div>
-                <h3 className="text-lg font-bold" style={{ color: flameType.color }}>
+                <h3 className="text-lg font-bold text-red-400">
                   {lang === "fr" ? flameType.name : flameType.nameEn}
                 </h3>
                 <p className="text-sm text-muted-foreground">
@@ -181,19 +183,19 @@ export default function Journey() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Flame className="w-5 h-5 text-orange-400" />
-              <span className="text-2xl font-extrabold" style={{ color: flameType.color }}>
+              <Flame className="w-5 h-5 text-red-400" />
+              <span className="text-2xl font-extrabold text-red-400">
                 {flameType.emoji} {formatFlamePoints(flamePoints)}
               </span>
             </div>
           </div>
-          <div className="w-full h-4 rounded-full bg-night/80 overflow-hidden border border-gold/10">
+          <div className="w-full h-4 rounded-full bg-night/80 overflow-hidden border border-red-400/10">
             <div
               className="h-full rounded-full transition-all duration-1000 ease-out relative"
               style={{
                 width: mounted ? `${isMaxFlame ? 100 : Math.min(flameProg.percentage, 100)}%` : "0%",
-                background: `linear-gradient(90deg, ${flameType.color}, #eab308, #f97316)`,
-                boxShadow: flamePoints > 0 ? `0 0 15px ${flameType.color}60` : "none",
+                background: "linear-gradient(90deg, #ef4444, #f87171, #fb923c)",
+                boxShadow: flamePoints > 0 ? "0 0 15px rgba(239, 68, 68, 0.4)" : "none",
               }}
             >
               {flamePoints > 0 && (
@@ -212,6 +214,20 @@ export default function Journey() {
               )
             }
           </p>
+          {/* Points earned / lost summary */}
+          <div className="flex items-center justify-center gap-6 mt-3">
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-emerald-400 font-bold">+</span>
+              <span className="text-muted-foreground">{lang === "fr" ? "Gagnés" : "Earned"}:</span>
+              <span className="text-emerald-400 font-bold">{formatFlamePoints(flameData?.totalEarned ?? 0)}</span>
+            </div>
+            <div className="w-px h-3 bg-border" />
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-red-400 font-bold">-</span>
+              <span className="text-muted-foreground">{lang === "fr" ? "Perdus" : "Lost"}:</span>
+              <span className="text-red-400 font-bold">{formatFlamePoints(Math.abs(flameData?.totalSpent ?? 0))}</span>
+            </div>
+          </div>
         </div>
       </div>
 

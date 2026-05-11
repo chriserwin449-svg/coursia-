@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -273,55 +273,53 @@ export async function POST(request: NextRequest) {
       throw new Error("L'IA n'a pas pu générer un cours valide. Réessaie.");
     }
 
-    // ── Step 2: Save to Supabase ──
-    const courseId = crypto.randomUUID();
-    const now = new Date().toISOString();
-
-    await supabase.from("Course").insert({
-      id: courseId,
-      title: title.trim(),
-      description: result.description,
-      sourceLinks: JSON.stringify(sourceLinks),
-      flameCost: "0",
-      createdAt: now,
+    // ── Step 2: Save to Prisma ──
+    const course = await db.course.create({
+      data: {
+        title: title.trim(),
+        description: result.description,
+        sourceLinks: JSON.stringify(sourceLinks),
+        flameCost: 0,
+        chapters: {
+          create: result.chapters.map((ch, idx) => ({
+            title: ch.title,
+            content: ch.content,
+            summary: ch.summary,
+            order: idx + 1,
+          })),
+        },
+      },
+      include: {
+        chapters: {
+          orderBy: { order: "asc" },
+        },
+      },
     });
 
-    if (result.chapters.length > 0) {
-      const chapterRows = result.chapters.map((ch, idx) => ({
-        id: crypto.randomUUID(),
-        title: ch.title,
-        content: ch.content,
-        summary: ch.summary,
-        order: String(idx + 1),
-        courseId,
-      }));
-      await supabase.from("Chapter").insert(chapterRows);
-    }
-
     // Create CourseProgress so study sessions work immediately
-    await supabase.from("CourseProgress").upsert({
-      id: courseId,
-      courseId,
-      completed: false,
-      score: 0,
-      flameAwarded: false,
+    await db.courseProgress.upsert({
+      where: { courseId: course.id },
+      create: {
+        courseId: course.id,
+      },
+      update: {},
     });
 
     return NextResponse.json({
       success: true,
       scrapedSources: scrapedPages.length,
       course: {
-        id: courseId,
-        title: title.trim(),
-        description: result.description,
+        id: course.id,
+        title: course.title,
+        description: course.description,
         sourceLinks,
-        createdAt: now,
-        chapters: result.chapters.map((ch, idx) => ({
-          id: `ch-${idx}`,
+        createdAt: course.createdAt,
+        chapters: course.chapters.map((ch) => ({
+          id: ch.id,
           title: ch.title,
           content: ch.content,
           summary: ch.summary,
-          order: idx + 1,
+          order: ch.order,
         })),
       },
     });
