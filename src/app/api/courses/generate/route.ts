@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import ZAI from "z-ai-web-dev-sdk";
-import { COURSE_CREATION_COST } from "@/lib/flames";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -52,7 +51,7 @@ async function scrapeSourceLinks(
   sourceLinks: string[],
 ): Promise<ScrapedPage[]> {
   const results: ScrapedPage[] = [];
-  const maxLinks = Math.min(sourceLinks.length, 5); // limit to 5 links max
+  const maxLinks = Math.min(sourceLinks.length, 3);
 
   for (let i = 0; i < maxLinks; i++) {
     const url = sourceLinks[i];
@@ -63,18 +62,13 @@ async function scrapeSourceLinks(
       const html = result.data?.html || "";
       const text = htmlToPlainText(html);
       const title = result.data?.title || url;
-
-      // Truncate long content (keep first ~3000 chars to avoid token overflow)
-      const truncatedText = text.length > 3000 ? text.slice(0, 3000) + "..." : text;
+      const truncatedText = text.length > 2000 ? text.slice(0, 2000) + "..." : text;
 
       if (truncatedText.length > 50) {
         results.push({ title, text: truncatedText, url });
-        console.log(`[scrape] OK: ${title} (${truncatedText.length} chars)`);
-      } else {
-        console.log(`[scrape] SKIP (too short): ${url}`);
       }
     } catch (error) {
-      console.error(`[scrape] FAIL: ${url}`, error instanceof Error ? error.message : error);
+      console.error(`[scrape] FAIL: ${url}`);
     }
   }
 
@@ -83,12 +77,10 @@ async function scrapeSourceLinks(
 
 function buildSourceContext(scrapedPages: ScrapedPage[]): string {
   if (scrapedPages.length === 0) return "";
-
   const parts = scrapedPages.map((page, i) => {
     return `--- Source ${i + 1}: ${page.title} ---\n${page.text}`;
   });
-
-  return `\n\nVoici le contenu extrait des liens sources. Utilise ces informations pour enrichir le cours avec des données réelles, des exemples concrets et des faits vérifiables :\n\n${parts.join("\n\n")}`;
+  return `\n\nVoici du contenu extrait des liens sources. Utilise ces informations pour enrichir le cours avec des données réelles et des exemples concrets :\n\n${parts.join("\n\n")}`;
 }
 
 /* ── JSON extraction ────────────────────────────────────────────────── */
@@ -121,33 +113,27 @@ function extractChapters(text: string): {
   if (start === -1) return null;
   const snippet = cleaned.slice(start);
 
-  // Direct parse
   const direct = tryParseJSON(snippet);
   if (direct) return validate(direct);
 
-  // Truncation recovery: find all complete chapters
-  const chapterBlocks: string[] = [];
+  // Truncation recovery
   const regex = /\{"title"\s*:\s*"([^"]+)"\s*,\s*"content"\s*:\s*"/g;
   let m: RegExpExecArray | null;
+  const positions: number[] = [];
   while ((m = regex.exec(snippet)) !== null) {
-    chapterBlocks.push(m.index.toString());
+    positions.push(m.index);
   }
 
-  const positions = chapterBlocks.map(Number);
   for (let i = positions.length; i >= 1; i--) {
     for (let j = 0; j < i; j++) {
       const searchFrom = positions[j];
       const remaining = snippet.slice(searchFrom);
-
       const summaryIdx = remaining.indexOf('"summary"');
       if (summaryIdx === -1) continue;
-
       const afterSummary = remaining.slice(summaryIdx + 9).trim();
       if (!afterSummary.startsWith(":")) continue;
-
       const valStart = afterSummary.indexOf('"');
       if (valStart === -1) continue;
-
       const valRest = afterSummary.slice(valStart + 1);
       let closeIdx = -1;
       for (let k = 0; k < valRest.length; k++) {
@@ -155,10 +141,8 @@ function extractChapters(text: string): {
         if (valRest[k] === '"') { closeIdx = k; break; }
       }
       if (closeIdx === -1) continue;
-
       const endPos = searchFrom + summaryIdx + 9 + afterSummary.length - valRest.length + closeIdx + 1;
       const partial = snippet.slice(0, endPos);
-
       let ob = 0, osb = 0;
       for (const c of partial) {
         if (c === "{") ob++;
@@ -170,7 +154,6 @@ function extractChapters(text: string): {
       ob++;
       while (osb > 0) { closing += "]"; osb--; }
       while (ob > 0) { closing += "}"; ob--; }
-
       const fixed = tryParseJSON(partial + closing);
       if (fixed) {
         const result = validate(fixed);
@@ -188,10 +171,8 @@ function validate(data: unknown): {
 } | null {
   const d = data as Record<string, unknown>;
   if (!d.chapters || !Array.isArray(d.chapters)) return null;
-
   const description = typeof d.description === "string" ? d.description : "";
   const chapters: Array<{ title: string; content: string; summary: string }> = [];
-
   for (const ch of d.chapters) {
     if (!ch || typeof ch !== "object") continue;
     const c = ch as Record<string, unknown>;
@@ -206,21 +187,23 @@ function validate(data: unknown): {
       });
     }
   }
-
   return chapters.length > 0 ? { description, chapters } : null;
 }
 
-/* ── Generation approaches ───────────────────────────────────────────── */
+/* ── Course generation (full freedom for AI) ────────────────────────── */
 
-/** Attempt 1: Single call, very concise */
-async function generateSingleCall(
+async function generateCourse(
   zai: Awaited<ReturnType<typeof ZAI.create>>,
   title: string, courseLang: string, level: number,
   sourceLinks: string[], sourceContext: string,
 ) {
   const langLabels: Record<string, string> = { fr: "français", en: "english" };
-  const levelLabels = ["Débutant", "Intermédiaire", "Avancé"];
+  const levelLabels = ["Débutant (complet, accessible, exemples simples)", "Intermédiaire (approfondi, exemples pratiques, exercices de réflexion)", "Avancé (expert, cas complexes, analyses critiques, liens entre concepts)"];
   const links = sourceLinks.length > 0 ? `\nRéférences: ${sourceLinks.join(", ")}` : "";
+  const langNote = courseLang === "en"
+    ? "You MUST write the ENTIRE course in English. All chapter titles, content, summaries — everything in English."
+    : "Tu DOIS rédiger l'intégralité du cours en français. Tous les titres, contenus, résumés — tout en français.";
+
   const sourcePrompt = sourceContext
     ? `\n\n${sourceContext}\n\nIMPORTANT: Utilise les informations ci-dessus pour enrichir le cours avec des faits réels, des données et des exemples concrets.`
     : "";
@@ -231,21 +214,30 @@ async function generateSingleCall(
         {
           role: "assistant",
           content: [
-            `Expert pédagogue. Crée un cours en ${langLabels[courseLang] || "français"}. Niveau ${levelLabels[level] || "Intermédiaire"}.`,
-            "Réponds UNIQUEMENT avec ce JSON valide :",
-            '{"description":"...","chapters":[{"title":"...","content":"Markdown 100-140 mots","summary":"10 mots"}]}',
+            `Tu es un expert pédagogue passionné qui crée des cours captivants et mémorables.`,
             "",
-            "Règles STRICTES :",
-            "- 5 chapitres exactement",
-            "- content: 100-140 mots MAX, très concis",
-            "- Utilise ## sous-titres, - listes, ** gras",
-            "- Aucun guillemet dans les valeurs (seulement apostrophes)",
-            "- Pas de texte avant/après le JSON",
+            `MISSION : Crée un cours complet en ${langLabels[courseLang] || "français"}.`,
+            `Niveau : ${levelLabels[level] || levelLabels[1]}`,
+            `Sujet : ${title}`,
+            "",
+            "RÈGLES CRITIQUES :",
+            "- Tu as la LIBERTÉ TOTALE sur le nombre de chapitres. Crée le nombre qui correspond au sujet : 3, 5, 7, 10, 12, 15... autant que nécessaire pour couvrir le sujet en profondeur.",
+            "- Chaque chapitre DOIT contenir des sous-chapitres (utilisés avec ## en Markdown) — au moins 2-3 sous-chapitres par chapitre.",
+            "- Le contenu DOIT ÊTRE INTERESSANT et captivant. Utilise des exemples concrets, des analogies, des anecdotes, des faits surprenants, des questions rhétoriques.",
+            "- PAS de texte ennuyeux ni académique sec. Écris comme un storyteller passionné.",
+            `- ${langNote}`,
+            "- Chaque chapitre doit contenir au minimum 200 mots de contenu riche.",
+            "- Utilise largement : ## pour sous-chapitres, - pour listes, ** pour gras, > pour citations, des exemples numériques quand c'est pertinent.",
+            "- Aucun guillemet double dans les valeurs. Utilise seulement des apostrophes (').",
+            "",
+            "RÉPONDS UNIQUEMENT avec ce JSON valide :",
+            '{"description":"Brève description captivante du cours (2-3 phrases)","chapters":[{"title":"Titre du chapitre","content":"Contenu Markdown riche avec ## sous-chapitres, listes, exemples...","summary":"Résumé en 1 phrase"}]}',
+            "",
             links,
             sourcePrompt,
           ].join("\n"),
         },
-        { role: "user", content: `Cours concis sur: ${title}` },
+        { role: "user", content: `Crée un cours passionnant et complet sur : ${title}` },
       ],
       thinking: { type: "disabled" },
     })
@@ -253,101 +245,6 @@ async function generateSingleCall(
 
   const text = completion.choices[0]?.message?.content || "";
   return extractChapters(text);
-}
-
-/** Attempt 2: Two-step — structure then content one by one */
-async function generateTwoStep(
-  zai: Awaited<ReturnType<typeof ZAI.create>>,
-  title: string, courseLang: string, level: number,
-  sourceLinks: string[], sourceContext: string,
-) {
-  const langLabels: Record<string, string> = { fr: "français", en: "english" };
-  const levelLabels = ["Débutant", "Intermédiaire", "Avancé"];
-  const links = sourceLinks.length > 0 ? `\nRéférences: ${sourceLinks.join(", ")}` : "";
-  const langNote = courseLang === "en" ? "Write in English." : "Rédige en français.";
-  const sourcePrompt = sourceContext
-    ? `\n\n${sourceContext}\n\nIMPORTANT: Utilise les informations ci-dessus pour enrichir le cours avec des faits réels, des données et des exemples concrets.`
-    : "";
-
-  // Step 1: structure
-  const structCompletion = await withRetry(() =>
-    zai.chat.completions.create({
-      messages: [
-        {
-          role: "assistant",
-          content: [
-            `Expert pédagogue. Crée un plan de cours en ${langLabels[courseLang] || "français"}. Niveau ${levelLabels[level]}.`,
-            "JSON UNIQUEMENT :",
-            '{"description":"...","chapters":[{"title":"...","summary":"10 mots"}]}',
-            "- 5 chapitres. Aucun guillemet dans les valeurs. Pas de texte avant/après.",
-            links,
-            sourcePrompt,
-          ].join("\n"),
-        },
-        { role: "user", content: `Plan du cours: ${title}` },
-      ],
-      thinking: { type: "disabled" },
-    })
-  );
-
-  let structText = structCompletion.choices[0]?.message?.content || "";
-  const cb = structText.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (cb) structText = cb[1].trim();
-  const structStart = structText.indexOf("{");
-  if (structStart !== -1) structText = structText.slice(structStart);
-
-  const struct = tryParseJSON(structText) as {
-    description?: string;
-    chapters?: Array<{ title: string; summary: string }>;
-  };
-
-  if (!struct?.chapters?.length) throw new Error("Structure generation failed");
-
-  const description = struct.description || "";
-  const chapterDefs = struct.chapters.slice(0, 5);
-
-  // Step 2: content for each chapter
-  const chapters: Array<{ title: string; content: string; summary: string }> = [];
-  for (const ch of chapterDefs) {
-    const chapterSourcePrompt = sourceContext
-      ? `\n\nRéférence les informations sources pertinentes pour ce chapitre :\n${sourceContext}`
-      : "";
-
-    const contentCompletion = await withRetry(() =>
-      zai.chat.completions.create({
-        messages: [
-          {
-            role: "assistant",
-            content: [
-              "Expert pédagogue. Écris le contenu d'un chapitre en Markdown.",
-              langNote,
-              "- 100-150 mots MAX",
-              "- ## pour 2 sous-titres, - pour listes, ** pour gras",
-              "- Inclus un exemple court ou une donnée concrète si possible",
-              "- UNIQUEMENT le texte Markdown, sans guillemets, sans backticks",
-              chapterSourcePrompt,
-            ].join("\n"),
-          },
-          {
-            role: "user",
-            content: `Cours: ${title}\nChapitre: ${ch.title}\nRésumé: ${ch.summary}\n\nÉcris le contenu.`,
-          },
-        ],
-        thinking: { type: "disabled" },
-      })
-    );
-
-    let content = contentCompletion.choices[0]?.message?.content || "";
-    content = content.trim();
-    if (content.startsWith("```")) {
-      const lines = content.split("\n");
-      content = lines.slice(1, lines[lines.length - 1].trim() === "```" ? -1 : undefined).join("\n").trim();
-    }
-
-    chapters.push({ title: ch.title, content, summary: ch.summary || "" });
-  }
-
-  return { description, chapters };
 }
 
 /* ── Main handler ────────────────────────────────────────────────────── */
@@ -362,104 +259,70 @@ export async function POST(request: NextRequest) {
 
     const zai = await ZAI.create();
 
-    // ── Step 0: Scrape source links to extract real content ──
+    // ── Step 0: Scrape source links ──
     let scrapedPages: ScrapedPage[] = [];
     if (sourceLinks.length > 0) {
-      console.log(`[generate] Scraping ${sourceLinks.length} source link(s)...`);
       scrapedPages = await scrapeSourceLinks(zai, sourceLinks);
-      console.log(`[generate] Successfully scraped ${scrapedPages.length}/${sourceLinks.length} links`);
     }
     const sourceContext = buildSourceContext(scrapedPages);
 
-    // Try single call first (fastest, ~8-10s)
-    let result = await generateSingleCall(zai, title, courseLang, level, sourceLinks, sourceContext);
-
-    // Fallback to 2-step if we got too few chapters
-    if (!result || result.chapters.length < 3) {
-      console.log(`Single call got ${result?.chapters.length || 0} chapters, falling back to 2-step...`);
-      result = await generateTwoStep(zai, title, courseLang, level, sourceLinks, sourceContext);
-    }
+    // ── Step 1: Generate course with full AI freedom ──
+    let result = await generateCourse(zai, title, courseLang, level, sourceLinks, sourceContext);
 
     if (!result || result.chapters.length === 0) {
       throw new Error("L'IA n'a pas pu générer un cours valide. Réessaie.");
     }
 
-    // Save to database
-    const course = await db.course.create({
-      data: {
-        title: title.trim(),
-        description: result.description,
-        sourceLinks: JSON.stringify(sourceLinks),
-        flameCost: COURSE_CREATION_COST,
-        chapters: {
-          create: result.chapters.map((ch, idx) => ({
-            title: ch.title,
-            content: ch.content,
-            summary: ch.summary,
-            order: idx + 1,
-          })),
-        },
-      },
-      include: { chapters: true },
+    // ── Step 2: Save to Supabase ──
+    const courseId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    await supabase.from("Course").insert({
+      id: courseId,
+      title: title.trim(),
+      description: result.description,
+      sourceLinks: JSON.stringify(sourceLinks),
+      flameCost: "0",
+      createdAt: now,
     });
 
-    // Spend flame points for course creation (skip if user has subscription)
-    const settings = await db.appSettings.upsert({
-      where: { id: "main" },
-      create: { id: "main", flamePoints: 0 },
-      update: {},
-    });
-
-    if (settings.hasSubscription) {
-      return NextResponse.json({
-        success: true,
-        scrapedSources: scrapedPages.length,
-        course: {
-          id: course.id,
-          title: course.title,
-          description: course.description,
-          sourceLinks: JSON.parse(course.sourceLinks),
-          createdAt: course.createdAt,
-          chapters: course.chapters
-            .sort((a, b) => a.order - b.order)
-            .map((ch) => ({ id: ch.id, title: ch.title, content: ch.content, summary: ch.summary, order: ch.order })),
-        },
-      });
+    if (result.chapters.length > 0) {
+      const chapterRows = result.chapters.map((ch, idx) => ({
+        id: crypto.randomUUID(),
+        title: ch.title,
+        content: ch.content,
+        summary: ch.summary,
+        order: String(idx + 1),
+        courseId,
+      }));
+      await supabase.from("Chapter").insert(chapterRows);
     }
 
-    if (settings.flamePoints < COURSE_CREATION_COST) {
-      // Rollback course creation if insufficient flame points
-      await db.course.delete({ where: { id: course.id } });
-      return NextResponse.json(
-        { error: `Insufficient flame points. Need ${COURSE_CREATION_COST}, have ${settings.flamePoints}.` },
-        { status: 400 },
-      );
-    }
-
-    await db.appSettings.update({
-      where: { id: "main" },
-      data: { flamePoints: { decrement: COURSE_CREATION_COST } },
-    });
-    await db.flameTransaction.create({
-      data: {
-        amount: -COURSE_CREATION_COST,
-        reason: "course_creation",
-        courseId: course.id,
-      },
+    // Create CourseProgress so study sessions work immediately
+    await supabase.from("CourseProgress").upsert({
+      id: courseId,
+      courseId,
+      completed: false,
+      score: 0,
+      flameAwarded: false,
     });
 
     return NextResponse.json({
       success: true,
       scrapedSources: scrapedPages.length,
       course: {
-        id: course.id,
-        title: course.title,
-        description: course.description,
-        sourceLinks: JSON.parse(course.sourceLinks),
-        createdAt: course.createdAt,
-        chapters: course.chapters
-          .sort((a, b) => a.order - b.order)
-          .map((ch) => ({ id: ch.id, title: ch.title, content: ch.content, summary: ch.summary, order: ch.order })),
+        id: courseId,
+        title: title.trim(),
+        description: result.description,
+        sourceLinks,
+        createdAt: now,
+        chapters: result.chapters.map((ch, idx) => ({
+          id: `ch-${idx}`,
+          title: ch.title,
+          content: ch.content,
+          summary: ch.summary,
+          order: idx + 1,
+        })),
       },
     });
   } catch (error: unknown) {

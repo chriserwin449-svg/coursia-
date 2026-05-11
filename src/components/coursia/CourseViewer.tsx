@@ -296,8 +296,8 @@ export default function CourseViewer() {
               </button>
               <div>
                 <p className="text-sm text-muted-foreground">{course.title}</p>
-                <p className="font-bold">
-                  {tx.viewer.chapterOf(currentChapterIndex + 1, course.chapters.length)} : {currentChapter.title}
+                <p className="font-bold text-gold">
+                  {tx.viewer.chapterOf(currentChapterIndex + 1, course.chapters.length)} : <span className="text-gold">{currentChapter.title}</span>
                 </p>
               </div>
             </div>
@@ -338,7 +338,7 @@ export default function CourseViewer() {
                 </div>
               )}
               {/* Content */}
-              <div className="fullscreen-content prose prose-invert max-w-none animate-fade-in-slide-right">
+              <div className="fullscreen-content prose prose-invert max-w-none animate-fade-in-slide-right prose-p:text-[1.65rem] prose-p:leading-[2.2] prose-p:mb-6 prose-h2:text-[2.25rem] prose-h2:text-gold prose-h2:mt-16 prose-h2:mb-8 prose-h3:text-[1.85rem] prose-h3:text-gold-light prose-h3:mt-12 prose-h3:mb-6 prose-li:text-[1.65rem] prose-li:my-3 prose-li:leading-[2] prose-ul:my-8 prose-ol:my-8 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
                 <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
               </div>
             </div>
@@ -471,7 +471,7 @@ export default function CourseViewer() {
           {/* Content header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
             <div>
-              <h2 className="text-lg md:text-xl font-bold">{currentChapter.title}</h2>
+              <h2 className="text-2xl md:text-3xl font-extrabold text-gold">{currentChapter.title}</h2>
               <p className="text-xs text-muted-foreground">
                 {tx.viewer.chapterOf(currentChapter.order, course.chapters.length)}
               </p>
@@ -521,15 +521,19 @@ export default function CourseViewer() {
 
                 {/* ── Course content (Markdown) ── */}
                 <div className="prose prose-invert max-w-none
-                  prose-headings:font-extrabold prose-headings:text-foreground
-                  prose-h1:text-3xl prose-h2:text-2xl prose-h2:mt-10 prose-h2:mb-4
-                  prose-h3:text-xl prose-h3:mt-8 prose-h3:mb-3
-                  prose-p:text-lg prose-p:leading-relaxed prose-p:text-foreground/90
-                  prose-li:text-lg prose-li:text-foreground/90
-                  prose-strong:text-foreground
-                  prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-lg
-                  prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-6
+                  prose-headings:font-extrabold
+                  prose-h1:text-4xl prose-h1:text-gold prose-h1:mt-14 prose-h1:mb-6
+                  prose-h2:text-[2rem] prose-h2:text-gold prose-h2:mt-14 prose-h2:mb-7
+                  prose-h3:text-[1.65rem] prose-h3:text-gold-light prose-h3:mt-12 prose-h3:mb-5
+                  prose-p:text-[1.35rem] prose-p:leading-[2.2] prose-p:text-foreground/90 prose-p:mb-6
+                  prose-li:text-[1.35rem] prose-li:text-foreground/90 prose-li:leading-[2] prose-li:my-3
+                  prose-ul:my-8 prose-ol:my-8
+                  prose-strong:text-gold
+                  prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-2 prose-code:py-1 prose-code:rounded-lg prose-code:text-[1.1rem]
+                  prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-8 prose-pre:text-[1.1rem]
                   prose-a:text-mauve-light
+                  prose-blockquote:text-gold-light prose-blockquote:border-gold/30 prose-blockquote:my-8
+                  prose-hr:border-gold/20 prose-hr:my-12
                 ">
                   <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
                 </div>

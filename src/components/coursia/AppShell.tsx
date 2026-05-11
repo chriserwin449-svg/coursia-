@@ -9,7 +9,6 @@ import CourseViewer from "@/components/coursia/CourseViewer";
 import Journey from "@/components/coursia/Journey";
 import OffersPage from "@/components/coursia/OffersPage";
 import TopBar from "@/components/coursia/TopBar";
-import FlameCounter from "@/components/coursia/FlameCounter";
 
 export default function AppShell() {
   const view = useAppStore((s) => s.view);
@@ -32,7 +31,6 @@ export default function AppShell() {
                 : "ml-[72px] md:ml-64"
             }`}
           >
-            <FlameCounter />
             {view === "create" && <CreateCourse />}
             {view === "library" && <Library />}
             {view === "viewer" && <CourseViewer />}

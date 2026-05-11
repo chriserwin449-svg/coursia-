@@ -12,7 +12,7 @@ import {
   Calendar,
   TrendingUp,
   X,
-  Flame,
+  Zap,
 } from "lucide-react";
 import { BADGE_DEFINITIONS } from "@/lib/badges";
 import { t } from "@/lib/i18n";
@@ -125,6 +125,62 @@ export default function Journey() {
         <p className="text-muted-foreground text-lg">{tx.journey.subtitle}</p>
       </div>
 
+      {/* ═══ LEARNING PROGRESS BAR ═══ */}
+      {(() => {
+        const total = stats?.totalChapters ?? 0;
+        const completed = stats?.completedChapters ?? 0;
+        const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+        const motivationalMsgs = lang === "fr"
+          ? ["Bien commencé ! Continue comme ça !", "Tu progresses bien, ne lâche rien !", "Impressionnant ! Tu es sur la bonne voie !", "Tu es une machine à apprendre !", "Champion ! Rien ne t'arrête !"]
+          : ["Great start! Keep going!", "You're making progress!", "Impressive! You're on the right track!", "You're a learning machine!", "Champion! Nothing stops you!"];
+        const msgIdx = Math.min(Math.floor(pct / 20), motivationalMsgs.length - 1);
+
+        return (
+          <div className="rounded-3xl p-6 mb-8 fade-in-up relative overflow-hidden border border-mauve/20" style={{ background: "linear-gradient(135deg, rgba(124, 92, 191, 0.08), rgba(234, 179, 8, 0.04))" }}>
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              <div className="absolute -top-10 -right-10 w-40 h-40 bg-mauve/10 rounded-full blur-[60px]" />
+              <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-gold/8 rounded-full blur-[50px]" />
+            </div>
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-mauve/15 flex items-center justify-center">
+                    <span className="text-2xl">📚</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold gradient-text">
+                      {lang === "fr" ? "Ma Progression" : "My Progress"}
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      {completed}/{total} {lang === "fr" ? "chapitres complétés" : "chapters completed"} · {pct}%
+                    </p>
+                  </div>
+                </div>
+                <p className="text-sm font-semibold text-gold max-w-[200px] text-right">
+                  {total > 0 ? motivationalMsgs[msgIdx] : (lang === "fr" ? "Commence un cours pour voir ta progression !" : "Start a course to see your progress!")}
+                </p>
+              </div>
+              <div className="w-full h-4 rounded-full bg-night/80 overflow-hidden border border-mauve/10">
+                <div
+                  className="h-full rounded-full transition-all duration-1000 ease-out relative"
+                  style={{
+                    width: mounted ? `${Math.min(pct, 100)}%` : "0%",
+                    background: "linear-gradient(90deg, #7c5cbf, #d4a843, #eab308)",
+                    boxShadow: pct > 0 ? "0 0 15px rgba(234, 179, 8, 0.4)" : "none",
+                  }}
+                >
+                  {pct > 0 && (
+                    <div className="absolute inset-0 rounded-full overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
         {[
@@ -156,14 +212,13 @@ export default function Journey() {
             delay: "100ms",
           },
           {
-            icon: Flame,
-            label: tx.journey.flames,
-            value: stats?.averageScore ?? 0,
-            color: "text-orange-400",
-            bgColor: "bg-orange-500/10",
-            glowColor: "rgba(249, 115, 22, 0.3)",
+            icon: Zap,
+            label: lang === "fr" ? "Score moyen" : "Avg Score",
+            value: `${stats?.averageScore ?? 0}%`,
+            color: "text-gold",
+            bgColor: "bg-gold/10",
+            glowColor: "rgba(212, 168, 67, 0.3)",
             delay: "150ms",
-            isFlame: true,
           },
         ].map((stat) => (
           <div
@@ -176,9 +231,7 @@ export default function Journey() {
             >
               <stat.icon className={`w-6 h-6 ${stat.color}`} />
             </div>
-            <p className="text-2xl font-extrabold mb-1">
-              {stat.isFlame ? `${stat.value} 🔥` : stat.value}
-            </p>
+            <p className="text-2xl font-extrabold mb-1">{stat.value}</p>
             <p className="text-sm text-muted-foreground">{stat.label}</p>
           </div>
         ))}
