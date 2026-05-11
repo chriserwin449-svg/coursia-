@@ -1,7 +1,6 @@
 import { createServer } from 'http';
-import { readFileSync, existsSync, statSync, createReadStream } from 'fs';
+import { readFileSync, existsSync, statSync, readdirSync } from 'fs';
 import { join, extname } from 'path';
-import { createGzip } from 'zlib';
 
 const PORT = 3000;
 const NEXT_DIR = '/home/z/my-project/.next';
@@ -23,30 +22,44 @@ const MIME = {
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',
+  '.txt': 'text/plain',
+  '.map': 'application/json',
+  '.rsc': 'text/plain',
 };
 
-function sendChunked(res, data, contentType) {
-  res.writeHead(200, {
-    'Content-Type': contentType,
-    'Transfer-Encoding': 'chunked',
-  });
-  const chunkSize = 8192;
-  let offset = 0;
-  const send = () => {
-    if (offset < data.length) {
-      res.write(data.slice(offset, offset + chunkSize));
-      offset += chunkSize;
-      setImmediate(send);
+function chunkedSend(res, data, contentType) {
+  res.writeHead(200, { 'Content-Type': contentType, 'Transfer-Encoding': 'chunked' });
+  let off = 0;
+  const sz = 8192;
+  (function next() {
+    if (off < data.length) {
+      res.write(data.subarray(off, off + sz));
+      off += sz;
+      setImmediate(next);
     } else {
       res.end();
     }
-  };
-  send();
+  })();
 }
 
-function sendSmall(res, data, contentType, extra = {}) {
-  res.writeHead(200, { 'Content-Type': contentType, ...extra });
+function small(res, data, contentType) {
+  res.writeHead(200, { 'Content-Type': contentType });
   res.end(data);
+}
+
+function serveFile(res, filePath, fallback) {
+  if (existsSync(filePath) && !statSync(filePath).isDirectory()) {
+    const data = readFileSync(filePath);
+    const ext = extname(filePath);
+    const mime = MIME[ext] || 'application/octet-stream';
+    if (data.length > 16384) {
+      chunkedSend(res, data, mime);
+    } else {
+      small(res, data, mime);
+    }
+    return true;
+  }
+  return false;
 }
 
 const server = createServer((req, res) => {
@@ -55,71 +68,77 @@ const server = createServer((req, res) => {
 
   try {
     // Homepage
-    if (path === '/' || path === '/index.html') {
-      sendChunked(res, indexHtml, 'text/html; charset=utf-8');
+    if (path === '/') {
+      chunkedSend(res, Buffer.from(indexHtml, 'utf-8'), 'text/html; charset=utf-8');
       return;
     }
+
+    // Public files
+    if (serveFile(res, join(PUBLIC_DIR, path))) return;
 
     // _next/static
     if (path.startsWith('/_next/static/')) {
-      const fp = join(NEXT_DIR, path);
-      if (existsSync(fp) && !statSync(fp).isDirectory()) {
-        const ext = extname(fp);
-        const data = readFileSync(fp);
-        sendChunked(res, data, MIME[ext] || 'application/octet-stream');
-        return;
-      }
+      if (serveFile(res, join(NEXT_DIR, path))) return;
     }
 
-    // _next/BUILD_ID
+    // BUILD_ID
     if (path === '/_next/BUILD_ID') {
-      sendSmall(res, BUILD_ID, 'text/plain');
+      small(res, BUILD_ID, 'text/plain');
       return;
     }
 
-    // _next JSON manifests
-    if (path.startsWith('/_next/') && path.endsWith('.json')) {
-      sendSmall(res, '{}', 'application/json');
-      return;
-    }
-
-    // _next/image
-    if (path.startsWith('/_next/image')) {
-      sendSmall(res, '{}', 'application/json');
-      return;
-    }
-
-    // Try _next files
+    // _next routes - try file system
     if (path.startsWith('/_next/')) {
       const np = join(NEXT_DIR, path);
-      if (existsSync(np) && !statSync(np).isDirectory()) {
-        const ext = extname(np);
-        const data = readFileSync(np);
-        sendChunked(res, data, MIME[ext] || 'application/octet-stream');
+      if (serveFile(res, np)) return;
+
+      // JSON manifest fallbacks
+      if (path.endsWith('.json')) {
+        // Try to find the actual manifest file
+        const manifests = [
+          join(NEXT_DIR, 'static', path.replace('/_next/', '')),
+          join(NEXT_DIR, path),
+        ];
+        for (const m of manifests) {
+          if (existsSync(m)) {
+            serveFile(res, m);
+            return;
+          }
+        }
+        small(res, '{}', 'application/json');
+        return;
+      }
+
+      // RSC routes
+      if (path.endsWith('.rsc')) {
+        small(res, '', 'text/plain');
         return;
       }
     }
 
-    // Public files (avatars, logo, etc.)
-    const pubPath = join(PUBLIC_DIR, path);
-    if (existsSync(pubPath) && !statSync(pubPath).isDirectory()) {
-      const ext = extname(pubPath);
-      const data = readFileSync(pubPath);
-      sendChunked(res, data, MIME[ext] || 'application/octet-stream');
-      return;
+    // Client JS chunks - look for them in multiple locations
+    if (path.endsWith('.js') || path.endsWith('.css')) {
+      const locations = [
+        join(NEXT_DIR, 'static', 'chunks', 'app', path.split('/').pop() || ''),
+        join(NEXT_DIR, 'static', path.replace(/^\/_next\//, '')),
+        join(NEXT_DIR, path),
+      ];
+      for (const loc of locations) {
+        if (serveFile(res, loc)) return;
+      }
     }
 
-    // SPA fallback - serve index.html for client-side routing
-    sendChunked(res, indexHtml, 'text/html; charset=utf-8');
+    // SPA fallback
+    chunkedSend(res, Buffer.from(indexHtml, 'utf-8'), 'text/html; charset=utf-8');
   } catch (err) {
-    console.error('Error serving ' + path + ':', err.message);
+    console.error('Error ' + path + ':', err.message);
     if (!res.headersSent) {
-      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.writeHead(500);
     }
-    res.end('Error');
+    res.end();
   }
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log('Coursia static server on port ' + PORT);
+  console.log('Coursia on :' + PORT + ' build=' + BUILD_ID);
 });

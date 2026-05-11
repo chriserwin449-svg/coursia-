@@ -5,7 +5,6 @@ import {
   Sparkles,
   BookOpen,
   Trophy,
-  GraduationCap,
   ArrowRight,
   Star,
   Check,
@@ -13,6 +12,7 @@ import {
   Zap,
   Globe,
 } from "lucide-react";
+import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 
@@ -173,8 +173,8 @@ export default function LandingPage() {
 
           {/* Logo */}
           <div className="flex justify-center mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-mauve to-mauve-dark glow-mauve">
-              <GraduationCap className="w-10 h-10 text-white" />
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl glow-mauve">
+              <CoursiaLogo size={80} className="rounded-3xl" />
             </div>
           </div>
 
@@ -514,9 +514,7 @@ export default function LandingPage() {
       <footer className="mt-auto border-t border-muted-foreground/10 py-10 px-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-mauve to-mauve-dark flex items-center justify-center">
-              <GraduationCap className="w-4 h-4 text-white" />
-            </div>
+            <CoursiaLogo size={32} className="rounded-lg" />
             <span className="font-bold text-sm text-foreground">{tx.app.name}</span>
           </div>
           <p className="text-sm text-muted-foreground/50">{tx.app.footer}</p>

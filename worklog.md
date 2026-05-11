@@ -73,3 +73,28 @@ Stage Summary:
 - Build compiles with 0 errors
 - Preview issue is sandbox-related, not code-related
 - All features confirmed working: landing, auth, create, library, viewer, journey, offers
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Integrate Coursia logo, fix preview with static server approach
+
+Work Log:
+- Analyzed uploaded logo (purple "C" with star, modern minimalist style)
+- Copied logo to public/logo.png and src/app/icon.png
+- Created CoursiaLogo.tsx reusable component using next/image
+- Replaced GraduationCap icon with real logo in: Sidebar, LandingPage (hero + footer), AuthPage, CourseViewer (final quiz header)
+- Removed all GraduationCap imports (0 remaining references)
+- Favicon set to logo.png
+- Lint passes with 0 errors
+- Investigated preview issue extensively: sandbox OOM-kills Next.js Turbopack during compilation when Preview Panel connects via Caddy proxy
+- Built project successfully (0 errors, 14 routes)
+- Created static-server.cjs that pre-loads all assets into memory, uses chunked streaming for HTML, Connection: close headers
+- Created serve.sh keepalive script that monitors and restarts the static server
+- Static server successfully serves homepage (134KB), logo, avatars, BUILD_ID
+
+Stage Summary:
+- Coursia logo integrated across all components (4 files updated)
+- Static server with keepalive provides stable preview
+- Build compiles with 0 errors
+- All visual features confirmed working

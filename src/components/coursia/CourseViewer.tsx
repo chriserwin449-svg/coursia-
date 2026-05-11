@@ -13,10 +13,10 @@ import {
   BookOpen,
   Trophy,
   FileText,
-  GraduationCap,
   AlertTriangle,
   RotateCcw,
 } from "lucide-react";
+import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 import ReactMarkdown from "react-markdown";
 import { useAppStore, type CourseData, type CourseChapter, type QuizQuestion } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -346,7 +346,7 @@ export default function CourseViewer() {
         {/* Final quiz header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-night-light flex-shrink-0">
           <div className="flex items-center gap-3">
-            <GraduationCap className="w-6 h-6 text-gold" />
+            <CoursiaLogo size={24} className="rounded-lg" />
             <div>
               <h2 className="text-lg font-bold">{tx.viewer.finalQuiz}</h2>
               <p className="text-xs text-muted-foreground">{course.title}</p>
