@@ -20,35 +20,51 @@ const testimonials = [
   {
     text: "Coursia m\u2019a permis d\u2019apprendre Python en une semaine ! Les chapitres sont super bien structur\u00e9s.",
     author: "Marie L.",
+    avatar: "Marie",
+    role: lang === "fr" ? "Étudiante en informatique" : "CS Student",
   },
   {
     text: "Les quiz m\u2019aident vraiment \u00e0 retenir. J\u2019adore le syst\u00e8me de badges !",
     author: "Thomas R.",
+    avatar: "Thomas",
+    role: lang === "fr" ? "Développeur web" : "Web Developer",
   },
   {
     text: "L\u2019IA g\u00e9n\u00e8re des cours incroyablement complets. Je recommande \u00e0 100%.",
     author: "Sarah K.",
+    avatar: "Sarah",
+    role: lang === "fr" ? "Designer UX" : "UX Designer",
   },
   {
     text: "Parfait pour r\u00e9viser avant les examens. J\u2019ai am\u00e9lior\u00e9 mes notes gr\u00e2ce \u00e0 Coursia.",
     author: "Lucas M.",
+    avatar: "Lucas",
+    role: lang === "fr" ? "Étudiant en médecine" : "Medical Student",
   },
   {
     text: "L\u2019interface est magnifique et intuitive. Mieux que n\u2019importe quelle autre plateforme.",
     author: "Emma D.",
+    avatar: "Emma",
+    role: lang === "fr" ? "Data analyst" : "Data Analyst",
   },
   {
     text: "J\u2019utilise Coursia tous les jours pour apprendre de nouvelles comp\u00e9tences.",
     author: "Nicolas B.",
+    avatar: "Nicolas",
+    role: lang === "fr" ? "Entrepreneur" : "Entrepreneur",
   },
 ];
 
 function TestimonialCard({
   text,
   author,
+  avatar,
+  role,
 }: {
   text: string;
   author: string;
+  avatar: string;
+  role: string;
 }) {
   return (
     <div className="glass rounded-3xl p-6 min-w-[320px] max-w-[380px] mx-3 flex-shrink-0 hover:border-mauve/30 transition-all duration-300">
@@ -64,10 +80,18 @@ function TestimonialCard({
         &ldquo;{text}&rdquo;
       </p>
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-mauve to-mauve-dark flex items-center justify-center text-white font-bold text-sm">
-          {author.charAt(0)}
+        <div className="w-11 h-11 rounded-full ring-2 ring-mauve/30 overflow-hidden bg-mauve/10 flex-shrink-0">
+          <img
+            src={`https://api.dicebear.com/9.x/lorelei/svg?seed=${avatar}&backgroundColor=c0a0e0`}
+            alt={author}
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
         </div>
-        <span className="font-semibold text-sm text-foreground">{author}</span>
+        <div className="min-w-0">
+          <span className="font-semibold text-sm text-foreground block">{author}</span>
+          <span className="text-xs text-muted-foreground block">{role}</span>
+        </div>
       </div>
     </div>
   );
@@ -290,7 +314,7 @@ export default function LandingPage() {
         <div className="overflow-hidden mb-6">
           <div className="marquee-track">
             {[...testimonials, ...testimonials].map((t, i) => (
-              <TestimonialCard key={`r1-${i}`} text={t.text} author={t.author} />
+              <TestimonialCard key={`r1-${i}`} text={t.text} author={t.author} avatar={t.avatar} role={t.role} />
             ))}
           </div>
         </div>
@@ -299,7 +323,7 @@ export default function LandingPage() {
         <div className="overflow-hidden">
           <div className="marquee-track-reverse">
             {[...testimonials.slice().reverse(), ...testimonials.slice().reverse()].map((t, i) => (
-              <TestimonialCard key={`r2-${i}`} text={t.text} author={t.author} />
+              <TestimonialCard key={`r2-${i}`} text={t.text} author={t.author} avatar={t.avatar} role={t.role} />
             ))}
           </div>
         </div>
