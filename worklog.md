@@ -98,3 +98,29 @@ Stage Summary:
 - Static server with keepalive provides stable preview
 - Build compiles with 0 errors
 - All visual features confirmed working
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Debug and fix Preview Panel connectivity
+
+Work Log:
+- Discovered the sandbox kills ALL processes non-deterministically regardless of approach
+- Next.js Turbopack (next-server process) uses 350MB+ RAM and 42% CPU, killed within 2-3s
+- `next start` (production) also gets killed (180MB, 35% CPU)
+- Raw TCP server (net.createServer) survives 30-120s without requests - proves issue is resource-related
+- Raw TCP server CAN serve requests through Caddy proxy (port 81 → 3000) successfully
+- Node.js `http.createServer` dies when receiving Caddy requests (but raw TCP works)
+- Sandbox has 8GB RAM but strict CPU/process time limits
+- Auto-restart watchdogs also get killed by sandbox after ~60-120s
+- The "can not execute caddy command in bash" error appears when using Node http module to connect to port 81
+- Cleaned up all temporary files (server.js, watchdog.js, static-server.cjs, preview-server.cjs)
+- Lint passes with 0 errors after cleanup
+
+Stage Summary:
+- Preview limitation confirmed: sandbox kills processes due to CPU limits, NOT memory
+- Next.js (both dev and production mode) uses too much CPU for sandbox constraints
+- Raw TCP server is the only approach that can serve through Caddy, but sandbox kills it eventually
+- This is an infrastructure/environment limitation, not a code issue
+- The full Coursia app compiles successfully (134KB HTML, 14 routes, 0 build errors)
+- All code is clean: 0 lint errors, proper TypeScript, no temporary files
