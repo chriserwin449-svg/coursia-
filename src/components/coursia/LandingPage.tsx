@@ -110,6 +110,7 @@ export default function LandingPage() {
   const setView = useAppStore((s) => s.setView);
   const lang = useAppStore((s) => s.lang);
   const tx = t(lang);
+  const user = useAppStore((s) => s.user);
   const heroRef = useRef<HTMLDivElement>(null);
 
   const [visible, setVisible] = useState(false);
@@ -193,7 +194,7 @@ export default function LandingPage() {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
-              onClick={() => setView("create")}
+              onClick={() => user ? setView("create") : setView("auth")}
               className="inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg sm:text-xl font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve hover:shadow-[0_0_40px_rgba(124,92,191,0.5)] cursor-pointer"
             >
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -388,7 +389,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <button
-                onClick={() => setView("create")}
+                onClick={() => user ? setView("create") : setView("auth")}
                 className="w-full py-4 rounded-full border border-muted-foreground/20 text-foreground font-bold hover:bg-muted-foreground/10 transition-all duration-300 cursor-pointer"
               >
                 {tx.landing.pricing.free.cta}
@@ -419,7 +420,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <button
-                onClick={() => setView("create")}
+                onClick={() => user ? setView("create") : setView("auth")}
                 className="w-full py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve cursor-pointer"
               >
                 {tx.landing.pricing.monthly.cta}
@@ -465,7 +466,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <button
-                onClick={() => setView("create")}
+                onClick={() => user ? setView("create") : setView("auth")}
                 className="w-full py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer"
               >
                 {tx.landing.pricing.annual.cta}
@@ -498,7 +499,7 @@ export default function LandingPage() {
               {tx.app.tagline}
             </p>
             <button
-              onClick={() => setView("create")}
+              onClick={() => user ? setView("create") : setView("auth")}
               className="inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg sm:text-xl font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve hover:shadow-[0_0_40px_rgba(124,92,191,0.5)] cursor-pointer"
             >
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />

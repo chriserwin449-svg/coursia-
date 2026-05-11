@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Library, Route, GraduationCap, PanelLeftClose, PanelLeftOpen, Tag } from "lucide-react";
+import { BookOpen, Library, Route, GraduationCap, PanelLeftClose, PanelLeftOpen, Tag, LogOut, User } from "lucide-react";
 import { useAppStore, type AppView } from "@/lib/store";
 import { t } from "@/lib/i18n";
 
@@ -11,12 +11,21 @@ export default function Sidebar() {
   const tx = t(lang);
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
   const setCollapsed = useAppStore((s) => s.setSidebarCollapsed);
+  const user = useAppStore((s) => s.user);
+  const setUser = useAppStore((s) => s.setUser);
+  const setAuthToken = useAppStore((s) => s.setAuthToken);
 
   const NAV_ITEMS: { view: AppView; label: string; icon: typeof BookOpen }[] = [
     { view: "create", label: tx.nav.create, icon: BookOpen },
     { view: "library", label: tx.nav.library, icon: Library },
     { view: "journey", label: tx.nav.journey, icon: Route },
   ];
+
+  const handleLogout = () => {
+    setUser(null);
+    setAuthToken(null);
+    setView("landing");
+  };
 
   return (
     <aside
@@ -60,8 +69,41 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Bottom section — Collapse toggle + Offers */}
+      {/* Bottom section */}
       <div className="px-2 md:px-3 py-3 border-t border-border space-y-1">
+        {/* User info */}
+        {user && (
+          <div
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-muted-foreground/70"
+            title={collapsed ? `${user.firstName} ${user.lastName}` : undefined}
+          >
+            <div className="w-8 h-8 rounded-xl bg-mauve/15 flex items-center justify-center flex-shrink-0">
+              <User className="w-4 h-4 text-mauve-light" />
+            </div>
+            {!collapsed && (
+              <div className="hidden md:block min-w-0">
+                <p className="text-xs font-bold text-foreground truncate">
+                  {user.firstName} {user.lastName.charAt(0)}.
+                </p>
+                <p className="text-[10px] text-muted-foreground/50 truncate">{user.email}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Logout */}
+        <button
+          onClick={handleLogout}
+          title={collapsed ? tx.nav.logout : undefined}
+          className="w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3 rounded-2xl text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive transition-all duration-200 cursor-pointer"
+        >
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+          {!collapsed && <span className="hidden md:block text-sm font-semibold truncate">
+            {tx.nav.logout}
+          </span>}
+        </button>
+
+        {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
           title={collapsed ? (lang === "fr" ? "Ouvrir" : "Open") : (lang === "fr" ? "Réduire" : "Collapse")}
@@ -72,14 +114,14 @@ export default function Sidebar() {
           ) : (
             <>
               <PanelLeftClose className="w-5 h-5 flex-shrink-0" />
-              <span className="hidden md:block text-base font-semibold truncate">
+              <span className="hidden md:block text-sm font-semibold truncate">
                 {lang === "fr" ? "Réduire" : "Collapse"}
               </span>
             </>
           )}
         </button>
 
-        {/* Offers link — subtle, at the very bottom */}
+        {/* Offers link */}
         <button
           onClick={() => setView("offers")}
           title={collapsed ? tx.nav.offers : undefined}

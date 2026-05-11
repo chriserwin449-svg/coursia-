@@ -25,3 +25,29 @@ Stage Summary:
 - Course titles use gradient-text (mauve→gold) consistently
 - Confetti animation on all celebrations (chapter + course completion)
 - Course completion shows overview with all chapters unlocked, green checks, and redo option
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: User authentication system (DB, API, UI, integration)
+
+Work Log:
+- Added User model to Prisma schema with email, password, firstName, lastName fields
+- Added userId fields to Course and StudySession models (optional for backward compatibility)
+- Pushed schema to SQLite DB and regenerated Prisma client
+- Created /api/auth/register endpoint: validates email format, password length (6+), checks duplicates, SHA256 hashes password
+- Created /api/auth/login endpoint: validates credentials, returns user + token
+- Created /api/auth/me endpoint: validates token
+- Created AuthPage.tsx: beautiful full-page auth with login/register toggle, name fields, email, password with show/hide toggle, error display, Coursia branding
+- Updated store.ts: added UserData interface, user/authToken state, auto-persist token to localStorage
+- Updated AppShell.tsx: added "auth" view, restores token from localStorage on mount
+- Updated Sidebar.tsx: shows user info (name, email), added logout button (clears user + token, redirects to landing)
+- Updated TopBar.tsx: shows user avatar+name when logged in, shows "Connexion" button when not
+- Updated LandingPage.tsx: all CTA buttons now redirect to auth page when not logged in, to create when logged in
+
+Stage Summary:
+- Full auth system implemented: register, login, logout, session persistence via localStorage
+- AuthPage with beautiful dark theme matching Coursia branding
+- User info displayed in sidebar and top bar
+- All CTAs properly gated behind authentication
+- APIs tested and working (register + login return success with user data + token)

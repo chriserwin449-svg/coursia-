@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import { useAppStore } from "@/lib/store";
 import Sidebar from "@/components/coursia/Sidebar";
 import LandingPage from "@/components/coursia/LandingPage";
+import AuthPage from "@/components/coursia/AuthPage";
 import CreateCourse from "@/components/coursia/CreateCourse";
 import Library from "@/components/coursia/Library";
 import CourseViewer from "@/components/coursia/CourseViewer";
@@ -13,16 +15,28 @@ import TopBar from "@/components/coursia/TopBar";
 export default function AppShell() {
   const view = useAppStore((s) => s.view);
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
+  const user = useAppStore((s) => s.user);
+  const setAuthToken = useAppStore((s) => s.setAuthToken);
+
+  // Restore auth token from localStorage on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedToken = localStorage.getItem("coursia-auth-token");
+      if (savedToken) {
+        setAuthToken(savedToken);
+      }
+    }
+  }, [setAuthToken]);
 
   return (
     <div className="min-h-screen bg-night">
       {view === "landing" ? (
         <LandingPage />
+      ) : view === "auth" ? (
+        <AuthPage />
       ) : (
         <div className="min-h-screen">
-          {/* Sidebar is ALWAYS visible in non-landing views (collapsed in viewer) */}
           <Sidebar />
-          {/* TopBar visible everywhere except viewer (viewer has its own header) */}
           {view !== "viewer" && <TopBar />}
           <main
             className={`min-h-screen transition-all duration-300 ease-in-out ${

@@ -1,7 +1,14 @@
 import { create } from "zustand";
 
-export type AppView = "landing" | "create" | "library" | "viewer" | "journey" | "offers";
+export type AppView = "landing" | "auth" | "create" | "library" | "viewer" | "journey" | "offers";
 export type AppLang = "fr" | "en";
+
+export interface UserData {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+}
 
 export interface CourseChapter {
   id: string;
@@ -42,6 +49,10 @@ export interface CourseData {
 
 interface AppState {
   lang: AppLang;
+  user: UserData | null;
+  setUser: (user: UserData | null) => void;
+  authToken: string | null;
+  setAuthToken: (token: string | null) => void;
   setLang: (l: AppLang) => void;
   view: AppView;
   setView: (view: AppView) => void;
@@ -74,6 +85,19 @@ interface AppState {
 export const useAppStore = create<AppState>((set) => ({
   lang: "fr",
   setLang: (lang) => set({ lang }),
+  user: null,
+  setUser: (user) => set({ user }),
+  authToken: null,
+  setAuthToken: (token) => {
+    if (typeof window !== "undefined") {
+      if (token) {
+        localStorage.setItem("coursia-auth-token", token);
+      } else {
+        localStorage.removeItem("coursia-auth-token");
+      }
+    }
+    set({ authToken: token });
+  },
   view: "landing",
   setView: (view) => set({
     view,
