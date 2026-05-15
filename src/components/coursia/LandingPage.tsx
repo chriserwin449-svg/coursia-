@@ -113,10 +113,10 @@ export default function LandingPage() {
   const user = useAppStore((s) => s.user);
   const heroRef = useRef<HTMLDivElement>(null);
 
-  const [visible, setVisible] = useState(false);
-  const [featuresVisible, setFeaturesVisible] = useState(false);
-  const [testimonialsVisible, setTestimonialsVisible] = useState(false);
-  const [pricingVisible, setPricingVisible] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const [featuresVisible, setFeaturesVisible] = useState(true);
+  const [testimonialsVisible, setTestimonialsVisible] = useState(true);
+  const [pricingVisible, setPricingVisible] = useState(true);
 
   useEffect(() => {
     const onScroll = () => {
