@@ -1,0 +1,131 @@
+-- ═══════════════════════════════════════════════════
+--  COURSIA — Production Prisma Schema (PostgreSQL/Supabase)
+-- ═══════════════════════════════════════════════════
+--
+-- INSTRUCTIONS:
+-- 1. When deploying to production with Supabase:
+--    - Rename this file to schema.prisma (replace the SQLite one)
+--    - OR run: cp prisma/schema.postgres.prisma prisma/schema.prisma
+--    - Set your DATABASE_URL in .env to your Supabase connection string
+--    - Run: npx prisma generate
+--    - Run: npx prisma db push
+--
+-- 2. Your Supabase URL format (Connection Pooling):
+--    DATABASE_URL=postgresql://postgres.[REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
+-- ═══════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String?
+  image     String?
+  role      String   @default("student")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  courses     Course[]
+  appSettings AppSettings?
+}
+
+model AppSettings {
+  id              String   @id @default("main")
+  userId          String   @unique
+  flamePoints     Int      @default(0)
+  hasSubscription Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model FlameTransaction {
+  id          String   @id @default(cuid())
+  userId      String?
+  amount      Int
+  reason      String
+  courseId    String?
+  chapterId   String?
+  createdAt   DateTime @default(now())
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  sourceLinks String   @default("[]")
+  flameCost   Int      @default(0)
+  userId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  chapters    Chapter[]
+  finalQuiz   CourseQuiz?
+  progress    CourseProgress?
+  sessions    StudySession[]
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Chapter {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  summary   String   @default("")
+  order     Int
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  quiz      Quiz?
+  progress  ChapterProgress?
+}
+
+model Quiz {
+  id        String   @id @default(cuid())
+  questions String
+  chapterId String   @unique
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+}
+
+model ChapterProgress {
+  id          String   @id @default(cuid())
+  chapterId   String   @unique
+  chapter     Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  completed   Boolean  @default(false)
+  score       Int      @default(0)
+  completedAt DateTime?
+  flameAwarded Boolean @default(false)
+}
+
+model CourseQuiz {
+  id        String @id @default(cuid())
+  questions String
+  courseId  String @unique
+  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+}
+
+model CourseProgress {
+  id           String   @id @default(cuid())
+  courseId     String   @unique
+  course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  completed    Boolean  @default(false)
+  score        Int      @default(0)
+  passedAt     DateTime?
+  flameAwarded Boolean @default(false)
+  sessions     StudySession[]
+}
+
+model StudySession {
+  id             String   @id @default(cuid())
+  chapterId      String?
+  courseId       String
+  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseProgress CourseProgress? @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  startTime      DateTime
+  endTime        DateTime?
+  durationSeconds Int     @default(0)
+}
