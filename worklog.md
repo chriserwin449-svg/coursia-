@@ -197,3 +197,38 @@ Stage Summary:
 - Build: 27 static pages, 0 errors
 - Preview server: stable with nohup restart loop
 - No lint errors in application code (only pre-existing infra files)
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Add visual effects to the flame progress bar (barre des flammes)
+
+Work Log:
+- Analyzed uploaded screenshot to identify the flame bar component
+- Located flame bar in Journey.tsx (lines 149-232)
+- Reviewed existing CSS animations in globals.css
+- Studied FlameCounter.tsx for ember/particle animation patterns
+- Added 8 new CSS animations to globals.css:
+  1. flame-bar-fire-gradient: animated fire gradient shifting colors
+  2. flame-bar-container-glow: pulsing glow around bar container
+  3. flame-bar-tip-pulse: glowing tip at bar end
+  4. flame-bar-shimmer: enhanced shimmer sweep
+  5. flame-bar-ember-float: floating ember particles
+  6. flame-bar-reflection: reflection glow below bar
+  7. flame-card-border-pulse: card border color animation
+  8. flame-orb-drift: animated background glow orbs
+- Updated Journey.tsx flame bar section with:
+  - Animated floating background glow orbs
+  - Pulsing glow on flame icon
+  - 8 floating ember particles rising from bar
+  - Animated fire gradient on bar fill
+  - Enhanced shimmer sweep overlay
+  - Glowing pulsing tip at bar end
+  - Reflection glow below the bar
+  - Pulsing card border
+
+Stage Summary:
+- Added comprehensive visual effects to flame progress bar
+- Effects include: fire gradient animation, ember particles, glow pulses, shimmer sweep, glowing tip, reflection
+- All effects activate progressively when flame points > 0
+- No lint errors introduced

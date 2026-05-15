@@ -147,15 +147,17 @@ export default function Journey() {
       </div>
 
       {/* ═══ FLAME PROGRESS BAR ═══ */}
-      <div className="rounded-3xl p-6 mb-8 fade-in-up relative overflow-hidden border border-red-400/20" style={{ background: "linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(248, 113, 113, 0.06), rgba(220, 38, 38, 0.04))" }}>
+      <div className="rounded-3xl p-6 mb-8 fade-in-up relative overflow-hidden flame-card-border-pulse" style={{ background: "linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(248, 113, 113, 0.06), rgba(220, 38, 38, 0.04))", border: "1px solid rgba(239, 68, 68, 0.2)" }}>
+        {/* Animated background glow orbs */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute -top-10 -right-10 w-40 h-40 bg-red-500/10 rounded-full blur-[60px]" />
-          <div className="absolute -bottom-10 -left-10 w-32 h-32 bg-red-400/8 rounded-full blur-[50px]" />
+          <div className="flame-orb-1 absolute -top-10 -right-10 w-40 h-40 rounded-full blur-[60px]" style={{ background: "rgba(239, 68, 68, 0.12)" }} />
+          <div className="flame-orb-2 absolute -bottom-10 -left-10 w-32 h-32 rounded-full blur-[50px]" style={{ background: "rgba(249, 115, 22, 0.08)" }} />
+          <div className="flame-orb-1 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-16 rounded-full blur-[40px]" style={{ background: "rgba(249, 115, 22, 0.06)" }} />
         </div>
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center animate-pulse-glow">
                 <span className="text-2xl">{flameType.emoji}</span>
               </div>
               <div>
@@ -189,23 +191,67 @@ export default function Journey() {
               </span>
             </div>
           </div>
-          <div className="w-full h-4 rounded-full bg-night/80 overflow-hidden border border-red-400/10">
+          {/* Progress bar with effects */}
+          <div className="relative">
+            {/* Floating ember particles above the bar */}
+            {flamePoints > 0 && (
+              <div className="absolute -top-6 left-0 right-0 h-6 pointer-events-none overflow-visible">
+                {Array.from({ length: 8 }, (_, i) => {
+                  const seed = (i + 1) * 3.7;
+                  const rand = (s: number) => { const x = Math.sin(s * 127.1 + 311.7) * 43758.5453123; return x - Math.floor(x); };
+                  const barWidth = Math.min(flameProg.percentage, 100);
+                  return (
+                    <span
+                      key={i}
+                      className="flame-bar-ember"
+                      style={{
+                        left: `${rand(seed) * barWidth}%`,
+                        bottom: 0,
+                        width: `${2 + rand(seed + 1) * 3}px`,
+                        height: `${2 + rand(seed + 1) * 3}px`,
+                        background: `radial-gradient(circle, #fbbf24, ${i % 3 === 0 ? "#ef4444" : "#f97316"})`,
+                        boxShadow: `0 0 ${4 + rand(seed + 2) * 6}px #f97316, 0 0 ${8 + rand(seed + 2) * 8}px #ef444488`,
+                        ["--ember-rise" as string]: `${20 + rand(seed + 3) * 25}px`,
+                        ["--ember-drift" as string]: `${(rand(seed + 4) - 0.5) * 16}px`,
+                        ["--ember-delay" as string]: `${rand(seed + 5) * 3}s`,
+                        ["--ember-dur" as string]: `${1.5 + rand(seed + 6) * 2}s`,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            )}
+            {/* The bar itself */}
+            <div className="w-full h-5 rounded-full bg-night/80 overflow-hidden border border-red-400/10 flame-bar-container">
+              <div
+                className={`h-full rounded-full transition-all duration-1000 ease-out relative ${flamePoints > 0 ? "flame-bar-fill" : ""}`}
+                style={{
+                  width: mounted ? `${isMaxFlame ? 100 : Math.min(flameProg.percentage, 100)}%` : "0%",
+                  background: flamePoints === 0 ? "linear-gradient(90deg, #ef4444, #f87171, #fb923c)" : undefined,
+                  boxShadow: flamePoints > 0 ? "0 0 15px rgba(239, 68, 68, 0.4), 0 0 30px rgba(249, 115, 22, 0.2)" : "none",
+                }}
+              >
+                {/* Shimmer sweep */}
+                <div className="flame-bar-shimmer-effect" />
+                {/* Glowing tip */}
+                {flamePoints > 0 && <div className="flame-bar-tip" />}
+              </div>
+            </div>
+            {/* Reflection glow below the bar */}
             <div
-              className="h-full rounded-full transition-all duration-1000 ease-out relative"
+              className="flame-bar-reflection mt-1"
               style={{
                 width: mounted ? `${isMaxFlame ? 100 : Math.min(flameProg.percentage, 100)}%` : "0%",
-                background: "linear-gradient(90deg, #ef4444, #f87171, #fb923c)",
-                boxShadow: flamePoints > 0 ? "0 0 15px rgba(239, 68, 68, 0.4)" : "none",
+                background: flamePoints > 0
+                  ? "linear-gradient(90deg, #dc2626, #f97316, #f59e0b, #f97316, #dc2626)"
+                  : "none",
+                backgroundSize: "200% 100%",
+                animation: flamePoints > 0 ? "flame-bar-fire-gradient 3s ease-in-out infinite" : "none",
+                transition: "width 1s ease-out",
               }}
-            >
-              {flamePoints > 0 && (
-                <div className="absolute inset-0 rounded-full overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
-                </div>
-              )}
-            </div>
+            />
           </div>
-          <p className="text-xs text-muted-foreground/60 mt-2 text-center">
+          <p className="text-xs text-muted-foreground/60 mt-3 text-center">
             {isMaxFlame
               ? (lang === "fr" ? "Tu as atteint le niveau maximum !" : "You reached the maximum level!")
               : (lang === "fr"
