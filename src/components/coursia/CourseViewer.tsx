@@ -46,6 +46,12 @@ export default function CourseViewer() {
   const showCelebration = useAppStore((s) => s.showCelebration);
   const setShowCelebration = useAppStore((s) => s.setShowCelebration);
   const setCelebrationMessage = useAppStore((s) => s.setCelebrationMessage);
+  const showLevelUp = useAppStore((s) => s.showLevelUp);
+  const setShowLevelUp = useAppStore((s) => s.setShowLevelUp);
+  const levelUpData = useAppStore((s) => s.levelUpData);
+  const setLevelUpData = useAppStore((s) => s.setLevelUpData);
+  const setRandomTopic = useAppStore((s) => s.setRandomTopic);
+  const setRandomCourseLang = useAppStore((s) => s.setRandomCourseLang);
 
   const chapterListRef = useRef<HTMLDivElement>(null);
 
@@ -191,15 +197,50 @@ export default function CourseViewer() {
         setShowFinalQuiz(false);
         setShowConfetti(false);
         endStudySession();
-        // Unlock all chapters for re-study
-        if (course) {
-          setCurrentChapterIndex(0);
+
+        // Check if we should show level-up modal
+        const courseLevel = course?.level ?? 0;
+        if (courseLevel < 2) {
+          // Show level up modal for beginner/intermediate
+          setShowLevelUp(true);
+          setLevelUpData({
+            title: course!.title,
+            currentLevel: courseLevel,
+            nextLevel: courseLevel + 1,
+          });
+        } else if (courseLevel === 2) {
+          // Show all levels complete
+          setShowLevelUp(true);
+          setLevelUpData({
+            title: course!.title,
+            currentLevel: 2,
+            nextLevel: -1, // -1 means all done
+          });
+        } else {
+          // No level tracking, normal completion
+          if (course) setCurrentChapterIndex(0);
         }
+
         fetchCourse();
       }, 4000);
     } else {
       // Cannot skip - stay on final quiz
     }
+  };
+
+  const handleAdvanceLevel = () => {
+    if (!levelUpData) return;
+    setShowLevelUp(false);
+    setLevelUpData(null);
+    setRandomTopic(levelUpData.title);
+    setRandomCourseLang(lang);
+    setView("create");
+  };
+
+  const handleSkipLevel = () => {
+    setShowLevelUp(false);
+    setLevelUpData(null);
+    if (course) setCurrentChapterIndex(0);
   };
 
   // Keyboard navigation
@@ -255,7 +296,7 @@ export default function CourseViewer() {
   // ══════════════════════════════════════════════════════════════════
   // COURSE COMPLETED OVERVIEW — all chapters unlocked, green checks
   // ══════════════════════════════════════════════════════════════════
-  if (courseCompleted && !showFinalQuiz && !showCelebration) {
+  if (courseCompleted && !showFinalQuiz && !showCelebration && !showLevelUp) {
     return (
       <>
         <Confetti active={false} />
@@ -333,6 +374,7 @@ export default function CourseViewer() {
             </div>
           </div>
         </div>
+
       </>
     );
   }
@@ -719,6 +761,120 @@ export default function CourseViewer() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* ═══ Level-Up Modal Overlay ═══ */}
+      {showLevelUp && levelUpData && (
+        <>
+          <Confetti active={true} />
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-night/90 backdrop-blur-md animate-fade-in">
+            <div className="relative w-full max-w-md mx-4 p-8 rounded-3xl glass animate-celebrate">
+              {/* Decorative particles */}
+              {[...Array(12)].map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute w-2 h-2 rounded-full bg-gold"
+                  style={{
+                    left: "50%", top: "50%", position: "absolute",
+                    animation: `float-up 1.2s ease-out ${0.3 + i * 0.08}s forwards`,
+                    opacity: 0,
+                    transform: `translate(${(Math.random() - 0.5) * 350}px, ${(Math.random() - 0.5) * 350}px)`,
+                  }}
+                />
+              ))}
+
+              {levelUpData.nextLevel === -1 ? (
+                /* ── All Levels Complete ── */
+                <div className="text-center relative z-10">
+                  <div className="text-7xl mb-5 animate-fade-in-slide-up">🏆</div>
+                  <h2 className="text-2xl md:text-3xl font-extrabold gradient-text mb-3 animate-fade-in-slide-up">
+                    {tx.viewer.levelUpAllDone}
+                  </h2>
+                  <p className="text-muted-foreground text-sm mb-2 animate-fade-in-slide-up" style={{ animationDelay: "0.15s" }}>
+                    {levelUpData.title}
+                  </p>
+                  <p className="text-muted-foreground text-sm mb-6 animate-fade-in-slide-up" style={{ animationDelay: "0.25s" }}>
+                    {tx.viewer.levelUpAllDoneDesc}
+                  </p>
+                  {/* Flame bonuses recap */}
+                  <div className="space-y-2 mb-8 animate-fade-in-slide-up" style={{ animationDelay: "0.35s" }}>
+                    <div className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gold/10 border border-gold/20">
+                      <span className="font-bold text-gold">
+                        {tx.viewer.levelUpFlameBonus.replace("{points}", "50")}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-gold/10 border border-gold/20">
+                      <span className="font-bold text-gold">
+                        {tx.viewer.levelUpFlameBonus.replace("{points}", "50")}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                      <span className="font-bold text-emerald-400">
+                        {tx.viewer.levelUpFlameBonus.replace("{points}", "500")}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleSkipLevel}
+                    className="px-8 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all cursor-pointer animate-fade-in-slide-up"
+                    style={{ animationDelay: "0.45s" }}
+                  >
+                    {tx.viewer.back}
+                  </button>
+                </div>
+              ) : (
+                /* ── Next Level Available ── */
+                <div className="text-center relative z-10">
+                  <div className="text-6xl mb-4 animate-fade-in-slide-up">🚀</div>
+                  <h2 className="text-xl md:text-2xl font-extrabold gradient-text mb-4 animate-fade-in-slide-up">
+                    {tx.viewer.levelUpTitle}
+                  </h2>
+                  <p className="text-foreground font-bold text-lg mb-1 animate-fade-in-slide-up" style={{ animationDelay: "0.1s" }}>
+                    {levelUpData.title}
+                  </p>
+                  <p className="text-muted-foreground text-sm mb-6 animate-fade-in-slide-up" style={{ animationDelay: "0.15s" }}>
+                    {tx.viewer.levelUpDesc}{' '}
+                    <span className="text-gold font-bold">{tx.create.levels[levelUpData.currentLevel]}</span>
+                    {' → '}
+                    <span className="text-emerald-400 font-bold">{tx.create.levels[levelUpData.nextLevel]}</span>
+                  </p>
+
+                  {/* Flame points earned */}
+                  <div className="flex items-center justify-center gap-2 mb-5 px-4 py-2.5 rounded-xl bg-gold/10 border border-gold/20 animate-fade-in-slide-up" style={{ animationDelay: "0.2s" }}>
+                    <span className="font-bold text-gold">
+                      {tx.viewer.levelUpFlameLevel.replace("{points}", "50")}
+                    </span>
+                  </div>
+
+                  {/* AI Recap info */}
+                  <div className="p-4 rounded-2xl bg-mauve/5 border border-mauve/10 text-left mb-6 animate-fade-in-slide-up" style={{ animationDelay: "0.3s" }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm">🤖</span>
+                      <span className="text-xs font-bold text-mauve-light uppercase tracking-wider">{tx.viewer.levelUpRecap}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{tx.viewer.levelUpRecapDesc}</p>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex flex-col gap-3 animate-fade-in-slide-up" style={{ animationDelay: "0.4s" }}>
+                    <button
+                      onClick={handleAdvanceLevel}
+                      className="w-full px-6 py-3.5 rounded-full bg-gradient-to-r from-gold to-gold-dark text-night font-bold text-sm hover:from-gold-light hover:to-gold transition-all cursor-pointer shadow-lg shadow-gold/20"
+                    >
+                      {tx.viewer.levelUpBtn}
+                    </button>
+                    <button
+                      onClick={handleSkipLevel}
+                      className="w-full px-6 py-3 rounded-full glass text-muted-foreground font-bold text-sm hover:bg-white/10 hover:text-foreground transition-all cursor-pointer"
+                    >
+                      {tx.viewer.levelUpSkip}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
       )}
     </>
   );

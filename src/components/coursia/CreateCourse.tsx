@@ -40,6 +40,8 @@ export default function CreateCourse() {
   const storeRandomTopic = useAppStore((s) => s.randomTopic);
   const storeRandomCourseLang = useAppStore((s) => s.randomCourseLang);
   const setStoreRandomTopic = useAppStore((s) => s.setRandomTopic);
+  const storeLevelUpData = useAppStore((s) => s.levelUpData);
+  const setStoreLevelUpData = useAppStore((s) => s.setLevelUpData);
   const prevRandomRef = useRef<string | null>(null);
 
   // ─── React to random topic changes from TopBar (instant, no reload) ───
@@ -51,10 +53,15 @@ export default function CreateCourse() {
       if (storeRandomCourseLang === "fr" || storeRandomCourseLang === "en") {
         setCourseLang(storeRandomCourseLang);
       }
+      // If coming from level-up, auto-set the next level
+      if (storeLevelUpData && storeLevelUpData.nextLevel >= 0 && storeLevelUpData.nextLevel <= 2) {
+        setLevel(storeLevelUpData.nextLevel);
+        setStoreLevelUpData(null);
+      }
       prevRandomRef.current = storeRandomTopic;
       setStoreRandomTopic(null); // consume it
     }
-  }, [storeRandomTopic, storeRandomCourseLang, setStoreRandomTopic]);
+  }, [storeRandomTopic, storeRandomCourseLang, setStoreRandomTopic, storeLevelUpData, setStoreLevelUpData]);
 
   // ─── Rotating placeholder with typing/fade effect ────────────────────
   const placeholders = tx.create.placeholders;

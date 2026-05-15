@@ -42,9 +42,12 @@ export interface CourseData {
   title: string;
   description: string;
   sourceLinks: string[];
+  level: number;
   createdAt: string;
   chapters: CourseChapter[];
   overallProgress: number;
+  courseCompleted?: boolean;
+  courseScore?: number;
 }
 
 interface AppState {
@@ -80,6 +83,10 @@ interface AppState {
   setRandomTopic: (topic: string | null) => void;
   randomCourseLang: string;
   setRandomCourseLang: (lang: string) => void;
+  showLevelUp: boolean;
+  setShowLevelUp: (v: boolean) => void;
+  levelUpData: { title: string; currentLevel: number; nextLevel: number } | null;
+  setLevelUpData: (d: { title: string; currentLevel: number; nextLevel: number } | null) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -132,4 +139,8 @@ export const useAppStore = create<AppState>((set) => ({
   setRandomTopic: (topic) => set({ randomTopic: topic }),
   randomCourseLang: "fr",
   setRandomCourseLang: (lang) => set({ randomCourseLang: lang }),
+  showLevelUp: false,
+  setShowLevelUp: (v) => set({ showLevelUp: v }),
+  levelUpData: null,
+  setLevelUpData: (d) => set({ levelUpData: d }),
 }));

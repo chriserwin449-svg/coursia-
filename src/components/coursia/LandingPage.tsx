@@ -11,6 +11,7 @@ import {
   Crown,
   Zap,
   Globe,
+  ChevronDown,
 } from "lucide-react";
 import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 import { useAppStore } from "@/lib/store";
@@ -117,6 +118,8 @@ export default function LandingPage() {
   const [featuresVisible, setFeaturesVisible] = useState(true);
   const [testimonialsVisible, setTestimonialsVisible] = useState(true);
   const [pricingVisible, setPricingVisible] = useState(true);
+  const [faqVisible, setFaqVisible] = useState(true);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   useEffect(() => {
     const onScroll = () => {
@@ -128,6 +131,7 @@ export default function LandingPage() {
       if (scrollY > h * 0.2) setFeaturesVisible(true);
       if (scrollY > h * 0.55) setTestimonialsVisible(true);
       if (scrollY > h * 0.9) setPricingVisible(true);
+      if (scrollY > h * 1.3) setFaqVisible(true);
     };
 
     onScroll();
@@ -480,6 +484,81 @@ export default function LandingPage() {
               ? "Paiement sécurisé via LemonSqueezy — disponible prochainement"
               : "Secure payment via LemonSqueezy — coming soon"}
           </p>
+        </div>
+      </section>
+
+      {/* ===== FAQ SECTION ===== */}
+      <section className="relative py-24 px-4">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-mauve/5 rounded-full blur-[120px]" />
+        </div>
+        <div
+          className="relative z-10 max-w-3xl mx-auto transition-all duration-1000 ease-out"
+          style={{
+            opacity: faqVisible ? 1 : 0,
+            transform: faqVisible ? "translateY(0)" : "translateY(40px)",
+          }}
+        >
+          <div className="text-center mb-14">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
+              <span className="gradient-text">
+                {lang === "fr" ? "Questions Fréquentes" : "Frequently Asked Questions"}
+              </span>
+            </h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              {lang === "fr"
+                ? "Tout ce que tu dois savoir sur Coursia."
+                : "Everything you need to know about Coursia."}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {(
+              lang === "fr"
+                ? [
+                    { q: "Comment Coursia génère-t-il les cours ?", a: "Coursia utilise une intelligence artificielle avancée pour analyser ton sujet et créer un cours structuré avec des chapitres, des résumés et des quiz. Chaque cours est unique et adapté au niveau que tu choisis." },
+                    { q: "Les cours sont-ils personnalisés selon mon niveau ?", a: "Oui ! Tu peux choisir entre trois niveaux : Débutant, Intermédiaire et Avancé. L'IA adapte la complexité du contenu, les exemples et les quiz en fonction de ton niveau." },
+                    { q: "Puis-je progresser d'un niveau à l'autre ?", a: "Absolument ! Après avoir terminé un cours à un niveau, Coursia te propose de passer au niveau supérieur avec un récapitulatif IA pour t'aider à progresser. Termine les 3 niveaux pour gagner un maximum de flammes !" },
+                    { q: "Combien de cours puis-je créer ?", a: "Avec le plan Découverte, tu peux créer 3 cours gratuitement pendant 7 jours. Les plans payants offrent des cours illimités pour apprendre sans limites." },
+                    { q: "Comment fonctionne le système de flammes ?", a: "Les flammes sont ta monnaie d'apprentissage ! Tu en gagnes en réussissant des quiz et en terminant des cours. Utilise-les pour créer de nouveaux cours ou débloque des badges en accumulant des points." },
+                    { q: "Puis-je accéder à mes cours depuis n'importe quel appareil ?", a: "Oui, Coursia est accessible depuis n'importe quel navigateur web. Tes cours et ta progression sont sauvegardés dans ton compte." },
+                  ]
+                : [
+                    { q: "How does Coursia generate courses?", a: "Coursia uses advanced AI to analyze your topic and create a structured course with chapters, summaries and quizzes. Each course is unique and adapted to the level you choose." },
+                    { q: "Are courses personalized to my level?", a: "Yes! You can choose between three levels: Beginner, Intermediate and Advanced. The AI adapts the content complexity, examples and quizzes based on your level." },
+                    { q: "Can I progress from one level to another?", a: "Absolutely! After completing a course at one level, Coursia offers to move you to the next level with an AI recap to help you progress. Complete all 3 levels to earn maximum flames!" },
+                    { q: "How many courses can I create?", a: "With the Discovery plan, you can create 3 free courses for 7 days. Paid plans offer unlimited courses to learn without limits." },
+                    { q: "How does the flame system work?", a: "Flames are your learning currency! You earn them by passing quizzes and completing courses. Use them to create new courses or unlock badges by accumulating points." },
+                    { q: "Can I access my courses from any device?", a: "Yes, Coursia is accessible from any web browser. Your courses and progress are saved in your account." },
+                  ]
+            ).map((faq, i) => (
+              <div
+                key={i}
+                className="glass rounded-2xl overflow-hidden transition-all duration-300 hover:border-mauve/30"
+              >
+                <button
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left cursor-pointer"
+                >
+                  <span className="font-semibold text-foreground text-sm sm:text-base">{faq.q}</span>
+                  <ChevronDown
+                    className={`w-5 h-5 text-muted-foreground flex-shrink-0 transition-transform duration-300 ${
+                      openFaq === i ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                <div
+                  className={`overflow-hidden transition-all duration-300 ${
+                    openFaq === i ? "max-h-96 pb-5" : "max-h-0"
+                  }`}
+                >
+                  <p className="px-6 text-sm sm:text-base text-muted-foreground leading-relaxed">
+                    {faq.a}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 

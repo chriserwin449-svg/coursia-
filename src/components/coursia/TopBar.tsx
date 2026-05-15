@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Globe, Shuffle, Loader2, User, LogIn } from "lucide-react";
+import { Globe, Shuffle, Loader2 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 
@@ -13,7 +13,6 @@ export default function TopBar() {
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
   const setRandomTopic = useAppStore((s) => s.setRandomTopic);
   const setRandomCourseLang = useAppStore((s) => s.setRandomCourseLang);
-  const user = useAppStore((s) => s.user);
 
   const [loadingRandom, setLoadingRandom] = useState(false);
   const [randomLang, setRandomLang] = useState<"fr" | "en">(lang);
@@ -82,28 +81,6 @@ export default function TopBar() {
           <span className="hidden sm:inline">{tx.create.random}</span>
         </button>
       </div>
-
-      {/* User avatar / Login button */}
-      {user ? (
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl glass">
-          <div className="w-7 h-7 rounded-xl bg-mauve/20 flex items-center justify-center">
-            <User className="w-4 h-4 text-mauve-light" />
-          </div>
-          <span className="hidden sm:inline text-sm font-bold text-foreground">
-            {user.firstName}
-          </span>
-        </div>
-      ) : (
-        <button
-          onClick={() => setView("auth")}
-          className="flex items-center gap-2 px-3 py-2.5 rounded-2xl glass text-muted-foreground hover:text-foreground hover:bg-white/10 transition-all duration-200 cursor-pointer text-sm font-bold"
-        >
-          <LogIn className="w-4 h-4" />
-          <span className="hidden sm:inline">
-            {lang === "fr" ? "Connexion" : "Sign In"}
-          </span>
-        </button>
-      )}
 
       {/* UI language toggle */}
       <button

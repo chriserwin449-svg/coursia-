@@ -279,6 +279,7 @@ export async function POST(request: NextRequest) {
         title: title.trim(),
         description: result.description,
         sourceLinks: JSON.stringify(sourceLinks),
+        level: level,
         flameCost: 0,
         chapters: {
           create: result.chapters.map((ch, idx) => ({

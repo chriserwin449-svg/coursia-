@@ -172,3 +172,28 @@ Stage Summary:
 - Server survives sandbox by using nohup to detach from terminal
 - Files created: self-restart-server.ts, ultra-fast.sh
 - Files modified: package.json (dev script)
+
+---
+Task ID: 2
+Agent: Main Agent + Subagents
+Task: Multiple UI enhancements - flame effects, offers effects, FAQ, level progression, logout confirmation
+
+Work Log:
+- Added animated flame particle effects to FlameCounter (embers, glow pulse, shimmer, fire trail)
+- Removed login button from TopBar (users can login via landing page or sidebar)
+- Added visual effects to OffersPage pricing cards (shimmer, float, glow, pulse)
+- Added FAQ section to LandingPage with 6 questions in FR/EN
+- Added level field to Course Prisma model and API routes
+- Added level progression system to CourseViewer (level-up modal after completing a course)
+- Added 3-level mastery flow: Beginner → Intermediate → Advanced → All Done bonus
+- Added logout confirmation dialog to Sidebar with "Êtes-vous sûr de vouloir vous déconnecter?"
+- Updated i18n with new FR/EN translations for all features
+- Updated CreateCourse to auto-set next level when coming from level-up modal
+- Added store state for showLevelUp and levelUpData
+- Rebuilt and restarted preview server successfully
+
+Stage Summary:
+- All 9 tasks completed successfully
+- Build: 27 static pages, 0 errors
+- Preview server: stable with nohup restart loop
+- No lint errors in application code (only pre-existing infra files)

@@ -37,6 +37,7 @@ export async function GET(
       title: course.title,
       description: course.description,
       sourceLinks: JSON.parse(course.sourceLinks),
+      level: course.level,
       createdAt: course.createdAt,
       chapters: course.chapters.map((ch) => ({
         id: ch.id,
