@@ -1,150 +1,166 @@
-const http = require('http');
+// Coursia Preview Server - Ultra-lightweight raw TCP server
+// Uses net.createServer (NOT http.createServer) for minimal CPU usage
+const net = require('net');
 const fs = require('fs');
-const zlib = require('zlib');
 const path = require('path');
-
-const N = '/home/z/my-project/.next';
-const P = '/home/z/my-project/public';
-const BID = fs.readFileSync(N + '/BUILD_ID', 'utf8').trim();
-const HTML = fs.readFileSync(N + '/server/app/index.html', 'utf8');
-const gzHTML = zlib.gzipSync(Buffer.from(HTML));
-
-// Pre-gzip public files
-const pubCache = {};
-try {
-  for (const f of fs.readdirSync(P, { withFileTypes: true })) {
-    const fp = path.join(P, f.name);
-    if (!f.isDirectory()) {
-      try {
-        const raw = fs.readFileSync(fp);
-        pubCache['/' + f.name] = { raw, gz: zlib.gzipSync(raw) };
-      } catch (e) {}
-    }
-  }
-  // Avatars
-  try {
-    for (const f of fs.readdirSync(P + '/avatars')) {
-      const raw = fs.readFileSync(P + '/avatars/' + f);
-      pubCache['/avatars/' + f] = { raw, gz: zlib.gzipSync(raw) };
-    }
-  } catch (e) {}
-} catch (e) {}
-
-// Pre-gzip needed static chunks
-const chunkCache = {};
-const neededChunks = [
-  '/_next/static/chunks/2473c16c0c2f6b5f.css',
-  '/_next/static/chunks/4b1ff776d54bd948.css',
-  '/_next/static/chunks/556c8b59b4c9a879.js',
-  '/_next/static/chunks/ee40bf07a09d2a01.js',
-  '/_next/static/chunks/fb6efb343d9465e5.js',
-  '/_next/static/chunks/turbopack-0a2a6966991f5695.js',
-  '/_next/static/chunks/ff1a16fafef87110.js',
-  '/_next/static/chunks/d2be314c3ece3fbe.js',
-  '/_next/static/chunks/51c2a4d658655669.js',
-  '/_next/static/chunks/74dce9c506668f51.js',
-  '/_next/static/chunks/333eb69a67954787.js',
-  '/_next/static/chunks/a6dad97d9634a72d.js',
-];
-for (const c of neededChunks) {
-  try {
-    const raw = fs.readFileSync(N + c);
-    chunkCache[c] = { raw, gz: zlib.gzipSync(raw) };
-  } catch (e) {}
-}
+const PORT = 3000;
+const BASE = __dirname;
 
 const MIME = {
-  '.html': 'text/html;charset=utf-8',
-  '.js': 'application/javascript;charset=utf-8',
-  '.css': 'text/css;charset=utf-8',
-  '.json': 'application/json',
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript',
+  '.css': 'text/css',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
-  '.woff2': 'font/woff2',
   '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.json': 'application/json',
+  '.txt': 'text/plain',
+  '.map': 'application/json',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
 };
 
-function sendGz(res, gz, contentType) {
-  res.writeHead(200, {
-    'Content-Type': contentType,
-    'Content-Encoding': 'gzip',
-    'Content-Length': gz.length,
-    'Connection': 'close',
-  });
-  res.end(gz);
+function getMime(url) {
+  const dot = url.lastIndexOf('.');
+  if (dot === -1) return 'application/octet-stream';
+  const ext = url.slice(dot);
+  return MIME[ext] || 'application/octet-stream';
 }
 
-function sendRaw(res, raw, contentType) {
-  res.writeHead(200, {
-    'Content-Type': contentType,
-    'Content-Length': raw.length,
-    'Connection': 'close',
-  });
-  res.end(raw);
-}
+// Pre-load ALL assets into memory at startup
+const cache = new Map();
+let totalBytes = 0;
 
-const server = http.createServer((req, res) => {
-  const url = req.url || '/';
-  const qIdx = url.indexOf('?');
-  const p = qIdx >= 0 ? url.substring(0, qIdx) : url;
-  const acceptGz = (req.headers['accept-encoding'] || '').includes('gzip');
-
+function loadDir(dir, urlPrefix) {
   try {
-    if (p === '/') {
-      sendGz(res, gzHTML, 'text/html;charset=utf-8');
-      if (global.gc) global.gc();
-      return;
-    }
-
-    if (p === '/_next/BUILD_ID') {
-      res.writeHead(200, { 'Content-Type': 'text/plain', 'Content-Length': BID.length, 'Connection': 'close' });
-      res.end(BID);
-      return;
-    }
-
-    // Public cache
-    if (pubCache[p]) {
-      const c = pubCache[p];
-      const ext = path.extname(p);
-      const mime = MIME[ext] || 'application/octet-stream';
-      if (acceptGz && ext !== '.png' && ext !== '.jpg' && ext !== '.jpeg') {
-        sendGz(res, c.gz, mime);
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      const url = urlPrefix + '/' + entry.name;
+      if (entry.isDirectory()) {
+        loadDir(full, url);
       } else {
-        sendRaw(res, c.raw, mime);
+        const data = fs.readFileSync(full);
+        cache.set(url, data);
+        totalBytes += data.length;
       }
-      if (global.gc) global.gc();
-      return;
     }
+  } catch (e) { /* skip */ }
+}
 
-    // Chunk cache
-    if (chunkCache[p]) {
-      const c = chunkCache[p];
-      const ext = path.extname(p);
-      if (acceptGz) sendGz(res, c.gz, MIME[ext] || 'application/javascript');
-      else sendRaw(res, c.raw, MIME[ext] || 'application/javascript');
-      if (global.gc) global.gc();
-      return;
+// Load public/ (avatars, logo, favicon, etc.)
+loadDir(path.join(BASE, 'public'), '');
+
+// Load .next/static/ (JS chunks, CSS, fonts, media)
+loadDir(path.join(BASE, '.next', 'static'), '/_next/static');
+
+// Load pre-rendered index.html
+const indexHtml = fs.readFileSync(path.join(BASE, '.next', 'server', 'app', 'index.html'));
+cache.set('/', indexHtml);
+totalBytes += indexHtml.length;
+
+// Handle _next/image proxy (simple passthrough - serve original file)
+function handleImageProxy(url) {
+  // /_next/image?url=%2Flogo.png&w=256&q=75
+  const params = new URLSearchParams(url.split('?')[1]);
+  const imgUrl = decodeURIComponent(params.get('url') || '');
+  if (imgUrl.startsWith('/')) {
+    const found = cache.get(imgUrl);
+    if (found) return found;
+    // Try from public dir
+    const fullPath = path.join(BASE, 'public', imgUrl);
+    if (fs.existsSync(fullPath)) {
+      const data = fs.readFileSync(fullPath);
+      return data;
     }
-
-    // JSON fallback
-    if (p.endsWith('.json')) {
-      const d = '{}';
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Length': 2, 'Connection': 'close' });
-      res.end(d);
-      return;
-    }
-
-    // SPA fallback
-    sendGz(res, gzHTML, 'text/html;charset=utf-8');
-    if (global.gc) global.gc();
-  } catch (e) {
-    if (!res.headersSent) res.writeHead(500);
-    res.end();
   }
+  return null;
+}
+
+console.log('Cache: ' + cache.size + ' files, ' + Math.round(totalBytes / 1024) + ' KB');
+
+const server = net.createServer((sock) => {
+  sock.setNoDelay(true);
+  let buf = Buffer.alloc(0);
+
+  const onData = (chunk) => {
+    buf = Buffer.concat([buf, chunk]);
+    const headerEnd = buf.indexOf('\r\n\r\n');
+    if (headerEnd === -1) return;
+
+    // Remove listener to prevent double processing
+    sock.removeListener('data', onData);
+
+    const headerStr = buf.slice(0, headerEnd).toString('utf-8');
+    const firstLine = headerStr.split('\r\n')[0];
+    const match = firstLine.match(/^(\S+)\s+(\S+)/);
+    if (!match) { try { sock.destroy(); } catch(e) {} return; }
+
+    let url;
+    try { url = decodeURIComponent(match[2].split('?')[0]); } catch(e) { url = match[2].split('?')[0]; }
+    const fullUrl = match[2]; // Keep query string for image proxy
+
+    let body;
+    let mime;
+    let status = '200';
+
+    // Route: /
+    if (url === '/' || url === '') {
+      body = indexHtml;
+      mime = 'text/html; charset=utf-8';
+    }
+    // Route: /_next/image?...
+    else if (url === '/_next/image') {
+      body = handleImageProxy(fullUrl);
+      if (body) mime = getMime(fullUrl);
+      else { body = Buffer.from('Not Found'); mime = 'text/plain'; status = '404'; }
+    }
+    // Route: static cache
+    else {
+      body = cache.get(url);
+      if (!body) {
+        // Try with/without trailing slash
+        if (url.endsWith('/') && url.length > 1) body = cache.get(url.slice(0, -1));
+        else body = cache.get(url + '/');
+      }
+      if (body) {
+        mime = getMime(url);
+      } else {
+        body = Buffer.from('Not Found');
+        mime = 'text/plain';
+        status = '404';
+      }
+    }
+
+    const header = Buffer.from(
+      'HTTP/1.1 ' + status + ' OK\r\n' +
+      'Content-Type: ' + mime + '\r\n' +
+      'Content-Length: ' + body.length + '\r\n' +
+      'Cache-Control: public, max-age=3600\r\n' +
+      'Connection: close\r\n' +
+      '\r\n'
+    );
+
+    try {
+      sock.write(header);
+      sock.write(body);
+      sock.end();
+    } catch (e) { /* connection closed */ }
+  };
+
+  sock.on('data', onData);
+  sock.on('error', () => {});
+  sock.setTimeout(15000, () => { try { sock.destroy(); } catch(e) {} });
 });
 
-server.listen(3000, '0.0.0.0', () => {
-  console.log('Preview server on :3000 (gzipped)');
+server.maxConnections = 50;
+server.listen(PORT, '0.0.0.0', () => {
+  console.log('Coursia preview on port ' + PORT);
 });
+
+// Keep the process alive
+setInterval(() => {}, 30000);

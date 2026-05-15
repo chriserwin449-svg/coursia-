@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 
 const TRIAL_DURATION_DAYS = 3;
 const TRIAL_MAX_COURSES = 3;
@@ -25,19 +25,12 @@ interface PaywallStatus {
 export async function GET() {
   try {
     // ── 1. Fetch AppSettings ──
-    const { data: settings } = await supabase
-      .from("AppSettings")
-      .select("*")
-      .eq("id", "main")
-      .single();
+    const settings = await db.appSettings.findUnique({ where: { id: "main" } });
 
-    const isSubscribed = settings?.hasSubscription === "true";
-    const updatedAt = settings?.updatedAt ? new Date(settings.updatedAt) : null;
+    const isSubscribed = settings?.hasSubscription === true;
+    const updatedAt = settings?.updatedAt ?? null;
 
     // ── 2. SUBSCRIBED (full access) ──
-    // When hasSubscription='true', treat updatedAt as the subscription activation/expiry reference.
-    // For now, hasSubscription='true' = active subscription (no expiry tracking yet).
-    // Grace period will be implemented when Lemon Squeezy sets an expiry date.
     if (isSubscribed) {
       return NextResponse.json<PaywallStatus>({
         canStudy: true,
@@ -55,19 +48,14 @@ export async function GET() {
     }
 
     // ── 3. Count existing courses ──
-    const { count: courseCount } = await supabase
-      .from("Course")
-      .select("*", { count: "exact", head: true });
-
-    const trialCoursesGenerated = courseCount ?? 0;
+    const courseCount = await db.course.count();
+    const trialCoursesGenerated = courseCount;
 
     // ── 4. Find earliest course date ──
-    const { data: earliestCourse } = await supabase
-      .from("Course")
-      .select("createdAt")
-      .order("createdAt", { ascending: true })
-      .limit(1)
-      .single();
+    const earliestCourse = await db.course.findFirst({
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true },
+    });
 
     // ── 5. NO COURSES (free, can generate) ──
     if (!earliestCourse) {
@@ -115,8 +103,6 @@ export async function GET() {
     }
 
     // ── 8. TRIAL EXPIRED (blocked) ──
-    // After 7 days with no subscription, everything blocks.
-    // Grace period logic will be added when we have subscription expiry tracking.
     return NextResponse.json<PaywallStatus>({
       canStudy: false,
       canGenerate: false,

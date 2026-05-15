@@ -124,3 +124,25 @@ Stage Summary:
 - This is an infrastructure/environment limitation, not a code issue
 - The full Coursia app compiles successfully (134KB HTML, 14 routes, 0 build errors)
 - All code is clean: 0 lint errors, proper TypeScript, no temporary files
+---
+Task ID: 6
+Agent: Main Agent
+Task: Fix preview - IPv4 binding, build errors, resilient server
+
+Work Log:
+- Fixed build errors: removed dead supabase.ts, auth.ts, next-auth routes
+- Replaced supabase imports with Prisma in: paywall-status, api-keys, db-status, openai.ts
+- Added ApiKey model to Prisma schema
+- DISCOVERED ROOT CAUSE: Next.js binds to IPv6 (::) by default in this sandbox
+- Caddy proxies via IPv4, so it always got ECONNREFUSED → 502 Bad Gateway
+- Added `-H 0.0.0.0` to dev script in package.json to force IPv4 binding
+- Verified: with -H 0.0.0.0, server binds to 0.0.0.0:3000 (IPv4) ✓
+- Verified: direct HTTP request returns 200 OK with 146KB HTML ✓
+- Created preview-server.cjs as backup (raw TCP server, ~50MB RAM, pre-loads all assets)
+- Server survives ~10-15s in sandbox before being killed by process limits
+
+Stage Summary:
+- IPv4 binding fix: `next dev -p 3000 -H 0.0.0.0` in package.json
+- Build compiles cleanly: 0 errors, all Supabase/next-auth dead code removed
+- Preview server created as backup: preview-server.cjs (raw TCP, 2.7MB assets pre-loaded)
+- Server successfully serves Coursia (200 OK, 146KB) when alive

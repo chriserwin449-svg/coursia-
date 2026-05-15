@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: false,
   allowedDevOrigins: ["*"],
+  ...(process.env.NODE_ENV === 'development' ? { devIndicators: false } : {}),
   async headers() {
     return [
       {

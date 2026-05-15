@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,26 +8,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Key is required" }, { status: 400 });
     }
 
-    const { data: existing } = await supabase
-      .from('api_keys')
-      .select('*')
-      .order('createdAt', { ascending: false })
-      .limit(1)
-      .single();
+    const existing = await db.apiKey.findFirst({
+      orderBy: { createdAt: "desc" },
+    });
 
     if (existing) {
-      await supabase
-        .from('api_keys')
-        .update({ key, name: name || "default" })
-        .eq('id', existing.id);
+      await db.apiKey.update({
+        where: { id: existing.id },
+        data: { key, name: name || "default" },
+      });
       return NextResponse.json({ success: true });
     }
 
-    await supabase.from('api_keys').insert({
-      id: crypto.randomUUID(),
-      key,
-      name: name || "default",
-      createdAt: new Date().toISOString(),
+    await db.apiKey.create({
+      data: {
+        key,
+        name: name || "default",
+      },
     });
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -38,12 +35,9 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   try {
-    const { data: apiKey } = await supabase
-      .from('api_keys')
-      .select('*')
-      .order('createdAt', { ascending: false })
-      .limit(1)
-      .single();
+    const apiKey = await db.apiKey.findFirst({
+      orderBy: { createdAt: "desc" },
+    });
 
     if (!apiKey) {
       return NextResponse.json({ hasKey: false });

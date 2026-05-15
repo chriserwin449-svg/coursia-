@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
@@ -39,12 +39,9 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
 
 export async function getAIKey(): Promise<string | null> {
   try {
-    const { data: apiKey } = await supabase
-      .from('api_keys')
-      .select('*')
-      .order('createdAt', { ascending: false })
-      .limit(1)
-      .single();
+    const apiKey = await db.apiKey.findFirst({
+      orderBy: { createdAt: "desc" },
+    });
     if (apiKey?.key) return apiKey.key;
   } catch {}
   const envKey = process.env.OPENAI_API_KEY;

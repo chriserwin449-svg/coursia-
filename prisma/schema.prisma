@@ -95,6 +95,13 @@ model CourseProgress {
   sessions     StudySession[]
 }
 
+model ApiKey {
+  id        String   @id @default(cuid())
+  key       String
+  name      String   @default("default")
+  createdAt DateTime @default(now())
+}
+
 model StudySession {
   id             String   @id @default(cuid())
   userId         String?
