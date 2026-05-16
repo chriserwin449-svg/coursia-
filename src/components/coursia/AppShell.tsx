@@ -10,7 +10,6 @@ import Library from "@/components/coursia/Library";
 import CourseViewer from "@/components/coursia/CourseViewer";
 import Journey from "@/components/coursia/Journey";
 import OffersPage from "@/components/coursia/OffersPage";
-import SettingsPage from "@/components/coursia/SettingsPage";
 import TopBar from "@/components/coursia/TopBar";
 
 export default function AppShell() {
@@ -51,7 +50,6 @@ export default function AppShell() {
             {view === "viewer" && <CourseViewer />}
             {view === "journey" && <Journey />}
             {view === "offers" && <OffersPage />}
-            {view === "settings" && <SettingsPage />}
           </main>
         </div>
       )}

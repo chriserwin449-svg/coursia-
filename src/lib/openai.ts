@@ -1,4 +1,3 @@
-import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
@@ -19,7 +18,7 @@ function detectProviderFromKey(key: string): AIProvider {
 }
 
 export async function getActiveProvider(): Promise<ProviderInfo> {
-  const apiKey = await getAIKey();
+  const apiKey = getAIKey();
   if (apiKey) {
     const provider = detectProviderFromKey(apiKey);
     const labels: Record<AIProvider, string> = {
@@ -37,22 +36,20 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
   return { provider: "free", label: "Free Tier (Coursia AI)", isFree: true, hasApiKey: false };
 }
 
-export async function getAIKey(): Promise<string | null> {
-  try {
-    const apiKey = await db.apiKey.findFirst({
-      orderBy: { createdAt: "desc" },
-    });
-    if (apiKey?.key) return apiKey.key;
-  } catch {}
+/**
+ * Returns the admin API key from environment variables.
+ * No user-provided keys — only the admin key in .env.local is used.
+ */
+function getAIKey(): string | null {
   const envKey = process.env.OPENAI_API_KEY;
   if (envKey && envKey.startsWith("sk-")) return envKey;
   return null;
 }
 
-const EXTERNAL_API_TIMEOUT = 10_000;
+const EXTERNAL_API_TIMEOUT = 30_000;
 
 export async function smartChatCompletion(messages: Array<{ role: string; content: string }>, options?: { temperature?: number; maxTokens?: number }) {
-  const apiKey = await getAIKey();
+  const apiKey = getAIKey();
   if (apiKey) {
     const provider = detectProviderFromKey(apiKey);
     if (provider === "google") {

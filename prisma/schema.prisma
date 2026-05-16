@@ -3,6 +3,11 @@ generator client {
 }
 
 datasource db {
+  // ══════════════════════════════════════════════════════════
+  // Pour le développement local : utilise "sqlite"
+  // Pour la production (Supabase) : change en "postgresql"
+  // et mets à jour DATABASE_URL dans .env.local
+  // ══════════════════════════════════════════════════════════
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
@@ -26,8 +31,8 @@ model AppSettings {
 
 model FlameTransaction {
   id          String   @id @default(cuid())
-  amount      Int      // positive = earned, negative = spent
-  reason      String   // "chapter_complete", "course_complete", "final_quiz", "course_creation"
+  amount      Int
+  reason      String
   courseId    String?
   chapterId   String?
   createdAt   DateTime @default(now())
@@ -69,20 +74,20 @@ model Quiz {
 }
 
 model ChapterProgress {
-  id         String   @id @default(cuid())
-  chapterId  String   @unique
-  chapter    Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
-  completed  Boolean  @default(false)
-  score      Int      @default(0)
+  id          String   @id @default(cuid())
+  chapterId   String   @unique
+  chapter     Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  completed   Boolean  @default(false)
+  score       Int      @default(0)
   completedAt DateTime?
   flameAwarded Boolean @default(false)
 }
 
 model CourseQuiz {
-  id       String @id @default(cuid())
+  id        String @id @default(cuid())
   questions String
   courseId  String @unique
-  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 }
 
 model CourseProgress {
@@ -94,13 +99,6 @@ model CourseProgress {
   passedAt     DateTime?
   flameAwarded Boolean  @default(false)
   sessions     StudySession[]
-}
-
-model ApiKey {
-  id        String   @id @default(cuid())
-  key       String
-  name      String   @default("default")
-  createdAt DateTime @default(now())
 }
 
 model StudySession {

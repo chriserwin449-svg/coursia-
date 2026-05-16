@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, Library, Route, PanelLeftClose, PanelLeftOpen, Tag, LogOut, User, AlertTriangle, Settings } from "lucide-react";
+import { BookOpen, Library, Route, PanelLeftClose, PanelLeftOpen, Tag, LogOut, User, AlertTriangle } from "lucide-react";
 import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 import { useAppStore, type AppView } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -100,22 +100,6 @@ export default function Sidebar() {
               )}
             </div>
           )}
-
-          {/* Settings */}
-          <button
-            onClick={() => setView("settings")}
-            title={collapsed ? (lang === "fr" ? "Paramètres" : "Settings") : undefined}
-            className={`w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3 rounded-2xl transition-all duration-200 cursor-pointer ${
-              view === "settings"
-                ? "bg-mauve/20 text-mauve-light"
-                : "text-muted-foreground/50 hover:bg-white/5 hover:text-muted-foreground"
-            }`}
-          >
-            <Settings className="w-5 h-5 flex-shrink-0" />
-            {!collapsed && <span className="hidden md:block text-sm font-semibold truncate">
-              {lang === "fr" ? "Paramètres" : "Settings"}
-            </span>}
-          </button>
 
           {/* Logout */}
           <button
