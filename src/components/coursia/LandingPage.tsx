@@ -368,7 +368,7 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-start">
             {/* FREE PLAN */}
-            <div className="glass rounded-3xl p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
+            <div className="landing-pricing-float glass rounded-3xl p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
               <div className="mb-6">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-10 h-10 rounded-xl bg-mauve/10 flex items-center justify-center">
@@ -401,7 +401,7 @@ export default function LandingPage() {
             </div>
 
             {/* MONTHLY PLAN */}
-            <div className="glass rounded-3xl p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
+            <div className="landing-pricing-float landing-monthly-shimmer glass rounded-3xl p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
               <div className="mb-6">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-10 h-10 rounded-xl bg-mauve/10 flex items-center justify-center">
@@ -425,16 +425,16 @@ export default function LandingPage() {
               </ul>
               <button
                 onClick={() => user ? setView("create") : setView("auth")}
-                className="w-full py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve cursor-pointer"
+                className="landing-monthly-btn-shimmer w-full py-4 rounded-full text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 cursor-pointer relative overflow-hidden"
               >
                 {tx.landing.pricing.monthly.cta}
               </button>
             </div>
 
             {/* ANNUAL PLAN — highlighted */}
-            <div className="relative glass rounded-3xl p-8 flex flex-col border-2 border-gold/50 hover:border-gold/70 transition-all duration-300 shadow-[0_0_40px_rgba(234,179,8,0.1)]">
+            <div className="landing-pricing-float landing-annual-shimmer relative glass rounded-3xl p-8 flex flex-col border-2 border-gold/50 hover:border-gold/70 transition-all duration-300 shadow-[0_0_40px_rgba(234,179,8,0.1)]">
               {/* Popular badge */}
-              <span className="absolute -top-4 left-1/2 -translate-x-1/2 px-5 py-1.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-xs font-extrabold uppercase tracking-wider">
+              <span className="landing-annual-badge-pulse absolute -top-4 left-1/2 -translate-x-1/2 px-5 py-1.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-xs font-extrabold uppercase tracking-wider z-10">
                 <span className="flex items-center gap-1.5">
                   <Crown className="w-3.5 h-3.5" />
                   {tx.landing.pricing.annual.badge}
@@ -471,7 +471,7 @@ export default function LandingPage() {
               </ul>
               <button
                 onClick={() => user ? setView("create") : setView("auth")}
-                className="w-full py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer"
+                className="landing-annual-btn-shimmer w-full py-4 rounded-full text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer relative overflow-hidden"
               >
                 {tx.landing.pricing.annual.cta}
               </button>
@@ -633,6 +633,142 @@ export default function LandingPage() {
         .marquee-track:hover,
         .marquee-track-reverse:hover {
           animation-play-state: paused;
+        }
+
+        /* ── Landing Pricing Card Effects ── */
+
+        /* Float animation on hover for all pricing cards */
+        @keyframes landing-float-card {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
+        }
+        .landing-pricing-float {
+          transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                      box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .landing-pricing-float:hover {
+          animation: landing-float-card 1.8s ease-in-out infinite;
+          box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.4),
+                      0 0 30px rgba(168, 85, 247, 0.08);
+        }
+
+        /* ── Monthly card: mauve shimmer sweep ── */
+        @keyframes landing-monthly-shimmer-sweep {
+          0% { transform: translateX(-100%) skewX(-15deg); opacity: 0; }
+          20% { opacity: 1; }
+          80% { opacity: 1; }
+          100% { transform: translateX(200%) skewX(-15deg); opacity: 0; }
+        }
+        .landing-monthly-shimmer {
+          position: relative;
+          overflow: hidden;
+        }
+        .landing-monthly-shimmer::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0;
+          width: 60%; height: 100%;
+          background: linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(124, 92, 191, 0.06) 20%,
+            rgba(255, 255, 255, 0.1) 40%,
+            rgba(124, 92, 191, 0.06) 60%,
+            transparent 100%
+          );
+          z-index: 1;
+          pointer-events: none;
+          border-radius: inherit;
+          animation: landing-monthly-shimmer-sweep 3.5s ease-in-out infinite;
+        }
+        .landing-monthly-shimmer > * { position: relative; z-index: 2; }
+        .landing-monthly-shimmer:hover {
+          border-color: rgba(168, 85, 247, 0.45) !important;
+          box-shadow: 0 0 20px rgba(168, 85, 247, 0.2),
+                      0 0 40px rgba(168, 85, 247, 0.1),
+                      0 0 60px rgba(168, 85, 247, 0.05);
+        }
+
+        /* Monthly CTA button shimmer */
+        @keyframes landing-monthly-btn-shimmer {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        .landing-monthly-btn-shimmer {
+          background-size: 200% auto;
+          background-image: linear-gradient(
+            90deg,
+            #7c5cbf 0%,
+            #9b7fd4 25%,
+            #c4b5fd 40%,
+            #9b7fd4 55%,
+            #7c5cbf 75%,
+            #5a3d8f 100%
+          );
+          animation: landing-monthly-btn-shimmer 2.5s linear infinite;
+        }
+
+        /* ── Annual card: gold shimmer sweep ── */
+        @keyframes landing-annual-shimmer-sweep {
+          0% { transform: translateX(-100%) skewX(-15deg); opacity: 0; }
+          20% { opacity: 1; }
+          80% { opacity: 1; }
+          100% { transform: translateX(200%) skewX(-15deg); opacity: 0; }
+        }
+        .landing-annual-shimmer {
+          position: relative;
+          overflow: hidden;
+        }
+        .landing-annual-shimmer::before {
+          content: '';
+          position: absolute;
+          top: 0; left: 0;
+          width: 60%; height: 100%;
+          background: linear-gradient(
+            90deg,
+            transparent 0%,
+            rgba(234, 179, 8, 0.06) 20%,
+            rgba(255, 255, 255, 0.12) 40%,
+            rgba(234, 179, 8, 0.06) 60%,
+            transparent 100%
+          );
+          z-index: 1;
+          pointer-events: none;
+          border-radius: inherit;
+          animation: landing-annual-shimmer-sweep 3s ease-in-out infinite;
+        }
+        .landing-annual-shimmer > * { position: relative; z-index: 2; }
+
+        /* Annual badge glow pulse */
+        @keyframes landing-annual-badge-glow {
+          0%, 100% {
+            box-shadow: 0 0 8px rgba(234, 179, 8, 0.3), 0 0 16px rgba(234, 179, 8, 0.15);
+          }
+          50% {
+            box-shadow: 0 0 16px rgba(234, 179, 8, 0.5), 0 0 32px rgba(234, 179, 8, 0.25), 0 0 48px rgba(234, 179, 8, 0.1);
+          }
+        }
+        .landing-annual-badge-pulse {
+          animation: landing-annual-badge-glow 2.5s ease-in-out infinite;
+        }
+
+        /* Annual CTA button shimmer */
+        @keyframes landing-annual-btn-shimmer {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        .landing-annual-btn-shimmer {
+          background-size: 200% auto;
+          background-image: linear-gradient(
+            90deg,
+            #eab308 0%,
+            #f59e0b 25%,
+            #fde68a 40%,
+            #f59e0b 55%,
+            #eab308 75%,
+            #f59e0b 100%
+          );
+          animation: landing-annual-btn-shimmer 2.5s linear infinite;
         }
       `}</style>
     </div>

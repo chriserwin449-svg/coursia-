@@ -50,3 +50,32 @@ Stage Summary:
 - Database: Currently using Prisma + SQLite (internal)
 - Course generation: Uses z-ai-web-dev-sdk (free tier fallback)
 - All previously requested features confirmed as implemented
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix login error UX, flame bar verification, landing page pricing effects, monthly card effects, deployment explanation
+
+Work Log:
+- **Login error fix**: Changed `/api/auth/login` to return specific error codes:
+  - `user_not_found` (404) when email doesn't exist
+  - `wrong_password` (401) when password is incorrect
+- **AuthPage UX**: When `user_not_found`, shows a friendly purple message "Aucun compte trouvé" with a "Créer un compte" button that switches to register mode
+- **Flame bar**: Confirmed flame bar is already in Journey.tsx (lines 149-278) with all CSS effects defined in globals.css — ember particles, shimmer sweep, glowing tip, reflection glow, etc.
+- **Landing page pricing effects**: Added to all 3 pricing cards:
+  - `landing-pricing-float` — float animation on hover for all cards
+  - `landing-annual-shimmer` — gold shimmer sweep across annual card
+  - `landing-annual-badge-pulse` — pulsing gold glow on "Populaire" badge
+  - `landing-annual-btn-shimmer` — animated gradient on annual CTA button
+- **Monthly card special effects**:
+  - `landing-monthly-shimmer` — purple/mauve shimmer sweep across the card
+  - `landing-monthly-btn-shimmer` — animated purple gradient on CTA button
+  - Mauve glow border on hover (3-layer box-shadow)
+- Lint check: 0 errors, preview HTTP 200 confirmed
+
+Stage Summary:
+- Login UX: Friendly error with "Create Account" button for non-existent accounts
+- Flame bar: Present and working in Journey page
+- Landing pricing: Full effect parity with OffersPage (float, shimmer, glow, badge pulse)
+- Monthly card: Unique purple shimmer + glow effects added
+- Preview: Running, 0 lint errors

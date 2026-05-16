@@ -53,7 +53,13 @@ export default function AuthPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || (isFr ? "Une erreur est survenue" : "An error occurred"));
+        if (data.error === "user_not_found") {
+          setError("user_not_found");
+        } else if (data.error === "wrong_password") {
+          setError(isFr ? "Mot de passe incorrect" : "Wrong password");
+        } else {
+          setError(data.error || (isFr ? "Une erreur est survenue" : "An error occurred"));
+        }
         return;
       }
 
@@ -196,7 +202,24 @@ export default function AuthPage() {
               </div>
 
               {/* Error */}
-              {error && (
+              {error && error === "user_not_found" && (
+                <div className="p-4 rounded-2xl bg-mauve/10 border border-mauve/20 animate-fade-in">
+                  <p className="text-sm font-bold text-mauve-light mb-2">
+                    {isFr
+                      ? "Aucun compte trouvé avec cette adresse email"
+                      : "No account found with this email address"}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={toggleMode}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-mauve/20 text-mauve-light text-sm font-bold hover:bg-mauve/30 transition-all duration-200 cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    {isFr ? "Créer un compte" : "Create an account"}
+                  </button>
+                </div>
+              )}
+              {error && error !== "user_not_found" && (
                 <div className="p-3.5 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-sm font-semibold animate-fade-in">
                   {error}
                 </div>

@@ -21,8 +21,8 @@ export async function POST(request: NextRequest) {
     const user = await db.user.findUnique({ where: { email: email.toLowerCase() } });
     if (!user) {
       return NextResponse.json(
-        { error: "Email ou mot de passe incorrect / Invalid email or password" },
-        { status: 401 },
+        { error: "user_not_found" },
+        { status: 404 },
       );
     }
 
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     const hashedInput = hashPassword(password);
     if (hashedInput !== user.password) {
       return NextResponse.json(
-        { error: "Email ou mot de passe incorrect / Invalid email or password" },
+        { error: "wrong_password" },
         { status: 401 },
       );
     }
