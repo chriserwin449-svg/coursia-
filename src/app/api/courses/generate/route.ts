@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
+import { smartChatCompletion, getActiveProvider } from "@/lib/openai";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -193,7 +194,6 @@ function validate(data: unknown): {
 /* ── Course generation (full freedom for AI) ────────────────────────── */
 
 async function generateCourse(
-  zai: Awaited<ReturnType<typeof ZAI.create>>,
   title: string, courseLang: string, level: number,
   sourceLinks: string[], sourceContext: string,
 ) {
@@ -208,42 +208,38 @@ async function generateCourse(
     ? `\n\n${sourceContext}\n\nIMPORTANT: Utilise les informations ci-dessus pour enrichir le cours avec des faits réels, des données et des exemples concrets.`
     : "";
 
-  const completion = await withRetry(() =>
-    zai.chat.completions.create({
-      messages: [
-        {
-          role: "assistant",
-          content: [
-            `Tu es un expert pédagogue passionné qui crée des cours captivants et mémorables.`,
-            "",
-            `MISSION : Crée un cours complet en ${langLabels[courseLang] || "français"}.`,
-            `Niveau : ${levelLabels[level] || levelLabels[1]}`,
-            `Sujet : ${title}`,
-            "",
-            "RÈGLES CRITIQUES :",
-            "- Tu as la LIBERTÉ TOTALE sur le nombre de chapitres. Crée le nombre qui correspond au sujet : 3, 5, 7, 10, 12, 15... autant que nécessaire pour couvrir le sujet en profondeur.",
-            "- Chaque chapitre DOIT contenir des sous-chapitres (utilisés avec ## en Markdown) — au moins 2-3 sous-chapitres par chapitre.",
-            "- Le contenu DOIT ÊTRE INTERESSANT et captivant. Utilise des exemples concrets, des analogies, des anecdotes, des faits surprenants, des questions rhétoriques.",
-            "- PAS de texte ennuyeux ni académique sec. Écris comme un storyteller passionné.",
-            `- ${langNote}`,
-            "- Chaque chapitre doit contenir au minimum 200 mots de contenu riche.",
-            "- Utilise largement : ## pour sous-chapitres, - pour listes, ** pour gras, > pour citations, des exemples numériques quand c'est pertinent.",
-            "- Aucun guillemet double dans les valeurs. Utilise seulement des apostrophes (').",
-            "",
-            "RÉPONDS UNIQUEMENT avec ce JSON valide :",
-            '{"description":"Brève description captivante du cours (2-3 phrases)","chapters":[{"title":"Titre du chapitre","content":"Contenu Markdown riche avec ## sous-chapitres, listes, exemples...","summary":"Résumé en 1 phrase"}]}',
-            "",
-            links,
-            sourcePrompt,
-          ].join("\n"),
-        },
-        { role: "user", content: `Crée un cours passionnant et complet sur : ${title}` },
-      ],
-      thinking: { type: "disabled" },
-    })
-  );
+  // Use smartChatCompletion which auto-detects stored API key (OpenAI/Google) or falls back to z-ai
+  const completion = await smartChatCompletion([
+    {
+      role: "assistant",
+      content: [
+        `Tu es un expert pédagogue passionné qui crée des cours captivants et mémorables.`,
+        "",
+        `MISSION : Crée un cours complet en ${langLabels[courseLang] || "français"}.`,
+        `Niveau : ${levelLabels[level] || levelLabels[1]}`,
+        `Sujet : ${title}`,
+        "",
+        "RÈGLES CRITIQUES :",
+        "- Tu as la LIBERTÉ TOTALE sur le nombre de chapitres. Crée le nombre qui correspond au sujet : 3, 5, 7, 10, 12, 15... autant que nécessaire pour couvrir le sujet en profondeur.",
+        "- Chaque chapitre DOIT contenir des sous-chapitres (utilisés avec ## en Markdown) — au moins 2-3 sous-chapitres par chapitre.",
+        "- Le contenu DOIT ÊTRE INTERESSANT et captivant. Utilise des exemples concrets, des analogies, des anecdotes, des faits surprenants, des questions rhétoriques.",
+        "- PAS de texte ennuyeux ni académique sec. Écris comme un storyteller passionné.",
+        `- ${langNote}`,
+        "- Chaque chapitre doit contenir au minimum 200 mots de contenu riche.",
+        "- Utilise largement : ## pour sous-chapitres, - pour listes, ** pour gras, > pour citations, des exemples numériques quand c'est pertinent.",
+        "- Aucun guillemet double dans les valeurs. Utilise seulement des apostrophes (').",
+        "",
+        "RÉPONDS UNIQUEMENT avec ce JSON valide :",
+        '{"description":"Brève description captivante du cours (2-3 phrases)","chapters":[{"title":"Titre du chapitre","content":"Contenu Markdown riche avec ## sous-chapitres, listes, exemples...","summary":"Résumé en 1 phrase"}]}',
+        "",
+        links,
+        sourcePrompt,
+      ].join("\n"),
+    },
+    { role: "user", content: `Crée un cours passionnant et complet sur : ${title}` },
+  ], { maxTokens: 8192 });
 
-  const text = completion.choices[0]?.message?.content || "";
+  const text = completion.content || "";
   return extractChapters(text);
 }
 
@@ -257,17 +253,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
 
-    const zai = await ZAI.create();
-
     // ── Step 0: Scrape source links ──
+    const zai = await ZAI.create();
     let scrapedPages: ScrapedPage[] = [];
     if (sourceLinks.length > 0) {
       scrapedPages = await scrapeSourceLinks(zai, sourceLinks);
     }
     const sourceContext = buildSourceContext(scrapedPages);
 
-    // ── Step 1: Generate course with full AI freedom ──
-    let result = await generateCourse(zai, title, courseLang, level, sourceLinks, sourceContext);
+    // ── Step 1: Generate course with smart AI routing ──
+    let result = await generateCourse(title, courseLang, level, sourceLinks, sourceContext);
 
     if (!result || result.chapters.length === 0) {
       throw new Error("L'IA n'a pas pu générer un cours valide. Réessaie.");

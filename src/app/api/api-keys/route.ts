@@ -33,6 +33,18 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function DELETE() {
+  try {
+    const existing = await db.apiKey.findFirst();
+    if (existing) {
+      await db.apiKey.delete({ where: { id: existing.id } });
+    }
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: "Failed to delete key" }, { status: 500 });
+  }
+}
+
 export async function GET() {
   try {
     const apiKey = await db.apiKey.findFirst({

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type AppView = "landing" | "auth" | "create" | "library" | "viewer" | "journey" | "offers";
+export type AppView = "landing" | "auth" | "create" | "library" | "viewer" | "journey" | "offers" | "settings";
 export type AppLang = "fr" | "en";
 
 export interface UserData {
