@@ -25,3 +25,28 @@ Stage Summary:
 - Course Generation: Works via z-ai-web-dev-sdk (built-in AI, no API key needed)
 - Payments: Infrastructure ready (checkout placeholder, webhook handler for LemonSqueezy)
 - To activate payments: add LEMON_SQUEEZY_API_KEY to .env and configure store ID
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix preview (restart after context recovery), clean up project
+
+Work Log:
+- Found project in working state with .next build already present
+- Preview was down — no process running on port 3000
+- Started `bun --bun next dev -p 3000` successfully — HTTP 200 confirmed
+- Discovered all previously pending features were already implemented:
+  - FAQ section exists in LandingPage.tsx (lines 490-563)
+  - Logout confirmation dialog exists in Sidebar.tsx (lines 152-189)
+  - 3-level progression system (Beginner/Intermediate/Advanced) in CreateCourse.tsx
+  - No login button in TopBar (already removed)
+- Cleaned up 15+ legacy utility scripts from previous preview attempts (custom-server.js, fast-server.ts, server-wrapper.js, etc.)
+- Removed unused mini-services (dev-server, keep-alive)
+- Lint check: 0 errors after cleanup
+
+Stage Summary:
+- Preview: Running on port 3000 via `bun --bun next dev`
+- Project clean: All legacy scripts removed, zero lint errors
+- Database: Currently using Prisma + SQLite (internal)
+- Course generation: Uses z-ai-web-dev-sdk (free tier fallback)
+- All previously requested features confirmed as implemented
