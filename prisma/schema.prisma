@@ -3,11 +3,6 @@ generator client {
 }
 
 datasource db {
-  // ══════════════════════════════════════════════════════════
-  // Pour le développement local : utilise "sqlite"
-  // Pour la production (Supabase) : change en "postgresql"
-  // et mets à jour DATABASE_URL dans .env.local
-  // ══════════════════════════════════════════════════════════
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
@@ -97,7 +92,7 @@ model CourseProgress {
   completed    Boolean  @default(false)
   score        Int      @default(0)
   passedAt     DateTime?
-  flameAwarded Boolean  @default(false)
+  flameAwarded Boolean @default(false)
   sessions     StudySession[]
 }
 
