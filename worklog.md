@@ -134,3 +134,23 @@ Stage Summary:
 - Random topic button only appears on the create page
 - Flame bar on Journey page renders correctly (API returns valid data)
 - Chapter counter on Journey (0/12) works correctly based on DB data
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix flame bar visibility, update AI prompt, fix cadenas icon, fix landing page badge
+
+Work Log:
+- Read Journey.tsx and identified flame bar `fade-in-up` class causing opacity:0 → flash → disappear issue
+- Removed `fade-in-up` from flameBarClass (parent container already has `fade-in` which handles the fade-in)
+- Updated LandingPage.tsx hero section from `flex items-center justify-center min-h-screen` to `flex items-start justify-center min-h-screen pt-28 pb-12` so "Propulsé par l'IA" badge is visible below fixed nav
+- Replaced entire AI course generation system prompt in `/api/courses/generate/route.ts` with new elite prompt covering: immersive teaching style, engagement system, readability rules, exercises & chapter endings, emotional design, pedagogical progression
+- Enhanced chapter number display in CourseViewer.tsx: replaced tiny faded `<span>` with a styled `<div>` container with `bg-mauve/15 border border-mauve/25` and bold `text-mauve-light` for visible unlock→number transition
+- Verified cadenas logic: `isChapterUnlocked(idx)` correctly checks previous chapter completion, quiz API saves progress, fetchCourse re-fetches data after quiz completion
+- Ran lint check: no errors
+
+Stage Summary:
+- Flame bar: removed conflicting `fade-in-up` class → bar now always visible
+- AI prompt: fully replaced with elite immersive prompt
+- Cadenas: chapter numbers now display prominently in styled badge when unlocked
+- Landing badge: hero section aligned to top with padding → badge visible on new tab

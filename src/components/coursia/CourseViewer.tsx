@@ -667,14 +667,16 @@ export default function CourseViewer() {
                   >
                     <div className="flex items-start gap-2.5">
                       {/* ── Icon column ── */}
-                      <div className="flex-shrink-0 mt-0.5 w-5 h-5 flex items-center justify-center">
+                      <div className="flex-shrink-0 mt-0.5 w-6 h-6 flex items-center justify-center">
                         {isCompleted ? (
                           <CheckCircle2 className="w-4 h-4 text-green-400" />
                         ) : isUnlocked ? (
                           isActive ? (
                             <BookOpen className="w-4 h-4 text-mauve-light" />
                           ) : (
-                            <span className="text-xs font-bold text-muted-foreground/50">{idx + 1}</span>
+                            <div className="w-6 h-6 rounded-lg bg-mauve/15 border border-mauve/25 flex items-center justify-center">
+                              <span className="text-[11px] font-extrabold text-mauve-light">{idx + 1}</span>
+                            </div>
                           )
                         ) : (
                           <Lock className="w-3.5 h-3.5 text-muted-foreground/40" />

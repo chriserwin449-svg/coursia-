@@ -158,7 +158,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ===== HERO SECTION ===== */}
-      <section className="relative overflow-hidden flex items-center justify-center min-h-screen px-4">
+      <section className="relative overflow-hidden flex items-start justify-center min-h-screen px-4 pt-28 pb-12">
         {/* Background orbs */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-mauve/8 rounded-full blur-[120px]" />

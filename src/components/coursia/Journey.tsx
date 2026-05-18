@@ -138,8 +138,8 @@ export default function Journey() {
   const isMaxFlame = flameType.minPoints === flameType.maxPoints;
 
   const flameBarClass = isActivityActive
-    ? "rounded-2xl px-5 pt-4 pb-5 mb-2 fade-in-up relative overflow-hidden cursor-pointer transition-all duration-700 flame-card-border-pulse hover:scale-105"
-    : "rounded-2xl px-5 pt-4 pb-5 mb-2 fade-in-up relative overflow-hidden cursor-pointer transition-all duration-700 hover:scale-105";
+    ? "rounded-2xl px-5 pt-4 pb-5 mb-2 relative overflow-hidden cursor-pointer transition-all duration-700 flame-card-border-pulse hover:scale-105"
+    : "rounded-2xl px-5 pt-4 pb-5 mb-2 relative overflow-hidden cursor-pointer transition-all duration-700 hover:scale-105";
 
   const flameIconClass = isActivityActive
     ? "w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center transition-all duration-700 animate-pulse-glow scale-110"
