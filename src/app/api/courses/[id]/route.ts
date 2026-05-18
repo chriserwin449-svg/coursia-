@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+function safeJsonParse(str: string, fallback: unknown = []): unknown {
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -36,7 +40,7 @@ export async function GET(
       id: course.id,
       title: course.title,
       description: course.description,
-      sourceLinks: JSON.parse(course.sourceLinks),
+      sourceLinks: safeJsonParse(course.sourceLinks) as string[],
       level: course.level,
       createdAt: course.createdAt,
       chapters: course.chapters.map((ch) => ({
@@ -46,7 +50,7 @@ export async function GET(
         summary: ch.summary,
         order: ch.order,
         quiz: ch.quiz
-          ? { id: ch.quiz.id, questions: JSON.parse(ch.quiz.questions) }
+          ? { id: ch.quiz.id, questions: safeJsonParse(ch.quiz.questions) }
           : null,
         progress: ch.progress
           ? {

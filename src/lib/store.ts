@@ -1,7 +1,10 @@
+"use client";
+
 import { create } from "zustand";
 
 export type AppView = "landing" | "auth" | "create" | "library" | "viewer" | "journey" | "offers";
 export type AppLang = "fr" | "en";
+export type UserPlan = "free" | "pro" | "lifetime";
 
 export interface UserData {
   id: string;
@@ -52,11 +55,22 @@ export interface CourseData {
 
 interface AppState {
   lang: AppLang;
+  setLang: (l: AppLang) => void;
   user: UserData | null;
   setUser: (user: UserData | null) => void;
   authToken: string | null;
   setAuthToken: (token: string | null) => void;
-  setLang: (l: AppLang) => void;
+  // Derived auth fields (for hooks compatibility)
+  isAuthenticated: boolean;
+  userName: string | null;
+  userId: string | null;
+  userEmail: string | null;
+  logout: () => void;
+  // Plan fields (for usePlan hook)
+  userPlan: UserPlan;
+  planFeatures: Record<string, boolean>;
+  setUserPlan: (plan: UserPlan) => void;
+  // Navigation
   view: AppView;
   setView: (view: AppView) => void;
   selectedCourseId: string | null;
@@ -89,11 +103,17 @@ interface AppState {
   setLevelUpData: (d: { title: string; currentLevel: number; nextLevel: number } | null) => void;
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   lang: "fr",
   setLang: (lang) => set({ lang }),
   user: null,
-  setUser: (user) => set({ user }),
+  setUser: (user) => set({
+    user,
+    isAuthenticated: !!user,
+    userName: user?.firstName ?? null,
+    userId: user?.id ?? null,
+    userEmail: user?.email ?? null,
+  }),
   authToken: null,
   setAuthToken: (token) => {
     if (typeof window !== "undefined") {
@@ -105,6 +125,32 @@ export const useAppStore = create<AppState>((set) => ({
     }
     set({ authToken: token });
   },
+  // Derived auth fields
+  isAuthenticated: false,
+  userName: null,
+  userId: null,
+  userEmail: null,
+  logout: () => {
+    get().setUser(null);
+    get().setAuthToken(null);
+    set({ view: "landing" });
+  },
+  // Plan fields
+  userPlan: "free" as UserPlan,
+  planFeatures: {
+    unlimitedCourses: false,
+    prioritySupport: false,
+    earlyAccess: false,
+  },
+  setUserPlan: (plan) => set({
+    userPlan: plan,
+    planFeatures: {
+      unlimitedCourses: plan !== "free",
+      prioritySupport: plan !== "free",
+      earlyAccess: plan === "lifetime",
+    },
+  }),
+  // Navigation
   view: "landing",
   setView: (view) => set({
     view,

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+function safeJsonParse(str: string, fallback: unknown = []): unknown {
+  try { return JSON.parse(str); } catch { return fallback; }
+}
+
 export async function GET() {
   try {
     const courses = await db.course.findMany({
@@ -25,7 +29,7 @@ export async function GET() {
         id: course.id,
         title: course.title,
         description: course.description,
-        sourceLinks: JSON.parse(course.sourceLinks),
+        sourceLinks: safeJsonParse(course.sourceLinks) as string[],
         createdAt: course.createdAt,
         chapters: course.chapters.map((ch) => ({
           id: ch.id,

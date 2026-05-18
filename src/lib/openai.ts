@@ -138,12 +138,18 @@ export async function smartChatCompletion(messages: Array<{ role: string; conten
       console.log("[OpenAI] All models failed, falling back to z-ai");
     }
   }
-  console.log("[AI] Using z-ai (free tier) fallback");
-  const zai = await ZAI.create();
-  const completion = await zai.chat.completions.create({
-    messages: messages as Array<{ role: "user" | "system" | "assistant"; content: string }>,
-    thinking: { type: "disabled" },
-  });
-  const content = completion.choices?.[0]?.message?.content || "";
-  return { content, provider: "free" as const };
+  // z-ai free tier fallback
+  try {
+    console.log("[AI] Using z-ai (free tier) fallback");
+    const zai = await ZAI.create();
+    const completion = await zai.chat.completions.create({
+      messages: messages as Array<{ role: "user" | "system" | "assistant"; content: string }>,
+      thinking: { type: "disabled" },
+    });
+    const content = completion.choices?.[0]?.message?.content || "";
+    return { content, provider: "free" as const };
+  } catch (error) {
+    console.error("[AI] z-ai fallback failed:", error instanceof Error ? error.message : error);
+    return { content: "", provider: "free" as const };
+  }
 }

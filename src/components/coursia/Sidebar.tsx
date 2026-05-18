@@ -93,7 +93,7 @@ export default function Sidebar() {
               {!collapsed && (
                 <div className="hidden md:block min-w-0">
                   <p className="text-xs font-bold text-foreground truncate">
-                    {user.firstName} {user.lastName.charAt(0)}.
+                    {user.firstName} {(user.lastName || "").charAt(0) || ""}.
                   </p>
                   <p className="text-[10px] text-muted-foreground/50 truncate">{user.email}</p>
                 </div>

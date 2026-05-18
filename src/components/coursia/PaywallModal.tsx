@@ -42,8 +42,8 @@ export default function PaywallModal({ onClose, onUpgrade, lang }: PaywallModalP
         <p className="text-muted-foreground text-center text-base md:text-lg mb-2">{tx.paywall.subtitle}</p>
         <p className="text-muted-foreground/70 text-center text-sm mb-8">{tx.paywall.description}</p>
         <div className="space-y-3 mb-10">
-          {tx.paywall.benefits.map((benefit, i) => {
-            const Icon = benefitIcons[i];
+          {(tx.paywall?.benefits || []).map((benefit, i) => {
+            const Icon = benefitIcons[i % benefitIcons.length] || BookOpen;
             return (
               <div key={i} className="flex items-center gap-4 px-4 py-3 rounded-2xl bg-night/60 border border-border/50 hover:border-mauve/20 transition-all duration-200">
                 <div className="w-10 h-10 rounded-xl bg-mauve/15 flex items-center justify-center flex-shrink-0">

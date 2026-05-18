@@ -67,6 +67,11 @@ export default function AuthPage() {
       setUser(data.user);
       setAuthToken(data.token);
 
+      // Persist user data for session restoration
+      if (typeof window !== "undefined" && data.user) {
+        localStorage.setItem("coursia-user-data", JSON.stringify(data.user));
+      }
+
       // Navigate to create page
       setView("create");
     } catch {

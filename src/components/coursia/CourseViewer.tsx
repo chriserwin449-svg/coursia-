@@ -99,7 +99,10 @@ export default function CourseViewer() {
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (studySessionId) {
-        navigator.sendBeacon("/api/study-time", JSON.stringify({ action: "end", sessionId: studySessionId }));
+        navigator.sendBeacon(
+          "/api/study-time",
+          new Blob([JSON.stringify({ action: "end", sessionId: studySessionId })], { type: "application/json" })
+        );
       }
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -211,11 +214,12 @@ export default function CourseViewer() {
 
         // Check if we should show level-up modal
         const courseLevel = course?.level ?? 0;
+        const courseTitle = course?.title ?? "";
         if (courseLevel < 2) {
           // Show level up modal for beginner/intermediate
           setShowLevelUp(true);
           setLevelUpData({
-            title: course!.title,
+            title: courseTitle,
             currentLevel: courseLevel,
             nextLevel: courseLevel + 1,
           });
@@ -223,7 +227,7 @@ export default function CourseViewer() {
           // Show all levels complete
           setShowLevelUp(true);
           setLevelUpData({
-            title: course!.title,
+            title: courseTitle,
             currentLevel: 2,
             nextLevel: -1, // -1 means all done
           });
