@@ -1,6 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import { useAppStore } from "@/lib/store";
+import { useShallow } from "zustand/react/shallow";
 
 export function useSession() {
   const setUser = useAppStore((s) => s.setUser);
@@ -59,9 +60,9 @@ export function useSession() {
     return () => { cancelled = true; };
   }, [isAuthenticated, setUser]);
 
-  return useAppStore((s) => ({
+  return useAppStore(useShallow((s) => ({
     user: s.user,
     isAuthenticated: s.isAuthenticated,
     logout: s.logout,
-  }));
+  })));
 }

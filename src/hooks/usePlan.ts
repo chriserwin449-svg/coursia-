@@ -1,10 +1,13 @@
 "use client";
 import { useAppStore } from "@/lib/store";
+import { useShallow } from "zustand/react/shallow";
 
 export function usePlan() {
-  const userPlan = useAppStore((s) => s.userPlan);
-  const planFeatures = useAppStore((s) => s.planFeatures);
-  const setUserPlan = useAppStore((s) => s.setUserPlan);
+  const { userPlan, planFeatures, setUserPlan } = useAppStore(useShallow((s) => ({
+    userPlan: s.userPlan,
+    planFeatures: s.planFeatures,
+    setUserPlan: s.setUserPlan,
+  })));
 
   const isPro = userPlan === "pro" || userPlan === "lifetime";
   const isFree = userPlan === "free";
