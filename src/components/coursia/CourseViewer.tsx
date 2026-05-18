@@ -9,13 +9,11 @@ import {
   Minimize2,
   CheckCircle2,
   Lock,
-  HelpCircle,
   Loader2,
   BookOpen,
   Trophy,
   FileText,
   AlertTriangle,
-  RotateCcw,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useAppStore, type CourseData, type CourseChapter, type QuizQuestion } from "@/lib/store";
@@ -33,14 +31,13 @@ export default function CourseViewer() {
   const [studySessionId, setStudySessionId] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [courseCompleted, setCourseCompleted] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
 
   const selectedCourseId = useAppStore((s) => s.selectedCourseId);
   const currentChapterIndex = useAppStore((s) => s.currentChapterIndex);
   const setCurrentChapterIndex = useAppStore((s) => s.setCurrentChapterIndex);
   const isFullscreen = useAppStore((s) => s.isFullscreen);
   const setIsFullscreen = useAppStore((s) => s.setIsFullscreen);
-  const showQuiz = useAppStore((s) => s.showQuiz);
-  const setShowQuiz = useAppStore((s) => s.setShowQuiz);
   const showFinalQuiz = useAppStore((s) => s.showFinalQuiz);
   const setShowFinalQuiz = useAppStore((s) => s.setShowFinalQuiz);
   const setView = useAppStore((s) => s.setView);
@@ -85,6 +82,16 @@ export default function CourseViewer() {
     }
     return map;
   }, [course, parseSubChapters]);
+
+  // ── Compute completed count and overall progress from course data ──
+  const completedCount = useMemo(() => {
+    if (!course) return 0;
+    return course.chapters.filter((ch) => ch.progress?.completed).length;
+  }, [course]);
+
+  const totalChapters = course?.chapters.length ?? 0;
+  const overallProgress = totalChapters > 0 ? Math.round((completedCount / totalChapters) * 100) : 0;
+  const allChaptersCompleted = totalChapters > 0 && completedCount === totalChapters;
 
   // ── Study session tracking ──
   const startStudySession = useCallback(async (cId: string, chId?: string) => {
@@ -227,19 +234,71 @@ export default function CourseViewer() {
 
   const currentChapter = course?.chapters[currentChapterIndex];
 
-  const goToNext = () => {
-    if (!course) return;
-    // If current chapter is not completed, show quiz first
-    if (!currentChapter?.progress?.completed) {
-      setShowQuiz(true);
-      return;
+  // ── Complete current chapter via API (no quiz) ──
+  const completeCurrentChapter = useCallback(async (): Promise<boolean> => {
+    if (!currentChapter) return false;
+    // Already completed
+    if (currentChapter.progress?.completed) return true;
+
+    try {
+      const res = await fetch(`/api/courses/${selectedCourseId}/chapters/${currentChapter.id}/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (res.ok) {
+        // Refetch course to get updated progress
+        const courseRes = await fetch(`/api/courses/${selectedCourseId}`);
+        if (courseRes.ok) {
+          const data = await courseRes.json();
+          setCourse(data);
+        }
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
     }
+  }, [currentChapter, selectedCourseId]);
+
+  // ── Navigation: go to next chapter (auto-complete current) ──
+  const goToNext = async () => {
+    if (!course || isCompleting) return;
+
+    // If on last chapter, do nothing (show final quiz instead)
+    if (currentChapterIndex >= course.chapters.length - 1) return;
+
+    setIsCompleting(true);
+
+    // Auto-complete current chapter if not already completed
+    const wasJustCompleted = !currentChapter?.progress?.completed;
+    if (wasJustCompleted) {
+      const success = await completeCurrentChapter();
+      if (!success) {
+        setIsCompleting(false);
+        return;
+      }
+      // Show celebration for completing a chapter
+      const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
+      const completedAfter = completedCount + 1;
+      setShowConfetti(true);
+      setShowCelebration(true);
+      setCelebrationMessage(
+        lang === "fr"
+          ? `Chapitre ${currentChapterIndex + 1} terminé ${userName} ! 🎉`
+          : `Chapter ${currentChapterIndex + 1} done ${userName}! 🎉`
+      );
+      setTimeout(() => {
+        setShowCelebration(false);
+        setShowConfetti(false);
+      }, 2000);
+    }
+
+    // Move to next chapter
     endStudySession();
-    if (currentChapterIndex < course.chapters.length - 1) {
-      const nextIdx = currentChapterIndex + 1;
-      setCurrentChapterIndex(nextIdx);
-      startStudySession(course.id, course.chapters[nextIdx]?.id);
-    }
+    const nextIdx = currentChapterIndex + 1;
+    setCurrentChapterIndex(nextIdx);
+    startStudySession(course.id, course.chapters[nextIdx]?.id);
+    setIsCompleting(false);
   };
 
   const goToPrev = () => {
@@ -254,30 +313,6 @@ export default function CourseViewer() {
     if (!course) return false;
     if (index === 0) return true;
     return course.chapters[index - 1].progress?.completed === true;
-  };
-
-  // Check if all chapters are completed
-  const allChaptersCompleted = course?.chapters.every((ch) => ch.progress?.completed) ?? false;
-
-  const handleQuizComplete = (passed: boolean) => {
-    if (passed) {
-      const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
-      setShowConfetti(true);
-      setShowCelebration(true);
-      setCelebrationMessage(lang === "fr" ? `Bravo ${userName} ! 🎉` : `Amazing ${userName}! 🎉`);
-      setTimeout(() => {
-        setShowCelebration(false);
-        setShowConfetti(false);
-        setShowQuiz(false);
-        endStudySession();
-        if (currentChapterIndex < (course?.chapters.length || 0) - 1) {
-          setCurrentChapterIndex(currentChapterIndex + 1);
-        }
-        fetchCourse();
-      }, 2500);
-    } else {
-      setShowQuiz(false);
-    }
   };
 
   const handleFinalQuizComplete = (passed: boolean) => {
@@ -297,7 +332,6 @@ export default function CourseViewer() {
         const courseLevel = course?.level ?? 0;
         const courseTitle = course?.title ?? "";
         if (courseLevel < 2) {
-          // Show level up modal for beginner/intermediate
           setShowLevelUp(true);
           setLevelUpData({
             title: courseTitle,
@@ -305,22 +339,18 @@ export default function CourseViewer() {
             nextLevel: courseLevel + 1,
           });
         } else if (courseLevel === 2) {
-          // Show all levels complete
           setShowLevelUp(true);
           setLevelUpData({
             title: courseTitle,
             currentLevel: 2,
-            nextLevel: -1, // -1 means all done
+            nextLevel: -1,
           });
         } else {
-          // No level tracking, normal completion
           if (course) setCurrentChapterIndex(0);
         }
 
         fetchCourse();
       }, 4000);
-    } else {
-      // Cannot skip - stay on final quiz
     }
   };
 
@@ -446,12 +476,8 @@ export default function CourseViewer() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full">
-                          {ch.progress?.score ?? 0}%
+                          {tx.viewer.completed}
                         </span>
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground group-hover:text-mauve-light transition-colors">
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>{tx.viewer.redoQuiz}</span>
-                        </div>
                       </div>
                     </button>
                   );
@@ -470,7 +496,6 @@ export default function CourseViewer() {
             </div>
           </div>
         </div>
-
       </>
     );
   }
@@ -541,27 +566,27 @@ export default function CourseViewer() {
             <div className="flex items-center gap-3">
               <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full glass">
                 <span className="text-sm font-semibold">
-                  {currentChapterIndex + 1} / {course.chapters.length}
+                  {completedCount} / {totalChapters}
                 </span>
                 <div className="w-32 h-2 rounded-full bg-night overflow-hidden">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-mauve to-gold transition-all duration-1000 ease-out"
                     style={{
-                      width: `${((currentChapterIndex + 1) / course.chapters.length) * 100}%`,
+                      width: `${overallProgress}%`,
                     }}
                   />
                 </div>
               </div>
-              <button onClick={goToPrev} disabled={currentChapterIndex === 0} className="p-2 rounded-xl hover:bg-white/10 transition-all disabled:opacity-30 cursor-pointer">
+              <button onClick={goToPrev} disabled={currentChapterIndex === 0 || isCompleting} className="p-2 rounded-xl hover:bg-white/10 transition-all disabled:opacity-30 cursor-pointer">
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <button onClick={goToNext} disabled={currentChapterIndex === course.chapters.length - 1} className="p-2 rounded-xl hover:bg-white/10 transition-all disabled:opacity-30 cursor-pointer">
+              <button onClick={goToNext} disabled={currentChapterIndex === course.chapters.length - 1 || isCompleting} className="p-2 rounded-xl hover:bg-white/10 transition-all disabled:opacity-30 cursor-pointer">
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
           </div>
 
-          {/* Fullscreen content with summary + content split */}
+          {/* Fullscreen content */}
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-3xl mx-auto px-8 py-10">
               {/* Summary card */}
@@ -571,11 +596,11 @@ export default function CourseViewer() {
                     <FileText className="w-4 h-4 text-mauve-light" />
                     <span className="text-xs font-bold text-mauve-light uppercase tracking-wider">{tx.viewer.summary}</span>
                   </div>
-                  <p className="text-base text-foreground/80 leading-relaxed">{currentChapter.summary}</p>
+                  <p className="text-lg text-foreground/80 leading-relaxed">{currentChapter.summary}</p>
                 </div>
               )}
-              {/* Content */}
-              <div className="fullscreen-content prose prose-invert max-w-none animate-fade-in-slide-right prose-p:text-[1.65rem] prose-p:leading-[2.2] prose-p:mb-6 prose-h2:text-[2.25rem] prose-h2:mt-16 prose-h2:mb-8 prose-h3:text-[1.85rem] prose-h3:mt-12 prose-h3:mb-6 prose-li:text-[1.65rem] prose-li:my-3 prose-li:leading-[2] prose-ul:my-8 prose-ol:my-8 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
+              {/* Content — LARGER text for fullscreen */}
+              <div className="prose prose-invert max-w-none animate-fade-in-slide-right prose-p:text-[1.85rem] prose-p:leading-[2.3] prose-p:mb-7 prose-h2:text-[2.5rem] prose-h2:mt-16 prose-h2:mb-8 prose-h3:text-[2.1rem] prose-h3:mt-14 prose-h3:mb-6 prose-li:text-[1.85rem] prose-li:my-3 prose-li:leading-[2.1] prose-ul:my-8 prose-ol:my-8 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
                 <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
               </div>
             </div>
@@ -591,18 +616,6 @@ export default function CourseViewer() {
               <h2 className="text-3xl font-extrabold gradient-text mb-4 animate-fade-in-slide-up">
                 {useAppStore.getState().celebrationMessage}
               </h2>
-              {[...Array(8)].map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute w-2 h-2 rounded-full bg-gold"
-                  style={{
-                    left: "50%", top: "50%", position: "absolute",
-                    animation: `float-up 1s ease-out ${0.5 + i * 0.1}s forwards`,
-                    opacity: 0,
-                    transform: `translate(${(Math.random() - 0.5) * 300}px, ${(Math.random() - 0.5) * 300}px)`,
-                  }}
-                />
-              ))}
             </div>
           </div>
         )}
@@ -611,27 +624,26 @@ export default function CourseViewer() {
   }
 
   // ══════════════════════════════════════════════════════════════════
-  // NORMAL VIEW — 3-column layout
-  // [Collapsed Sidebar] | [Chapter strip] | [Content area]
+  // NORMAL VIEW — sidebar + content layout
   // ══════════════════════════════════════════════════════════════════
   return (
     <>
       <div className="flex h-screen overflow-hidden">
-        {/* ─── Column 2: Chapter navigation strip ─── */}
+        {/* ─── Sidebar: Chapter navigation ─── */}
         <div className="w-64 border-r border-border bg-night-light flex flex-col flex-shrink-0">
           {/* Course title + chapter counter + overall progress */}
           <div className="p-4 border-b border-border">
             <h2 className="font-bold text-sm leading-tight line-clamp-2 mb-3">{course.title}</h2>
             <div className="flex justify-between text-xs text-muted-foreground mb-1">
               <span className="font-bold text-mauve-light">
-                {course.chapters.filter((ch) => ch.progress?.completed).length}/{course.chapters.length} {lang === "fr" ? "chapitres" : "chapters"}
+                {completedCount}/{totalChapters} {lang === "fr" ? "chapitres" : "chapters"}
               </span>
-              <span className="font-bold">{course.overallProgress}%</span>
+              <span className="font-bold">{overallProgress}%</span>
             </div>
             <div className="w-full h-2.5 rounded-full bg-night overflow-hidden">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-mauve to-gold transition-all duration-1000 ease-out"
-                style={{ width: `${course.overallProgress}%` }}
+                style={{ width: `${overallProgress}%` }}
               />
             </div>
           </div>
@@ -655,7 +667,6 @@ export default function CourseViewer() {
                     onClick={() => {
                       if (isUnlocked) {
                         setCurrentChapterIndex(idx);
-                        setShowQuiz(false);
                         // Toggle sub-chapters on click if not already active
                         if (!isActive && hasSubChapters) {
                           setExpandedChapters((prev) => {
@@ -701,7 +712,7 @@ export default function CourseViewer() {
                         </p>
                         {isCompleted && (
                           <p className="text-[10px] text-green-400 mt-0.5">
-                            {tx.viewer.score} : {ch.progress?.score}%
+                            {tx.viewer.completed}
                           </p>
                         )}
                       </div>
@@ -766,28 +777,27 @@ export default function CourseViewer() {
           )}
         </div>
 
-        {/* ─── Column 3: Main content area ─── */}
+        {/* ─── Main content area ─── */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Content header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
             <div>
               <h2 className="text-2xl md:text-3xl font-extrabold gradient-text">{currentChapter.title}</h2>
-              <p className="text-xs text-muted-foreground">
-                {tx.viewer.chapterOf(currentChapter.order, course.chapters.length)}
+              <p className="text-sm text-muted-foreground font-semibold">
+                {tx.viewer.chapterOf(currentChapterIndex + 1, totalChapters)}
+                {!currentChapter.progress?.completed && (
+                  <span className="ml-2 text-mauve-light">
+                    — {lang === "fr" ? "En cours" : "In progress"}
+                  </span>
+                )}
+                {currentChapter.progress?.completed && (
+                  <span className="ml-2 text-green-400">
+                    — {tx.viewer.completed} ✓
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {currentChapter.progress?.completed ? (
-                <span className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 text-xs font-bold">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  {tx.viewer.completed}
-                </span>
-              ) : (
-                <span className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-mauve/10 text-mauve-light border border-mauve/20 text-xs font-bold">
-                  <BookOpen className="w-3.5 h-3.5" />
-                  {lang === "fr" ? "En cours" : "In progress"}
-                </span>
-              )}
               <button
                 onClick={() => setIsFullscreen(true)}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full glass text-xs font-bold hover:bg-white/10 transition-all cursor-pointer"
@@ -800,85 +810,91 @@ export default function CourseViewer() {
 
           {/* Scrollable content area */}
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-            {!showQuiz ? (
-              <div
-                key={`chapter-${currentChapter.id}`}
-                className="max-w-3xl mx-auto px-6 py-8 animate-fade-in-slide-right"
-              >
-                {/* ── Summary card ── */}
-                {currentChapter.summary && (
-                  <div className="mb-8 p-5 rounded-2xl bg-mauve/5 border border-mauve/10">
-                    <div className="flex items-center gap-2 mb-2">
-                      <FileText className="w-4 h-4 text-mauve-light" />
-                      <span className="text-xs font-bold text-mauve-light uppercase tracking-wider">{tx.viewer.summary}</span>
-                    </div>
-                    <p className="text-base text-foreground/80 leading-relaxed">{currentChapter.summary}</p>
+            <div
+              key={`chapter-${currentChapter.id}`}
+              className="max-w-3xl mx-auto px-6 py-8 animate-fade-in-slide-right"
+            >
+              {/* ── Summary card ── */}
+              {currentChapter.summary && (
+                <div className="mb-8 p-5 rounded-2xl bg-mauve/5 border border-mauve/10">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FileText className="w-4 h-4 text-mauve-light" />
+                    <span className="text-xs font-bold text-mauve-light uppercase tracking-wider">{tx.viewer.summary}</span>
                   </div>
-                )}
-
-                {/* ── Course content (Markdown) ── */}
-                <div className="prose prose-invert max-w-none
-                  prose-headings:font-extrabold
-                  prose-h1:text-4xl prose-h1:mt-14 prose-h1:mb-6
-                  prose-h2:text-[2rem] prose-h2:mt-14 prose-h2:mb-7
-                  prose-h3:text-[1.65rem] prose-h3:mt-12 prose-h3:mb-5
-                  prose-p:text-[1.35rem] prose-p:leading-[2.2] prose-p:text-foreground/90 prose-p:mb-6
-                  prose-li:text-[1.35rem] prose-li:text-foreground/90 prose-li:leading-[2] prose-li:my-3
-                  prose-ul:my-8 prose-ol:my-8
-                  prose-strong:text-gold
-                  prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-2 prose-code:py-1 prose-code:rounded-lg prose-code:text-[1.1rem]
-                  prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-8 prose-pre:text-[1.1rem]
-                  prose-a:text-mauve-light
-                  prose-blockquote:text-amber-300 prose-blockquote:border-gold/30 prose-blockquote:my-8
-                  prose-hr:border-gold/20 prose-hr:my-12
-                ">
-                  <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
+                  <p className="text-lg text-foreground/80 leading-relaxed">{currentChapter.summary}</p>
                 </div>
+              )}
 
-                {/* ── Navigation footer ── */}
-                <div className="flex items-center justify-between mt-12 pt-6 border-t border-border">
+              {/* ── Course content (Markdown) — LARGER text ── */}
+              <div className="prose prose-invert max-w-none
+                prose-headings:font-extrabold
+                prose-h1:text-4xl prose-h1:mt-14 prose-h1:mb-6
+                prose-h2:text-[2.2rem] prose-h2:mt-14 prose-h2:mb-7
+                prose-h3:text-[1.85rem] prose-h3:mt-12 prose-h3:mb-5
+                prose-p:text-[1.55rem] prose-p:leading-[2.3] prose-p:text-foreground/90 prose-p:mb-7
+                prose-li:text-[1.55rem] prose-li:text-foreground/90 prose-li:leading-[2.1] prose-li:my-3
+                prose-ul:my-8 prose-ol:my-8
+                prose-strong:text-gold
+                prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-2 prose-code:py-1 prose-code:rounded-lg prose-code:text-[1.2rem]
+                prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-8 prose-pre:text-[1.2rem]
+                prose-a:text-mauve-light
+                prose-blockquote:text-amber-300 prose-blockquote:border-gold/30 prose-blockquote:my-8
+                prose-hr:border-gold/20 prose-hr:my-12
+              ">
+                <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
+              </div>
+
+              {/* ── Navigation footer ── */}
+              <div className="flex items-center justify-between mt-12 pt-6 border-t border-border">
+                <button
+                  onClick={goToPrev}
+                  disabled={currentChapterIndex === 0 || isCompleting}
+                  className="flex items-center gap-2 px-6 py-3 rounded-full glass text-sm font-bold hover:bg-white/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  {tx.viewer.previous}
+                </button>
+                {currentChapterIndex < course.chapters.length - 1 ? (
                   <button
-                    onClick={goToPrev}
-                    disabled={currentChapterIndex === 0}
-                    className="flex items-center gap-2 px-6 py-3 rounded-full glass text-sm font-bold hover:bg-white/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    onClick={goToNext}
+                    disabled={isCompleting}
+                    className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold hover:from-mauve-light hover:to-mauve transition-all disabled:opacity-50 cursor-pointer"
                   >
-                    <ChevronLeft className="w-4 h-4" />
-                    {tx.viewer.previous}
+                    {isCompleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        {tx.viewer.next}
+                        <ChevronRight className="w-4 h-4" />
+                      </>
+                    )}
                   </button>
-                  {currentChapterIndex < course.chapters.length - 1 ? (
-                    <button
-                      onClick={goToNext}
-                      className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold hover:from-mauve-light hover:to-mauve transition-all cursor-pointer"
-                    >
-                      {tx.viewer.next}
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  ) : allChaptersCompleted ? (
-                    <button
-                      onClick={() => setShowFinalQuiz(true)}
-                      className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-gold to-gold-dark text-night text-sm font-bold hover:from-gold-light hover:to-gold transition-all cursor-pointer"
-                    >
-                      <Trophy className="w-4 h-4" />
-                      {tx.viewer.finalQuiz}
-                    </button>
-                  ) : null}
-                </div>
+                ) : allChaptersCompleted ? (
+                  <button
+                    onClick={() => setShowFinalQuiz(true)}
+                    className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-gold to-gold-dark text-night text-sm font-bold hover:from-gold-light hover:to-gold transition-all cursor-pointer"
+                  >
+                    <Trophy className="w-4 h-4" />
+                    {tx.viewer.finalQuiz}
+                  </button>
+                ) : (
+                  <button
+                    onClick={goToNext}
+                    disabled={isCompleting}
+                    className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold hover:from-mauve-light hover:to-mauve transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    {isCompleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>
+                        {lang === "fr" ? "Terminer le cours" : "Complete course"}
+                        <CheckCircle2 className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
-            ) : (
-              /* ── Chapter Quiz (optional) ── */
-              <div
-                key="quiz"
-                className="max-w-3xl mx-auto px-6 py-8 animate-fade-in-slide-right"
-              >
-                <QuizPanel
-                  chapterId={currentChapter.id}
-                  courseId={course.id}
-                  isFinalQuiz={false}
-                  onComplete={handleQuizComplete}
-                  onBack={() => setShowQuiz(false)}
-                />
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
@@ -892,18 +908,6 @@ export default function CourseViewer() {
             <h2 className="text-3xl font-extrabold gradient-text mb-4 animate-fade-in-slide-up">
               {useAppStore.getState().celebrationMessage}
             </h2>
-            {[...Array(8)].map((_, i) => (
-              <div
-                key={i}
-                className="absolute w-2 h-2 rounded-full bg-gold"
-                style={{
-                  left: "50%", top: "50%", position: "absolute",
-                  animation: `float-up 1s ease-out ${0.5 + i * 0.1}s forwards`,
-                  opacity: 0,
-                  transform: `translate(${(Math.random() - 0.5) * 300}px, ${(Math.random() - 0.5) * 300}px)`,
-                }}
-              />
-            ))}
           </div>
         </div>
       )}
@@ -1032,11 +1036,10 @@ export default function CourseViewer() {
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   Quiz Panel — works for both chapter quiz (optional) and final quiz (mandatory)
+   Quiz Panel — only for final quiz now
    ════════════════════════════════════════════════════════════════════ */
 
 function QuizPanel({
-  chapterId,
   courseId,
   isFinalQuiz,
   onComplete,
@@ -1065,9 +1068,7 @@ function QuizPanel({
   useEffect(() => {
     const fetchQuiz = async () => {
       try {
-        const url = isFinalQuiz
-          ? `/api/courses/${courseId}/final-quiz`
-          : `/api/courses/${courseId}/chapters/${chapterId}/quiz`;
+        const url = `/api/courses/${courseId}/final-quiz`;
         const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1084,14 +1085,12 @@ function QuizPanel({
       }
     };
     fetchQuiz();
-  }, [chapterId, courseId, isFinalQuiz]);
+  }, [courseId, isFinalQuiz]);
 
   const submitQuiz = async () => {
     setSubmitting(true);
     try {
-      const url = isFinalQuiz
-        ? `/api/courses/${courseId}/final-quiz`
-        : `/api/courses/${courseId}/chapters/${chapterId}/quiz`;
+      const url = `/api/courses/${courseId}/final-quiz`;
       const res = await fetch(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -1126,7 +1125,7 @@ function QuizPanel({
           <div className="text-6xl mb-4">{result.passed ? "🎉" : "💪"}</div>
           <h3 className="text-2xl font-extrabold mb-2">
             {result.passed
-              ? (isFinalQuiz ? tx.viewer.finalPassed : tx.viewer.bravo)
+              ? tx.viewer.finalPassed
               : tx.viewer.almost}
           </h3>
           <p className="text-lg text-muted-foreground mb-4">
@@ -1136,30 +1135,17 @@ function QuizPanel({
           {!result.passed && (
             <>
               <p className="text-muted-foreground mb-6">
-                {isFinalQuiz ? tx.viewer.finalQuizRequiredDesc : tx.viewer.retryDesc}
+                {tx.viewer.finalQuizRequiredDesc}
               </p>
-              {isFinalQuiz ? (
-                <button
-                  onClick={() => {
-                    setResult(null);
-                    setAnswers({});
-                  }}
-                  className="px-8 py-3 rounded-full bg-gradient-to-r from-gold to-gold-dark text-night font-bold cursor-pointer"
-                >
-                  {tx.viewer.retry}
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    setResult(null);
-                    setAnswers({});
-                    onBack();
-                  }}
-                  className="px-8 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold cursor-pointer"
-                >
-                  {tx.viewer.retry}
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  setResult(null);
+                  setAnswers({});
+                }}
+                className="px-8 py-3 rounded-full bg-gradient-to-r from-gold to-gold-dark text-night font-bold cursor-pointer"
+              >
+                {tx.viewer.retry}
+              </button>
             </>
           )}
         </div>
@@ -1173,17 +1159,8 @@ function QuizPanel({
     <div className="animate-fade-in">
       {/* Quiz header */}
       <div className="flex items-center justify-between mb-8">
-        {!isFinalQuiz && (
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            <span className="font-semibold">{tx.viewer.backToCourse}</span>
-          </button>
-        )}
         <h3 className="text-xl font-bold">
-          {isFinalQuiz ? tx.viewer.finalQuiz : tx.viewer.quizTitle}
+          {tx.viewer.finalQuiz}
         </h3>
       </div>
 
@@ -1225,11 +1202,7 @@ function QuizPanel({
         <button
           onClick={submitQuiz}
           disabled={!allAnswered || submitting}
-          className={`px-10 py-4 rounded-full text-night text-lg font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer ${
-            isFinalQuiz
-              ? "bg-gradient-to-r from-gold to-gold-dark hover:from-gold-light hover:to-gold"
-              : "bg-gradient-to-r from-gold to-gold-dark hover:from-gold-light hover:to-gold"
-          }`}
+          className="px-10 py-4 rounded-full text-night text-lg font-bold bg-gradient-to-r from-gold to-gold-dark hover:from-gold-light hover:to-gold transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
           {submitting ? (
             <span className="flex items-center gap-2">

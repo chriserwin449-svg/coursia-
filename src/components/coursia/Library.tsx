@@ -156,7 +156,7 @@ export default function Library() {
           {filteredCourses.map((course) => (
             <div
               key={course.id}
-              className="group glass rounded-3xl overflow-hidden hover:border-mauve/40 transition-all duration-300 cursor-pointer hover:shadow-lg hover:shadow-mauve/10 hover:-translate-y-1"
+              className="group glass rounded-3xl overflow-hidden transition-all duration-300 cursor-pointer hover:shadow-xl hover:-translate-y-1 hover:border-mauve/40 hover:bg-mauve/5"
               onClick={() => openCourse(course.id)}
             >
               <div className="p-6">

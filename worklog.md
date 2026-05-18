@@ -209,3 +209,39 @@ Stage Summary:
 - Journey page shows Flame Points instead of chapter counter
 - Progress properly saved to DB and localStorage
 - Course resume works: returns to last position on re-entry
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Remove chapter quiz, auto-complete chapters on next, increase text size, fix progress tracking
+
+Work Log:
+- Created new API endpoint `/api/courses/[id]/chapters/[chapterId]/complete/route.ts` - POST endpoint that marks a chapter as completed (score=100) without needing a quiz. Awards flame points on first completion. Returns updated completion stats.
+- Rewrote CourseViewer.tsx entirely:
+  - Removed ALL chapter quiz logic (showQuiz, setShowQuiz, handleQuizComplete, QuizPanel for chapter quiz)
+  - Removed showQuiz/setShowQuiz imports from store
+  - goToNext() now auto-completes current chapter via API and moves to next
+  - Added isCompleting state to prevent double-clicks during chapter completion
+  - goToNext shows celebration (confetti + message with chapter number) when completing a chapter
+  - Increased text sizes significantly: prose-p from 1.35rem to 1.55rem, prose-h2 from 2rem to 2.2rem, prose-h3 from 1.65rem to 1.85rem
+  - Fullscreen text also increased: prose-p from 1.65rem to 1.85rem, prose-h2 from 2.25rem to 2.5rem
+  - Summary card text increased from text-base to text-lg
+  - Progress computed via useMemo from course data (completedCount, totalChapters, overallProgress)
+  - All progress counters update in real-time after each chapter completion (refetch course data)
+  - Sidebar shows "completedCount/totalChapters chapitres" + progress bar percentage
+  - Content header shows "Chapitre X sur Y" with status (En cours / Complété ✓)
+  - Final quiz only appears when ALL chapters are completed (both in sidebar and navigation footer)
+  - QuizPanel simplified: only handles final quiz (removed chapterId parameter usage)
+  - Removed unused imports (RotateCcw, HelpCircle)
+  - Removed "passer le quiz" / "redo quiz" buttons
+- Library.tsx: Enhanced hover effect with hover:bg-mauve/5 for mauve background tint
+- Lint passes clean: 0 errors
+
+Stage Summary:
+- Quiz only appears at the END of the course (after all chapters read)
+- Clicking "Suivant" auto-completes current chapter and goes to next (no quiz interruption)
+- Text is significantly larger and more readable
+- Progress counter (e.g. "2/5 chapitres") and progress bar update immediately after each chapter
+- Chapter progress saved to database via new /complete endpoint
+- Flame points awarded for each chapter completion
+- Course resume works via localStorage (last chapter position)
