@@ -9,7 +9,6 @@ import {
   Minimize2,
   CheckCircle2,
   Lock,
-  Unlock,
   HelpCircle,
   Loader2,
   BookOpen,
@@ -153,14 +152,30 @@ export default function CourseViewer() {
         if (data.courseCompleted) {
           setCourseCompleted(true);
         }
-        const firstIncomplete = data.chapters.findIndex(
-          (ch: CourseChapter) => !ch.progress?.completed
-        );
-        if (firstIncomplete >= 0 && currentChapterIndex === 0) {
-          setCurrentChapterIndex(firstIncomplete);
+        // Restore last viewed chapter or find first incomplete
+        const savedChapterKey = `coursia-last-chapter-${selectedCourseId}`;
+        const savedChapter = typeof window !== "undefined"
+          ? localStorage.getItem(savedChapterKey)
+          : null;
+        let restoreIdx = 0;
+        if (savedChapter) {
+          const savedIdx = parseInt(savedChapter, 10);
+          if (!isNaN(savedIdx) && savedIdx >= 0 && savedIdx < data.chapters.length) {
+            const isUnlocked = savedIdx === 0 || data.chapters[savedIdx - 1]?.progress?.completed;
+            if (isUnlocked) restoreIdx = savedIdx;
+          }
+        }
+        if (restoreIdx === 0) {
+          const firstIncomplete = data.chapters.findIndex(
+            (ch: CourseChapter) => !ch.progress?.completed
+          );
+          if (firstIncomplete >= 0) restoreIdx = firstIncomplete;
+        }
+        if (restoreIdx > 0 && currentChapterIndex === 0) {
+          setCurrentChapterIndex(restoreIdx);
         }
         // Start study session for this course
-        startStudySession(selectedCourseId, data.chapters[firstIncomplete >= 0 ? firstIncomplete : 0]?.id);
+        startStudySession(selectedCourseId, data.chapters[restoreIdx >= 0 ? restoreIdx : 0]?.id);
       } else {
         setFetchError(true);
       }
@@ -199,6 +214,13 @@ export default function CourseViewer() {
       });
     }
   }, [currentChapterIndex, course, chapterSubChapters]);
+
+  // Save current chapter position to localStorage
+  useEffect(() => {
+    if (!selectedCourseId || !course) return;
+    const key = `coursia-last-chapter-${selectedCourseId}`;
+    localStorage.setItem(key, String(currentChapterIndex));
+  }, [currentChapterIndex, selectedCourseId, course]);
 
   const currentChapter = course?.chapters[currentChapterIndex];
 
@@ -585,14 +607,16 @@ export default function CourseViewer() {
       <div className="flex h-screen overflow-hidden">
         {/* ─── Column 2: Chapter navigation strip ─── */}
         <div className="w-64 border-r border-border bg-night-light flex flex-col flex-shrink-0">
-          {/* Course title + progress */}
+          {/* Course title + chapter position + overall progress */}
           <div className="p-4 border-b border-border">
             <h2 className="font-bold text-sm leading-tight line-clamp-2 mb-3">{course.title}</h2>
             <div className="flex justify-between text-xs text-muted-foreground mb-1">
-              <span>{tx.viewer.progress}</span>
+              <span className="font-bold text-mauve-light">
+                {lang === "fr" ? "Chapitre" : "Chapter"} {currentChapterIndex + 1} {lang === "fr" ? "sur" : "of"} {course.chapters.length}
+              </span>
               <span className="font-bold">{course.overallProgress}%</span>
             </div>
-            <div className="w-full h-1.5 rounded-full bg-night overflow-hidden">
+            <div className="w-full h-2 rounded-full bg-night overflow-hidden">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-mauve to-gold transition-all duration-1000 ease-out"
                 style={{ width: `${course.overallProgress}%` }}
@@ -642,22 +666,18 @@ export default function CourseViewer() {
                     }`}
                   >
                     <div className="flex items-start gap-2.5">
-                      {/* ── Icon column with unlock animation ── */}
-                      <div className="flex-shrink-0 mt-0.5 w-5 h-5 flex items-center justify-center relative">
+                      {/* ── Icon column ── */}
+                      <div className="flex-shrink-0 mt-0.5 w-5 h-5 flex items-center justify-center">
                         {isCompleted ? (
                           <CheckCircle2 className="w-4 h-4 text-green-400" />
                         ) : isUnlocked ? (
-                          <>
-                            <Lock className="w-3.5 h-3.5 absolute inset-0 m-auto opacity-0 transition-all duration-500 ease-out rotate-[-10deg] scale-75" />
-                            <Unlock className="w-3.5 h-3.5 absolute inset-0 m-auto opacity-0 transition-all duration-500 ease-out" />
-                            {isActive ? (
-                              <BookOpen className="w-4 h-4 text-mauve-light relative" />
-                            ) : (
-                              <span className="text-xs font-bold text-muted-foreground/50 relative">{idx + 1}</span>
-                            )}
-                          </>
+                          isActive ? (
+                            <BookOpen className="w-4 h-4 text-mauve-light" />
+                          ) : (
+                            <span className="text-xs font-bold text-muted-foreground/50">{idx + 1}</span>
+                          )
                         ) : (
-                          <Lock className="w-3.5 h-3.5" />
+                          <Lock className="w-3.5 h-3.5 text-muted-foreground/40" />
                         )}
                       </div>
 

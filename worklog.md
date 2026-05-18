@@ -71,3 +71,66 @@ Stage Summary:
 - Active chapter auto-expands sub-chapters
 - Lock-to-unlock transition via CSS opacity + scale transforms
 - All existing functionality preserved
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Show Random Topic Button ONLY on Create Page
+
+Work Log:
+- Added `view` from `useAppStore` to TopBar.tsx
+- Wrapped the "Random course + language selector" block (🇫🇷/🇬🇧 flags + Shuffle button) in `{view === "create" && (...)}`
+- The UI language toggle (Globe icon FR/EN) remains visible on all pages as required
+- Ran `bun run lint` — 0 errors
+
+Stage Summary:
+- 0 ESLint errors
+- Random topic button (sujet aléatoire) + random language selector only visible on create page
+- UI language toggle (Globe) still visible on all pages
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix CourseViewer.tsx — chapter progress bar, lock icons, save position
+
+Work Log:
+- Removed `Unlock` from lucide-react imports (no longer used)
+- Replaced sidebar header section: changed generic "Progress" label to "Chapitre X sur Y" (FR) / "Chapter X of Y" (EN) with `text-mauve-light` styling, kept overall progress percentage on the right
+- Increased progress bar height from `h-1.5` to `h-2` for better visibility
+- Cleaned up chapter icon column: removed invisible Lock/Unlock overlay elements with `opacity-0` that cluttered the code, replaced with clean conditional rendering (CheckCircle2 for completed, BookOpen for active, chapter number for unlocked, Lock with muted color for locked)
+- Replaced `firstIncomplete` auto-restore logic in `fetchCourse` with localStorage-based chapter position persistence: reads `coursia-last-chapter-{courseId}` key, validates saved index is within bounds and chapter is unlocked, falls back to first incomplete chapter
+- Added new `useEffect` to save `currentChapterIndex` to localStorage whenever it changes (depends on `currentChapterIndex`, `selectedCourseId`, `course`)
+- Ran `bun run lint` — 0 errors, dev server compiles clean
+
+Stage Summary:
+- 0 TypeScript errors
+- 0 ESLint errors
+- Sidebar shows "Chapitre X sur Y" with overall progress bar
+- Chapter icons cleaned up (no invisible overlays)
+- Last viewed chapter persists across page reloads via localStorage
+- Falls back to first incomplete chapter if no saved position
+- All existing functionality preserved (sub-chapters, expand/collapse, quiz triggers, fullscreen, final quiz)
+---
+Task ID: 1
+Agent: main
+Task: Fix CourseViewer chapter progress bar, lock icons, save position + TopBar random button
+
+Work Log:
+- Analyzed user screenshots showing Library page (course cards) and Journey page (stats)
+- Fixed Zustand infinite loop with useShallow (useSession.ts + usePlan.ts)
+- CourseViewer sidebar: Changed "Progress: XX%" to "Chapitre X sur Y" + percentage bar
+- CourseViewer: Cleaned up chapter icons - removed invisible Lock/Unlock overlays, now shows: CheckCircle2 (completed), BookOpen (active), chapter number (unlocked), Lock (locked)
+- CourseViewer: Added localStorage persistence for last viewed chapter position (coursia-last-chapter-{courseId})
+- CourseViewer: On course load, restores saved position or falls back to first incomplete chapter
+- TopBar: Wrapped random topic button in {view === "create" && ...} - only shows on create page
+- Verified all APIs work: /api/flames returns data, /api/badges returns stats (2 courses, 12 chapters)
+- CreateCourse auto-redirect already works: setSelectedCourseId + setView("viewer")
+- 0 lint errors, 0 TypeScript errors
+
+Stage Summary:
+- CourseViewer now shows "Chapitre X sur Y" with progress percentage bar in sidebar
+- Chapter icons are clean and functional (lock/unlock/number/completed)
+- Last viewed chapter position is saved to localStorage and restored on return
+- Random topic button only appears on the create page
+- Flame bar on Journey page renders correctly (API returns valid data)
+- Chapter counter on Journey (0/12) works correctly based on DB data

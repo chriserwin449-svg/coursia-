@@ -10,6 +10,7 @@ export default function TopBar() {
   const setLang = useAppStore((s) => s.setLang);
   const tx = t(lang);
   const setView = useAppStore((s) => s.setView);
+  const view = useAppStore((s) => s.view);
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
   const setRandomTopic = useAppStore((s) => s.setRandomTopic);
   const setRandomCourseLang = useAppStore((s) => s.setRandomCourseLang);
@@ -44,7 +45,8 @@ export default function TopBar() {
         collapsed ? "ml-[72px]" : "ml-[72px] md:ml-64"
       }`}
     >
-      {/* Random course + language selector */}
+      {/* Random course + language selector — only on create page */}
+      {view === "create" && (
       <div className="flex items-center rounded-2xl glass overflow-hidden">
         <button
           onClick={() => setRandomLang("fr")}
@@ -81,6 +83,7 @@ export default function TopBar() {
           <span className="hidden sm:inline">{tx.create.random}</span>
         </button>
       </div>
+      )}
 
       {/* UI language toggle */}
       <button
