@@ -1,11 +1,12 @@
 #!/bin/bash
-# Coursia dev server keep-alive watchdog
+# Watchdog that keeps dev server alive
 while true; do
-  if ! ss -tlnp 2>/dev/null | grep -q ":3000 "; then
-    echo "$(date) - Server down, restarting..." >> /home/z/my-project/dev.log
-    cd /home/z/my-project && setsid bun run dev >> /home/z/my-project/dev.log 2>&1 &
-    disown
-    sleep 8
-  fi
-  sleep 10
+    # Check if next-server process is running
+    if ! pgrep -f "next-server" > /dev/null 2>&1; then
+        echo "$(date): Server down, restarting..." >> /home/z/my-project/watchdog.log
+        cd /home/z/my-project
+        rm -rf .next 2>/dev/null
+        setsid bun run dev >> /home/z/my-project/dev.log 2>&1 &
+    fi
+    sleep 5
 done
