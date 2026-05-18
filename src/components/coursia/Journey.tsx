@@ -139,7 +139,7 @@ export default function Journey() {
 
   const flameBarClass = isActivityActive
     ? "rounded-2xl px-5 pt-4 pb-5 mb-2 fade-in-up relative overflow-hidden cursor-pointer transition-all duration-700 flame-card-border-pulse hover:scale-105"
-    : "rounded-2xl px-5 pt-4 pb-5 mb-2 fade-in-up relative overflow-hidden cursor-pointer transition-all duration-700 opacity-70 hover:opacity-100 hover:scale-105";
+    : "rounded-2xl px-5 pt-4 pb-5 mb-2 fade-in-up relative overflow-hidden cursor-pointer transition-all duration-700 hover:scale-105";
 
   const flameIconClass = isActivityActive
     ? "w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center transition-all duration-700 animate-pulse-glow scale-110"
@@ -181,14 +181,14 @@ export default function Journey() {
       {/* ═══ FLAME PROGRESS BAR ═══ */}
       <div
         className={flameBarClass}
-        style={{ background: "linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(248, 113, 113, 0.06), rgba(220, 38, 38, 0.04))", border: "1px solid rgba(239, 68, 68, 0.2)" }}
+        style={{ background: "linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(248, 113, 113, 0.1), rgba(220, 38, 38, 0.08))", border: "1px solid rgba(239, 68, 68, 0.3)" }}
         onClick={() => setShowFlameCollection(true)}
       >
         {/* Animated background glow orbs */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="flame-orb-1 absolute -top-10 -right-10 w-40 h-40 rounded-full blur-[60px]" style={{ background: "rgba(239, 68, 68, 0.12)" }} />
-          <div className="flame-orb-2 absolute -bottom-10 -left-10 w-32 h-32 rounded-full blur-[50px]" style={{ background: "rgba(249, 115, 22, 0.08)" }} />
-          <div className="flame-orb-1 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-16 rounded-full blur-[40px]" style={{ background: "rgba(249, 115, 22, 0.06)" }} />
+          <div className="flame-orb-1 absolute -top-10 -right-10 w-40 h-40 rounded-full blur-[60px]" style={{ background: "rgba(239, 68, 68, 0.25)" }} />
+          <div className="flame-orb-2 absolute -bottom-10 -left-10 w-32 h-32 rounded-full blur-[50px]" style={{ background: "rgba(249, 115, 22, 0.18)" }} />
+          <div className="flame-orb-1 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-16 rounded-full blur-[40px]" style={{ background: "rgba(249, 115, 22, 0.12)" }} />
         </div>
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-4">
@@ -258,11 +258,11 @@ export default function Journey() {
               </div>
             )}
             {/* The bar itself */}
-            <div className="w-full h-5 rounded-full bg-night/80 overflow-hidden border border-red-400/10 flame-bar-container">
+            <div className="w-full h-5 rounded-full bg-night/60 overflow-hidden border border-red-400/20 flame-bar-container">
               <div
                 className={`h-full rounded-full transition-all duration-1000 ease-out relative ${flamePoints > 0 ? "flame-bar-fill" : ""}`}
                 style={{
-                  width: mounted ? `${isMaxFlame ? 100 : Math.min(flameProg.percentage, 100)}%` : "0%",
+                  width: mounted ? `${isMaxFlame ? 100 : Math.max(Math.min(flameProg.percentage, 100), 8)}%` : "0%",
                   background: flamePoints === 0 ? "linear-gradient(90deg, #ef4444, #f87171, #fb923c)" : undefined,
                   boxShadow: flamePoints > 0 ? "0 0 15px rgba(239, 68, 68, 0.4), 0 0 30px rgba(249, 115, 22, 0.2)" : "none",
                 }}
