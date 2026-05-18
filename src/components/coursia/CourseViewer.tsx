@@ -25,6 +25,7 @@ import Confetti from "@/components/coursia/Confetti";
 export default function CourseViewer() {
   const lang = useAppStore((s) => s.lang);
   const tx = t(lang);
+  const user = useAppStore((s) => s.user);
 
   const [course, setCourse] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -253,17 +254,20 @@ export default function CourseViewer() {
 
   const handleQuizComplete = (passed: boolean) => {
     if (passed) {
+      const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
+      setShowConfetti(true);
       setShowCelebration(true);
-      setCelebrationMessage(tx.viewer.chapterDone);
- setTimeout(() => {
+      setCelebrationMessage(lang === "fr" ? `Bravo ${userName} ! 🎉` : `Amazing ${userName}! 🎉`);
+      setTimeout(() => {
         setShowCelebration(false);
+        setShowConfetti(false);
         setShowQuiz(false);
         endStudySession();
         if (currentChapterIndex < (course?.chapters.length || 0) - 1) {
           setCurrentChapterIndex(currentChapterIndex + 1);
         }
         fetchCourse();
-      }, 2000);
+      }, 2500);
     } else {
       setShowQuiz(false);
     }
@@ -271,9 +275,10 @@ export default function CourseViewer() {
 
   const handleFinalQuizComplete = (passed: boolean) => {
     if (passed) {
+      const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
       setShowConfetti(true);
       setShowCelebration(true);
-      setCelebrationMessage(tx.viewer.courseDone);
+      setCelebrationMessage(lang === "fr" ? `Félicitations ${userName} ! 🏆` : `Congratulations ${userName}! 🏆`);
       setCourseCompleted(true);
       setTimeout(() => {
         setShowCelebration(false);
@@ -885,7 +890,7 @@ export default function CourseViewer() {
       </div>
 
       {/* Celebration overlay */}
-      {showCelebration && <Confetti active={true} />}
+      {showCelebration && <Confetti active={true} big />}
       {showCelebration && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-night/80 backdrop-blur-sm animate-fade-in">
           <div className="text-center p-12 rounded-3xl glass animate-celebrate relative">
@@ -912,7 +917,7 @@ export default function CourseViewer() {
       {/* ═══ Level-Up Modal Overlay ═══ */}
       {showLevelUp && levelUpData && (
         <>
-          <Confetti active={true} />
+          <Confetti active={true} big />
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-night/90 backdrop-blur-md animate-fade-in">
             <div className="relative w-full max-w-md mx-4 p-8 rounded-3xl glass animate-celebrate">
               {/* Decorative particles */}
@@ -936,6 +941,9 @@ export default function CourseViewer() {
                   <h2 className="text-2xl md:text-3xl font-extrabold gradient-text mb-3 animate-fade-in-slide-up">
                     {tx.viewer.levelUpAllDone}
                   </h2>
+                  <p className="text-foreground font-bold text-lg mb-1 animate-fade-in-slide-up" style={{ animationDelay: "0.1s" }}>
+                    {user?.firstName ? (lang === "fr" ? `Bravo ${user.firstName} !` : `Great job ${user.firstName}!`) : ""}
+                  </p>
                   <p className="text-muted-foreground text-sm mb-2 animate-fade-in-slide-up" style={{ animationDelay: "0.15s" }}>
                     {levelUpData.title}
                   </p>
@@ -972,10 +980,13 @@ export default function CourseViewer() {
                 /* ── Next Level Available ── */
                 <div className="text-center relative z-10">
                   <div className="text-6xl mb-4 animate-fade-in-slide-up">🚀</div>
-                  <h2 className="text-xl md:text-2xl font-extrabold gradient-text mb-4 animate-fade-in-slide-up">
+                  <h2 className="text-xl md:text-2xl font-extrabold gradient-text mb-2 animate-fade-in-slide-up">
                     {tx.viewer.levelUpTitle}
                   </h2>
-                  <p className="text-foreground font-bold text-lg mb-1 animate-fade-in-slide-up" style={{ animationDelay: "0.1s" }}>
+                  <p className="text-foreground font-bold text-lg mb-1 animate-fade-in-slide-up" style={{ animationDelay: "0.05s" }}>
+                    {user?.firstName ? (lang === "fr" ? `${user.firstName}, tu es incroyable !` : `${user.firstName}, you are amazing!`) : ""}
+                  </p>
+                  <p className="text-muted-foreground text-sm mb-1 animate-fade-in-slide-up" style={{ animationDelay: "0.1s" }}>
                     {levelUpData.title}
                   </p>
                   <p className="text-muted-foreground text-sm mb-6 animate-fade-in-slide-up" style={{ animationDelay: "0.15s" }}>
@@ -1063,7 +1074,11 @@ function QuizPanel({
         const url = isFinalQuiz
           ? `/api/courses/${courseId}/final-quiz`
           : `/api/courses/${courseId}/chapters/${chapterId}/quiz`;
-        const res = await fetch(url, { method: "POST" });
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ regenerate: true }),
+        });
         const data = await res.json();
         if (res.ok && data.quiz) {
           setQuestions(data.quiz.questions);

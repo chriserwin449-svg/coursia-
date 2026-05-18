@@ -173,7 +173,7 @@ export default function Library() {
                           : "bg-mauve/20 text-mauve-light"
                       }`}
                     >
-                      {course.overallProgress}%
+                      {course.chapters.filter((c) => c.progress?.completed).length}/{course.chapters.length}
                     </span>
                     <button
                       onClick={(e) => {
@@ -201,8 +201,8 @@ export default function Library() {
                 {/* Progress bar */}
                 <div className="mb-5">
                   <div className="flex justify-between text-sm font-semibold text-muted-foreground mb-2">
-                    <span>{course.chapters.length} {tx.library.chapters}</span>
-                    <span>{course.chapters.filter((c) => c.progress?.completed).length} {tx.library.completed}</span>
+                    <span>{lang === "fr" ? "Progression" : "Progress"}</span>
+                    <span>{course.overallProgress}%</span>
                   </div>
                   <div className="w-full h-3 rounded-full bg-night overflow-hidden">
                     <div

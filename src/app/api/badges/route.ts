@@ -24,7 +24,16 @@ export async function GET() {
       0
     );
 
-    const totalStudyTime = completedChapters * 15; // estimated 15 min per chapter
+    // Get real study time from sessions
+    const sessions = await db.studySession.findMany({
+      where: { endTime: { not: null } },
+    });
+    const totalStudyTime = sessions.reduce((sum, s) => {
+      if (s.durationSeconds > 0) return sum + s.durationSeconds / 60;
+      if (s.endTime) return sum + Math.max(0, (s.endTime.getTime() - s.startTime.getTime()) / 60000);
+      return sum;
+    }, 0);
+
     const averageScore = courses.reduce((sum, c) => {
       const chapterScores = c.chapters
         .filter((ch) => ch.progress?.score !== undefined && ch.progress?.score > 0)
@@ -43,7 +52,7 @@ export async function GET() {
         completedCourses,
         totalChapters,
         completedChapters,
-        totalStudyTime,
+        totalStudyTime: Math.round(totalStudyTime),
         averageScore: Math.round(averageScore),
         flamePoints: 0, // flame points are fetched from /api/flames
       },

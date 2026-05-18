@@ -9,6 +9,8 @@ export async function POST(
 ) {
   try {
     const { chapterId } = await params;
+    const body = await request.json().catch(() => ({}));
+    const { regenerate = false } = body as { regenerate?: boolean };
 
     const chapter = await db.chapter.findUnique({
       where: { id: chapterId },
@@ -19,10 +21,23 @@ export async function POST(
       return NextResponse.json({ error: "Chapter not found" }, { status: 404 });
     }
 
-    if (chapter.quiz) {
+    // If regenerate is true, delete existing quiz to force a new one
+    if (regenerate && chapter.quiz) {
+      await db.quiz.delete({ where: { id: chapter.quiz.id } });
+    }
+
+    // Re-fetch after possible delete
+    const chapterFresh = chapter.quiz && !regenerate
+      ? chapter
+      : await db.chapter.findUnique({
+          where: { id: chapterId },
+          include: { course: true, quiz: true },
+        });
+
+    if (chapterFresh?.quiz) {
       return NextResponse.json({
         success: true,
-        quiz: { id: chapter.quiz.id, questions: JSON.parse(chapter.quiz.questions) },
+        quiz: { id: chapterFresh.quiz.id, questions: JSON.parse(chapterFresh.quiz.questions) },
       });
     }
 

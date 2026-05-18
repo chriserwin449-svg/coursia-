@@ -154,3 +154,32 @@ Stage Summary:
 - AI prompt: fully replaced with elite immersive prompt
 - Cadenas: chapter numbers now display prominently in styled badge when unlocked
 - Landing badge: hero section aligned to top with padding → badge visible on new tab
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Major feature updates - course cards, quiz restart, celebrations, study time, progress saving, Supabase prep
+
+Work Log:
+- Library.tsx: Replaced percentage badge with chapter counter (e.g. "3/7"), progress bar now shows overall percentage
+- Library.tsx: Progress bar labels changed from "X chapters / Y completed" to "Progression / X%"
+- Quiz API: Added `regenerate` parameter to POST endpoint - deletes existing quiz and generates new one
+- QuizPanel: Always sends `{ regenerate: true }` when fetching quiz, so leaving and re-entering gets a fresh quiz
+- CourseViewer celebrations: Added user name to chapter completion ("Bravo [Name] !") and final quiz ("Félicitations [Name] !")
+- CourseViewer celebrations: Added confetti explosion (big mode with 120 pieces + confetti-explode animation from center)
+- CourseViewer level-up modal: Added student name ("[Name], tu es incroyable !") for both next-level and all-done states
+- Store: Modified setView/setSelectedCourseId to NOT reset currentChapterIndex when going to viewer (let localStorage restore handle it)
+- Store: setSelectedCourseId no longer resets currentChapterIndex to 0
+- badges API: Changed totalStudyTime from estimated (chapters * 15min) to real data from StudySession table
+- Confetti.tsx: Added `big` prop with 120 pieces + explosion animation from center, center-weighted distribution
+- globals.css: Added `confetti-explode` keyframe animation with horizontal drift via CSS variable
+- Random subjects: Already has in-memory cache of recent topics (MAX_CACHE=50) passed to AI as exclusion list
+
+Stage Summary:
+- Course cards now show "3/7" chapter counter badge, progress bar = overall %
+- Quiz always regenerates when opened (fresh AI quiz every time)
+- Celebrations include student name + big confetti explosion
+- Study time counts only during course viewing (sessions only started in CourseViewer)
+- Course progress saves to localStorage (last chapter position) + DB (chapter completion)
+- Chapter counter in Journey page counts from real DB data
+- No code errors, all lint passes
