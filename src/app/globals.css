@@ -216,6 +216,25 @@
   animation: float-up 1s ease-out forwards;
 }
 
+/* Sub-chapter expand/collapse animation */
+@keyframes subchapterExpand {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    max-height: 120px;
+    transform: translateY(0);
+  }
+}
+
+.animate-subchapter-expand {
+  animation: subchapterExpand 0.25s ease-out forwards;
+  overflow: hidden;
+}
+
 /* Card hover glow effect */
 .card-hover-glow {
   position: relative;
@@ -489,4 +508,28 @@
 
 .flame-orb-2 {
   animation: flame-orb-drift-2 7s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════
+   STAT BOX HOVER EFFECTS
+   ═══════════════════════════════════════════════ */
+.stat-box-hover {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.3s ease,
+              border-color 0.3s ease,
+              background 0.3s ease;
+}
+
+.stat-box-hover:hover {
+  transform: scale(1.04) translateY(-3px);
+  box-shadow: 0 0 24px var(--glow-color, rgba(124, 92, 191, 0.25)),
+              0 0 48px var(--glow-color, rgba(124, 92, 191, 0.1)),
+              0 12px 36px rgba(0, 0, 0, 0.35);
+  border-color: var(--glow-color, rgba(124, 92, 191, 0.3));
+  z-index: 1;
+}
+
+.stat-box-hover:active {
+  transform: scale(0.97) translateY(0);
+  transition-duration: 0.1s;
 }

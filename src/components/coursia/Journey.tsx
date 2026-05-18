@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Trophy,
   BookOpen,
@@ -67,6 +67,8 @@ export default function Journey() {
   const [selectedPeriod, setSelectedPeriod] = useState<StudyTimePeriod>("today");
   const [showStudyDetail, setShowStudyDetail] = useState(false);
   const [showFlameCollection, setShowFlameCollection] = useState(false);
+  const [isActivityActive, setIsActivityActive] = useState(true);
+  const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -101,6 +103,26 @@ export default function Journey() {
     return () => cancelAnimationFrame(timer);
   }, []);
 
+  // ── Activity tracking for flame bar ──
+  useEffect(() => {
+    const handleActivity = () => {
+      setIsActivityActive(true);
+      if (activityTimerRef.current) clearTimeout(activityTimerRef.current);
+      activityTimerRef.current = setTimeout(() => setIsActivityActive(false), 30000);
+    };
+    window.addEventListener("mousemove", handleActivity);
+    window.addEventListener("click", handleActivity);
+    window.addEventListener("keydown", handleActivity);
+    window.addEventListener("scroll", handleActivity);
+    return () => {
+      window.removeEventListener("mousemove", handleActivity);
+      window.removeEventListener("click", handleActivity);
+      window.removeEventListener("keydown", handleActivity);
+      window.removeEventListener("scroll", handleActivity);
+      if (activityTimerRef.current) clearTimeout(activityTimerRef.current);
+    };
+  }, []);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -114,6 +136,14 @@ export default function Journey() {
   const flameType = flameData?.flameType ?? getCurrentFlameType(flamePoints);
   const flameProg = flameData?.flameProgress ?? getFlameProgress(flamePoints);
   const isMaxFlame = flameType.minPoints === flameType.maxPoints;
+
+  const flameBarClass = isActivityActive
+    ? "rounded-2xl px-5 pt-4 pb-5 mb-2 fade-in-up relative overflow-hidden cursor-pointer transition-all duration-700 flame-card-border-pulse hover:scale-105"
+    : "rounded-2xl px-5 pt-4 pb-5 mb-2 fade-in-up relative overflow-hidden cursor-pointer transition-all duration-700 opacity-70 hover:opacity-100 hover:scale-105";
+
+  const flameIconClass = isActivityActive
+    ? "w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center transition-all duration-700 animate-pulse-glow scale-110"
+    : "w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center transition-all duration-700 scale-100";
 
   const formatTime = (minutes: number) => {
     if (minutes < 1) return `0 ${tx.journey.min}`;
@@ -150,7 +180,7 @@ export default function Journey() {
 
       {/* ═══ FLAME PROGRESS BAR ═══ */}
       <div
-        className="rounded-2xl px-5 pt-4 pb-5 mb-3 fade-in-up relative overflow-hidden flame-card-border-pulse cursor-pointer transition-all duration-300 hover:scale-[1.005]"
+        className={flameBarClass}
         style={{ background: "linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(248, 113, 113, 0.06), rgba(220, 38, 38, 0.04))", border: "1px solid rgba(239, 68, 68, 0.2)" }}
         onClick={() => setShowFlameCollection(true)}
       >
@@ -163,7 +193,7 @@ export default function Journey() {
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center animate-pulse-glow">
+              <div className={flameIconClass}>
                 <span className="text-2xl">{flameType.emoji}</span>
               </div>
               <div>
@@ -284,7 +314,7 @@ export default function Journey() {
       </div>
 
       {/* Stats Grid — 3 columns */}
-      <div className="grid grid-cols-3 gap-4 mb-10">
+      <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-10">
         {[
           {
             icon: BookOpen,
@@ -292,7 +322,8 @@ export default function Journey() {
             value: stats?.totalCourses ?? 0,
             color: "text-mauve-light",
             bgColor: "bg-mauve/10",
-            glowColor: "rgba(124, 92, 191, 0.3)",
+            glowColor: "rgba(124, 92, 191, 0.35)",
+            borderColor: "border-mauve/20",
             delay: "0ms",
             onClick: () => useAppStore.getState().setView("library"),
           },
@@ -302,7 +333,8 @@ export default function Journey() {
             value: stats?.completedCourses ?? 0,
             color: "text-gold",
             bgColor: "bg-gold/10",
-            glowColor: "rgba(212, 168, 67, 0.3)",
+            glowColor: "rgba(212, 168, 67, 0.35)",
+            borderColor: "border-gold/20",
             delay: "50ms",
             onClick: () => setShowFlameCollection(true),
           },
@@ -312,7 +344,8 @@ export default function Journey() {
             value: `${stats?.completedChapters ?? 0}/${stats?.totalChapters ?? 0}`,
             color: "text-green-400",
             bgColor: "bg-green-500/10",
-            glowColor: "rgba(34, 197, 94, 0.3)",
+            glowColor: "rgba(34, 197, 94, 0.35)",
+            borderColor: "border-green-500/20",
             delay: "100ms",
             onClick: () => setShowStudyDetail(true),
           },
@@ -320,26 +353,19 @@ export default function Journey() {
           <div
             key={stat.label}
             onClick={() => stat.onClick?.()}
-            className="glass rounded-3xl p-5 text-center fade-in-up cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:-translate-y-1 hover:shadow-xl"
+            className={`glass rounded-3xl p-4 sm:p-5 text-center fade-in-up cursor-pointer transition-all duration-300 border border-transparent group stat-box-hover ${stat.borderColor}`}
             style={{
               animationDelay: mounted ? stat.delay : "0ms",
               "--glow-color": stat.glowColor,
-              boxShadow: "0 0 0 rgba(0,0,0,0)",
             } as React.CSSProperties}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.boxShadow = `0 0 20px var(--glow-color), 0 8px 32px rgba(0,0,0,0.3)`;
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 rgba(0,0,0,0)";
-            }}
           >
             <div
-              className={`w-12 h-12 rounded-2xl ${stat.bgColor} flex items-center justify-center mx-auto mb-3 transition-transform duration-300 group-hover:scale-110`}
+              className={`w-11 h-11 sm:w-12 sm:h-12 rounded-2xl ${stat.bgColor} flex items-center justify-center mx-auto mb-2 sm:mb-3 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3`}
             >
-              <stat.icon className={`w-6 h-6 ${stat.color} transition-transform duration-300`} />
+              <stat.icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color} transition-all duration-300 group-hover:scale-110`} />
             </div>
-            <p className="text-2xl font-extrabold mb-1">{stat.value}</p>
-            <p className="text-sm text-muted-foreground">{stat.label}</p>
+            <p className="text-xl sm:text-2xl font-extrabold mb-0.5 sm:mb-1 transition-colors duration-300 group-hover:text-foreground">{stat.value}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground transition-colors duration-300 group-hover:text-foreground/80">{stat.label}</p>
           </div>
         ))}
       </div>

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useAppStore } from "@/lib/store";
+import { useSession } from "@/hooks/useSession";
 import Sidebar from "@/components/coursia/Sidebar";
 import LandingPage from "@/components/coursia/LandingPage";
 import AuthPage from "@/components/coursia/AuthPage";
@@ -17,6 +18,9 @@ export default function AppShell() {
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
   const user = useAppStore((s) => s.user);
   const setAuthToken = useAppStore((s) => s.setAuthToken);
+
+  // Restore session (validates token with server and restores user data)
+  useSession();
 
   // Restore auth token from localStorage on mount
   useEffect(() => {

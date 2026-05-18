@@ -38,3 +38,36 @@ Stage Summary:
 - Chapter unlock mechanism already functional (lock icon + isChapterUnlocked)
 - Sub-chapters are the H2 sections within each chapter's Markdown content
 - OpenAI integration verified working (sk-svcacct key supported)
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Enhance CourseViewer.tsx — sub-chapter display in chapter navigation strip
+
+Work Log:
+- Added `useMemo` to React imports, added `Unlock` and `ChevronDown` from lucide-react
+- Created `expandedChapters` state (Set<number>) for tracking which chapters show sub-chapters
+- Created `parseSubChapters()` helper — extracts `## ` H2 headings from markdown content
+- Created `chapterSubChapters` useMemo — pre-parses all chapter contents to avoid re-parsing
+- Added `toggleChapterExpanded()` handler for manual expand/collapse
+- Added useEffect to auto-expand active chapter when it has sub-chapters
+- Modified NORMAL VIEW chapter list (lines ~588-703):
+  - Changed root element from `<button>` to `<div>` with nested button for sub-chapter support
+  - Sub-chapters render as indented nested list with bullet dots and muted text
+  - Limited to max 3 visible sub-chapters, with "+X more" indicator for overflow
+  - ChevronDown icon on right side for chapters with sub-chapters (click to expand/collapse)
+  - Locked chapters show no sub-chapters and no chevron
+  - Completed chapters keep CheckCircle2 icon, sub-chapters still expandable
+- Added lock→unlock CSS transition: Lock/Unlock icons use absolute positioning with opacity-0 + transition-all duration-500 for smooth unlock animation
+- Added `animate-subchapter-expand` CSS keyframe in globals.css (opacity + max-height + translateY for smooth expand)
+- Zero changes to fullscreen view, final quiz view, or course completed view
+
+Stage Summary:
+- 0 TypeScript errors
+- 0 ESLint errors
+- Sub-chapters extracted from markdown `## ` headings
+- Max 3 shown with "+X more" overflow
+- Expand/collapse with animated chevron rotation
+- Active chapter auto-expands sub-chapters
+- Lock-to-unlock transition via CSS opacity + scale transforms
+- All existing functionality preserved

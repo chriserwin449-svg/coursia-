@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Maximize2,
   Minimize2,
   CheckCircle2,
   Lock,
+  Unlock,
   HelpCircle,
   Loader2,
   BookOpen,
@@ -53,6 +55,36 @@ export default function CourseViewer() {
   const setRandomCourseLang = useAppStore((s) => s.setRandomCourseLang);
 
   const chapterListRef = useRef<HTMLDivElement>(null);
+
+  // ── Expanded chapters state for sub-chapter display ──
+  const [expandedChapters, setExpandedChapters] = useState<Set<number>>(new Set());
+
+  const toggleChapterExpanded = (idx: number) => {
+    setExpandedChapters((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) {
+        next.delete(idx);
+      } else {
+        next.add(idx);
+      }
+      return next;
+    });
+  };
+
+  // ── Parse sub-chapters from markdown content ──
+  const parseSubChapters = useCallback((content: string): string[] => {
+    return content.match(/^## (.+)$/gm)?.map((s) => s.replace(/^## /, '')) || [];
+  }, []);
+
+  // Memoize sub-chapter data per chapter to avoid re-parsing
+  const chapterSubChapters = useMemo(() => {
+    if (!course) return {} as Record<string, string[]>;
+    const map: Record<string, string[]> = {};
+    for (const ch of course.chapters) {
+      map[ch.id] = parseSubChapters(ch.content || '');
+    }
+    return map;
+  }, [course, parseSubChapters]);
 
   // ── Study session tracking ──
   const startStudySession = useCallback(async (cId: string, chId?: string) => {
@@ -151,6 +183,22 @@ export default function CourseViewer() {
       activeEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
   }, [currentChapterIndex]);
+
+  // Auto-expand the active chapter when it has sub-chapters
+  useEffect(() => {
+    if (!course) return;
+    const activeCh = course.chapters[currentChapterIndex];
+    if (!activeCh) return;
+    const subs = chapterSubChapters[activeCh.id];
+    if (subs && subs.length > 0) {
+      setExpandedChapters((prev) => {
+        if (prev.has(currentChapterIndex)) return prev;
+        const next = new Set(prev);
+        next.add(currentChapterIndex);
+        return next;
+      });
+    }
+  }, [currentChapterIndex, course, chapterSubChapters]);
 
   const currentChapter = course?.chapters[currentChapterIndex];
 
@@ -558,52 +606,114 @@ export default function CourseViewer() {
               const isActive = idx === currentChapterIndex;
               const isUnlocked = isChapterUnlocked(idx);
               const isCompleted = ch.progress?.completed;
+              const subChapters = chapterSubChapters[ch.id] || [];
+              const hasSubChapters = subChapters.length > 0;
+              const MAX_SUBCHAPTERS_SHOWN = 3;
+              const visibleSubChapters = subChapters.slice(0, MAX_SUBCHAPTERS_SHOWN);
+              const remainingCount = subChapters.length - MAX_SUBCHAPTERS_SHOWN;
+              const isExpanded = expandedChapters.has(idx);
 
               return (
-                <button
-                  key={ch.id}
-                  data-chapter-idx={idx}
-                  onClick={() => {
-                    if (isUnlocked) {
-                      setCurrentChapterIndex(idx);
-                      setShowQuiz(false);
-                    }
-                  }}
-                  disabled={!isUnlocked}
-                  className={`w-full text-left p-3 rounded-xl transition-all duration-200 cursor-pointer ${
-                    isActive
-                      ? "bg-mauve/15 border border-mauve/30 text-foreground shadow-sm"
-                      : isCompleted
-                        ? "hover:bg-white/5 text-foreground border border-transparent"
-                        : isUnlocked
-                          ? "hover:bg-white/5 text-muted-foreground hover:text-foreground border border-transparent"
-                          : "opacity-40 text-muted-foreground cursor-not-allowed border border-transparent"
-                  }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <div className="flex-shrink-0 mt-0.5 w-5 h-5 flex items-center justify-center">
-                      {isCompleted ? (
-                        <CheckCircle2 className="w-4 h-4 text-green-400" />
-                      ) : !isUnlocked ? (
-                        <Lock className="w-3.5 h-3.5" />
-                      ) : isActive ? (
-                        <BookOpen className="w-4 h-4 text-mauve-light" />
-                      ) : (
-                        <span className="text-xs font-bold text-muted-foreground/50">{idx + 1}</span>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className={`text-xs font-semibold line-clamp-2 leading-snug ${isActive ? "text-mauve-light" : ""}`}>
-                        {ch.title}
-                      </p>
-                      {isCompleted && (
-                        <p className="text-[10px] text-green-400 mt-0.5">
-                          {tx.viewer.score} : {ch.progress?.score}%
+                <div key={ch.id} data-chapter-idx={idx}>
+                  <button
+                    onClick={() => {
+                      if (isUnlocked) {
+                        setCurrentChapterIndex(idx);
+                        setShowQuiz(false);
+                        // Toggle sub-chapters on click if not already active
+                        if (!isActive && hasSubChapters) {
+                          setExpandedChapters((prev) => {
+                            const next = new Set(prev);
+                            next.add(idx);
+                            return next;
+                          });
+                        }
+                      }
+                    }}
+                    disabled={!isUnlocked}
+                    className={`w-full text-left p-3 rounded-xl transition-all duration-200 cursor-pointer group ${
+                      isActive
+                        ? "bg-mauve/15 border border-mauve/30 text-foreground shadow-sm"
+                        : isCompleted
+                          ? "hover:bg-white/5 text-foreground border border-transparent"
+                          : isUnlocked
+                            ? "hover:bg-white/5 text-muted-foreground hover:text-foreground border border-transparent"
+                            : "opacity-40 text-muted-foreground cursor-not-allowed border border-transparent"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      {/* ── Icon column with unlock animation ── */}
+                      <div className="flex-shrink-0 mt-0.5 w-5 h-5 flex items-center justify-center relative">
+                        {isCompleted ? (
+                          <CheckCircle2 className="w-4 h-4 text-green-400" />
+                        ) : isUnlocked ? (
+                          <>
+                            <Lock className="w-3.5 h-3.5 absolute inset-0 m-auto opacity-0 transition-all duration-500 ease-out rotate-[-10deg] scale-75" />
+                            <Unlock className="w-3.5 h-3.5 absolute inset-0 m-auto opacity-0 transition-all duration-500 ease-out" />
+                            {isActive ? (
+                              <BookOpen className="w-4 h-4 text-mauve-light relative" />
+                            ) : (
+                              <span className="text-xs font-bold text-muted-foreground/50 relative">{idx + 1}</span>
+                            )}
+                          </>
+                        ) : (
+                          <Lock className="w-3.5 h-3.5" />
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-xs font-semibold line-clamp-2 leading-snug ${isActive ? "text-mauve-light" : ""}`}>
+                          {ch.title}
                         </p>
+                        {isCompleted && (
+                          <p className="text-[10px] text-green-400 mt-0.5">
+                            {tx.viewer.score} : {ch.progress?.score}%
+                          </p>
+                        )}
+                      </div>
+
+                      {/* ── Expand/collapse chevron for unlocked chapters with sub-chapters ── */}
+                      {isUnlocked && hasSubChapters && (
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleChapterExpanded(idx);
+                          }}
+                          className={`flex-shrink-0 mt-0.5 w-4 h-4 flex items-center justify-center cursor-pointer transition-transform duration-300 ${
+                            isExpanded ? "rotate-180" : ""
+                          }`}
+                        >
+                          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground/50" />
+                        </div>
                       )}
                     </div>
-                  </div>
-                </button>
+                  </button>
+
+                  {/* ── Sub-chapters (only for unlocked, expanded chapters) ── */}
+                  {isUnlocked && hasSubChapters && isExpanded && (
+                    <div className="ml-7 mt-1 mb-1 animate-subchapter-expand">
+                      {visibleSubChapters.map((sub, subIdx) => (
+                        <div
+                          key={subIdx}
+                          className="flex items-center gap-2 py-0.5"
+                        >
+                          <span className="w-1 h-1 rounded-full bg-muted-foreground/30 flex-shrink-0" />
+                          <span className="text-[10px] leading-snug text-muted-foreground/70 line-clamp-1">
+                            {sub}
+                          </span>
+                        </div>
+                      ))}
+                      {remainingCount > 0 && (
+                        <div className="flex items-center gap-2 py-0.5">
+                          <span className="w-1 h-1 rounded-full bg-muted-foreground/20 flex-shrink-0" />
+                          <span className="text-[10px] text-muted-foreground/40 font-medium">
+                            +{remainingCount} {lang === "fr" ? "autres" : "more"}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>
