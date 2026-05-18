@@ -3,7 +3,7 @@
 import { Check, Crown, Zap, HelpCircle, ChevronDown, Star } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 function FAQItem({
   question,
@@ -47,9 +47,9 @@ export default function OffersPage() {
   const lang = useAppStore((s) => s.lang);
   const tx = t(lang);
 
-  const faqs =
-    lang === "fr"
-      ? [
+  const faqs = useMemo(() => {
+    if (lang === "fr") {
+      return [
           {
             q: "Puis-je annuler mon abonnement à tout moment ?",
             a: "Oui, tu peux annuler ton abonnement à tout moment depuis tes paramètres. Ton accès reste actif jusqu'à la fin de la période payée.",
@@ -70,8 +70,9 @@ export default function OffersPage() {
             q: "Puis-je partager mon compte avec quelqu'un d'autre ?",
             a: "Chaque compte est strictement personnel. Partager ton compte est contraire à nos conditions d'utilisation. Chaque utilisateur doit avoir son propre abonnement.",
           },
-        ]
-      : [
+        ];
+    }
+    return [
           {
             q: "Can I cancel my subscription at any time?",
             a: "Yes, you can cancel your subscription at any time from your settings. Your access remains active until the end of the paid period.",
@@ -93,6 +94,7 @@ export default function OffersPage() {
             a: "Each account is strictly personal. Sharing your account violates our terms of service. Each user must have their own subscription.",
           },
         ];
+  }, [lang]);
 
   return (
     <>

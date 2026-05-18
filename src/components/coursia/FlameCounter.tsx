@@ -59,6 +59,7 @@ export default function FlameCounter() {
   const prevPointsRef = useRef<number>(0);
   const fetchIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const prevAnimateRef = useRef(false);
+  const animateTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Generate deterministic ember particles
   const embers = useMemo(() => {
@@ -110,7 +111,8 @@ export default function FlameCounter() {
               const prevPoints = prev?.flamePoints ?? 0;
               if (data.flamePoints !== prevPoints) {
                 setAnimatePoints(true);
-                setTimeout(() => setAnimatePoints(false), 600);
+                if (animateTimerRef.current) clearTimeout(animateTimerRef.current);
+                animateTimerRef.current = setTimeout(() => setAnimatePoints(false), 600);
               }
               prevPointsRef.current = data.flamePoints;
               return {
@@ -131,10 +133,11 @@ export default function FlameCounter() {
     };
 
     fetchFlames();
-    fetchIntervalRef.current = setInterval(fetchFlames, 5000);
+    fetchIntervalRef.current = setInterval(fetchFlames, 8000);
     return () => {
       cancelled = true;
       if (fetchIntervalRef.current) clearInterval(fetchIntervalRef.current);
+      if (animateTimerRef.current) clearTimeout(animateTimerRef.current);
     };
   }, []);
 

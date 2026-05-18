@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { BookOpen, Library, Route, PanelLeftClose, PanelLeftOpen, Tag, LogOut, User, AlertTriangle } from "lucide-react";
 import { useAppStore, type AppView } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -18,11 +18,11 @@ export default function Sidebar() {
 
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
-  const NAV_ITEMS: { view: AppView; label: string; icon: typeof BookOpen }[] = [
-    { view: "create", label: tx.nav.create, icon: BookOpen },
-    { view: "library", label: tx.nav.library, icon: Library },
-    { view: "journey", label: tx.nav.journey, icon: Route },
-  ];
+  const NAV_ITEMS = useMemo(() => [
+    { view: "create" as const, label: tx.nav.create, icon: BookOpen },
+    { view: "library" as const, label: tx.nav.library, icon: Library },
+    { view: "journey" as const, label: tx.nav.journey, icon: Route },
+  ], [tx.nav]);
 
   const handleLogout = () => {
     setShowLogoutDialog(true);

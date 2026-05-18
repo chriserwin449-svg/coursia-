@@ -69,6 +69,7 @@ export default function CreateCourse() {
   const [isTyping, setIsTyping] = useState(true);
   const [charIndex, setCharIndex] = useState(0);
   const [isFading, setIsFading] = useState(false);
+  const innerTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     // Skip typing animation while user has typed something
@@ -91,14 +92,14 @@ export default function CreateCourse() {
         // Finished typing, wait then start fading
         const timeout = setTimeout(() => {
           setIsFading(true);
-          setTimeout(() => {
+          innerTimerRef.current = setTimeout(() => {
             setPlaceholderIndex((placeholderIndex + 1) % placeholders.length);
             setCharIndex(0);
             setIsTyping(true);
             setIsFading(false);
           }, 500);
         }, 2200);
-        return () => clearTimeout(timeout);
+        return () => { clearTimeout(timeout); if (innerTimerRef.current) clearTimeout(innerTimerRef.current); };
       }
     }
   }, [charIndex, isTyping, isFading, placeholderIndex, placeholders, title]);

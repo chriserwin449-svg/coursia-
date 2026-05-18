@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   Sparkles,
   BookOpen,
@@ -112,23 +112,22 @@ export default function LandingPage() {
   const heroRef = useRef<HTMLDivElement>(null);
 
   const [visible, setVisible] = useState(true);
-  const [featuresVisible, setFeaturesVisible] = useState(true);
-  const [testimonialsVisible, setTestimonialsVisible] = useState(true);
-  const [pricingVisible, setPricingVisible] = useState(true);
-  const [faqVisible, setFaqVisible] = useState(true);
+  const [featuresVisible, setFeaturesVisible] = useState(false);
+  const [testimonialsVisible, setTestimonialsVisible] = useState(false);
+  const [pricingVisible, setPricingVisible] = useState(false);
+  const [faqVisible, setFaqVisible] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   useEffect(() => {
     const onScroll = () => {
-      if (!heroRef.current) return;
       const scrollY = window.scrollY || window.pageYOffset;
       const h = window.innerHeight;
 
-      if (scrollY < h * 0.5) setVisible(true);
-      if (scrollY > h * 0.2) setFeaturesVisible(true);
-      if (scrollY > h * 0.55) setTestimonialsVisible(true);
-      if (scrollY > h * 0.9) setPricingVisible(true);
-      if (scrollY > h * 1.3) setFaqVisible(true);
+      if (scrollY < h * 0.5) setVisible((v) => v || true);
+      if (scrollY > h * 0.2) setFeaturesVisible((v) => v || true);
+      if (scrollY > h * 0.55) setTestimonialsVisible((v) => v || true);
+      if (scrollY > h * 0.9) setPricingVisible((v) => v || true);
+      if (scrollY > h * 1.3) setFaqVisible((v) => v || true);
     };
 
     onScroll();
@@ -235,11 +234,11 @@ export default function LandingPage() {
 
           {/* Stats row */}
           <div className="mt-16 flex flex-wrap items-center justify-center gap-8 sm:gap-12">
-            {[
-              { icon: BookOpen, value: "10K+", label: lang === "fr" ? "Cours créés" : "Courses created" },
-              { icon: Trophy, value: "50K+", label: lang === "fr" ? "Quiz complétés" : "Quizzes completed" },
-              { icon: Globe, value: "98%", label: lang === "fr" ? "Satisfaction" : "Satisfaction" },
-            ].map((stat) => (
+            {useMemo(() => [
+              { icon: BookOpen, value: "10K+", label: lang === "fr" ? "Cours créés" : "Courses created", key: "courses" },
+              { icon: Trophy, value: "50K+", label: lang === "fr" ? "Quiz complétés" : "Quizzes completed", key: "quizzes" },
+              { icon: Globe, value: "98%", label: lang === "fr" ? "Satisfaction" : "Satisfaction", key: "sat" },
+            ], [lang]).map((stat) => (
               <div key={stat.label} className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-mauve/10 flex items-center justify-center">
                   <stat.icon className="w-5 h-5 text-mauve-light" />
@@ -286,7 +285,7 @@ export default function LandingPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
+            {useMemo(() => [
               {
                 icon: Sparkles,
                 title: tx.landing.features.ai.title,
@@ -308,7 +307,7 @@ export default function LandingPage() {
                 gradient: "from-emerald-500 to-emerald-700",
                 glow: "",
               },
-            ].map((feature) => (
+            ], [tx.landing.features]).map((feature) => (
               <div
                 key={feature.title}
                 className="glass rounded-3xl p-8 text-left hover:border-mauve/30 transition-all duration-300 group hover:-translate-y-1"

@@ -52,6 +52,22 @@ export default function CourseViewer() {
   const setRandomCourseLang = useAppStore((s) => s.setRandomCourseLang);
 
   const chapterListRef = useRef<HTMLDivElement>(null);
+  const celebrationTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const finalQuizTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Pre-compute deterministic particle positions for level-up modal
+  const levelUpParticles = useMemo(() =>
+    Array.from({ length: 12 }, (_, i) => {
+      const seed1 = Math.sin(i * 127.1 + 311.7) * 43758.5453;
+      const seed2 = Math.sin(i * 269.5 + 183.3) * 43758.5453;
+      const r1 = seed1 - Math.floor(seed1);
+      const r2 = seed2 - Math.floor(seed2);
+      return {
+        delay: 0.3 + i * 0.08,
+        x: (r1 - 0.5) * 350,
+        y: (r2 - 0.5) * 350,
+      };
+    }), []);
 
   // ── Expanded chapters state for sub-chapter display ──
   const [expandedChapters, setExpandedChapters] = useState<Set<number>>(new Set());
@@ -119,6 +135,14 @@ export default function CourseViewer() {
     } catch { /* ignore */ }
     setStudySessionId(null);
   }, [studySessionId]);
+
+  // Cleanup all timers on unmount
+  useEffect(() => {
+    return () => {
+      if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+      if (finalQuizTimerRef.current) clearTimeout(finalQuizTimerRef.current);
+    };
+  }, []);
 
   // End session on unmount or view change
   useEffect(() => {
@@ -198,7 +222,7 @@ export default function CourseViewer() {
 
   useEffect(() => {
     fetchCourse();
-  }, [selectedCourseId]);
+  }, [selectedCourseId, fetchCourse]);
 
   // Scroll active chapter into view in the chapter list
   useEffect(() => {
@@ -261,7 +285,7 @@ export default function CourseViewer() {
   }, [currentChapter, selectedCourseId]);
 
   // ── Navigation: go to next chapter (auto-complete current) ──
-  const goToNext = async () => {
+  const goToNext = useCallback(async () => {
     if (!course || isCompleting) return;
 
     // If on last chapter, do nothing (show final quiz instead)
@@ -279,7 +303,6 @@ export default function CourseViewer() {
       }
       // Show celebration for completing a chapter
       const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
-      const completedAfter = completedCount + 1;
       setShowConfetti(true);
       setShowCelebration(true);
       setCelebrationMessage(
@@ -287,7 +310,8 @@ export default function CourseViewer() {
           ? `Chapitre ${currentChapterIndex + 1} terminé ${userName} ! 🎉`
           : `Chapter ${currentChapterIndex + 1} done ${userName}! 🎉`
       );
-      setTimeout(() => {
+      if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+      celebrationTimerRef.current = setTimeout(() => {
         setShowCelebration(false);
         setShowConfetti(false);
       }, 2000);
@@ -299,15 +323,15 @@ export default function CourseViewer() {
     setCurrentChapterIndex(nextIdx);
     startStudySession(course.id, course.chapters[nextIdx]?.id);
     setIsCompleting(false);
-  };
+  }, [course, isCompleting, currentChapter?.progress?.completed, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, completedCount, endStudySession, startStudySession, setCurrentChapterIndex]);
 
-  const goToPrev = () => {
+  const goToPrev = useCallback(() => {
     if (currentChapterIndex === 0 || !course) return;
     endStudySession();
     const prevIdx = currentChapterIndex - 1;
     setCurrentChapterIndex(prevIdx);
     startStudySession(course.id, course.chapters[prevIdx]?.id);
-  };
+  }, [currentChapterIndex, course, endStudySession, startStudySession, setCurrentChapterIndex]);
 
   const isChapterUnlocked = (index: number) => {
     if (!course) return false;
@@ -322,7 +346,8 @@ export default function CourseViewer() {
       setShowCelebration(true);
       setCelebrationMessage(lang === "fr" ? `Félicitations ${userName} ! 🏆` : `Congratulations ${userName}! 🏆`);
       setCourseCompleted(true);
-      setTimeout(() => {
+      if (finalQuizTimerRef.current) clearTimeout(finalQuizTimerRef.current);
+      finalQuizTimerRef.current = setTimeout(() => {
         setShowCelebration(false);
         setShowFinalQuiz(false);
         setShowConfetti(false);
@@ -388,7 +413,7 @@ export default function CourseViewer() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [isFullscreen, currentChapterIndex, goToNext, goToPrev, setIsFullscreen]);
+  }, [isFullscreen, goToNext, goToPrev, setIsFullscreen]);
 
   // Loading / error state
   if (!selectedCourseId || fetchError || (!loading && !course)) {
@@ -919,15 +944,15 @@ export default function CourseViewer() {
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-night/90 backdrop-blur-md animate-fade-in">
             <div className="relative w-full max-w-md mx-4 p-8 rounded-3xl glass animate-celebrate">
               {/* Decorative particles */}
-              {[...Array(12)].map((_, i) => (
+              {levelUpParticles.map((p, i) => (
                 <div
                   key={i}
                   className="absolute w-2 h-2 rounded-full bg-gold"
                   style={{
                     left: "50%", top: "50%", position: "absolute",
-                    animation: `float-up 1.2s ease-out ${0.3 + i * 0.08}s forwards`,
+                    animation: `float-up 1.2s ease-out ${p.delay}s forwards`,
                     opacity: 0,
-                    transform: `translate(${(Math.random() - 0.5) * 350}px, ${(Math.random() - 0.5) * 350}px)`,
+                    transform: `translate(${p.x}px, ${p.y}px)`,
                   }}
                 />
               ))}
