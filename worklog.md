@@ -183,3 +183,29 @@ Stage Summary:
 - Course progress saves to localStorage (last chapter position) + DB (chapter completion)
 - Chapter counter in Journey page counts from real DB data
 - No code errors, all lint passes
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix progress tracking, remove quiz button, enhance Library cards, fix Journey stats
+
+Work Log:
+- CourseViewer sidebar header: Changed from "Chapitre X sur Y" to "3/7 chapitres" (completed/total counter)
+- CourseViewer sidebar: Made progress bar thicker (h-2.5) for better visibility
+- Removed quiz button from content header: replaced with "En cours" / "Completed" status badge
+- Removed quiz button from navigation footer: simplified to just Prev/Next/Final Quiz
+- goToNext(): Now triggers quiz if current chapter is not completed before allowing navigation
+- Library cards: Added mauve hover effect (hover:border-mauve/40, hover:shadow-lg hover:shadow-mauve/10, hover:-translate-y-1)
+- Journey stats: Replaced chapters counter (Target icon) with Flame Points (Flame icon, red theme)
+- fetchCourse: Fixed dependency array - removed currentChapterIndex to prevent infinite re-fetch loop
+- fetchCourse: Uses useAppStore.getState().currentChapterIndex to check if restore needed
+- All progress properly saved: quiz completion saves to ChapterProgress in DB, course re-fetched to update UI
+- localStorage saves chapter position on every chapter change for resume functionality
+
+Stage Summary:
+- Chapter counter (3/4) visible in sidebar with progress bar percentage
+- Quiz removed as separate button, triggered automatically when trying to advance without completing
+- Library cards have mauve glow hover effect
+- Journey page shows Flame Points instead of chapter counter
+- Progress properly saved to DB and localStorage
+- Course resume works: returns to last position on re-entry

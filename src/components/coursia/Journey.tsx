@@ -339,15 +339,15 @@ export default function Journey() {
             onClick: () => setShowFlameCollection(true),
           },
           {
-            icon: Target,
-            label: tx.journey.chapters,
-            value: `${stats?.completedChapters ?? 0}/${stats?.totalChapters ?? 0}`,
-            color: "text-green-400",
-            bgColor: "bg-green-500/10",
-            glowColor: "rgba(34, 197, 94, 0.35)",
-            borderColor: "border-green-500/20",
+            icon: Flame,
+            label: lang === "fr" ? "Points de flamme" : "Flame points",
+            value: `${flameData?.flamePoints ?? 0}`,
+            color: "text-red-400",
+            bgColor: "bg-red-500/10",
+            glowColor: "rgba(239, 68, 68, 0.35)",
+            borderColor: "border-red-500/20",
             delay: "100ms",
-            onClick: () => setShowStudyDetail(true),
+            onClick: () => setShowFlameCollection(true),
           },
         ].map((stat) => (
           <div
