@@ -11,7 +11,6 @@ import {
   Loader2,
   Sparkles,
 } from "lucide-react";
-import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 
@@ -108,7 +107,7 @@ export default function AuthPage() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl glow-mauve mb-4">
-              <CoursiaLogo size={64} className="rounded-2xl" />
+              <Sparkles className="w-8 h-8 text-mauve-light" />
             </div>
             <h1 className="text-3xl font-extrabold mb-2">
               <span className="gradient-text">{tx.app.name}</span>

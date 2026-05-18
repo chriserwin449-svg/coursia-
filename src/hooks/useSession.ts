@@ -11,32 +11,43 @@ export function useSession() {
     let cancelled = false;
     const check = async () => {
       try {
-        // Use /api/auth/me (existing route) instead of /api/auth/session (doesn't exist)
         const savedToken = typeof window !== "undefined"
           ? localStorage.getItem("coursia-auth-token")
           : null;
         if (!savedToken) return;
 
+        // Read userId from saved user data
+        let userId: string | null = null;
+        const savedUser = localStorage.getItem("coursia-user-data");
+        if (savedUser) {
+          try {
+            const userData = JSON.parse(savedUser);
+            userId = userData?.id || null;
+          } catch {
+            // corrupted user data
+          }
+        }
+
         const res = await fetch("/api/auth/me", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: savedToken }),
+          body: JSON.stringify({ token: savedToken, userId }),
         });
         if (cancelled) return;
         if (res.ok) {
           const data = await res.json();
-          if (data?.valid && savedToken) {
-            // Restore user from token - the auth/me endpoint validates the token
-            // User data is stored in localStorage from login
-            const savedUser = localStorage.getItem("coursia-user-data");
-            if (savedUser) {
-              try {
-                const userData = JSON.parse(savedUser);
-                setUser(userData);
-              } catch {
-                // If user data is corrupted, clear token
-                useAppStore.getState().setAuthToken(null);
-              }
+          if (data?.valid && data?.user) {
+            // Restore session from validated server response
+            setUser(data.user);
+            // Persist validated user data
+            if (typeof window !== "undefined") {
+              localStorage.setItem("coursia-user-data", JSON.stringify(data.user));
+            }
+          } else if (!data?.valid) {
+            // Token invalid — clear stale session
+            useAppStore.getState().setAuthToken(null);
+            if (typeof window !== "undefined") {
+              localStorage.removeItem("coursia-user-data");
             }
           }
         }

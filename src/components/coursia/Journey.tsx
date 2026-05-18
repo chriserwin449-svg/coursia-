@@ -150,7 +150,7 @@ export default function Journey() {
 
       {/* ═══ FLAME PROGRESS BAR ═══ */}
       <div
-        className="rounded-3xl p-6 mb-8 fade-in-up relative overflow-hidden flame-card-border-pulse cursor-pointer transition-all duration-300 hover:scale-[1.005]"
+        className="rounded-2xl px-5 pt-4 pb-5 mb-3 fade-in-up relative overflow-hidden flame-card-border-pulse cursor-pointer transition-all duration-300 hover:scale-[1.005]"
         style={{ background: "linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(248, 113, 113, 0.06), rgba(220, 38, 38, 0.04))", border: "1px solid rgba(239, 68, 68, 0.2)" }}
         onClick={() => setShowFlameCollection(true)}
       >
@@ -283,7 +283,7 @@ export default function Journey() {
         </div>
       </div>
 
-      {/* Stats Grid — 3 columns (no Score moyen) */}
+      {/* Stats Grid — 3 columns */}
       <div className="grid grid-cols-3 gap-4 mb-10">
         {[
           {
@@ -294,6 +294,7 @@ export default function Journey() {
             bgColor: "bg-mauve/10",
             glowColor: "rgba(124, 92, 191, 0.3)",
             delay: "0ms",
+            onClick: () => useAppStore.getState().setView("library"),
           },
           {
             icon: Trophy,
@@ -303,6 +304,7 @@ export default function Journey() {
             bgColor: "bg-gold/10",
             glowColor: "rgba(212, 168, 67, 0.3)",
             delay: "50ms",
+            onClick: () => setShowFlameCollection(true),
           },
           {
             icon: Target,
@@ -312,17 +314,29 @@ export default function Journey() {
             bgColor: "bg-green-500/10",
             glowColor: "rgba(34, 197, 94, 0.3)",
             delay: "100ms",
+            onClick: () => setShowStudyDetail(true),
           },
         ].map((stat) => (
           <div
             key={stat.label}
-            className="glass rounded-3xl p-5 text-center fade-in-up card-hover-glow"
-            style={{ animationDelay: mounted ? stat.delay : "0ms", "--glow-color": stat.glowColor } as React.CSSProperties}
+            onClick={() => stat.onClick?.()}
+            className="glass rounded-3xl p-5 text-center fade-in-up cursor-pointer transition-all duration-300 hover:scale-[1.03] hover:-translate-y-1 hover:shadow-xl"
+            style={{
+              animationDelay: mounted ? stat.delay : "0ms",
+              "--glow-color": stat.glowColor,
+              boxShadow: "0 0 0 rgba(0,0,0,0)",
+            } as React.CSSProperties}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.boxShadow = `0 0 20px var(--glow-color), 0 8px 32px rgba(0,0,0,0.3)`;
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 rgba(0,0,0,0)";
+            }}
           >
             <div
-              className={`w-12 h-12 rounded-2xl ${stat.bgColor} flex items-center justify-center mx-auto mb-3`}
+              className={`w-12 h-12 rounded-2xl ${stat.bgColor} flex items-center justify-center mx-auto mb-3 transition-transform duration-300 group-hover:scale-110`}
             >
-              <stat.icon className={`w-6 h-6 ${stat.color}`} />
+              <stat.icon className={`w-6 h-6 ${stat.color} transition-transform duration-300`} />
             </div>
             <p className="text-2xl font-extrabold mb-1">{stat.value}</p>
             <p className="text-sm text-muted-foreground">{stat.label}</p>

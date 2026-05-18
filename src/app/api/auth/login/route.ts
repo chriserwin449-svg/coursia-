@@ -6,6 +6,10 @@ function hashPassword(password: string): string {
   return createHash("sha256").update(password).update("coursia-salt-2025").digest("hex");
 }
 
+function generateToken(userId: string): string {
+  return createHash("sha256").update(userId + "-coursia-token-v1").digest("hex");
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json();
@@ -35,11 +39,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create token
-    const token = createHash("sha256")
-      .update(user.id + "-" + Date.now())
-      .update("coursia-token-secret")
-      .digest("hex");
+    // Create deterministic token (verifiable server-side)
+    const token = generateToken(user.id);
 
     return NextResponse.json({
       success: true,

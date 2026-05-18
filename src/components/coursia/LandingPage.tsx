@@ -13,7 +13,6 @@ import {
   Globe,
   ChevronDown,
 } from "lucide-react";
-import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 
@@ -62,20 +61,23 @@ const testimonials = [
   },
 ];
 
+const AVATAR_COLORS = ["bg-mauve", "bg-gold", "bg-emerald-500", "bg-blue-500", "bg-rose-500", "bg-amber-500"];
+
 function TestimonialCard({
   text,
   author,
-  avatar,
   roleFr,
   roleEn,
+  colorIndex,
 }: {
   text: string;
   author: string;
-  avatar: string;
   roleFr: string;
   roleEn: string;
+  colorIndex: number;
 }) {
   const lang = useAppStore((s) => s.lang);
+  const initial = author.charAt(0).toUpperCase();
   return (
     <div className="glass rounded-3xl p-6 min-w-[320px] max-w-[380px] mx-3 flex-shrink-0 hover:border-mauve/30 transition-all duration-300">
       <div className="flex items-center gap-1 mb-3">
@@ -90,13 +92,8 @@ function TestimonialCard({
         &ldquo;{text}&rdquo;
       </p>
       <div className="flex items-center gap-3">
-        <div className="w-11 h-11 rounded-full ring-2 ring-mauve/30 overflow-hidden bg-mauve/10 flex-shrink-0">
-          <img
-            src={avatar}
-            alt={author}
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
+        <div className={`w-11 h-11 rounded-full ring-2 ring-mauve/30 ${AVATAR_COLORS[colorIndex % AVATAR_COLORS.length]} flex items-center justify-center flex-shrink-0`}>
+          <span className="text-white font-bold text-base">{initial}</span>
         </div>
         <div className="min-w-0">
           <span className="font-semibold text-sm text-foreground block">{author}</span>
@@ -146,7 +143,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
           {/* Left: Logo + brand name */}
           <div className="flex items-center gap-2.5">
-            <CoursiaLogo size={28} className="rounded-lg" />
+            <span className="text-lg font-extrabold gradient-text">C</span>
             <span className="text-lg font-bold text-foreground">{tx.app.name}</span>
           </div>
           {/* Right: CTA button */}
@@ -194,10 +191,10 @@ export default function LandingPage() {
             <span>{lang === "fr" ? "Propulsé par l'Intelligence Artificielle" : "Powered by Artificial Intelligence"}</span>
           </div>
 
-          {/* Logo */}
+          {/* Logo placeholder */}
           <div className="flex justify-center mb-8">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl glow-mauve">
-              <CoursiaLogo size={80} className="rounded-3xl" />
+              <span className="text-4xl font-extrabold gradient-text">C</span>
             </div>
           </div>
 
@@ -347,7 +344,7 @@ export default function LandingPage() {
         <div className="overflow-hidden mb-6">
           <div className="marquee-track">
             {[...testimonials, ...testimonials].map((t, i) => (
-              <TestimonialCard key={`r1-${i}`} text={t.text} author={t.author} avatar={t.avatar} roleFr={t.roleFr} roleEn={t.roleEn} />
+              <TestimonialCard key={`r1-${i}`} text={t.text} author={t.author} roleFr={t.roleFr} roleEn={t.roleEn} colorIndex={i} />
             ))}
           </div>
         </div>
@@ -356,7 +353,7 @@ export default function LandingPage() {
         <div className="overflow-hidden">
           <div className="marquee-track-reverse">
             {[...testimonials.slice().reverse(), ...testimonials.slice().reverse()].map((t, i) => (
-              <TestimonialCard key={`r2-${i}`} text={t.text} author={t.author} avatar={t.avatar} roleFr={t.roleFr} roleEn={t.roleEn} />
+              <TestimonialCard key={`r2-${i}`} text={t.text} author={t.author} roleFr={t.roleFr} roleEn={t.roleEn} colorIndex={testimonials.length - 1 - i} />
             ))}
           </div>
         </div>
@@ -612,7 +609,7 @@ export default function LandingPage() {
       <footer className="mt-auto border-t border-muted-foreground/10 py-10 px-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <CoursiaLogo size={32} className="rounded-lg" />
+            <span className="text-xl font-extrabold gradient-text">C</span>
             <span className="font-bold text-sm text-foreground">{tx.app.name}</span>
           </div>
           <p className="text-sm text-muted-foreground/50">{tx.app.footer}</p>

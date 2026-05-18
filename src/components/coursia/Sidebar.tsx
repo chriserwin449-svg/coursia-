@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { BookOpen, Library, Route, PanelLeftClose, PanelLeftOpen, Tag, LogOut, User, AlertTriangle } from "lucide-react";
-import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 import { useAppStore, type AppView } from "@/lib/store";
 import { t } from "@/lib/i18n";
 
@@ -45,8 +44,8 @@ export default function Sidebar() {
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
-          <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0">
-            <CoursiaLogo size={40} className="rounded-2xl" />
+          <div className="w-10 h-10 rounded-2xl bg-mauve/20 flex items-center justify-center flex-shrink-0">
+            <span className="text-sm font-extrabold gradient-text">C</span>
           </div>
           {!collapsed && <span className="hidden md:block text-xl font-extrabold gradient-text whitespace-nowrap">
             {tx.app.name}
