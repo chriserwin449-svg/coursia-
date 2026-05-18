@@ -17,7 +17,7 @@ import {
 import { BADGE_DEFINITIONS } from "@/lib/badges";
 import { t } from "@/lib/i18n";
 import { useAppStore } from "@/lib/store";
-import { getCurrentFlameType, getFlameProgress, formatFlamePoints } from "@/lib/flames";
+import { getCurrentFlameType, getFlameProgress, formatFlamePoints, type FlameReward } from "@/lib/flames";
 
 interface Stats {
   totalCourses: number;
@@ -50,6 +50,7 @@ interface FlameData {
   hasSubscription: boolean;
   totalEarned: number;
   totalSpent: number;
+  rewards: FlameReward[];
 }
 
 type StudyTimePeriod = "today" | "last3" | "week" | "month";
@@ -65,6 +66,7 @@ export default function Journey() {
   const [mounted, setMounted] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<StudyTimePeriod>("today");
   const [showStudyDetail, setShowStudyDetail] = useState(false);
+  const [showFlameCollection, setShowFlameCollection] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -147,7 +149,11 @@ export default function Journey() {
       </div>
 
       {/* ═══ FLAME PROGRESS BAR ═══ */}
-      <div className="rounded-3xl p-6 mb-8 fade-in-up relative overflow-hidden flame-card-border-pulse" style={{ background: "linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(248, 113, 113, 0.06), rgba(220, 38, 38, 0.04))", border: "1px solid rgba(239, 68, 68, 0.2)" }}>
+      <div
+        className="rounded-3xl p-6 mb-8 fade-in-up relative overflow-hidden flame-card-border-pulse cursor-pointer transition-all duration-300 hover:scale-[1.005]"
+        style={{ background: "linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(248, 113, 113, 0.06), rgba(220, 38, 38, 0.04))", border: "1px solid rgba(239, 68, 68, 0.2)" }}
+        onClick={() => setShowFlameCollection(true)}
+      >
         {/* Animated background glow orbs */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           <div className="flame-orb-1 absolute -top-10 -right-10 w-40 h-40 rounded-full blur-[60px]" style={{ background: "rgba(239, 68, 68, 0.12)" }} />
@@ -482,6 +488,131 @@ export default function Journey() {
         </p>
         <p className="text-sm text-muted-foreground mt-4">— {tx.journey.quoteAuthor}</p>
       </div>
+
+      {/* ═══════════ FLAME COLLECTION MODAL ═══════════ */}
+      {showFlameCollection && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-night/80 backdrop-blur-sm animate-fade-in" onClick={() => setShowFlameCollection(false)}>
+          <div
+            className="bg-night-light border border-border rounded-3xl w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar mx-4 animate-fade-in-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-night-light z-10 rounded-t-3xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center">
+                  <span className="text-xl">{flameType.emoji}</span>
+                </div>
+                <div>
+                  <h2 className="text-xl font-extrabold">
+                    {lang === "fr" ? "Collection de Flammes" : "Flame Collection"}
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    {flameData?.rewards?.filter((r) => r.isEarned).length ?? 0}/{flameData?.rewards?.length ?? 0}{" "}
+                    {lang === "fr" ? "récompenses" : "rewards"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowFlameCollection(false)}
+                className="p-2 rounded-xl hover:bg-white/10 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-3">
+              {(flameData?.rewards ?? []).map((reward, i) => {
+                const earned = reward.isEarned;
+                return (
+                  <div
+                    key={reward.id}
+                    className={`relative flex items-center gap-4 p-4 rounded-2xl border transition-all duration-500 ${
+                      earned
+                        ? "bg-gradient-to-r from-amber-500/5 to-orange-500/5 border-amber-500/20"
+                        : "bg-night/50 border-border opacity-50"
+                    }`}
+                    style={{ animationDelay: `${i * 60}ms` }}
+                  >
+                    {/* Earned glow effect */}
+                    {earned && (
+                      <div
+                        className="absolute inset-0 rounded-2xl opacity-30"
+                        style={{
+                          boxShadow: "inset 0 0 20px rgba(245, 158, 11, 0.15), 0 0 15px rgba(245, 158, 11, 0.08)",
+                          animation: "pulse 3s ease-in-out infinite",
+                        }}
+                      />
+                    )}
+                    <div className="relative z-10 flex items-center gap-4 w-full">
+                      {/* Emoji with glow or lock */}
+                      <div
+                        className={`w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
+                          earned
+                            ? "bg-gradient-to-br from-amber-500/20 to-orange-500/20"
+                            : "bg-night/80"
+                        }`}
+                        style={
+                          earned
+                            ? {
+                                boxShadow: "0 0 20px rgba(245, 158, 11, 0.2), 0 0 40px rgba(245, 158, 11, 0.1)",
+                              }
+                            : undefined
+                        }
+                      >
+                        {earned ? (
+                          <span className="text-3xl" style={{ filter: "drop-shadow(0 0 6px rgba(245, 158, 11, 0.5))" }}>{reward.emoji}</span>
+                        ) : (
+                          <span className="text-2xl grayscale">{reward.emoji}</span>
+                        )}
+                      </div>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className={`font-bold text-sm ${earned ? "text-amber-400" : "text-muted-foreground"}`}>
+                            {lang === "fr" ? reward.name : reward.nameEn}
+                          </p>
+                          {earned && (
+                            <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">✓</span>
+                          )}
+                        </div>
+                        <p className={`text-xs ${earned ? "text-muted-foreground" : "text-muted-foreground/50"}`}>
+                          {lang === "fr" ? reward.description : reward.descriptionEn}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/40 mt-1">
+                          {formatFlamePoints(reward.points)} {lang === "fr" ? "pts" : "pts"}
+                        </p>
+                      </div>
+                      {/* Progress or check */}
+                      <div className="flex-shrink-0">
+                        {earned ? (
+                          <div className="w-8 h-8 rounded-full bg-amber-500/15 flex items-center justify-center">
+                            <Star className="w-4 h-4 text-amber-400" />
+                          </div>
+                        ) : (
+                          <div className="text-right">
+                            <p className="text-xs font-bold text-muted-foreground/50">
+                              {Math.min(Math.round((flamePoints / reward.points) * 100), 99)}%
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Bottom hint */}
+              <div className="text-center pt-2">
+                <p className="text-xs text-muted-foreground/40">
+                  {lang === "fr"
+                    ? "Continue à étudier pour débloquer plus de récompenses !"
+                    : "Keep studying to unlock more rewards!"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══════════ STUDY TIME DETAIL PANEL (Modal) ═══════════ */}
       {showStudyDetail && studyTime && (

@@ -141,6 +141,25 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-night flex flex-col">
+      {/* ===== STICKY TOP NAVIGATION BAR ===== */}
+      <nav className="fixed top-0 w-full z-50 bg-night/80 backdrop-blur-lg border-b border-border/50">
+        <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
+          {/* Left: Logo + brand name */}
+          <div className="flex items-center gap-2.5">
+            <CoursiaLogo size={28} className="rounded-lg" />
+            <span className="text-lg font-bold text-foreground">{tx.app.name}</span>
+          </div>
+          {/* Right: CTA button */}
+          <button
+            onClick={() => user ? setView("create") : setView("auth")}
+            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full glass font-semibold text-foreground hover:bg-white/10 hover:border-mauve/30 transition-all duration-300 cursor-pointer"
+          >
+            <Sparkles className="w-4 h-4 text-mauve-light" />
+            {tx.landing.cta}
+          </button>
+        </div>
+      </nav>
+
       {/* ===== HERO SECTION ===== */}
       <section className="relative overflow-hidden flex items-center justify-center min-h-screen px-4">
         {/* Background orbs */}

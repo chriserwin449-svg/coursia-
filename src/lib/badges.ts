@@ -96,16 +96,22 @@ export function getBadgeProgress(completedCoursesCount: number): {
   next: number;
   percentage: number;
 } {
-  const earned = BADGE_DEFINITIONS.filter((b) => completedCoursesCount >= b.threshold);
   const next = BADGE_DEFINITIONS.find((b) => completedCoursesCount < b.threshold);
-  const currentThreshold = earned.length > 0 ? earned[earned.length - 1].threshold : 0;
-  const nextThreshold = next ? next.threshold : 100;
-  const progress = next
-    ? ((completedCoursesCount - currentThreshold) / (nextThreshold - currentThreshold)) * 100
-    : 100;
+  if (!next) {
+    // All badges earned
+    return {
+      current: BADGE_DEFINITIONS[BADGE_DEFINITIONS.length - 1].threshold,
+      next: BADGE_DEFINITIONS[BADGE_DEFINITIONS.length - 1].threshold,
+      percentage: 100,
+    };
+  }
+  const previousThreshold = BADGE_DEFINITIONS
+    .filter((b) => completedCoursesCount >= b.threshold)
+    .pop()?.threshold ?? 0;
+  const progress = (completedCoursesCount / next.threshold) * 100;
   return {
-    current: currentThreshold,
-    next: nextThreshold,
-    percentage: Math.min(progress, 100),
+    current: previousThreshold,
+    next: next.threshold,
+    percentage: Math.min(Math.round(progress), 100),
   };
 }

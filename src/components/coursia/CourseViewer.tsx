@@ -95,6 +95,17 @@ export default function CourseViewer() {
     };
   }, [studySessionId]);
 
+  // End session when user closes browser tab
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (studySessionId) {
+        navigator.sendBeacon("/api/study-time", JSON.stringify({ action: "end", sessionId: studySessionId }));
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [studySessionId]);
+
   const fetchCourse = useCallback(async () => {
     if (!selectedCourseId) return;
     setLoading(true);
@@ -152,7 +163,7 @@ export default function CourseViewer() {
   };
 
   const goToPrev = () => {
-    if (currentChapterIndex === 0) return;
+    if (currentChapterIndex === 0 || !course) return;
     endStudySession();
     const prevIdx = currentChapterIndex - 1;
     setCurrentChapterIndex(prevIdx);

@@ -102,8 +102,11 @@ export async function POST(request: Request) {
       sessionId?: string;
     };
 
-    if (!action || !courseId) {
-      return NextResponse.json({ error: "action and courseId are required" }, { status: 400 });
+    if (!action) {
+      return NextResponse.json({ error: "action is required" }, { status: 400 });
+    }
+    if (action === "start" && !courseId) {
+      return NextResponse.json({ error: "courseId is required for start action" }, { status: 400 });
     }
 
     if (action === "start") {

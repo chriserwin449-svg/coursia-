@@ -12,7 +12,7 @@ export async function POST(
 
     const chapter = await db.chapter.findUnique({
       where: { id: chapterId },
-      include: { course: true },
+      include: { course: true, quiz: true },
     });
 
     if (!chapter) {
@@ -31,7 +31,7 @@ export async function POST(
     const completion = await zai.chat.completions.create({
       messages: [
         {
-          role: "assistant",
+          role: "system",
           content: `Tu es un créateur de quiz pédagogiques. Crée un quiz de 5 questions en français basé sur le contenu du chapitre donné.
 Tu DOIS répondre UNIQUEMENT avec un JSON valide contenant :
 {

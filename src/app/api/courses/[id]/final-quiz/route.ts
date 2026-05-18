@@ -40,7 +40,7 @@ export async function POST(
     const completion = await zai.chat.completions.create({
       messages: [
         {
-          role: "assistant",
+          role: "system",
           content: `Tu es un créateur de quiz pédagogiques. Crée un quiz FINAL de 8 questions basé sur l'ensemble du cours donné.
 Tu DOIS répondre UNIQUEMENT avec un JSON valide contenant :
 {

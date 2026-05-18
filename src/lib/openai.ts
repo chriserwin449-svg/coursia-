@@ -48,6 +48,58 @@ function getAIKey(): string | null {
 
 const EXTERNAL_API_TIMEOUT = 30_000;
 
+/**
+ * Try an OpenAI API call with model fallback.
+ * Attempts gpt-4o first, then falls back to gpt-4o-mini if the model is unavailable.
+ */
+async function callOpenAIWithFallback(
+  apiKey: string,
+  messages: Array<{ role: string; content: string }>,
+  options?: { temperature?: number; maxTokens?: number },
+): Promise<{ content: string } | null> {
+  const models = ["gpt-4o", "gpt-4o-mini"];
+
+  for (const model of models) {
+    try {
+      const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: options?.temperature ?? 0.7,
+          max_tokens: options?.maxTokens ?? 8192,
+        }),
+        timeoutMs: EXTERNAL_API_TIMEOUT,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content || "";
+        if (content) {
+          console.log(`[OpenAI] Success with model: ${model}`);
+          return { content };
+        }
+      } else {
+        const errorBody = await response.text().catch(() => "");
+        console.error(`[OpenAI] Model ${model} failed (${response.status}): ${errorBody.slice(0, 200)}`);
+        // If it's a model-not-found or authentication error, try next model
+        if (response.status === 404 || response.status === 401) {
+          continue;
+        }
+        // For rate limits or server errors, don't bother trying other models
+        break;
+      }
+    } catch (error) {
+      console.error(`[OpenAI] Model ${model} request failed:`, error instanceof Error ? error.message : error);
+      // Network errors — try next model
+      continue;
+    }
+  }
+
+  return null;
+}
+
 export async function smartChatCompletion(messages: Array<{ role: string; content: string }>, options?: { temperature?: number; maxTokens?: number }) {
   const apiKey = getAIKey();
   if (apiKey) {
@@ -79,21 +131,11 @@ export async function smartChatCompletion(messages: Array<{ role: string; conten
       }
     }
     if (provider === "openai") {
-      try {
-        const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ model: "gpt-4o", messages, temperature: options?.temperature ?? 0.7, max_tokens: options?.maxTokens ?? 8192 }),
-          timeoutMs: EXTERNAL_API_TIMEOUT,
-        });
-        if (response.ok) {
-          const data = await response.json();
-          const content = data.choices?.[0]?.message?.content || "";
-          return { content, provider: "openai" as const };
-        }
-      } catch (error) {
-        console.error(`[OpenAI] Request failed, falling back to z-ai:`, error instanceof Error ? error.message : error);
+      const result = await callOpenAIWithFallback(apiKey, messages, options);
+      if (result) {
+        return { content: result.content, provider: "openai" as const };
       }
+      console.log("[OpenAI] All models failed, falling back to z-ai");
     }
   }
   console.log("[AI] Using z-ai (free tier) fallback");
