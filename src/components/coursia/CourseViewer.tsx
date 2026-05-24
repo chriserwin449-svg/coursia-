@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import Image from "next/image";
 import {
   ChevronRight,
   ChevronLeft,
@@ -534,7 +535,7 @@ export default function CourseViewer() {
         {/* Final quiz header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-night-light flex-shrink-0">
           <div className="flex items-center gap-3">
-            <span className="text-base font-extrabold gradient-text">C</span>
+            <Image src="/logo.png" alt="Coursia" width={28} height={28} className="object-contain" />
             <div>
               <h2 className="text-lg font-bold">{tx.viewer.finalQuiz}</h2>
               <p className="text-xs text-muted-foreground">{course.title}</p>
