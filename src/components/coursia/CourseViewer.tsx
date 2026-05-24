@@ -625,7 +625,7 @@ export default function CourseViewer() {
                 </div>
               )}
               {/* Content — LARGER text for fullscreen */}
-              <div className="prose prose-invert max-w-none animate-fade-in-slide-right prose-p:text-[1.85rem] prose-p:leading-[2.3] prose-p:mb-7 prose-h2:text-[2.5rem] prose-h2:mt-16 prose-h2:mb-8 prose-h3:text-[2.1rem] prose-h3:mt-14 prose-h3:mb-6 prose-li:text-[1.85rem] prose-li:my-3 prose-li:leading-[2.1] prose-ul:my-8 prose-ol:my-8 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
+              <div className="prose prose-invert max-w-none animate-fade-in-slide-right prose-p:text-[1.125rem] prose-p:leading-[1.95] prose-p:mb-6 prose-h2:text-[1.55rem] prose-h2:mt-12 prose-h2:mb-6 prose-h3:text-[1.35rem] prose-h3:mt-10 prose-h3:mb-5 prose-li:text-[1.125rem] prose-li:my-2 prose-li:leading-[1.9] prose-ul:my-6 prose-ol:my-6 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
                 <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
               </div>
             </div>
@@ -854,14 +854,14 @@ export default function CourseViewer() {
               <div className="prose prose-invert max-w-none
                 prose-headings:font-extrabold
                 prose-h1:text-4xl prose-h1:mt-14 prose-h1:mb-6
-                prose-h2:text-[2.2rem] prose-h2:mt-14 prose-h2:mb-7
-                prose-h3:text-[1.85rem] prose-h3:mt-12 prose-h3:mb-5
-                prose-p:text-[1.55rem] prose-p:leading-[2.3] prose-p:text-foreground/90 prose-p:mb-7
-                prose-li:text-[1.55rem] prose-li:text-foreground/90 prose-li:leading-[2.1] prose-li:my-3
-                prose-ul:my-8 prose-ol:my-8
+                prose-h2:text-[1.55rem] prose-h2:mt-12 prose-h2:mb-6
+                prose-h3:text-[1.35rem] prose-h3:mt-10 prose-h3:mb-5
+                prose-p:text-[1.125rem] prose-p:leading-[1.95] prose-p:text-foreground/90 prose-p:mb-5
+                prose-li:text-[1.125rem] prose-li:text-foreground/90 prose-li:leading-[1.9] prose-li:my-2
+                prose-ul:my-6 prose-ol:my-6
                 prose-strong:text-gold
-                prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-2 prose-code:py-1 prose-code:rounded-lg prose-code:text-[1.2rem]
-                prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-8 prose-pre:text-[1.2rem]
+                prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-2 prose-code:py-1 prose-code:rounded-lg prose-code:text-[0.95rem]
+                prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-6 prose-pre:text-[0.95rem]
                 prose-a:text-mauve-light
                 prose-blockquote:text-amber-300 prose-blockquote:border-gold/30 prose-blockquote:my-8
                 prose-hr:border-gold/20 prose-hr:my-12
