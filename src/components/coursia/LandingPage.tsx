@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import Image from "next/image";
 import {
   Sparkles,
   BookOpen,
@@ -61,23 +62,20 @@ const testimonials = [
   },
 ];
 
-const AVATAR_COLORS = ["bg-mauve", "bg-gold", "bg-emerald-500", "bg-blue-500", "bg-rose-500", "bg-amber-500"];
-
 function TestimonialCard({
   text,
   author,
   roleFr,
   roleEn,
-  colorIndex,
+  avatar,
 }: {
   text: string;
   author: string;
   roleFr: string;
   roleEn: string;
-  colorIndex: number;
+  avatar: string;
 }) {
   const lang = useAppStore((s) => s.lang);
-  const initial = author.charAt(0).toUpperCase();
   return (
     <div className="glass rounded-3xl p-6 min-w-[320px] max-w-[380px] mx-3 flex-shrink-0 hover:border-mauve/30 transition-all duration-300">
       <div className="flex items-center gap-1 mb-3">
@@ -92,8 +90,14 @@ function TestimonialCard({
         &ldquo;{text}&rdquo;
       </p>
       <div className="flex items-center gap-3">
-        <div className={`w-11 h-11 rounded-full ring-2 ring-mauve/30 ${AVATAR_COLORS[colorIndex % AVATAR_COLORS.length]} flex items-center justify-center flex-shrink-0`}>
-          <span className="text-white font-bold text-base">{initial}</span>
+        <div className="w-11 h-11 rounded-full ring-2 ring-mauve/30 overflow-hidden flex-shrink-0">
+          <Image
+            src={avatar}
+            alt={author}
+            width={44}
+            height={44}
+            className="w-full h-full object-cover"
+          />
         </div>
         <div className="min-w-0">
           <span className="font-semibold text-sm text-foreground block">{author}</span>
@@ -343,7 +347,7 @@ export default function LandingPage() {
         <div className="overflow-hidden mb-6">
           <div className="marquee-track">
             {[...testimonials, ...testimonials].map((t, i) => (
-              <TestimonialCard key={`r1-${i}`} text={t.text} author={t.author} roleFr={t.roleFr} roleEn={t.roleEn} colorIndex={i} />
+              <TestimonialCard key={`r1-${i}`} text={t.text} author={t.author} roleFr={t.roleFr} roleEn={t.roleEn} avatar={t.avatar} />
             ))}
           </div>
         </div>
@@ -352,7 +356,7 @@ export default function LandingPage() {
         <div className="overflow-hidden">
           <div className="marquee-track-reverse">
             {[...testimonials.slice().reverse(), ...testimonials.slice().reverse()].map((t, i) => (
-              <TestimonialCard key={`r2-${i}`} text={t.text} author={t.author} roleFr={t.roleFr} roleEn={t.roleEn} colorIndex={testimonials.length - 1 - i} />
+              <TestimonialCard key={`r2-${i}`} text={t.text} author={t.author} roleFr={t.roleFr} roleEn={t.roleEn} avatar={t.avatar} />
             ))}
           </div>
         </div>
