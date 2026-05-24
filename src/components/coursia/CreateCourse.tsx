@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Signal,
   Globe,
+  Crown,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -35,6 +36,8 @@ export default function CreateCourse() {
   const [courses, setCourses] = useState<CourseData[]>([]);
   const [showSuggested, setShowSuggested] = useState(false);
   const [suggestedTopic, setSuggestedTopic] = useState("");
+  const [hasSubscription, setHasSubscription] = useState(false);
+  const [coursesRemaining, setCoursesRemaining] = useState(3);
 
   // ─── Store refs for random topic ────────────────────────────────────────
   const storeRandomTopic = useAppStore((s) => s.randomTopic);
@@ -104,13 +107,29 @@ export default function CreateCourse() {
     }
   }, [charIndex, isTyping, isFading, placeholderIndex, placeholders, title]);
 
-  // ─── Fetch courses ────────────────────────────────────────────────────
+  // ─── Fetch courses & subscription status ───────────────────────────
   const fetchCourses = useCallback(async () => {
     try {
       const res = await fetch("/api/courses");
       if (res.ok) {
         const data = await res.json();
-        setCourses((data.courses as CourseData[]) || []);
+        const list = (data.courses as CourseData[]) || [];
+        setCourses(list);
+
+        // Check subscription
+        let isSub = false;
+        const subRes = await fetch("/api/auth/me");
+        if (subRes.ok) {
+          const subData = await subRes.json();
+          isSub = subData.hasSubscription === true;
+        }
+        setHasSubscription(isSub);
+        // Calculate remaining free courses
+        if (!isSub) {
+          setCoursesRemaining(Math.max(0, 3 - list.length));
+        } else {
+          setCoursesRemaining(999);
+        }
       }
     } catch {
       // silently ignore
@@ -146,6 +165,13 @@ export default function CreateCourse() {
   // ─── Generate course ──────────────────────────────────────────────────
   const generateCourse = async () => {
     if (!title.trim()) return;
+
+    // Trial limit check
+    if (!hasSubscription && coursesRemaining <= 0) {
+      setView("offers");
+      return;
+    }
+
     setLoading(true);
     setError("");
     setIsGenerating(true);
@@ -159,11 +185,18 @@ export default function CreateCourse() {
           sourceLinks: links,
           level,
           courseLang,
+          userId: useAppStore.getState().userId,
         }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to generate");
+      if (!res.ok) {
+        if (data.error === "TRIAL_LIMIT") {
+          setView("offers");
+          return;
+        }
+        throw new Error(data.error || "Failed to generate");
+      }
 
       const course = data.course as CourseData;
       setSelectedCourseId(course.id);
@@ -378,6 +411,36 @@ export default function CreateCourse() {
             })}
           </div>
         </div>
+
+        {/* ─── Trial banner ─── */}
+        {!hasSubscription && (
+          <div className={`mb-6 p-4 rounded-2xl border text-center transition-all duration-300 ${
+            coursesRemaining <= 0
+              ? "bg-destructive/10 border-destructive/30"
+              : "glass"
+          }`}>
+            {coursesRemaining <= 0 ? (
+              <>
+                <p className="text-sm font-bold text-destructive mb-2">
+                  {lang === "fr" ? "✨ Limite d'essai atteinte" : "\u2728 Trial limit reached"}
+                </p>
+                <button
+                  onClick={() => setView("offers")}
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-sm font-extrabold hover:from-amber-400 hover:to-gold transition-all duration-300 cursor-pointer"
+                >
+                  <Crown className="w-4 h-4" />
+                  {lang === "fr" ? "Voir les abonnements" : "See plans"}
+                </button>
+              </>
+            ) : (
+              <p className="text-sm font-semibold text-muted-foreground">
+                {lang === "fr"
+                  ? `\uD83D\uDD25 Il te reste ${coursesRemaining} cours\u00A0gratuit${coursesRemaining > 1 ? "s" : ""}`
+                  : `\uD83D\uDD25 You have ${coursesRemaining} free course${coursesRemaining > 1 ? "s" : ""} remaining`}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* ─── Error ─── */}
         {error && (

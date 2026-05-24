@@ -4,7 +4,6 @@ import { create } from "zustand";
 
 export type AppView = "landing" | "auth" | "create" | "library" | "viewer" | "journey" | "offers";
 export type AppLang = "fr" | "en";
-export type UserPlan = "free" | "pro" | "lifetime";
 
 export interface UserData {
   id: string;
@@ -66,10 +65,6 @@ interface AppState {
   userId: string | null;
   userEmail: string | null;
   logout: () => void;
-  // Plan fields (for usePlan hook)
-  userPlan: UserPlan;
-  planFeatures: Record<string, boolean>;
-  setUserPlan: (plan: UserPlan) => void;
   // Navigation
   view: AppView;
   setView: (view: AppView) => void;
@@ -135,21 +130,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     get().setAuthToken(null);
     set({ view: "landing" });
   },
-  // Plan fields
-  userPlan: "free" as UserPlan,
-  planFeatures: {
-    unlimitedCourses: false,
-    prioritySupport: false,
-    earlyAccess: false,
-  },
-  setUserPlan: (plan) => set({
-    userPlan: plan,
-    planFeatures: {
-      unlimitedCourses: plan !== "free",
-      prioritySupport: plan !== "free",
-      earlyAccess: plan === "lifetime",
-    },
-  }),
   // Navigation
   view: "landing",
   setView: (view) => set({

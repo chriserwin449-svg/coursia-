@@ -26,8 +26,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ valid: false }, { status: 401 });
     }
 
+    // Get subscription status
+    const settings = await db.appSettings.findUnique({ where: { userId } });
+    const hasSubscription = settings?.hasSubscription === true;
+
     return NextResponse.json({
       valid: true,
+      hasSubscription,
       user: {
         id: user.id,
         email: user.email,

@@ -336,10 +336,22 @@ async function generateCourse(
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, sourceLinks = [], level = 1, courseLang = "fr" } = await request.json();
+    const { title, sourceLinks = [], level = 1, courseLang = "fr", userId } = await request.json();
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
+    }
+
+    // ── Trial limit check: max 3 free courses if no subscription ──
+    if (userId) {
+      const settings = await db.appSettings.findUnique({ where: { userId } });
+      const hasSubscription = settings?.hasSubscription === true;
+      if (!hasSubscription) {
+        const existingCourses = await db.course.count({ where: { userId } });
+        if (existingCourses >= 3) {
+          return NextResponse.json({ error: "TRIAL_LIMIT", requiresSubscription: true }, { status: 403 });
+        }
+      }
     }
 
     // ── Step 0: Scrape source links ──
