@@ -146,7 +146,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
           {/* Left: Logo + brand name */}
           <div className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="Coursia" width={38} height={38} className="object-contain" priority />
+            <Image src="/logo.png" alt="Coursia" width={36} height={36} className="object-contain" priority />
             <span className="text-lg font-bold text-foreground">{tx.app.name}</span>
           </div>
           {/* Right: CTA button */}
@@ -196,9 +196,7 @@ export default function LandingPage() {
 
           {/* Logo */}
           <div className="flex justify-center mb-8">
-            <div className="w-36 h-36 sm:w-44 sm:h-44 glow-mauve rounded-3xl overflow-hidden">
-              <Image src="/logo.png" alt="Coursia" width={176} height={176} className="w-full h-full object-contain" priority />
-            </div>
+            <Image src="/logo.png" alt="Coursia" width={200} height={200} className="w-44 h-44 sm:w-56 sm:h-56 object-contain drop-shadow-[0_0_40px_rgba(236,72,153,0.4)]" priority />
           </div>
 
           {/* Title */}
