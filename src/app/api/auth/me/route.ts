@@ -1,35 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
 import { db } from "@/lib/db";
 
-// POST: verify token + userId from body
+const SUPABASE_URL = "https://vbsrliluwytuyulpvflr.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZic3JsaWx1d3l0dXl1bHB2ZmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDkzMjIsImV4cCI6MjA5NTM4NTMyMn0.YMQGLksgpK3aB5xCE8vjmb_-YCfgJO4nTdS13FbQsA4";
+
+async function supabaseVerifyUser(token: string) {
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${token}`,
+    },
+  });
+  return { ok: res.ok, data: await res.json() };
+}
+
+/**
+ * POST: verify token + userId from body
+ */
 export async function POST(request: NextRequest) {
   try {
     const { token, userId } = await request.json();
-
     if (!token || !userId) {
-      return NextResponse.json({ valid: false, error: "Token and userId required" }, { status: 400 });
+      return NextResponse.json({ valid: false }, { status: 400 });
     }
 
-    // Verify token with Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !authData.user) {
+    const { ok, data } = await supabaseVerifyUser(token);
+    if (!ok || data.id !== userId) {
       return NextResponse.json({ valid: false }, { status: 401 });
     }
 
-    if (authData.user.id !== userId) {
-      return NextResponse.json({ valid: false }, { status: 401 });
-    }
-
-    return await buildResponse(authData.user.id, authData.user);
+    return await buildResponse(userId, data);
   } catch (error) {
     console.error("Auth me error:", error);
     return NextResponse.json({ valid: false }, { status: 500 });
   }
 }
 
-// GET: verify token from Authorization header
+/**
+ * GET: verify token from Authorization header
+ */
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get("Authorization");
@@ -37,32 +46,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ valid: false }, { status: 401 });
     }
 
-    const token = authHeader.substring(7);
-
-    const { data: authData, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !authData.user) {
+    const { ok, data } = await supabaseVerifyUser(authHeader.substring(7));
+    if (!ok) {
       return NextResponse.json({ valid: false }, { status: 401 });
     }
 
-    return await buildResponse(authData.user.id, authData.user);
+    return await buildResponse(data.id, data);
   } catch (error) {
     console.error("Auth me error:", error);
     return NextResponse.json({ valid: false }, { status: 500 });
   }
 }
 
-async function buildResponse(userId: string, authUser: { email?: string | null; user_metadata?: Record<string, unknown> }) {
-  // Get user data from our database
-  let user = await db.user.findUnique({ where: { id: userId } });
+async function buildResponse(userId: string, authUser: Record<string, unknown>) {
+  const metadata = (authUser.user_metadata as Record<string, string>) || {};
 
-  // Fallback if user not in our DB yet
+  let user = await db.user.findUnique({ where: { id: userId } });
   if (!user) {
     user = {
       id: userId,
-      email: authUser.email || "",
-      firstName: (authUser.user_metadata?.firstName as string) || (authUser.user_metadata?.first_name as string) || "User",
-      lastName: (authUser.user_metadata?.lastName as string) || (authUser.user_metadata?.last_name as string) || "",
+      email: (authUser.email as string) || "",
+      firstName: metadata.firstName || metadata.first_name || "User",
+      lastName: metadata.lastName || metadata.last_name || "",
       password: "",
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -72,11 +77,6 @@ async function buildResponse(userId: string, authUser: { email?: string | null; 
   return NextResponse.json({
     valid: true,
     hasSubscription: false,
-    user: {
-      id: userId,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-    },
+    user: { id: userId, email: user.email, firstName: user.firstName, lastName: user.lastName },
   });
 }
