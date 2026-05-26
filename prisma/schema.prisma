@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:/home/z/my-project/db/custom.db"
 }
 
 model User {
@@ -65,13 +65,13 @@ model Quiz {
   id        String   @id @default(cuid())
   questions String
   chapterId String   @unique
-  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  chapter   Chapter   @relation(fields: [chapterId], references: [id], onDelete: Cascade)
 }
 
 model ChapterProgress {
   id          String   @id @default(cuid())
   chapterId   String   @unique
-  chapter     Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  chapter     Chapter   @relation(fields: [chapterId], references: [id], onDelete: Cascade)
   completed   Boolean  @default(false)
   score       Int      @default(0)
   completedAt DateTime?
@@ -101,8 +101,8 @@ model StudySession {
   userId          String?
   chapterId       String?
   courseId        String
-  course          Course   @relation(fields: [courseId], references: [id], onDelete: Cascade, map: "StudySession_course_fkey")
-  courseProgress  CourseProgress? @relation(fields: [courseId], references: [courseId], onDelete: Cascade, map: "StudySession_courseProgress_fkey")
+  course          Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseProgress  CourseProgress? @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
   startTime       DateTime
   endTime         DateTime?
   durationSeconds Int      @default(0)

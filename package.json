@@ -10,7 +10,10 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "vercel-build": "node scripts/vercel-build.js && prisma generate && next build",
+    "switch:postgres": "node scripts/switch-postgres.js && prisma generate",
+    "switch:sqlite": "node scripts/switch-sqlite.js && prisma generate && prisma db push --skip-generate"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

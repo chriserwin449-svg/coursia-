@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# sqlite local db
+/db/*.db
+/prisma/schema.sqlite.prisma
 
 # typescript
 *.tsbuildinfo
