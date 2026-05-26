@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -97,13 +97,13 @@ model CourseProgress {
 }
 
 model StudySession {
-  id             String   @id @default(cuid())
-  userId         String?
-  chapterId      String?
-  courseId       String
-  course         Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseProgress CourseProgress? @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
-  startTime      DateTime
-  endTime        DateTime?
-  durationSeconds Int     @default(0)
+  id              String   @id @default(cuid())
+  userId          String?
+  chapterId       String?
+  courseId        String
+  course          Course   @relation(fields: [courseId], references: [id], onDelete: Cascade, map: "StudySession_course_fkey")
+  courseProgress  CourseProgress? @relation(fields: [courseId], references: [courseId], onDelete: Cascade, map: "StudySession_courseProgress_fkey")
+  startTime       DateTime
+  endTime         DateTime?
+  durationSeconds Int      @default(0)
 }
