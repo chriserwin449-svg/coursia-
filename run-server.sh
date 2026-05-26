@@ -1,7 +1,7 @@
-#!/bin/bash
-cd /home/z/my-project/.next/standalone
+#!/bin/sh
+cd /home/z/my-project
 while true; do
-    node server.js 2>&1
-    echo "[server] Died, restarting in 1s..."
-    sleep 1
+  npx next start -p 3000 2>&1
+  echo "$(date) - Server died, restarting in 3s..."
+  sleep 3
 done
