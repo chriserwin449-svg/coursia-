@@ -19,7 +19,8 @@ export const metadata: Metadata = {
     "Coursia génère des cours personnalisés avec l'IA. Apprends à ton rythme avec des chapitres, des quiz et un suivi de progression.",
   keywords: ["Coursia", "IA", "apprentissage", "cours", "éducation", "quiz"],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
   },
 };
 

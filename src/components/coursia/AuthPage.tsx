@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
+import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 
 export default function AuthPage() {
   const lang = useAppStore((s) => s.lang);
@@ -106,8 +107,8 @@ export default function AuthPage() {
         <div className="w-full max-w-md animate-fade-in">
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl glow-mauve mb-4">
-              <Sparkles className="w-8 h-8 text-mauve-light" />
+            <div className="inline-flex items-center justify-center glow-mauve mb-4 rounded-2xl">
+              <CoursiaLogo size={64} className="rounded-2xl" />
             </div>
             <h1 className="text-3xl font-extrabold mb-2">
               <span className="gradient-text">{tx.app.name}</span>

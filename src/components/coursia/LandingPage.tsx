@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
+import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 
 const testimonials = [
   {
@@ -146,7 +147,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
           {/* Left: Logo + brand name */}
           <div className="flex items-center gap-2.5">
-            <span className="text-lg font-extrabold gradient-text">C</span>
+            <CoursiaLogo size={36} className="rounded-xl" />
             <span className="text-lg font-bold text-foreground">{tx.app.name}</span>
           </div>
           {/* Right: CTA button */}
@@ -196,8 +197,8 @@ export default function LandingPage() {
 
           {/* Logo */}
           <div className="flex justify-center mb-8">
-            <div className="w-24 h-24 rounded-3xl glow-mauve flex items-center justify-center">
-              <span className="text-5xl font-extrabold gradient-text">C</span>
+            <div className="glow-mauve rounded-3xl">
+              <CoursiaLogo size={96} className="rounded-3xl" />
             </div>
           </div>
 
@@ -612,7 +613,7 @@ export default function LandingPage() {
       <footer className="mt-auto border-t border-muted-foreground/10 py-10 px-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="text-xl font-extrabold gradient-text">C</span>
+            <CoursiaLogo size={32} className="rounded-xl" />
             <span className="font-bold text-sm text-foreground">{tx.app.name}</span>
           </div>
           <p className="text-sm text-muted-foreground/50">{tx.app.footer}</p>

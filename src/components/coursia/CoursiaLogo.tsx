@@ -14,7 +14,7 @@ export default function CoursiaLogo({ size = 40, className = "" }: CoursiaLogoPr
       alt="Coursia"
       width={size}
       height={size}
-      className={`object-contain ${className}`}
+      className={`rounded-2xl ${className}`}
       priority
     />
   );
