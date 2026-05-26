@@ -19,3 +19,25 @@ Stage Summary:
 - next.config.ts optimized with package import optimizations
 - All existing design and features preserved - no changes to components
 - Server responds to both / and /api/courses endpoints
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Generate and integrate Coursia final logo + push to GitHub
+
+Work Log:
+- Created SVG logo design: dark rounded square with gradient "C" letter + decorative dot
+- Converted SVG to multiple PNG sizes using sharp (512, 192, 64, 180 for apple-touch)
+- Updated CoursiaLogo.tsx component with proper rounded corners
+- Replaced text "C" logo in Sidebar with CoursiaLogo component (40px)
+- Replaced text "C" logo in LandingPage: Navbar (36px), Hero (96px), Footer (32px)
+- Replaced Sparkles icon in AuthPage with CoursiaLogo (64px)
+- Replaced text "C" in CourseViewer final quiz header with CoursiaLogo (32px)
+- Updated layout.tsx favicon to use local /favicon.ico + apple-touch-icon.png
+- Committed and pushed to GitHub (commit 285ad96)
+
+Stage Summary:
+- Logo created in SVG format (public/logo.svg) + PNG variants
+- CoursiaLogo component integrated in 5 components: Sidebar, LandingPage, AuthPage, CourseViewer, CoursiaLogo
+- Favicon and Apple touch icon properly configured
+- All changes pushed to GitHub successfully
