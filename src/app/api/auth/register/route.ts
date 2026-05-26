@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
     if (!email || !password || !firstName || !lastName) {
       return NextResponse.json(
-        { error: "Tous les champs sont requis / All fields are required" },
+        { error: "Tous les champs sont requis" },
         { status: 400 },
       );
     }
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
     if (password.length < 6) {
       return NextResponse.json(
-        { error: "Le mot de passe doit contenir au moins 6 caractères" },
+        { error: "Mot de passe trop court (min 6 caractères)" },
         { status: 400 },
       );
     }
@@ -33,6 +33,18 @@ export async function POST(request: NextRequest) {
     const emailLower = email.toLowerCase().trim();
     const first = firstName.trim();
     const last = lastName.trim();
+
+    // Test DB connection first
+    try {
+      await db.$queryRaw`SELECT 1 as ok`;
+    } catch (dbTestError: unknown) {
+      const msg = dbTestError instanceof Error ? dbTestError.message : String(dbTestError);
+      console.error("DB connection failed:", msg);
+      return NextResponse.json(
+        { error: "Base de données indisponible. Réessaie dans quelques instants.", debug: msg },
+        { status: 503 },
+      );
+    }
 
     // Check if user already exists
     const existing = await db.user.findUnique({ where: { email: emailLower } });
@@ -46,7 +58,7 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create user in database
+    // Create user
     const user = await db.user.create({
       data: {
         email: emailLower,
@@ -59,12 +71,16 @@ export async function POST(request: NextRequest) {
     // Generate auth token
     const token = generateToken(user.id);
 
-    // Store token in AppSettings for verification
-    await db.appSettings.upsert({
-      where: { id: user.id },
-      update: {},
-      create: { id: user.id, flamePoints: 0, hasSubscription: false },
-    });
+    // Ensure AppSettings entry exists
+    try {
+      await db.appSettings.upsert({
+        where: { id: user.id },
+        update: {},
+        create: { id: user.id, flamePoints: 0, hasSubscription: false },
+      });
+    } catch {
+      // Non-blocking
+    }
 
     return NextResponse.json({
       success: true,
@@ -76,10 +92,11 @@ export async function POST(request: NextRequest) {
       },
       token,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Register error:", error);
+    const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: "Erreur lors de l'inscription" },
+      { error: "Erreur lors de l'inscription", debug: msg },
       { status: 500 },
     );
   }
