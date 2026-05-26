@@ -197,8 +197,8 @@ export default function LandingPage() {
 
           {/* Logo */}
           <div className="flex justify-center mb-8">
-            <div className="glow-mauve rounded-3xl">
-              <CoursiaLogo size={96} className="rounded-3xl" />
+            <div className="glow-mauve rounded-2xl overflow-hidden">
+              <CoursiaLogo size={80} variant="wide" />
             </div>
           </div>
 
