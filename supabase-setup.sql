@@ -1,7 +1,6 @@
 -- ============================================
--- Coursia - Supabase Database Setup
--- Colle ce SQL dans Supabase SQL Editor
--- (https://supabase.com/dashboard → SQL Editor → New query)
+-- Coursia - Supabase Database Setup (SAFE)
+-- Ignore les tables et contraintes qui existent déjà
 -- ============================================
 
 -- 1. Table User
@@ -14,7 +13,7 @@ CREATE TABLE IF NOT EXISTS "User" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL
 );
-ALTER TABLE "User" ADD CONSTRAINT "User_email_key" UNIQUE ("email");
+DO $$ BEGIN ALTER TABLE "User" ADD CONSTRAINT "User_email_key" UNIQUE ("email"); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- 2. Table AppSettings
 CREATE TABLE IF NOT EXISTS "AppSettings" (
@@ -65,7 +64,7 @@ CREATE TABLE IF NOT EXISTS "Quiz" (
     "chapterId" TEXT NOT NULL,
     CONSTRAINT "Quiz_chapterId_fkey" FOREIGN KEY ("chapterId") REFERENCES "Chapter" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
-ALTER TABLE "Quiz" ADD CONSTRAINT "Quiz_chapterId_key" UNIQUE ("chapterId");
+DO $$ BEGIN ALTER TABLE "Quiz" ADD CONSTRAINT "Quiz_chapterId_key" UNIQUE ("chapterId"); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- 7. Table ChapterProgress
 CREATE TABLE IF NOT EXISTS "ChapterProgress" (
@@ -77,7 +76,7 @@ CREATE TABLE IF NOT EXISTS "ChapterProgress" (
     "flameAwarded" BOOLEAN NOT NULL DEFAULT false,
     CONSTRAINT "ChapterProgress_chapterId_fkey" FOREIGN KEY ("chapterId") REFERENCES "Chapter" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
-ALTER TABLE "ChapterProgress" ADD CONSTRAINT "ChapterProgress_chapterId_key" UNIQUE ("chapterId");
+DO $$ BEGIN ALTER TABLE "ChapterProgress" ADD CONSTRAINT "ChapterProgress_chapterId_key" UNIQUE ("chapterId"); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- 8. Table CourseQuiz
 CREATE TABLE IF NOT EXISTS "CourseQuiz" (
@@ -86,7 +85,7 @@ CREATE TABLE IF NOT EXISTS "CourseQuiz" (
     "courseId" TEXT NOT NULL,
     CONSTRAINT "CourseQuiz_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "Course" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
-ALTER TABLE "CourseQuiz" ADD CONSTRAINT "CourseQuiz_courseId_key" UNIQUE ("courseId");
+DO $$ BEGIN ALTER TABLE "CourseQuiz" ADD CONSTRAINT "CourseQuiz_courseId_key" UNIQUE ("courseId"); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- 9. Table CourseProgress
 CREATE TABLE IF NOT EXISTS "CourseProgress" (
@@ -98,7 +97,7 @@ CREATE TABLE IF NOT EXISTS "CourseProgress" (
     "flameAwarded" BOOLEAN NOT NULL DEFAULT false,
     CONSTRAINT "CourseProgress_courseId_fkey" FOREIGN KEY ("courseId") REFERENCES "Course" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
-ALTER TABLE "CourseProgress" ADD CONSTRAINT "CourseProgress_courseId_key" UNIQUE ("courseId");
+DO $$ BEGIN ALTER TABLE "CourseProgress" ADD CONSTRAINT "CourseProgress_courseId_key" UNIQUE ("courseId"); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- 10. Table StudySession
 CREATE TABLE IF NOT EXISTS "StudySession" (
@@ -113,6 +112,4 @@ CREATE TABLE IF NOT EXISTS "StudySession" (
     CONSTRAINT "StudySession_courseProgress_fkey" FOREIGN KEY ("courseId") REFERENCES "CourseProgress" ("courseId") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
--- ============================================
--- ✅ Tables créées avec succès !
--- ============================================
+-- ✅ Terminé !
