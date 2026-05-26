@@ -146,7 +146,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
           {/* Left: Logo + brand name */}
           <div className="flex items-center gap-2.5">
-            <Image src="/logo.png" alt="Coursia" width={36} height={36} className="object-contain mix-blend-screen" priority />
+            <span className="text-lg font-extrabold gradient-text">C</span>
             <span className="text-lg font-bold text-foreground">{tx.app.name}</span>
           </div>
           {/* Right: CTA button */}
@@ -196,7 +196,9 @@ export default function LandingPage() {
 
           {/* Logo */}
           <div className="flex justify-center mb-8">
-            <Image src="/logo.png" alt="Coursia" width={200} height={200} className="w-44 h-44 sm:w-56 sm:h-56 object-contain mix-blend-screen drop-shadow-[0_0_50px_rgba(236,72,153,0.5)]" priority />
+            <div className="w-24 h-24 rounded-3xl glow-mauve flex items-center justify-center">
+              <span className="text-5xl font-extrabold gradient-text">C</span>
+            </div>
           </div>
 
           {/* Title */}
@@ -610,7 +612,7 @@ export default function LandingPage() {
       <footer className="mt-auto border-t border-muted-foreground/10 py-10 px-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Coursia" width={32} height={32} className="object-contain mix-blend-screen" />
+            <span className="text-xl font-extrabold gradient-text">C</span>
             <span className="font-bold text-sm text-foreground">{tx.app.name}</span>
           </div>
           <p className="text-sm text-muted-foreground/50">{tx.app.footer}</p>
