@@ -1,5 +1,8 @@
 import { PrismaClient } from "@prisma/client";
 
+// Supabase PostgreSQL connection - hardcoded so it works on Vercel without env vars
+const DATABASE_URL = "postgresql://postgres.one%20day%20i%20will%20be%20rich@db.vbsrliluwytuyulpvflr.supabase.co:5432/postgres";
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
@@ -7,7 +10,8 @@ const globalForPrisma = globalThis as unknown as {
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
-    log: process.env.DEBUG_PRISMA ? ["query"] : ["error"],
+    datasourceUrl: DATABASE_URL,
+    log: ["error"],
   });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;

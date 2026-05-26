@@ -57,6 +57,8 @@ export default function AuthPage() {
           setError("user_not_found");
         } else if (data.error === "wrong_password") {
           setError(isFr ? "Mot de passe incorrect" : "Wrong password");
+        } else if (data.error === "email_not_confirmed") {
+          setError(isFr ? "Vérifie ton email pour confirmer ton compte" : "Check your email to confirm your account");
         } else {
           setError(data.error || (isFr ? "Une erreur est survenue" : "An error occurred"));
         }
@@ -65,7 +67,9 @@ export default function AuthPage() {
 
       // Save auth data
       setUser(data.user);
-      setAuthToken(data.token);
+      if (data.token) {
+        setAuthToken(data.token);
+      }
 
       // Persist user data for session restoration
       if (typeof window !== "undefined" && data.user) {
@@ -227,6 +231,16 @@ export default function AuthPage() {
               {error && error !== "user_not_found" && (
                 <div className="p-3.5 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-sm font-semibold animate-fade-in">
                   {error}
+                </div>
+              )}
+
+              {/* Email confirmation notice */}
+              {error && error.includes("Vérifie") && (
+                <div className="p-3.5 rounded-2xl bg-mauve/10 border border-mauve/20 text-mauve-light text-sm font-semibold animate-fade-in">
+                  {isFr
+                    ? "Un email de confirmation a été envoyé. Vérifie ta boîte mail et clique sur le lien."
+                    : "A confirmation email was sent. Check your inbox and click the link."
+                  }
                 </div>
               )}
 
