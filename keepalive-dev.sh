@@ -1,5 +1,7 @@
-#!/bin/bash
+#!/bin/sh
+# Keepalive: restart Next.js if it dies
+cd /home/z/my-project
 while true; do
-  curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ > /dev/null 2>&1
-  sleep 5
+  npx next dev -p 3000 2>/dev/null
+  sleep 1
 done

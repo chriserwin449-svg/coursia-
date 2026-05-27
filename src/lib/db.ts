@@ -1,23 +1,26 @@
 import { PrismaClient } from "@prisma/client";
 
-// Supabase PostgreSQL - direct connection for local dev, pooler for Vercel
-const isProduction = process.env.NODE_ENV === "production";
-
-// Use Supabase connection pooler (port 6543) in production for Vercel compatibility
-// Use direct connection (port 5432) in development
-const DATABASE_URL = isProduction
-  ? "postgresql://postgres.vbsrliluwytuyulpvflr:one%20day%20i%20will%20be%20rich@aws-0-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true"
-  : "postgresql://postgres.one%20day%20i%20will%20be%20rich@db.vbsrliluwytuyulpvflr.supabase.co:5432/postgres";
-
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+// Production (Vercel): Supabase PostgreSQL via connection pooler
+// Development (local preview): SQLite (sandbox can't reach Supabase ports)
+function getDatabaseUrl(): string {
+  // If DATABASE_URL is set to postgres, use it (production / real local)
+  const envUrl = process.env.DATABASE_URL;
+  if (envUrl && (envUrl.startsWith("postgresql://") || envUrl.startsWith("postgres://"))) {
+    return envUrl;
+  }
+  // Fallback: SQLite for sandbox preview
+  return "file:./db/custom.db";
+}
+
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
-    datasourceUrl: DATABASE_URL,
+    datasourceUrl: getDatabaseUrl(),
     log: ["error"],
   });
 
-if (!isProduction) globalForPrisma.prisma = db;
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;

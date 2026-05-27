@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c4b5fd"/>
+      <stop offset="50%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#8b5cf6" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  
+  <!-- Dark rounded square bg -->
+  <rect width="512" height="512" rx="112" fill="#0c0c16"/>
+  
+  <!-- Subtle radial glow -->
+  <circle cx="260" cy="260" r="140" fill="#8b5cf6" opacity="0.06"/>
+  
+  <!-- Clean C letter -->
+  <g filter="url(#shadow)">
+    <path d="
+      M 330 120
+      Q 400 120 400 200
+      L 400 250
+      Q 400 310 360 335
+      Q 400 355 400 410
+      L 400 440
+      Q 400 500 320 500
+      L 250 500
+      Q 170 500 140 450
+      L 195 420
+      Q 210 450 255 450
+      L 315 450
+      Q 355 450 355 415
+      L 355 400
+      Q 355 365 320 345
+      L 225 345
+      L 225 300
+      L 315 300
+      Q 355 300 355 260
+      L 355 240
+      Q 355 205 310 205
+      L 255 205
+      Q 200 205 185 240
+      L 130 210
+      Q 155 140 240 120
+      Z
+    " fill="url(#g1)" filter="url(#glow)"/>
+  </g>
+  
+  <!-- Small decorative dot -->
+  <circle cx="370" cy="158" r="14" fill="#a78bfa" opacity="0.5"/>
+  <circle cx="370" cy="158" r="7" fill="#ddd6fe" opacity="0.7"/>
+</svg>
