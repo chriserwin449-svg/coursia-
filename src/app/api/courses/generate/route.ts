@@ -107,12 +107,42 @@ function extractChapters(text: string): {
   chapters: Array<{ title: string; content: string; summary: string }>;
 } | null {
   let cleaned = text.trim();
+
+  // Strategy 1: Extract from ```json code block (may span multiple ```)
   const cb = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (cb) cleaned = cb[1].trim();
 
-  const start = cleaned.indexOf("{");
-  if (start === -1) return null;
-  const snippet = cleaned.slice(start);
+  // Strategy 2: Find the outermost JSON object by balancing braces
+  const firstBrace = cleaned.indexOf("{");
+  if (firstBrace === -1) return null;
+  
+  let depth = 0;
+  let lastBrace = -1;
+  for (let i = firstBrace; i < cleaned.length; i++) {
+    if (cleaned[i] === "\\") { continue; } // skip escaped chars
+    if (cleaned[i] === "\"") {
+      // skip string content
+      let j = i + 1;
+      while (j < cleaned.length) {
+        if (cleaned[j] === "\\") { j += 2; continue; }
+        if (cleaned[j] === "\"") break;
+        j++;
+      }
+      i = j;
+      continue;
+    }
+    if (cleaned[i] === "{") depth++;
+    if (cleaned[i] === "}") { depth--; lastBrace = i; if (depth === 0) break; }
+    if (cleaned[i] === "[") depth++;
+    if (cleaned[i] === "]") { depth--; }
+  }
+
+  let snippet: string;
+  if (lastBrace > firstBrace && depth === 0) {
+    snippet = cleaned.slice(firstBrace, lastBrace + 1);
+  } else {
+    snippet = cleaned.slice(firstBrace);
+  }
 
   const direct = tryParseJSON(snippet);
   if (direct) return validate(direct);
@@ -329,7 +359,14 @@ async function generateCourse(
   ], { maxTokens: 8192 });
 
   const text = completion.content || "";
-  return extractChapters(text);
+  console.log(`[generate] AI response length: ${text.length} chars, provider: ${completion.provider}`);
+  console.log(`[generate] First 300 chars: ${text.slice(0, 300)}`);
+  console.log(`[generate] Last 200 chars: ${text.slice(-200)}`);
+  const result = extractChapters(text);
+  if (!result) {
+    console.error(`[generate] extractChapters FAILED. Full response (${text.length} chars): ${text.slice(0, 2000)}`);
+  }
+  return result;
 }
 
 /* ── Main handler ────────────────────────────────────────────────────── */
@@ -370,8 +407,17 @@ export async function POST(request: NextRequest) {
     // ── Step 1: Generate course with smart AI routing ──
     let result = await generateCourse(title, courseLang, level, sourceLinks, sourceContext);
 
+    // Retry once with a simpler prompt if extraction failed
     if (!result || result.chapters.length === 0) {
-      throw new Error("L'IA n'a pas pu générer un cours valide. Réessaie.");
+      console.log("[generate] First attempt failed, retrying with simpler prompt...");
+      result = await generateCourse(title, courseLang, level, sourceLinks, "");
+    }
+
+    if (!result || result.chapters.length === 0) {
+      return NextResponse.json(
+        { error: "L'IA n'a pas pu générer un cours valide. Vérifie ta clé API sur Vercel et réessaie." },
+        { status: 500 },
+      );
     }
 
     // ── Step 2: Save to Prisma ──
