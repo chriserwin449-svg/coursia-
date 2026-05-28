@@ -344,7 +344,7 @@ export async function POST(request: NextRequest) {
 
     // ── Trial limit check: max 3 free courses if no subscription ──
     if (userId) {
-      const settings = await db.appSettings.findUnique({ where: { userId } });
+      const settings = await db.appSettings.findUnique({ where: { id: "main" } });
       const hasSubscription = settings?.hasSubscription === true;
       if (!hasSubscription) {
         const existingCourses = await db.course.count({ where: { userId } });
