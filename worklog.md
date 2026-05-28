@@ -67,3 +67,22 @@ Stage Summary:
 - DATABASE_URL = la connexion PostgreSQL Supabase (port 5432)
 - OPENAI_API_KEY = la clé OpenAI pour la génération de cours
 - Bug de Prisma CLI 6.19.3 avec le parsing .env identifié (n'affecte PAS Vercel)
+---
+Task ID: 2
+Agent: Main Agent
+Task: Trouver et configurer le bon Database URL pour Vercel + Sandbox
+
+Work Log:
+- Testé la connexion directe (port 5432) → FAIL (IPv6 uniquement, sandbox ne supporte pas)
+- Testé la REST API Supabase → OK (tables existent)
+- Scanné automatiquement toutes les régions Supabase pooler → TROUVÉ: eu-west-1
+- Testé Transaction Pooler (port 6543) → FAIL (prepared statement error 42P05 avec Prisma)
+- Testé Session Pooler (port 5432 via pooler) → OK ✅
+- Test complet : création d'utilisateur, requête, suppression → tout fonctionne
+- Mis à jour .env et prisma/.env avec la bonne URL
+
+Stage Summary:
+- Bonne URL trouvée automatiquement: postgresql://postgres.vbsrliluwytuyulpvflr:one%20day%20i%20will%20be%20rich@aws-0-eu-west-1.pooler.supabase.com:5432/postgres
+- Le Session Pooler (port 5432 via aws-0-eu-west-1.pooler.supabase.com) fonctionne avec Prisma
+- Le Transaction Pooler (port 6543) ne fonctionne PAS avec Prisma (prepared statements)
+- Cette URL doit être utilisée sur Vercel comme DATABASE_URL
