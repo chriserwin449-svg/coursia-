@@ -12,7 +12,7 @@ interface ProviderInfo {
 }
 
 function detectProviderFromKey(key: string): AIProvider {
-  if (key.startsWith("AIza")) return "google";
+  if (key.startsWith("AIza") || key.startsWith("AQ.") || key.startsWith("AIzaSy")) return "google";
   if (key.startsWith("sk-")) return "openai";
   return "free";
 }
@@ -47,8 +47,7 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
  */
 function getAIKey(): string | null {
   const envKey = process.env.OPENAI_API_KEY;
-  if (envKey && envKey.startsWith("sk-")) return envKey;
-  if (envKey && envKey.startsWith("AIza")) return envKey;
+  if (envKey && (envKey.startsWith("sk-") || envKey.startsWith("AIza") || envKey.startsWith("AQ."))) return envKey;
   return null;
 }
 
