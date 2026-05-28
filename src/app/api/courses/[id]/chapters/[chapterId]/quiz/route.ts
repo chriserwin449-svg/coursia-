@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import ZAI from "z-ai-web-dev-sdk";
+import { smartChatCompletion } from "@/lib/openai";
 import { calculateFlameEarned } from "@/lib/flames";
 
 export async function POST(
@@ -41,13 +41,10 @@ export async function POST(
       });
     }
 
-    const zai = await ZAI.create();
-
-    const completion = await zai.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: `Tu es un créateur de quiz pédagogiques. Crée un quiz de 5 questions en français basé sur le contenu du chapitre donné.
+    const completion = await smartChatCompletion([
+      {
+        role: "system",
+        content: `Tu es un créateur de quiz pédagogiques. Crée un quiz de 5 questions en français basé sur le contenu du chapitre donné.
 Tu DOIS répondre UNIQUEMENT avec un JSON valide contenant :
 {
   "questions": [
@@ -64,17 +61,15 @@ Règles :
 - Chaque question a exactement 4 options
 - correctIndex est l'index (0-3) de la bonne réponse
 - Les questions doivent tester la compréhension réelle du contenu
-- Varie le type de questions (factual, application, analyse)`
-        },
-        {
-          role: "user",
-          content: `Crée un quiz pour ce chapitre :\n\nTitre: ${chapter.title}\n\nContenu:\n${chapter.content}`
-        },
-      ],
-      thinking: { type: "disabled" },
-    });
+- Varie le type de questions (factual, application, analyse)`,
+      },
+      {
+        role: "user",
+        content: `Crée un quiz pour ce chapitre :\n\nTitre: ${chapter.title}\n\nContenu:\n${chapter.content}`,
+      },
+    ]);
 
-    const responseText = completion.choices[0]?.message?.content || "";
+    const responseText = completion.content || "";
 
     // Robust JSON extraction
     let quizData: unknown = null;

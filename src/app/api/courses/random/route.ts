@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
+import { smartChatCompletion } from "@/lib/openai";
 
 // In-memory cache to avoid repeating recent topics
 const recentTopics: string[] = [];
@@ -7,17 +7,14 @@ const MAX_CACHE = 50;
 
 export async function POST(request: NextRequest) {
   try {
-    const zai = await ZAI.create();
-
     const cacheHint = recentTopics.length > 0
       ? `\n\nSUJETS DÉJÀ PROPOSÉS (NE PROPOSE AUCUN DE CES SUJETS) :\n${recentTopics.slice(-20).map(t => `- ${t}`).join("\n")}`
       : "";
 
-    const completion = await zai.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: `Tu es un créateur de sujets d'apprentissage très créatif. Génère un sujet de cours aléatoire et fascinant.
+    const completion = await smartChatCompletion([
+      {
+        role: "system",
+        content: `Tu es un créateur de sujets d'apprentissage très créatif. Génère un sujet de cours aléatoire et fascinant.
 
 Tu DOIS répondre UNIQUEMENT avec un JSON valide contenant :
 {
@@ -31,17 +28,15 @@ RÈGLES STRICTES :
 - Sois SURPRENANT et INATTENDU — propose des sujets que la plupart des gens ne connaissent pas.
 - Privilégie les sujets NICHE et fascinants plutôt que les sujets populaires.
 ${cacheHint}
-N'utilise pas de guillemets doubles dans les valeurs des champs.`
-        },
-        {
-          role: "user",
-          content: "Propose un sujet de cours aléatoire, original et fascinant que je n'ai jamais entendu auparavant.",
-        },
-      ],
-      thinking: { type: "disabled" },
-    });
+N'utilise pas de guillemets doubles dans les valeurs des champs.`,
+      },
+      {
+        role: "user",
+        content: "Propose un sujet de cours aléatoire, original et fascinant que je n'ai jamais entendu auparavant.",
+      },
+    ]);
 
-    const responseText = completion.choices[0]?.message?.content || "";
+    const responseText = completion.content || "";
 
     let topic: unknown = null;
 
@@ -72,7 +67,7 @@ N'utilise pas de guillemets doubles dans les valeurs des champs.`
     }
 
     const t = topic as { title: string; description: string };
-    
+
     // Add to recent topics cache
     recentTopics.push(t.title);
     if (recentTopics.length > MAX_CACHE) recentTopics.shift();

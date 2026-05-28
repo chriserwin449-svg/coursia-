@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import ZAI from "z-ai-web-dev-sdk";
+import { smartChatCompletion } from "@/lib/openai";
 import { calculateCourseCompletionBonus } from "@/lib/flames";
 
 export async function POST(
@@ -31,17 +31,14 @@ export async function POST(
     }
 
     // Generate new final quiz covering all chapters
-    const zai = await ZAI.create();
-
     const chapterSummaries = course.chapters
       .map((ch, i) => `Chapitre ${i + 1}: ${ch.title}\n${ch.content.slice(0, 300)}`)
       .join("\n\n");
 
-    const completion = await zai.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: `Tu es un créateur de quiz pédagogiques. Crée un quiz FINAL de 8 questions basé sur l'ensemble du cours donné.
+    const completion = await smartChatCompletion([
+      {
+        role: "system",
+        content: `Tu es un créateur de quiz pédagogiques. Crée un quiz FINAL de 8 questions basé sur l'ensemble du cours donné.
 Tu DOIS répondre UNIQUEMENT avec un JSON valide contenant :
 {
   "questions": [
@@ -59,17 +56,15 @@ Règles :
 - correctIndex est l'index (0-3) de la bonne réponse
 - Les questions doivent tester la compréhension globale du cours
 - Varie le type de questions (factual, application, analyse, synthèse)
-- Inclue au moins une question de synthèse croisant plusieurs chapitres`
-        },
-        {
-          role: "user",
-          content: `Crée le quiz final pour ce cours :\n\nTitre: ${course.title}\nDescription: ${course.description}\n\nChapitres:\n${chapterSummaries}`
-        },
-      ],
-      thinking: { type: "disabled" },
-    });
+- Inclue au moins une question de synthèse croisant plusieurs chapitres`,
+      },
+      {
+        role: "user",
+        content: `Crée le quiz final pour ce cours :\n\nTitre: ${course.title}\nDescription: ${course.description}\n\nChapitres:\n${chapterSummaries}`,
+      },
+    ]);
 
-    const responseText = completion.choices[0]?.message?.content || "";
+    const responseText = completion.content || "";
 
     // Robust JSON extraction
     let quizData: unknown = null;

@@ -354,11 +354,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── Step 0: Scrape source links ──
-    const zai = await ZAI.create();
+    // ── Step 0: Scrape source links (optional — only if z-ai SDK is available) ──
     let scrapedPages: ScrapedPage[] = [];
-    if (sourceLinks.length > 0) {
-      scrapedPages = await scrapeSourceLinks(zai, sourceLinks);
+    try {
+      const zai = await ZAI.create();
+      if (sourceLinks.length > 0) {
+        scrapedPages = await scrapeSourceLinks(zai, sourceLinks);
+      }
+    } catch {
+      // z-ai SDK not available on Vercel — skip scraping
+      console.log("[generate] z-ai SDK unavailable, skipping source link scraping");
     }
     const sourceContext = buildSourceContext(scrapedPages);
 
