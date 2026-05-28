@@ -1,7 +1,7 @@
 import ZAI from "z-ai-web-dev-sdk";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
-export type AIProvider = "google" | "openai" | "free";
+export type AIProvider = "google" | "openai" | "zai" | "free";
 
 interface ProviderInfo {
   provider: AIProvider;
@@ -24,33 +24,56 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
     const labels: Record<AIProvider, string> = {
       google: "Google Gemini",
       openai: "OpenAI GPT-4o",
+      zai: "Z.ai (Coursia AI)",
       free: "Free Tier",
     };
     const models: Record<AIProvider, string> = {
       google: "gemini-2.0-flash",
       openai: "gpt-4o",
+      zai: "default",
       free: "default",
     };
     return { provider, label: labels[provider], isFree: false, hasApiKey: true, model: models[provider] };
+  }
+  // Check for z-ai config via env vars
+  if (process.env.ZAI_BASE_URL && process.env.ZAI_API_KEY) {
+    return { provider: "zai", label: "Z.ai (Coursia AI)", isFree: true, hasApiKey: true, model: "default" };
   }
   return { provider: "free", label: "Free Tier (Coursia AI)", isFree: true, hasApiKey: false };
 }
 
 /**
  * Returns the admin API key from environment variables.
- * No user-provided keys — only the admin key in .env.local is used.
  */
 function getAIKey(): string | null {
   const envKey = process.env.OPENAI_API_KEY;
   if (envKey && envKey.startsWith("sk-")) return envKey;
+  if (envKey && envKey.startsWith("AIza")) return envKey;
   return null;
 }
 
-const EXTERNAL_API_TIMEOUT = 30_000;
+/**
+ * Create ZAI client from environment variables or file config.
+ */
+async function createZAIClient() {
+  // First try env vars (for Vercel)
+  if (process.env.ZAI_BASE_URL && process.env.ZAI_API_KEY) {
+    return ZAI.create({
+      baseUrl: process.env.ZAI_BASE_URL,
+      apiKey: process.env.ZAI_API_KEY,
+      chatId: process.env.ZAI_CHAT_ID || "",
+      userId: process.env.ZAI_USER_ID || "",
+      token: process.env.ZAI_TOKEN || "",
+    });
+  }
+  // Fallback to file-based config (local dev)
+  return ZAI.create();
+}
+
+const EXTERNAL_API_TIMEOUT = 60_000;
 
 /**
  * Try an OpenAI API call with model fallback.
- * Attempts gpt-4o first, then falls back to gpt-4o-mini if the model is unavailable.
  */
 async function callOpenAIWithFallback(
   apiKey: string,
@@ -82,17 +105,12 @@ async function callOpenAIWithFallback(
         }
       } else {
         const errorBody = await response.text().catch(() => "");
-        console.error(`[OpenAI] Model ${model} failed (${response.status}): ${errorBody.slice(0, 200)}`);
-        // If it's a model-not-found or authentication error, try next model
-        if (response.status === 404 || response.status === 401) {
-          continue;
-        }
-        // For rate limits or server errors, don't bother trying other models
+        console.error(`[OpenAI] Model ${model} failed (${response.status}): ${errorBody.slice(0, 300)}`);
+        if (response.status === 404 || response.status === 401) continue;
         break;
       }
     } catch (error) {
       console.error(`[OpenAI] Model ${model} request failed:`, error instanceof Error ? error.message : error);
-      // Network errors — try next model
       continue;
     }
   }
@@ -104,6 +122,8 @@ export async function smartChatCompletion(messages: Array<{ role: string; conten
   const apiKey = getAIKey();
   if (apiKey) {
     const provider = detectProviderFromKey(apiKey);
+
+    // Google Gemini
     if (provider === "google") {
       try {
         const response = await fetchWithTimeout(
@@ -116,7 +136,7 @@ export async function smartChatCompletion(messages: Array<{ role: string; conten
                 role: m.role === "assistant" ? "model" : "user",
                 parts: [{ text: m.content }],
               })),
-              generationConfig: { temperature: options?.temperature ?? 0.7, maxOutputTokens: options?.maxTokens ?? 4096 },
+              generationConfig: { temperature: options?.temperature ?? 0.7, maxOutputTokens: options?.maxTokens ?? 8192 },
             }),
             timeoutMs: EXTERNAL_API_TIMEOUT,
           },
@@ -124,32 +144,35 @@ export async function smartChatCompletion(messages: Array<{ role: string; conten
         if (response.ok) {
           const data = await response.json();
           const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          return { content: text, provider: "google" as const };
+          if (text) return { content: text, provider: "google" as const };
         }
       } catch (error) {
-        console.error(`[Gemini] Request failed, falling back to z-ai:`, error instanceof Error ? error.message : error);
+        console.error(`[Gemini] Request failed:`, error instanceof Error ? error.message : error);
       }
     }
+
+    // OpenAI
     if (provider === "openai") {
       const result = await callOpenAIWithFallback(apiKey, messages, options);
-      if (result) {
-        return { content: result.content, provider: "openai" as const };
-      }
+      if (result) return { content: result.content, provider: "openai" as const };
       console.log("[OpenAI] All models failed, falling back to z-ai");
     }
   }
-  // z-ai free tier fallback
+
+  // Z-ai fallback (works on Vercel with env vars, or locally with .z-ai-config file)
   try {
-    console.log("[AI] Using z-ai (free tier) fallback");
-    const zai = await ZAI.create();
+    console.log("[AI] Using z-ai fallback");
+    const zai = await createZAIClient();
     const completion = await zai.chat.completions.create({
       messages: messages as Array<{ role: "user" | "system" | "assistant"; content: string }>,
       thinking: { type: "disabled" },
     });
     const content = completion.choices?.[0]?.message?.content || "";
-    return { content, provider: "free" as const };
+    if (content) return { content, provider: "zai" as const };
+    console.error("[AI] z-ai returned empty content");
   } catch (error) {
     console.error("[AI] z-ai fallback failed:", error instanceof Error ? error.message : error);
-    return { content: "", provider: "free" as const };
   }
+
+  return { content: "", provider: "free" as const };
 }
