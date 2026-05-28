@@ -1,18 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { NextResponse } from "next/server";
 
-export async function POST(request: NextRequest) {
-  try {
-    const { token } = await request.json();
-
-    if (token) {
-      // Sign out from Supabase using the token
-      await supabase.auth.signOut();
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Signout error:", error);
-    return NextResponse.json({ success: true });
-  }
+export async function POST() {
+  // Token-based auth: client simply clears the token from localStorage.
+  // No server-side session to invalidate.
+  return NextResponse.json({ success: true });
 }

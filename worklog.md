@@ -41,3 +41,29 @@ Stage Summary:
 - CoursiaLogo component integrated in 5 components: Sidebar, LandingPage, AuthPage, CourseViewer, CoursiaLogo
 - Favicon and Apple touch icon properly configured
 - All changes pushed to GitHub successfully
+---
+Task ID: 1
+Agent: Main Agent
+Task: Audit complet du code + correction des env vars + nettoyage Supabase mort
+
+Work Log:
+- Audit complet de tous les fichiers liés à l'auth, DB, et variables d'environnement
+- Trouvé un BUG CRITIQUE dans DATABASE_URL : le ':' entre 'postgres' et le mot de passe avait disparu (remplacé par '.')
+- Corrigé DATABASE_URL dans .env : `postgresql://postgres:one%20day%20i%20will%20be%20rich@db.vbsrliluwytuyulpvflr.supabase.co:5432/postgres`
+- Supprimé les fichiers morts : supabase-sync.ts, auth.ts (NextAuth), session/route.ts
+- Réécrit supabase.ts en helper minimal (checkSupabaseConnection via Prisma)
+- Réécrit signout/route.ts sans dépendance Supabase
+- Supprimé les scripts de swap inutiles (switch-postgres.js, switch-sqlite.js)
+- Simplifié vercel-build.js (plus de swap nécessaire, schema.prisma est déjà PostgreSQL)
+- Corrigé lint error dans login/route.ts (require → import)
+- Vérifié que le code lit correctement process.env.DATABASE_URL et process.env.OPENAI_API_KEY
+- Prisma client régénéré avec succès
+- Confirmé que les 2 SEULES variables nécessaires sur Vercel sont : DATABASE_URL et OPENAI_API_KEY
+
+Stage Summary:
+- ChatGPT s'est trompé : NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_ANON_KEY ne sont PAS nécessaires
+- Le code utilise Prisma + bcrypt, pas Supabase Auth
+- Les 2 variables Vercel nécessaires : DATABASE_URL et OPENAI_API_KEY
+- DATABASE_URL = la connexion PostgreSQL Supabase (port 5432)
+- OPENAI_API_KEY = la clé OpenAI pour la génération de cours
+- Bug de Prisma CLI 6.19.3 avec le parsing .env identifié (n'affecte PAS Vercel)

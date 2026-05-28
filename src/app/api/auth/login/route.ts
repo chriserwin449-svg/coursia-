@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
       passwordValid = await bcrypt.compare(password, user.password);
     } else {
       // Legacy SHA-256 hash
-      const crypto = require("crypto");
+      const cryptoModule = await import("crypto");
+      const crypto = cryptoModule as typeof import("crypto");
       const legacyHash = crypto.createHash("sha256").update(password).update("coursia-salt-2025").digest("hex");
       passwordValid = legacyHash === user.password;
 

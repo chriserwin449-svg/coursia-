@@ -1,13 +1,27 @@
-import { createClient } from "@supabase/supabase-js";
+/**
+ * Supabase database direct connection via Prisma.
+ *
+ * We do NOT use Supabase Auth or the Supabase JS client.
+ * All database operations go through Prisma + PostgreSQL.
+ * All authentication is handled with bcrypt (see api/auth/* routes).
+ *
+ * This file is intentionally minimal — it only exports a helper
+ * to check if Supabase is reachable via Prisma.
+ */
 
-const SUPABASE_URL = "https://vbsrliluwytuyulpvflr.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZic3JsaWx1d3l0dXl1bHB2ZmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDkzMjIsImV4cCI6MjA5NTM4NTMyMn0.YMQGLksgpK3aB5xCE8vjmb_-YCfgJO4nTdS13FbQsA4";
+import { db } from "@/lib/db";
 
-// Client-side compatible Supabase client
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-});
+export async function checkSupabaseConnection(): Promise<{
+  connected: boolean;
+  error?: string;
+}> {
+  try {
+    await db.$queryRaw`SELECT 1 as ok`;
+    return { connected: true };
+  } catch (error) {
+    return {
+      connected: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}

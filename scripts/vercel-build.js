@@ -1,14 +1,15 @@
-// Vercel build script: switches to PostgreSQL schema before building
-const fs = require('fs');
-const path = require('path');
+// Vercel build script
+// The schema.prisma is already configured for PostgreSQL.
+// We just need to generate the Prisma client before building.
 
-const schemaDir = path.join(__dirname, '..', 'prisma');
-const pgSchema = path.join(schemaDir, 'schema.postgres.prisma');
-const mainSchema = path.join(schemaDir, 'schema.prisma');
+const { execSync } = require("child_process");
 
-if (fs.existsSync(pgSchema)) {
-  fs.copyFileSync(pgSchema, mainSchema);
-  console.log('✅ Switched to PostgreSQL schema for Vercel build');
-} else {
-  console.log('⚠️ No PostgreSQL schema found, using current schema');
+console.log("🔍 Checking Prisma schema...");
+
+try {
+  execSync("npx prisma generate", { stdio: "inherit" });
+  console.log("✅ Prisma client generated successfully");
+} catch (error) {
+  console.error("❌ Failed to generate Prisma client:", error.message);
+  process.exit(1);
 }
