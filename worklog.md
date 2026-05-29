@@ -86,3 +86,27 @@ Stage Summary:
 - Le Session Pooler (port 5432 via aws-0-eu-west-1.pooler.supabase.com) fonctionne avec Prisma
 - Le Transaction Pooler (port 6543) ne fonctionne PAS avec Prisma (prepared statements)
 - Cette URL doit être utilisée sur Vercel comme DATABASE_URL
+
+---
+Task ID: 3
+Agent: Main Agent + Fullstack Subagent
+Task: Fix mobile responsive design for all Coursia components
+
+Work Log:
+- Audited all components for mobile responsiveness issues
+- Identified key problems: 72px sidebar always visible, 256px CourseViewer chapter sidebar, fixed margins
+- Sidebar.tsx: Added `hidden md:flex` to hide sidebar on mobile
+- AppShell.tsx: Changed main margin to `ml-0 md:ml-[72px] lg:ml-64`, added `pb-20 md:pb-0` for bottom nav
+- AppShell.tsx: Created MobileBottomNav component with 4 tabs (Create, Library, Journey, Offers)
+- TopBar.tsx: Changed to full-width on mobile (`ml-0 md:ml-[72px] lg:ml-64`)
+- CourseViewer.tsx: Hidden chapter sidebar on mobile (`hidden md:flex w-64`)
+- CourseViewer.tsx: Added mobile chapter selector dropdown with progress bar
+- CourseViewer.tsx: Content padding adjusted for mobile (`px-4 md:px-6 py-6 md:py-8`)
+- LandingPage.tsx: Fixed testimonial card min-width (`min-w-[280px] sm:min-w-[320px]`)
+- Committed and pushed to GitHub (e56dcb3)
+
+Stage Summary:
+- All components now properly responsive on mobile devices
+- Mobile users see a bottom navigation bar instead of sidebar
+- CourseViewer has a chapter picker dropdown on mobile
+- No lint errors in any Coursia component
