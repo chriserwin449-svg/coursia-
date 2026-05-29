@@ -626,7 +626,7 @@ export default function CourseViewer() {
                 </div>
               )}
               {/* Content — LARGER text for fullscreen */}
-              <div className="prose prose-invert max-w-none animate-fade-in-slide-right prose-p:text-[1.125rem] prose-p:leading-[1.95] prose-p:mb-6 prose-h2:text-[1.55rem] prose-h2:mt-12 prose-h2:mb-6 prose-h3:text-[1.35rem] prose-h3:mt-10 prose-h3:mb-5 prose-li:text-[1.125rem] prose-li:my-2 prose-li:leading-[1.9] prose-ul:my-6 prose-ol:my-6 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
+              <div className="prose prose-invert max-w-none text-[17px] leading-7 animate-fade-in-slide-right prose-p:text-[1.125rem] prose-p:leading-[1.95] prose-p:mb-6 prose-h2:text-[1.55rem] prose-h2:mt-12 prose-h2:mb-6 prose-h3:text-[1.35rem] prose-h3:mt-10 prose-h3:mb-5 prose-li:text-[1.125rem] prose-li:my-2 prose-li:leading-[1.9] prose-ul:my-6 prose-ol:my-6 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
                 <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
               </div>
             </div>
@@ -852,7 +852,7 @@ export default function CourseViewer() {
               )}
 
               {/* ── Course content (Markdown) — LARGER text ── */}
-              <div className="prose prose-invert max-w-none
+              <div className="prose prose-invert max-w-none text-[17px] leading-7
                 prose-headings:font-extrabold
                 prose-h1:text-4xl prose-h1:mt-14 prose-h1:mb-6
                 prose-h2:text-[1.55rem] prose-h2:mt-12 prose-h2:mb-6

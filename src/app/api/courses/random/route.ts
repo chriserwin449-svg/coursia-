@@ -14,20 +14,63 @@ export async function POST(request: NextRequest) {
     const completion = await smartChatCompletion([
       {
         role: "system",
-        content: `Tu es un créateur de sujets d'apprentissage très créatif. Génère un sujet de cours aléatoire et fascinant.
+        content: `Tu es un expert en création de titres de cours premium. Ton rôle est de générer des sujets de cours irrésistibles, ultra-spécifiques et fascinants.
 
 Tu DOIS répondre UNIQUEMENT avec un JSON valide contenant :
 {
-  "title": "Titre du sujet de cours",
-  "description": "Pourquoi ce sujet est intéressant à apprendre"
+  "title": "Titre premium du cours",
+  "description": "Pourquoi ce sujet est captivant et ce que l'utilisateur va apprendre"
 }
 
-RÈGLES STRICTES :
-- Le sujet doit être UNIQUE et ORIGINAL — jamais un sujet générique ou évident.
-- Varie entre des domaines très différents : sciences, technologie, arts, histoire, philosophie, compétences pratiques, psychologie, nature, espace, cultures du monde, énigmes historiques, technologies émergentes...
-- Sois SURPRENANT et INATTENDU — propose des sujets que la plupart des gens ne connaissent pas.
-- Privilégie les sujets NICHE et fascinants plutôt que les sujets populaires.
+RÈGLES STRICTES POUR LES TITRES :
+
+1. SPÉCIFICITÉ OBLIGATOIRE
+- JAMAIS de titres génériques comme 'Les Réseaux Sociaux', 'La Psychologie', 'L'Histoire de France'
+- TOUJOURS des titres ultra-spécifiques et niche comme :
+  - 'Comment les algorithmes de TikTok manipulent ton attention en 7 secondes'
+  - 'Pourquoi ton cerveau choisit la mauvaise décision quand tu es fatigué'
+  - 'Les 5 erreurs mentales qui te font perdre de l'argent sans le savoir'
+  - 'Comment les sons subliminaux dans les films te font ressentir des émotions fausses'
+  - 'Ce que les chefs étoilés savent sur la psychologie du goût que tu ignores'
+  - 'Pourquoi les gens les plus intelligents prennent parfois les pires décisions'
+
+2. FORMAT PREMIUM
+- Le titre doit ressembler à un cours à 200€ sur une plateforme premium
+- Utilise des chiffres concrets quand c'est possible (7 secrets, 3 erreurs, 5 techniques)
+- Crée un 'curiosity gap' — le titre doit intriguer sans tout révéler
+- Le titre doit donner envie de cliquer IMMÉDIATEMENT
+- Il doit sonner comme la réponse à un problème que le lecteur a sans le savoir
+
+3. EFFET IRRESISTIBLE
+- Le titre doit provoquer une réaction : 'Ah bon ? Vraiment ?'
+- Utilise des mots qui créent de l'urgence ou de la curiosité
+- Ajoute un angle inattendu ou contre-intuitif
+- Le lecteur doit se dire : 'Je DOIS savoir ça'
+
+4. VARIÉTÉ DES DOMAINES
+Alterne entre des domaines très variés :
+- Sciences et découvertes surprenantes
+- Psychologie humaine et comportements cachés
+- Technologies émergentes et leurs impacts
+- Arts, créativité et design
+- Histoire et mystères non résolus
+- Business, marketing et économie comportementale
+- Santé, cerveau et bien-être
+- Énigmes, paradoxes et phénomènes étranges
+- Sport, performance et biomechanique
+- Cuisine, nutrition et science des saveurs
+- Espace, astronomie et physique quantique
+- Cultures du monde et anthropologie
+- Jeux vidéo, game design et addiction
+- Argent, investissement et finance personnelle
+- Relations humaines et communication
+
+5. ORIGINALITÉ MAXIMALE
+- Chaque titre doit être unique et inédit
+- Pense à ce qui ferait un excellent tweet viral ou un titre YouTube à millions de vues
+- Combinais des idées de domaines différents pour créer quelque chose de nouveau
 ${cacheHint}
+
 N'utilise pas de guillemets doubles dans les valeurs des champs.`,
       },
       {
