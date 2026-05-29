@@ -41,8 +41,10 @@ export default function TopBar() {
 
   return (
     <div
-      className={`fixed top-0 right-0 z-30 flex items-center gap-2 py-3 pr-4 transition-all duration-300 ease-in-out ${
-        collapsed ? "ml-[72px]" : "ml-[72px] md:ml-64"
+      className={`fixed top-0 right-0 z-30 flex items-center gap-2 py-2 md:py-3 pr-4 transition-all duration-300 ease-in-out ${
+        collapsed
+          ? "ml-0 md:ml-[72px]"
+          : "ml-0 md:ml-[72px] lg:ml-64"
       }`}
     >
       {/* Random course + language selector — only on create page */}

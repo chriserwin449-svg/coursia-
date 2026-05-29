@@ -33,6 +33,7 @@ export default function CourseViewer() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [courseCompleted, setCourseCompleted] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [mobileChapterOpen, setMobileChapterOpen] = useState(false);
 
   const selectedCourseId = useAppStore((s) => s.selectedCourseId);
   const currentChapterIndex = useAppStore((s) => s.currentChapterIndex);
@@ -654,9 +655,9 @@ export default function CourseViewer() {
   // ══════════════════════════════════════════════════════════════════
   return (
     <>
-      <div className="flex h-screen overflow-hidden">
-        {/* ─── Sidebar: Chapter navigation ─── */}
-        <div className="w-64 border-r border-border bg-night-light flex flex-col flex-shrink-0">
+      <div className="flex h-screen overflow-hidden pb-16 md:pb-0">
+        {/* ─── Sidebar: Chapter navigation (hidden on mobile) ─── */}
+        <div className="hidden md:flex w-64 border-r border-border bg-night-light flex-col flex-shrink-0">
           {/* Course title + chapter counter + overall progress */}
           <div className="p-4 border-b border-border">
             <h2 className="font-bold text-sm leading-tight line-clamp-2 mb-3">{course.title}</h2>
@@ -805,8 +806,92 @@ export default function CourseViewer() {
 
         {/* ─── Main content area ─── */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Content header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+          {/* ── Mobile: Chapter selector dropdown (hidden on md+) ── */}
+          <div className="md:hidden border-b border-border bg-night-light flex-shrink-0">
+            <div className="px-4 py-3">
+              {/* Mobile chapter button */}
+              <button
+                onClick={() => setMobileChapterOpen(!mobileChapterOpen)}
+                className="w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl glass text-left cursor-pointer transition-all"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-7 h-7 rounded-lg bg-mauve/15 flex items-center justify-center flex-shrink-0">
+                    <BookOpen className="w-4 h-4 text-mauve-light" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-muted-foreground truncate">
+                      {tx.viewer.chapterOf(currentChapterIndex + 1, totalChapters)}
+                    </p>
+                    <p className="text-sm font-bold text-foreground truncate">{currentChapter.title}</p>
+                  </div>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform duration-200 ${mobileChapterOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {/* Mobile chapter progress bar */}
+              <div className="flex items-center gap-3 mt-2">
+                <div className="flex-1 h-1.5 rounded-full bg-night overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-mauve to-gold transition-all duration-1000 ease-out"
+                    style={{ width: `${overallProgress}%` }}
+                  />
+                </div>
+                <span className="text-[10px] font-bold text-muted-foreground">{completedCount}/{totalChapters}</span>
+              </div>
+            </div>
+
+            {/* Mobile chapter dropdown */}
+            {mobileChapterOpen && (
+              <div className="border-t border-border max-h-64 overflow-y-auto custom-scrollbar">
+                {course.chapters.map((ch, idx) => {
+                  const isActive = idx === currentChapterIndex;
+                  const isUnlocked = isChapterUnlocked(idx);
+                  const isCompleted = ch.progress?.completed;
+                  return (
+                    <button
+                      key={ch.id}
+                      onClick={() => {
+                        if (isUnlocked) {
+                          setCurrentChapterIndex(idx);
+                          setMobileChapterOpen(false);
+                        }
+                      }}
+                      disabled={!isUnlocked}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all cursor-pointer border-b border-border/50 last:border-b-0 ${
+                        isActive
+                          ? "bg-mauve/10"
+                          : isUnlocked
+                            ? "hover:bg-white/5"
+                            : "opacity-40"
+                      }`}
+                    >
+                      <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
+                        {isCompleted ? (
+                          <CheckCircle2 className="w-4 h-4 text-green-400" />
+                        ) : isUnlocked ? (
+                          isActive ? (
+                            <BookOpen className="w-4 h-4 text-mauve-light" />
+                          ) : (
+                            <div className="w-6 h-6 rounded-lg bg-mauve/15 border border-mauve/25 flex items-center justify-center">
+                              <span className="text-[10px] font-extrabold text-mauve-light">{idx + 1}</span>
+                            </div>
+                          )
+                        ) : (
+                          <Lock className="w-3.5 h-3.5 text-muted-foreground/40" />
+                        )}
+                      </div>
+                      <p className={`text-sm font-semibold line-clamp-1 ${isActive ? "text-mauve-light" : isUnlocked ? "text-foreground" : "text-muted-foreground"}`}>
+                        {ch.title}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Content header (hidden on mobile since chapter selector shows title) */}
+          <div className="hidden md:flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
             <div>
               <h2 className="text-2xl md:text-3xl font-extrabold gradient-text">{currentChapter.title}</h2>
               <p className="text-sm text-muted-foreground font-semibold">
@@ -838,8 +923,18 @@ export default function CourseViewer() {
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             <div
               key={`chapter-${currentChapter.id}`}
-              className="max-w-3xl mx-auto px-6 py-8 animate-fade-in-slide-right"
+              className="max-w-3xl mx-auto px-4 md:px-6 py-6 md:py-8 animate-fade-in-slide-right"
             >
+              {/* ── Mobile fullscreen button (floating) ── */}
+              <div className="md:hidden flex justify-end mb-4">
+                <button
+                  onClick={() => setIsFullscreen(true)}
+                  className="p-2 rounded-xl glass text-xs font-bold hover:bg-white/10 transition-all cursor-pointer"
+                >
+                  <Maximize2 className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
+
               {/* ── Summary card ── */}
               {currentChapter.summary && (
                 <div className="mb-8 p-5 rounded-2xl bg-mauve/5 border border-mauve/10">
@@ -875,10 +970,10 @@ export default function CourseViewer() {
                 <button
                   onClick={goToPrev}
                   disabled={currentChapterIndex === 0 || isCompleting}
-                  className="flex items-center gap-2 px-6 py-3 rounded-full glass text-sm font-bold hover:bg-white/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  className="flex items-center gap-2 px-4 md:px-6 py-3 rounded-full glass text-sm font-bold hover:bg-white/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                 >
                   <ChevronLeft className="w-4 h-4" />
-                  {tx.viewer.previous}
+                  <span className="hidden sm:inline">{tx.viewer.previous}</span>
                 </button>
                 {currentChapterIndex < course.chapters.length - 1 ? (
                   <button

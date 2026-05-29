@@ -78,7 +78,7 @@ function TestimonialCard({
 }) {
   const lang = useAppStore((s) => s.lang);
   return (
-    <div className="glass rounded-3xl p-6 min-w-[320px] max-w-[380px] mx-3 flex-shrink-0 hover:border-mauve/30 transition-all duration-300">
+    <div className="glass rounded-3xl p-6 min-w-[280px] sm:min-w-[320px] max-w-[380px] mx-3 flex-shrink-0 hover:border-mauve/30 transition-all duration-300">
       <div className="flex items-center gap-1 mb-3">
         {[...Array(5)].map((_, i) => (
           <Star

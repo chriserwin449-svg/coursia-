@@ -39,7 +39,7 @@ export default function Sidebar() {
   return (
     <>
       <aside
-        className={`fixed left-0 top-0 h-full z-40 flex flex-col border-r border-border bg-night-light transition-all duration-300 ease-in-out overflow-hidden ${
+        className={`hidden md:flex fixed left-0 top-0 h-full z-40 flex-col border-r border-border bg-night-light transition-all duration-300 ease-in-out overflow-hidden ${
           collapsed ? "w-[72px]" : "w-[72px] md:w-64"
         }`}
       >
