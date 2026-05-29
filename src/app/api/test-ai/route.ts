@@ -1,46 +1,62 @@
 import { NextResponse } from "next/server";
-import { smartChatCompletion, getActiveProvider } from "@/lib/openai";
 
 export async function GET() {
   const results: Record<string, unknown> = {};
 
-  // 1. Check which provider is active
+  const apiKey = process.env.OPENAI_API_KEY;
+  results.keySet = !!apiKey;
+  results.keyPrefix = apiKey?.slice(0, 12) || "NONE";
+
+  // Direct Gemini API test - show EXACT error
   try {
-    const provider = await getActiveProvider();
-    results.provider = provider;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: "Say hello" }] }],
+        generationConfig: { maxOutputTokens: 50 },
+      }),
+    });
+
+    results.geminiStatus = response.status;
+    results.geminiStatusText = response.statusText;
+
+    const text = await response.text();
+    results.geminiResponse = text.slice(0, 1000);
+
+    // Try parsing
+    try {
+      const json = JSON.parse(text);
+      results.geminiError = json.error;
+      results.geminiCandidates = json.candidates?.length || 0;
+      if (json.candidates?.[0]) {
+        results.geminiContent = json.candidates[0].content?.parts?.[0]?.text?.slice(0, 200) || "NO TEXT";
+      }
+    } catch {
+      // not JSON
+    }
   } catch (e) {
-    results.providerError = e instanceof Error ? e.message : String(e);
+    results.fetchError = e instanceof Error ? e.message : String(e);
   }
 
-  // 2. Check env vars (masked)
-  results.OPENAI_API_KEY = process.env.OPENAI_API_KEY
-    ? `${process.env.OPENAI_API_KEY.slice(0, 8)}...${process.env.OPENAI_API_KEY.slice(-4)}`
-    : "NOT SET";
-  results.ZAI_BASE_URL = process.env.ZAI_BASE_URL ? "SET" : "NOT SET";
-  results.ZAI_API_KEY = process.env.ZAI_API_KEY ? "SET" : "NOT SET";
-  results.DATABASE_URL = process.env.DATABASE_URL ? "SET" : "NOT SET";
-
-  // 3. Test AI call with a simple prompt
+  // Also try gemini-2.5-flash as alternative
   try {
-    const completion = await smartChatCompletion([
-      {
-        role: "system",
-        content: 'You MUST respond ONLY with valid JSON. No text before or after. Example: {"status":"ok","message":"hello"}',
-      },
-      {
-        role: "user",
-        content: "Return JSON: {\"status\":\"ok\"}",
-      },
-    ], { maxTokens: 100 });
-
-    results.aiResponse = {
-      content: completion.content ? `${completion.content.slice(0, 500)}` : "EMPTY",
-      provider: completion.provider,
-      length: completion.content?.length || 0,
-    };
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: "Say hello" }] }],
+        generationConfig: { maxOutputTokens: 50 },
+      }),
+    });
+    results.gemini25Status = response.status;
+    const text = await response.text();
+    results.gemini25Response = text.slice(0, 500);
   } catch (e) {
-    results.aiError = e instanceof Error ? e.message : String(e);
+    results.gemini25Error = e instanceof Error ? e.message : String(e);
   }
 
-  return NextResponse.json(results, { status: 200 });
+  return NextResponse.json(results);
 }
