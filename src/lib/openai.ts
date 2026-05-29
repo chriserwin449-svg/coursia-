@@ -1,7 +1,7 @@
 import ZAI from "z-ai-web-dev-sdk";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
-export type AIProvider = "google" | "openai" | "zai" | "free";
+export type AIProvider = "google" | "openai" | "groq" | "zai" | "free";
 
 interface ProviderInfo {
   provider: AIProvider;
@@ -12,33 +12,43 @@ interface ProviderInfo {
 }
 
 function detectProviderFromKey(key: string): AIProvider {
-  if (key.startsWith("AIza") || key.startsWith("AQ.") || key.startsWith("AIzaSy")) return "google";
+  if (key.startsWith("AIza") || key.startsWith("AQ.")) return "google";
+  if (key.startsWith("gsk_")) return "groq";
   if (key.startsWith("sk-")) return "openai";
   return "free";
 }
 
 export async function getActiveProvider(): Promise<ProviderInfo> {
-  const apiKey = getAIKey();
+  // Priority: GROQ_API_KEY > OPENAI_API_KEY > z-ai
+  const groqKey = process.env.GROQ_API_KEY;
+  if (groqKey) {
+    return { provider: "groq", label: "Groq (Llama 3.3 70B)", isFree: true, hasApiKey: true, model: "llama-3.3-70b-versatile" };
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY;
   if (apiKey) {
     const provider = detectProviderFromKey(apiKey);
     const labels: Record<AIProvider, string> = {
       google: "Google Gemini",
       openai: "OpenAI GPT-4o",
+      groq: "Groq",
       zai: "Z.ai (Coursia AI)",
       free: "Free Tier",
     };
     const models: Record<AIProvider, string> = {
       google: "gemini-2.0-flash",
       openai: "gpt-4o",
+      groq: "llama-3.3-70b-versatile",
       zai: "default",
       free: "default",
     };
     return { provider, label: labels[provider], isFree: false, hasApiKey: true, model: models[provider] };
   }
-  // Check for z-ai config via env vars
+
   if (process.env.ZAI_BASE_URL && process.env.ZAI_API_KEY) {
     return { provider: "zai", label: "Z.ai (Coursia AI)", isFree: true, hasApiKey: true, model: "default" };
   }
+
   return { provider: "free", label: "Free Tier (Coursia AI)", isFree: true, hasApiKey: false };
 }
 
@@ -55,7 +65,6 @@ function getAIKey(): string | null {
  * Create ZAI client from environment variables or file config.
  */
 async function createZAIClient() {
-  // First try env vars (for Vercel)
   if (process.env.ZAI_BASE_URL && process.env.ZAI_API_KEY) {
     return ZAI.create({
       baseUrl: process.env.ZAI_BASE_URL,
@@ -65,11 +74,56 @@ async function createZAIClient() {
       token: process.env.ZAI_TOKEN || "",
     });
   }
-  // Fallback to file-based config (local dev)
   return ZAI.create();
 }
 
 const EXTERNAL_API_TIMEOUT = 60_000;
+
+/**
+ * Call Groq API (uses OpenAI-compatible format)
+ */
+async function callGroq(
+  apiKey: string,
+  messages: Array<{ role: string; content: string }>,
+  options?: { temperature?: number; maxTokens?: number },
+): Promise<{ content: string } | null> {
+  const models = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"];
+
+  for (const model of models) {
+    try {
+      const response = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: options?.temperature ?? 0.7,
+          max_tokens: options?.maxTokens ?? 8192,
+        }),
+        timeoutMs: EXTERNAL_API_TIMEOUT,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content || "";
+        if (content) {
+          console.log(`[Groq] Success with model: ${model}`);
+          return { content };
+        }
+      } else {
+        const errorBody = await response.text().catch(() => "");
+        console.error(`[Groq] Model ${model} failed (${response.status}): ${errorBody.slice(0, 300)}`);
+        if (response.status === 404) continue;
+        break;
+      }
+    } catch (error) {
+      console.error(`[Groq] Model ${model} request failed:`, error instanceof Error ? error.message : error);
+      continue;
+    }
+  }
+
+  return null;
+}
 
 /**
  * Try an OpenAI API call with model fallback.
@@ -118,6 +172,16 @@ async function callOpenAIWithFallback(
 }
 
 export async function smartChatCompletion(messages: Array<{ role: string; content: string }>, options?: { temperature?: number; maxTokens?: number }) {
+  // Priority 1: Groq (free, fast, works everywhere)
+  const groqKey = process.env.GROQ_API_KEY;
+  if (groqKey) {
+    console.log("[AI] Using Groq");
+    const result = await callGroq(groqKey, messages, options);
+    if (result) return { content: result.content, provider: "groq" as const };
+    console.error("[Groq] Failed");
+  }
+
+  // Priority 2: OPENAI_API_KEY (can be Google Gemini or OpenAI)
   const apiKey = getAIKey();
   if (apiKey) {
     const provider = detectProviderFromKey(apiKey);
@@ -154,11 +218,11 @@ export async function smartChatCompletion(messages: Array<{ role: string; conten
     if (provider === "openai") {
       const result = await callOpenAIWithFallback(apiKey, messages, options);
       if (result) return { content: result.content, provider: "openai" as const };
-      console.log("[OpenAI] All models failed, falling back to z-ai");
+      console.log("[OpenAI] All models failed");
     }
   }
 
-  // Z-ai fallback (works on Vercel with env vars, or locally with .z-ai-config file)
+  // Priority 3: z-ai fallback (local dev only)
   try {
     console.log("[AI] Using z-ai fallback");
     const zai = await createZAIClient();
@@ -168,7 +232,6 @@ export async function smartChatCompletion(messages: Array<{ role: string; conten
     });
     const content = completion.choices?.[0]?.message?.content || "";
     if (content) return { content, provider: "zai" as const };
-    console.error("[AI] z-ai returned empty content");
   } catch (error) {
     console.error("[AI] z-ai fallback failed:", error instanceof Error ? error.message : error);
   }

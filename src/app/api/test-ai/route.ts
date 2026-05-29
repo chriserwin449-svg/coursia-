@@ -3,59 +3,62 @@ import { NextResponse } from "next/server";
 export async function GET() {
   const results: Record<string, unknown> = {};
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  results.keySet = !!apiKey;
-  results.keyPrefix = apiKey?.slice(0, 12) || "NONE";
+  // Env vars (masked)
+  results.GROQ_API_KEY = process.env.GROQ_API_KEY
+    ? `${process.env.GROQ_API_KEY.slice(0, 10)}...${process.env.GROQ_API_KEY.slice(-4)}`
+    : "NOT SET";
+  results.OPENAI_API_KEY = process.env.OPENAI_API_KEY
+    ? `${process.env.OPENAI_API_KEY.slice(0, 10)}...`
+    : "NOT SET";
+  results.DATABASE_URL = process.env.DATABASE_URL ? "SET" : "NOT SET";
 
-  // Direct Gemini API test - show EXACT error
-  try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: "Say hello" }] }],
-        generationConfig: { maxOutputTokens: 50 },
-      }),
-    });
-
-    results.geminiStatus = response.status;
-    results.geminiStatusText = response.statusText;
-
-    const text = await response.text();
-    results.geminiResponse = text.slice(0, 1000);
-
-    // Try parsing
+  // Test Groq API
+  const groqKey = process.env.GROQ_API_KEY;
+  if (groqKey) {
     try {
-      const json = JSON.parse(text);
-      results.geminiError = json.error;
-      results.geminiCandidates = json.candidates?.length || 0;
-      if (json.candidates?.[0]) {
-        results.geminiContent = json.candidates[0].content?.parts?.[0]?.text?.slice(0, 200) || "NO TEXT";
-      }
-    } catch {
-      // not JSON
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            { role: "system", content: "Respond ONLY with valid JSON." },
+            { role: "user", content: 'Return: {"status":"ok"}' },
+          ],
+          max_tokens: 50,
+        }),
+      });
+
+      results.groqStatus = response.status;
+      results.groqStatusText = response.statusText;
+      const text = await response.text();
+      results.groqResponse = text.slice(0, 1000);
+
+      try {
+        const json = JSON.parse(text);
+        results.groqContent = json.choices?.[0]?.message?.content?.slice(0, 200) || "EMPTY";
+        results.groqError = json.error;
+      } catch { /* not JSON */ }
+    } catch (e) {
+      results.groqFetchError = e instanceof Error ? e.message : String(e);
     }
-  } catch (e) {
-    results.fetchError = e instanceof Error ? e.message : String(e);
   }
 
-  // Also try gemini-2.5-flash as alternative
+  // Test smartChatCompletion (the function used by the app)
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: "Say hello" }] }],
-        generationConfig: { maxOutputTokens: 50 },
-      }),
-    });
-    results.gemini25Status = response.status;
-    const text = await response.text();
-    results.gemini25Response = text.slice(0, 500);
+    const { smartChatCompletion, getActiveProvider } = await import("@/lib/openai");
+    const provider = await getActiveProvider();
+    results.smartProvider = provider;
+
+    const completion = await smartChatCompletion([
+      { role: "system", content: "Respond ONLY with valid JSON." },
+      { role: "user", content: 'Return: {"status":"ok"}' },
+    ], { maxTokens: 50 });
+
+    results.smartContent = completion.content ? completion.content.slice(0, 200) : "EMPTY";
+    results.smartProviderUsed = completion.provider;
   } catch (e) {
-    results.gemini25Error = e instanceof Error ? e.message : String(e);
+    results.smartError = e instanceof Error ? e.message : String(e);
   }
 
   return NextResponse.json(results);
