@@ -84,13 +84,13 @@ export default function Library() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-6 md:px-10 pt-20 pb-8 md:pt-24 md:pb-16">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-10 pt-14 sm:pt-20 pb-8 md:pt-24 md:pb-16">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-extrabold mb-2">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-2">
           <span className="gradient-text">{tx.library.title}</span>
         </h1>
-        <p className="text-lg font-semibold text-muted-foreground">
+        <p className="text-base sm:text-lg font-semibold text-muted-foreground">
           {tx.library.courseCount(courses.length)}
         </p>
       </div>
@@ -193,8 +193,8 @@ export default function Library() {
                 </div>
 
                 {/* Title */}
-                <h3 className="text-xl font-extrabold mb-2 line-clamp-2">{course.title}</h3>
-                <p className="text-base font-semibold text-muted-foreground line-clamp-2 mb-5">
+                <h3 className="text-lg sm:text-xl font-extrabold mb-2 line-clamp-2">{course.title}</h3>
+                <p className="text-sm sm:text-base font-semibold text-muted-foreground line-clamp-2 mb-4 sm:mb-5">
                   {course.description || `${course.chapters.length} ${tx.library.chapters}`}
                 </p>
 

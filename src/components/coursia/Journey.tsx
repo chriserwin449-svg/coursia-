@@ -169,13 +169,13 @@ export default function Journey() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-6 md:px-10 pt-20 pb-8 md:pt-24 md:pb-16 fade-in">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 md:px-10 pt-14 sm:pt-20 pb-8 md:pt-24 md:pb-16 fade-in">
       {/* Header */}
-      <div className="mb-10">
-        <h1 className="text-3xl md:text-4xl font-extrabold mb-3">
+      <div className="mb-8 sm:mb-10">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-3">
           <span className="gradient-text">{tx.journey.title}</span>
         </h1>
-        <p className="text-muted-foreground text-lg">{tx.journey.subtitle}</p>
+        <p className="text-muted-foreground text-base sm:text-lg">{tx.journey.subtitle}</p>
       </div>
 
       {/* ═══ FLAME PROGRESS BAR ═══ */}

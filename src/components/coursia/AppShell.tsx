@@ -29,22 +29,22 @@ function MobileBottomNav() {
   ];
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-night-light/95 backdrop-blur-lg border-t border-border safe-area-bottom">
-      <div className="flex items-center justify-around py-2 px-2">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-night-light/95 backdrop-blur-lg border-t border-border">
+      <div className="flex items-center justify-around py-1.5 px-1">
         {NAV_ITEMS.map((item) => {
           const isActive = view === item.view;
           return (
             <button
               key={item.view}
               onClick={() => setView(item.view)}
-              className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-all duration-200 cursor-pointer min-w-[60px] ${
+              className={`flex flex-col items-center gap-0.5 py-1.5 px-2 sm:px-3 rounded-xl transition-all duration-200 cursor-pointer ${
                 isActive
                   ? "text-mauve-light"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <item.icon className={`w-5 h-5 ${isActive ? "text-mauve-light" : ""}`} />
-              <span className="text-[10px] font-semibold">{item.label}</span>
+              <span className="text-[10px] font-semibold leading-tight">{item.label}</span>
             </button>
           );
         })}
@@ -83,7 +83,7 @@ export default function AppShell() {
           <Sidebar />
           {view !== "viewer" && <TopBar />}
           <main
-            className={`min-h-screen transition-all duration-300 ease-in-out pb-20 md:pb-0 ${
+            className={`min-h-screen transition-all duration-300 ease-in-out pb-16 md:pb-0 ${
               collapsed
                 ? "ml-0 md:ml-[72px]"
                 : "ml-0 md:ml-[72px] lg:ml-64"

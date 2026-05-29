@@ -230,19 +230,19 @@ export default function CreateCourse() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto px-6 md:px-10 pt-20 pb-8 md:pt-24 md:pb-16">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 md:px-10 pt-14 sm:pt-20 pb-8 md:pt-24 md:pb-16">
       {/* Header */}
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl md:text-4xl font-extrabold mb-2">
+      <div className="mb-6 sm:mb-8 text-center">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-2">
           <span className="gradient-text">{tx.create.title}</span>
         </h1>
-        <p className="text-muted-foreground text-base md:text-lg">
+        <p className="text-muted-foreground text-sm sm:text-base md:text-lg">
           {tx.create.subtitle}
         </p>
       </div>
 
       {/* ═══════════ Main creation card ═══════════ */}
-      <div className="glass rounded-3xl p-6 md:p-10">
+      <div className="glass rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-10">
         {/* ─── Title input ─── */}
         <div className="mb-8">
           <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">

@@ -655,7 +655,7 @@ export default function CourseViewer() {
   // ══════════════════════════════════════════════════════════════════
   return (
     <>
-      <div className="flex h-screen overflow-hidden pb-16 md:pb-0">
+      <div className="flex h-screen overflow-hidden pb-14 md:pb-0">
         {/* ─── Sidebar: Chapter navigation (hidden on mobile) ─── */}
         <div className="hidden md:flex w-64 border-r border-border bg-night-light flex-col flex-shrink-0">
           {/* Course title + chapter counter + overall progress */}
@@ -808,21 +808,21 @@ export default function CourseViewer() {
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* ── Mobile: Chapter selector dropdown (hidden on md+) ── */}
           <div className="md:hidden border-b border-border bg-night-light flex-shrink-0">
-            <div className="px-4 py-3">
+            <div className="px-3 py-2.5">
               {/* Mobile chapter button */}
               <button
                 onClick={() => setMobileChapterOpen(!mobileChapterOpen)}
-                className="w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl glass text-left cursor-pointer transition-all"
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl glass text-left cursor-pointer transition-all"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-7 h-7 rounded-lg bg-mauve/15 flex items-center justify-center flex-shrink-0">
                     <BookOpen className="w-4 h-4 text-mauve-light" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-muted-foreground truncate">
+                    <p className="text-[11px] font-semibold text-muted-foreground truncate">
                       {tx.viewer.chapterOf(currentChapterIndex + 1, totalChapters)}
                     </p>
-                    <p className="text-sm font-bold text-foreground truncate">{currentChapter.title}</p>
+                    <p className="text-[13px] font-bold text-foreground truncate">{currentChapter.title}</p>
                   </div>
                 </div>
                 <ChevronDown className={`w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform duration-200 ${mobileChapterOpen ? "rotate-180" : ""}`} />
@@ -923,7 +923,7 @@ export default function CourseViewer() {
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             <div
               key={`chapter-${currentChapter.id}`}
-              className="max-w-3xl mx-auto px-4 md:px-6 py-6 md:py-8 animate-fade-in-slide-right"
+              className="max-w-3xl mx-auto px-4 sm:px-5 md:px-6 py-5 sm:py-6 md:py-8 animate-fade-in-slide-right"
             >
               {/* ── Mobile fullscreen button (floating) ── */}
               <div className="md:hidden flex justify-end mb-4">
@@ -937,36 +937,36 @@ export default function CourseViewer() {
 
               {/* ── Summary card ── */}
               {currentChapter.summary && (
-                <div className="mb-8 p-5 rounded-2xl bg-mauve/5 border border-mauve/10">
+                <div className="mb-6 sm:mb-8 p-4 sm:p-5 rounded-2xl bg-mauve/5 border border-mauve/10">
                   <div className="flex items-center gap-2 mb-2">
                     <FileText className="w-4 h-4 text-mauve-light" />
                     <span className="text-xs font-bold text-mauve-light uppercase tracking-wider">{tx.viewer.summary}</span>
                   </div>
-                  <p className="text-lg text-foreground/80 leading-relaxed">{currentChapter.summary}</p>
+                  <p className="text-base sm:text-lg text-foreground/80 leading-relaxed">{currentChapter.summary}</p>
                 </div>
               )}
 
               {/* ── Course content (Markdown) — LARGER text ── */}
-              <div className="prose prose-invert max-w-none text-[17px] leading-7
+              <div className="prose prose-invert max-w-none text-[15px] sm:text-[17px] leading-7
                 prose-headings:font-extrabold
-                prose-h1:text-4xl prose-h1:mt-14 prose-h1:mb-6
-                prose-h2:text-[1.55rem] prose-h2:mt-12 prose-h2:mb-6
-                prose-h3:text-[1.35rem] prose-h3:mt-10 prose-h3:mb-5
-                prose-p:text-[1.125rem] prose-p:leading-[1.95] prose-p:text-foreground/90 prose-p:mb-5
-                prose-li:text-[1.125rem] prose-li:text-foreground/90 prose-li:leading-[1.9] prose-li:my-2
-                prose-ul:my-6 prose-ol:my-6
+                prose-h1:text-3xl sm:text-4xl prose-h1:mt-10 sm:mt-14 prose-h1:mb-4 sm:mb-6
+                prose-h2:text-[1.25rem] sm:text-[1.55rem] prose-h2:mt-8 sm:mt-12 prose-h2:mb-4 sm:mb-6
+                prose-h3:text-[1.15rem] sm:text-[1.35rem] prose-h3:mt-6 sm:mt-10 prose-h3:mb-3 sm:mb-5
+                prose-p:text-[0.98rem] sm:text-[1.125rem] prose-p:leading-[1.8] sm:leading-[1.95] prose-p:text-foreground/90 prose-p:mb-4 sm:mb-5
+                prose-li:text-[0.98rem] sm:text-[1.125rem] prose-li:text-foreground/90 prose-li:leading-[1.8] sm:leading-[1.9] prose-li:my-1 sm:my-2
+                prose-ul:my-4 sm:my-6 prose-ol:my-4 sm:my-6
                 prose-strong:text-gold
-                prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-2 prose-code:py-1 prose-code:rounded-lg prose-code:text-[0.95rem]
-                prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-6 prose-pre:text-[0.95rem]
+                prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-2 prose-code:py-1 prose-code:rounded-lg prose-code:text-[0.85rem] sm:text-[0.95rem]
+                prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-4 sm:py-6 prose-pre:text-[0.85rem] sm:text-[0.95rem]
                 prose-a:text-mauve-light
-                prose-blockquote:text-amber-300 prose-blockquote:border-gold/30 prose-blockquote:my-8
-                prose-hr:border-gold/20 prose-hr:my-12
+                prose-blockquote:text-amber-300 prose-blockquote:border-gold/30 prose-blockquote:my-6 sm:my-8
+                prose-hr:border-gold/20 prose-hr:my-8 sm:my-12
               ">
                 <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
               </div>
 
               {/* ── Navigation footer ── */}
-              <div className="flex items-center justify-between mt-12 pt-6 border-t border-border">
+              <div className="flex items-center justify-between mt-8 sm:mt-12 pt-4 sm:pt-6 border-t border-border">
                 <button
                   onClick={goToPrev}
                   disabled={currentChapterIndex === 0 || isCompleting}
