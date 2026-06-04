@@ -8,19 +8,24 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  password      String
-  firstName     String
-  lastName      String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                      String   @id @default(cuid())
+  email                   String   @unique
+  password                String
+  firstName               String
+  lastName                String
+  subscriptionPlan        String   @default("free") // "free" | "monthly" | "annual"
+  subscriptionStatus      String   @default("none") // "none" | "active" | "canceled" | "past_due" | "expired"
+  creemSubscriptionId     String?  // Creem subscription ID (sub_xxx)
+  creemCustomerId         String?  // Creem customer ID (cust_xxx)
+  subscriptionStartDate  DateTime?
+  subscriptionEndDate    DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 }
 
 model AppSettings {
   id              String   @id @default("main")
   flamePoints     Int      @default(0)
-  hasSubscription Boolean  @default(false)
   updatedAt       DateTime @updatedAt
 }
 
@@ -55,6 +60,7 @@ model Chapter {
   content   String
   summary   String   @default("")
   order     Int
+  level     Int      @default(0)
   courseId  String
   course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   quiz      Quiz?
@@ -86,14 +92,16 @@ model CourseQuiz {
 }
 
 model CourseProgress {
-  id           String         @id @default(cuid())
-  courseId     String         @unique
-  course       Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  completed    Boolean        @default(false)
-  score        Int            @default(0)
-  passedAt     DateTime?
-  flameAwarded Boolean        @default(false)
-  sessions     StudySession[]
+  id                String         @id @default(cuid())
+  courseId          String         @unique
+  course            Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  completed         Boolean        @default(false)
+  score             Int            @default(0)
+  passedAt          DateTime?
+  flameAwarded      Boolean        @default(false)
+  maxUnlockedLevel  Int            @default(0)
+  stoppedAtLevel    Int            @default(-1)
+  sessions          StudySession[]
 }
 
 model StudySession {
@@ -102,7 +110,7 @@ model StudySession {
   chapterId       String?
   courseId        String
   course          Course          @relation(fields: [courseId], references: [id], onDelete: Cascade, map: "StudySession_course_fkey")
-  courseProgress  CourseProgress? @relation(fields: [courseId], references: [courseId], onDelete: Cascade, map: "StudySession_courseProgress_fkey")
+  courseProgress  CourseProgress? @relation(fields: [courseId], references: [courseId], onDelete: Cascade, map: "StudySession_progress_fkey")
   startTime       DateTime
   endTime         DateTime?
   durationSeconds Int      @default(0)
