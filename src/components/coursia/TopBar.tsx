@@ -28,12 +28,15 @@ export default function TopBar() {
     try {
       const res = await fetch("/api/courses/random", { method: "POST" });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setRandomTopic(data.topic.title);
-      setRandomCourseLang(randomLang);
-      setView("create");
-    } catch {
-      // silently fail
+      if (data.success && data.topic?.title) {
+        setRandomTopic(data.topic.title);
+        setRandomCourseLang(randomLang);
+        setView("create");
+      } else {
+        console.error("[TopBar] Random topic generation failed:", data);
+      }
+    } catch (err) {
+      console.error("[TopBar] Random topic fetch error:", err);
     } finally {
       setLoadingRandom(false);
     }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 import { smartChatCompletion, getActiveProvider } from "@/lib/openai";
+import { ensureSchemaUpToDate } from "@/lib/auto-migrate";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -424,6 +425,9 @@ export async function POST(request: NextRequest) {
     if (!title || typeof title !== "string" || title.trim().length === 0) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
+
+    // Auto-migrate schema if needed (PostgreSQL only)
+    await ensureSchemaUpToDate();
 
     // ── Trial limit check: max 3 free courses if no subscription ──
     if (userId) {

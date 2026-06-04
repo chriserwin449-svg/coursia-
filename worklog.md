@@ -24,3 +24,29 @@ Stage Summary:
 - Pushed to GitHub (commit ac5421b)
 - Lint passes for all source files
 - Server compiles and serves pages (200 response confirmed)
+
+---
+Task ID: 2
+Agent: main
+Task: Fix registration error, checkout URL, and random topic generation
+
+Work Log:
+- Investigated "Erreur lors de l'inscription" error - root cause: PostgreSQL database missing subscription columns
+- Created auto-migration utility (src/lib/auto-migrate.ts) that adds missing columns via ALTER TABLE IF NOT EXISTS
+- Updated register route to call ensureSchemaUpToDate() before creating user
+- Updated course generation route to call ensureSchemaUpToDate() before saving
+- Updated setup-db API with complete schema including all subscription columns
+- Updated supabase-setup.sql with all new columns (subscriptionPlan, subscriptionStatus, creemSubscriptionId, creemCustomerId, subscriptionStartDate, subscriptionEndDate, trialStartDate, Chapter.level, CourseProgress.maxUnlockedLevel, CourseProgress.stoppedAtLevel)
+- Fixed checkout URLs: added paths (/?payment=success and /offers?payment=cancelled)
+- Hardcoded Vercel fallback URL in checkout route
+- Improved random topic generation: larger fallback list (30 topics), better error handling, never returns error
+- Updated TopBar random generation: proper error handling instead of silent fail
+- Verified registration works locally (200 OK)
+- Verified random topic generation works (returns fallback topic)
+
+Stage Summary:
+- Auto-migration system created - runs automatically on first registration/course creation
+- Registration error should be fixed on Vercel after deployment
+- Checkout URL includes proper paths for Creem validation
+- Random topic generation always returns a topic even when AI is unavailable
+- 6 files modified: register/route.ts, generate/route.ts, checkout/route.ts, random/route.ts, TopBar.tsx, auto-migrate.ts (new), setup-db/route.ts, supabase-setup.sql

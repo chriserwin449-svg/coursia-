@@ -50,8 +50,8 @@ export async function POST(request: NextRequest) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://coursia-8oi4.vercel.app";
-    const successUrl = appUrl;
-    const cancelUrl = appUrl;
+    const successUrl = `${appUrl}/?payment=success`;
+    const cancelUrl = `${appUrl}/offers?payment=cancelled`;
     const creemBase = getCreemBaseUrl();
 
     console.log("[checkout] Creating checkout:", {

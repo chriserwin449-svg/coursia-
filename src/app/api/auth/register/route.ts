@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { ensureSchemaUpToDate } from "@/lib/auto-migrate";
 
 function generateToken(userId: string): string {
   return crypto.randomBytes(32).toString("hex");
@@ -34,17 +35,8 @@ export async function POST(request: NextRequest) {
     const first = firstName.trim();
     const last = lastName.trim();
 
-    // Test DB connection first
-    try {
-      await db.$queryRaw`SELECT 1 as ok`;
-    } catch (dbTestError: unknown) {
-      const msg = dbTestError instanceof Error ? dbTestError.message : String(dbTestError);
-      console.error("DB connection failed:", msg);
-      return NextResponse.json(
-        { error: "Base de données indisponible. Réessaie dans quelques instants.", debug: msg },
-        { status: 503 },
-      );
-    }
+    // Auto-migrate schema if needed (PostgreSQL only)
+    await ensureSchemaUpToDate();
 
     // Check if user already exists
     const existing = await db.user.findUnique({ where: { email: emailLower } });

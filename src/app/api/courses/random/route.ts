@@ -5,16 +5,66 @@ import { smartChatCompletion } from "@/lib/openai";
 const recentTopics: string[] = [];
 const MAX_CACHE = 50;
 
+// Fallback topics when AI is unavailable
+const fallbackTopics = [
+  { title: "Comment les algorithmes de TikTok manipulent ton attention", description: "Décryptage de l'engagement addictif" },
+  { title: "Pourquoi ton cerveau choisit la mauvaise décision quand tu es fatigué", description: "La science de la fatigue décisionnelle" },
+  { title: "Les secrets de la négociation utilisés par les agents du FBI", description: "Techniques de communication avancée" },
+  { title: "Comment la musique modifie littéralement ton cerveau", description: "Neuroscience de la musique" },
+  { title: "Les 5 erreurs mentales qui te font perdre de l'argent", description: "Biais cognitifs et finance" },
+  { title: "Pourquoi les gens les plus intelligents prennent parfois les pires décisions", description: "Le paradoxe de l'intelligence" },
+  { title: "Comment les couleurs influencent tes achats sans que tu le saches", description: "Psychologie du marketing visuel" },
+  { title: "Le pouvoir caché du silence dans la communication", description: "Techniques d'écoute active" },
+  { title: "Comment les chefs étoilés manipulent ta perception du goût", description: "Neurogastronomie et psychologie" },
+  { title: "Les stratégies mentales des champions olympiques", description: "Préparation mentale et performance" },
+  { title: "Comment la gravité affecte ton corps au quotidien", description: "Physique du corps humain" },
+  { title: "Les codes secrets du langage corporel", description: "Communication non-verbale" },
+  { title: "Pourquoi tu rêves et ce que ça révèle de toi", description: "Neuroscience des rêves" },
+  { title: "Comment l'espace change ton corps en altitude zéro", description: "Astronaute et physiologie" },
+  { title: "Les illusions d'optique qui prouvent que ton cerveau te ment", description: "Perception visuelle et neurosciences" },
+  { title: "Pourquoi les grands leaders prennent des décisions contre-intuitives", description: "Psychologie du leadership" },
+  { title: "Comment ton téléphone détruit ta capacité de concentration", description: "Neuroscience de l'attention" },
+  { title: "Les stratégies mémorisation des champions de mémoire", description: "Techniques de mnémotechnique avancées" },
+  { title: "Pourquoi les prix se terminent toujours par 9", description: "Psychologie des prix et économie comportementale" },
+  { title: "Comment les parfums influencent tes émotions et tes souvenirs", description: "Neuroscience de l'olfaction" },
+  { title: "Le phénomène étrange de la synchronisation humaine", description: "Quand les foules se mettent à pulser ensemble" },
+  { title: "Pourquoi les intros manquent la plupart des créateurs", description: "Psychologie musicale et structure cognitive" },
+  { title: "Comment les casinos te font perdre sans que tu t'en rendes compte", description: "Design addictif et économie comportementale" },
+  { title: "Les mathématiques cachées dans la nature", description: "Nombre d'or, fractales et suites de Fibonacci" },
+  { title: "Pourquoi certaines personnes attirent tout le monde sans effort", description: "Psychologie du charisme magnétique" },
+  { title: "Comment les films de Pixar manipulent tes émotions scientifiquement", description: "Narratologie et neuroscience" },
+  { title: "Le secret des octonaires qui travaillent 4 heures par jour", description: "Productivité et gestion de l'énergie" },
+  { title: "Pourquoi ton cerveau ne peut pas résister aux stories Instagram", description: "Dopamine et design addictif" },
+  { title: "Les techniques militaires pour prendre des décisions sous pression", description: "Prise de décision et stress" },
+  { title: "Comment les supermarchés te font acheter plus sans que tu le saches", description: "Design d'espace et marketing sensoriel" },
+];
+
+function getRandomFallback() {
+  // Filter out recently used topics
+  const available = fallbackTopics.filter(t => !recentTopics.includes(t.title));
+  const pool = available.length > 5 ? available : fallbackTopics;
+  const t = pool[Math.floor(Math.random() * pool.length)];
+  // Track usage
+  recentTopics.push(t.title);
+  if (recentTopics.length > MAX_CACHE) recentTopics.shift();
+  return t;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const cacheHint = recentTopics.length > 0
       ? `\n\nSUJETS DÉJÀ PROPOSÉS (NE PROPOSE AUCUN DE CES SUJETS) :\n${recentTopics.slice(-20).map(t => `- ${t}`).join("\n")}`
       : "";
 
-    const completion = await smartChatCompletion([
-      {
-        role: "system",
-        content: `Tu es un expert en création de titres de cours premium. Ton rôle est de générer des sujets de cours irrésistibles, ultra-spécifiques et fascinants.
+    let topic: { title: string; description: string } | null = null;
+    let usedFallback = false;
+
+    // Try AI generation first
+    try {
+      const completion = await smartChatCompletion([
+        {
+          role: "system",
+          content: `Tu es un expert en création de titres de cours premium. Ton rôle est de générer des sujets de cours irrésistibles, ultra-spécifiques et fascinants.
 
 Tu DOIS répondre UNIQUEMENT avec un JSON valide contenant :
 {
@@ -26,118 +76,74 @@ RÈGLES STRICTES POUR LES TITRES :
 
 1. SPÉCIFICITÉ OBLIGATOIRE
 - JAMAIS de titres génériques comme 'Les Réseaux Sociaux', 'La Psychologie', 'L'Histoire de France'
-- TOUJOURS des titres ultra-spécifiques et niche comme :
-  - 'Comment les algorithmes de TikTok manipulent ton attention en 7 secondes'
-  - 'Pourquoi ton cerveau choisit la mauvaise décision quand tu es fatigué'
-  - 'Les 5 erreurs mentales qui te font perdre de l'argent sans le savoir'
-  - 'Comment les sons subliminaux dans les films te font ressentir des émotions fausses'
-  - 'Ce que les chefs étoilés savent sur la psychologie du goût que tu ignores'
-  - 'Pourquoi les gens les plus intelligents prennent parfois les pires décisions'
+- TOUJOURS des titres ultra-spécifiques et niche
 
 2. FORMAT PREMIUM
 - Le titre doit ressembler à un cours à 200€ sur une plateforme premium
-- Utilise des chiffres concrets quand c'est possible (7 secrets, 3 erreurs, 5 techniques)
-- Crée un 'curiosity gap' — le titre doit intriguer sans tout révéler
-- Le titre doit donner envie de cliquer IMMÉDIATEMENT
-- Il doit sonner comme la réponse à un problème que le lecteur a sans le savoir
+- Utilise des chiffres concrets quand c'est possible
+- Crée un 'curiosity gap'
 
 3. EFFET IRRESISTIBLE
 - Le titre doit provoquer une réaction : 'Ah bon ? Vraiment ?'
-- Utilise des mots qui créent de l'urgence ou de la curiosité
-- Ajoute un angle inattendu ou contre-intuitif
 - Le lecteur doit se dire : 'Je DOIS savoir ça'
 
 4. VARIÉTÉ DES DOMAINES
-Alterne entre des domaines très variés :
-- Sciences et découvertes surprenantes
-- Psychologie humaine et comportements cachés
-- Technologies émergentes et leurs impacts
-- Arts, créativité et design
-- Histoire et mystères non résolus
-- Business, marketing et économie comportementale
-- Santé, cerveau et bien-être
-- Énigmes, paradoxes et phénomènes étranges
-- Sport, performance et biomechanique
-- Cuisine, nutrition et science des saveurs
-- Espace, astronomie et physique quantique
-- Cultures du monde et anthropologie
-- Jeux vidéo, game design et addiction
-- Argent, investissement et finance personnelle
-- Relations humaines et communication
+Alterne entre : Sciences, Psychologie, Technologies, Arts, Histoire, Business, Santé, Sport, Cuisine, Espace, Cultures, Jeux vidéo, Argent, Relations humaines.
 
 5. ORIGINALITÉ MAXIMALE
 - Chaque titre doit être unique et inédit
-- Pense à ce qui ferait un excellent tweet viral ou un titre YouTube à millions de vues
-- Combinais des idées de domaines différents pour créer quelque chose de nouveau
 ${cacheHint}
 
 N'utilise pas de guillemets doubles dans les valeurs des champs.`,
-      },
-      {
-        role: "user",
-        content: "Propose un sujet de cours aléatoire, original et fascinant que je n'ai jamais entendu auparavant.",
-      },
-    ]);
+        },
+        {
+          role: "user",
+          content: "Propose un sujet de cours aléatoire, original et fascinant que je n'ai jamais entendu auparavant.",
+        },
+      ]);
 
-    const responseText = completion.content || "";
+      const responseText = completion.content || "";
 
-    let topic: unknown = null;
+      // Strategy 1: code block
+      const codeBlockMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (codeBlockMatch) {
+        try { topic = JSON.parse(codeBlockMatch[1].trim()); } catch { /* next */ }
+      }
 
-    // Strategy 1: code block
-    const codeBlockMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (codeBlockMatch) {
-      try { topic = JSON.parse(codeBlockMatch[1].trim()); } catch { /* next */ }
-    }
-
-    // Strategy 2: balanced braces
-    if (!topic) {
-      const jsonStart = responseText.indexOf("{");
-      if (jsonStart !== -1) {
-        let depth = 0;
-        let end = -1;
-        for (let i = jsonStart; i < responseText.length; i++) {
-          if (responseText[i] === "{") depth++;
-          if (responseText[i] === "}") { depth--; if (depth === 0) { end = i + 1; break; } }
-        }
-        if (end !== -1) {
-          try { topic = JSON.parse(responseText.slice(jsonStart, end)); } catch { /* give up */ }
+      // Strategy 2: balanced braces
+      if (!topic) {
+        const jsonStart = responseText.indexOf("{");
+        if (jsonStart !== -1) {
+          let depth = 0;
+          let end = -1;
+          for (let i = jsonStart; i < responseText.length; i++) {
+            if (responseText[i] === "{") depth++;
+            if (responseText[i] === "}") { depth--; if (depth === 0) { end = i + 1; break; } }
+          }
+          if (end !== -1) {
+            try { topic = JSON.parse(responseText.slice(jsonStart, end)); } catch { /* give up */ }
+          }
         }
       }
+
+      if (topic && typeof topic === "object" && "title" in topic) {
+        const t = topic as { title: string; description: string };
+        recentTopics.push(t.title);
+        if (recentTopics.length > MAX_CACHE) recentTopics.shift();
+        return NextResponse.json({ success: true, topic: t });
+      }
+    } catch (aiError) {
+      console.warn("[random] AI generation failed, using fallback:", aiError instanceof Error ? aiError.message : aiError);
     }
 
-    if (!topic || typeof topic !== "object" || !("title" in topic)) {
-      // Fallback: return a random topic from a predefined list
-      const fallbackTopics = [
-        { title: "Comment les algorithmes de TikTok manipulent ton attention", description: "Décryptage de l'engagement addictif" },
-        { title: "Pourquoi ton cerveau choisit la mauvaise décision quand tu es fatigué", description: "La science de la fatigue décisionnelle" },
-        { title: "Les secrets de la négociation utilisés par les agents du FBI", description: "Techniques de communication avancée" },
-        { title: "Comment la musique modifie littéralement ton cerveau", description: "Neuroscience de la musique" },
-        { title: "Les 5 erreurs mentales qui te font perdre de l'argent", description: "Biais cognitifs et finance" },
-        { title: "Pourquoi les gens les plus intelligents prennent parfois les pires décisions", description: "Le paradoxe de l'intelligence" },
-        { title: "Comment les couleurs influencent tes achats sans que tu le saches", description: "Psychologie du marketing visuel" },
-        { title: "Le pouvoir caché du silence dans la communication", description: "Techniques d'écoute active" },
-        { title: "Comment les chefs étoilés manipulent ta perception du goût", description: "Neurogastronomie et psychologie" },
-        { title: "Les stratégies mentales des champions olympiques", description: "Préparation mentale et performance" },
-        { title: "Comment la gravité affecte ton corps au quotidien", description: "Physique du corps humain" },
-        { title: "Les codes secrets du langage corporel", description: "Communication non-verbale" },
-        { title: "Pourquoi tu rêves et ce que ça révèle de toi", description: "Neuroscience des rêves" },
-        { title: "Comment l'espace change ton corps en altitude zéro", description: "Astronaute et physiologie" },
-        { title: "Les illusions d'optique qui prouvent que ton cerveau te ment", description: "Perception visuelle et neurosciences" },
-      ];
-      const randomIndex = Math.floor(Math.random() * fallbackTopics.length);
-      const t = fallbackTopics[randomIndex];
-      return NextResponse.json({ success: true, topic: t, fallback: true });
-    }
-
-    const t = topic as { title: string; description: string };
-
-    // Add to recent topics cache
-    recentTopics.push(t.title);
-    if (recentTopics.length > MAX_CACHE) recentTopics.shift();
-
-    return NextResponse.json({ success: true, topic: t });
+    // Fallback: return a random topic from predefined list
+    usedFallback = true;
+    const t = getRandomFallback();
+    return NextResponse.json({ success: true, topic: t, fallback: true });
   } catch (error: unknown) {
     console.error("Random course error:", error);
-    return NextResponse.json({ error: "Failed to generate random topic" }, { status: 500 });
+    // Even on total failure, return a fallback topic
+    const t = getRandomFallback();
+    return NextResponse.json({ success: true, topic: t, fallback: true });
   }
 }
