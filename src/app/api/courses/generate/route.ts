@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 import { smartChatCompletion, getActiveProvider } from "@/lib/openai";
-import { ensureSchemaUpToDate } from "@/lib/auto-migrate";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -427,7 +426,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Auto-migrate schema if needed (PostgreSQL only)
-    await ensureSchemaUpToDate();
+    // Ensure all User subscription columns exist
+    const dbUrl = process.env.DATABASE_URL;
+    if (dbUrl && !dbUrl.startsWith("file:")) {
+      try {
+        const cols = [
+          ["User", "subscriptionPlan", "TEXT NOT NULL DEFAULT 'free'"],
+          ["User", "subscriptionStatus", "TEXT NOT NULL DEFAULT 'none'"],
+          ["User", "subscriptionEndDate", "TIMESTAMP(3)"],
+          ["User", "trialStartDate", "TIMESTAMP(3)"],
+          ["Chapter", "level", "INTEGER NOT NULL DEFAULT 0"],
+          ["CourseProgress", "maxUnlockedLevel", "INTEGER NOT NULL DEFAULT 0"],
+          ["CourseProgress", "stoppedAtLevel", "INTEGER NOT NULL DEFAULT -1"],
+        ] as const;
+        for (const [tbl, col, def] of cols) {
+          try {
+            await db.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "${tbl}" ADD COLUMN "${col}" ${def}; EXCEPTION WHEN duplicate_column THEN null; END $$;`);
+          } catch { /* skip */ }
+        }
+      } catch { /* skip */ }
+    }
 
     // ── Trial limit check: max 3 free courses if no subscription ──
     if (userId) {

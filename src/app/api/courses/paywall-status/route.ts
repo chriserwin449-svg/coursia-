@@ -1,6 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+async function migrateColumn(table: string, col: string, colDef: string): Promise<void> {
+  try {
+    await db.$executeRawUnsafe(
+      `DO $$ BEGIN ALTER TABLE "${table}" ADD COLUMN "${col}" ${colDef}; EXCEPTION WHEN duplicate_column THEN null; END $$;`
+    );
+  } catch { /* non-critical */ }
+}
+
+async function ensureAllColumns(): Promise<void> {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl || dbUrl.startsWith("file:")) return;
+  try {
+    await migrateColumn("User", "subscriptionPlan", "TEXT NOT NULL DEFAULT 'free'");
+    await migrateColumn("User", "subscriptionStatus", "TEXT NOT NULL DEFAULT 'none'");
+    await migrateColumn("User", "creemSubscriptionId", "TEXT");
+    await migrateColumn("User", "creemCustomerId", "TEXT");
+    await migrateColumn("User", "subscriptionStartDate", "TIMESTAMP(3)");
+    await migrateColumn("User", "subscriptionEndDate", "TIMESTAMP(3)");
+    await migrateColumn("User", "trialStartDate", "TIMESTAMP(3)");
+  } catch { /* non-critical */ }
+}
+
 const TRIAL_DURATION_DAYS = 7;
 const TRIAL_MAX_COURSES = 3;
 const GRACE_PERIOD_DAYS = 3;
@@ -29,6 +51,9 @@ interface PaywallStatus {
 
 export async function GET(request: NextRequest) {
   try {
+    // Auto-migrate schema columns if needed (PostgreSQL only)
+    await ensureAllColumns();
+
     // ── 1. Get user ID from query or header ──
     let userId: string | null = null;
     const authHeader = request.headers.get("Authorization");

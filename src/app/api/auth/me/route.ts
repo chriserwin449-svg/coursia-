@@ -1,6 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+async function migrateColumn(table: string, col: string, colDef: string): Promise<void> {
+  try {
+    await db.$executeRawUnsafe(
+      `DO $$ BEGIN ALTER TABLE "${table}" ADD COLUMN "${col}" ${colDef}; EXCEPTION WHEN duplicate_column THEN null; END $$;`
+    );
+  } catch {
+    // Non-critical
+  }
+}
+
+async function ensureAllColumns(): Promise<void> {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl || dbUrl.startsWith("file:")) return;
+  try {
+    await migrateColumn("User", "subscriptionPlan", "TEXT NOT NULL DEFAULT 'free'");
+    await migrateColumn("User", "subscriptionStatus", "TEXT NOT NULL DEFAULT 'none'");
+    await migrateColumn("User", "creemSubscriptionId", "TEXT");
+    await migrateColumn("User", "creemCustomerId", "TEXT");
+    await migrateColumn("User", "subscriptionStartDate", "TIMESTAMP(3)");
+    await migrateColumn("User", "subscriptionEndDate", "TIMESTAMP(3)");
+    await migrateColumn("User", "trialStartDate", "TIMESTAMP(3)");
+  } catch {
+    // Non-critical
+  }
+}
+
+function buildSafeUser(user: Record<string, unknown>) {
+  return {
+    id: user.id,
+    email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
+  };
+}
+
+function buildSubscriptionInfo(user: Record<string, unknown>) {
+  const status = user.subscriptionStatus as string || "none";
+  return {
+    hasSubscription: status === "active",
+    subscriptionPlan: (user.subscriptionPlan as string) || "free",
+    subscriptionStatus: status,
+  };
+}
+
 /**
  * POST: verify token + userId from body
  */
@@ -12,41 +56,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ valid: false }, { status: 400 });
     }
 
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        subscriptionPlan: true,
-        subscriptionStatus: true,
-        subscriptionStartDate: true,
-        subscriptionEndDate: true,
-        trialStartDate: true,
-      },
-    });
+    await ensureAllColumns();
+
+    // Try Prisma first, fall back to raw SQL
+    let user: Record<string, unknown> | null = null;
+    try {
+      user = await db.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true, email: true, firstName: true, lastName: true,
+          subscriptionPlan: true, subscriptionStatus: true,
+          subscriptionStartDate: true, subscriptionEndDate: true, trialStartDate: true,
+        },
+      }) as unknown as Record<string, unknown>;
+    } catch {
+      try {
+        const rows = await db.$queryRawUnsafe(
+          `SELECT id, email, "firstName", "lastName", "subscriptionPlan", "subscriptionStatus", "subscriptionStartDate", "subscriptionEndDate", "trialStartDate" FROM "User" WHERE id = $1`,
+          userId
+        ) as Array<Record<string, unknown>>;
+        user = rows[0] || null;
+      } catch (err) {
+        console.error("[auth/me] Fallback query failed:", err);
+      }
+    }
 
     if (!user) {
       return NextResponse.json({ valid: false }, { status: 401 });
     }
 
-    const isActive = user.subscriptionStatus === "active";
-
     return NextResponse.json({
       valid: true,
-      hasSubscription: isActive,
-      subscriptionPlan: user.subscriptionPlan,
-      subscriptionStatus: user.subscriptionStatus,
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-      },
+      ...buildSubscriptionInfo(user),
+      user: buildSafeUser(user),
     });
   } catch (error) {
-    console.error("Auth me error:", error);
+    console.error("[auth/me] Error:", error);
     return NextResponse.json({ valid: false }, { status: 500 });
   }
 }
@@ -62,41 +107,42 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = authHeader.substring(7);
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        subscriptionPlan: true,
-        subscriptionStatus: true,
-        subscriptionStartDate: true,
-        subscriptionEndDate: true,
-        trialStartDate: true,
-      },
-    });
+
+    await ensureAllColumns();
+
+    let user: Record<string, unknown> | null = null;
+    try {
+      user = await db.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true, email: true, firstName: true, lastName: true,
+          subscriptionPlan: true, subscriptionStatus: true,
+          subscriptionStartDate: true, subscriptionEndDate: true, trialStartDate: true,
+        },
+      }) as unknown as Record<string, unknown>;
+    } catch {
+      try {
+        const rows = await db.$queryRawUnsafe(
+          `SELECT id, email, "firstName", "lastName", "subscriptionPlan", "subscriptionStatus", "subscriptionStartDate", "subscriptionEndDate", "trialStartDate" FROM "User" WHERE id = $1`,
+          userId
+        ) as Array<Record<string, unknown>>;
+        user = rows[0] || null;
+      } catch (err) {
+        console.error("[auth/me] Fallback query failed:", err);
+      }
+    }
 
     if (!user) {
       return NextResponse.json({ valid: false }, { status: 401 });
     }
 
-    const isActive = user.subscriptionStatus === "active";
-
     return NextResponse.json({
       valid: true,
-      hasSubscription: isActive,
-      subscriptionPlan: user.subscriptionPlan,
-      subscriptionStatus: user.subscriptionStatus,
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-      },
+      ...buildSubscriptionInfo(user),
+      user: buildSafeUser(user),
     });
   } catch (error) {
-    console.error("Auth me error:", error);
+    console.error("[auth/me] Error:", error);
     return NextResponse.json({ valid: false }, { status: 500 });
   }
 }

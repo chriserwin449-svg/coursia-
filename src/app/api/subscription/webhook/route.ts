@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import * as crypto from "crypto";
 
+async function migrateColumn(table: string, col: string, colDef: string): Promise<void> {
+  try {
+    await db.$executeRawUnsafe(
+      `DO $$ BEGIN ALTER TABLE "${table}" ADD COLUMN "${col}" ${colDef}; EXCEPTION WHEN duplicate_column THEN null; END $$;`
+    );
+  } catch { /* non-critical */ }
+}
+
+async function ensureAllColumns(): Promise<void> {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl || dbUrl.startsWith("file:")) return;
+  try {
+    await migrateColumn("User", "subscriptionPlan", "TEXT NOT NULL DEFAULT 'free'");
+    await migrateColumn("User", "subscriptionStatus", "TEXT NOT NULL DEFAULT 'none'");
+    await migrateColumn("User", "creemSubscriptionId", "TEXT");
+    await migrateColumn("User", "creemCustomerId", "TEXT");
+    await migrateColumn("User", "subscriptionStartDate", "TIMESTAMP(3)");
+    await migrateColumn("User", "subscriptionEndDate", "TIMESTAMP(3)");
+    await migrateColumn("User", "trialStartDate", "TIMESTAMP(3)");
+  } catch { /* non-critical */ }
+}
+
 const CREEM_WEBHOOK_SECRET = process.env.CREEM_WEBHOOK_SECRET || "";
 
 function verifySignature(payload: string, signature: string): boolean {
@@ -78,6 +100,9 @@ export async function POST(request: NextRequest) {
     const eventType = event.type || event.event_type;
 
     console.log(`[webhook] Received event: ${eventType}`);
+
+    // Auto-migrate columns if needed
+    await ensureAllColumns();
 
     switch (eventType) {
       case "subscription.active":

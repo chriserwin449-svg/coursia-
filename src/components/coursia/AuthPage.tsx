@@ -60,7 +60,13 @@ export default function AuthPage() {
         } else if (data.error === "email_not_confirmed") {
           setError(isFr ? "Vérifie ton email pour confirmer ton compte" : "Check your email to confirm your account");
         } else {
-          setError(data.error || (isFr ? "Une erreur est survenue" : "An error occurred"));
+          // Show error + debug info if available
+          const debugInfo = data.debug ? `\n\n[${data.debug}]` : "";
+          setError(data.error + debugInfo || (isFr ? "Une erreur est survenue" : "An error occurred"));
+          // Log debug info to console for developer
+          if (data.debug) {
+            console.error("[AuthPage] Server debug:", data.debug);
+          }
         }
         return;
       }
@@ -229,7 +235,7 @@ export default function AuthPage() {
                 </div>
               )}
               {error && error !== "user_not_found" && (
-                <div className="p-3.5 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-sm font-semibold animate-fade-in">
+                <div className="p-3.5 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-sm font-semibold animate-fade-in whitespace-pre-wrap">
                   {error}
                 </div>
               )}
