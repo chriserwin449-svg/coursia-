@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       await db.appSettings.upsert({
         where: { id: user.id },
         update: {},
-        create: { id: user.id, flamePoints: 0, hasSubscription: false },
+        create: { id: user.id, flamePoints: 0 },
       });
     } catch {
       // Non-blocking

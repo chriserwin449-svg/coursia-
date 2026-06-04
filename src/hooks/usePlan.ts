@@ -3,14 +3,17 @@ import { useAppStore } from "@/lib/store";
 import { useShallow } from "zustand/react/shallow";
 
 export function usePlan() {
-  const { userPlan, planFeatures, setUserPlan } = useAppStore(useShallow((s) => ({
-    userPlan: s.userPlan,
-    planFeatures: s.planFeatures,
-    setUserPlan: s.setUserPlan,
-  })));
+  const { userPlan, hasSubscription, setUserPlan, setHasSubscription } = useAppStore(
+    useShallow((s) => ({
+      userPlan: s.userPlan,
+      hasSubscription: s.hasSubscription,
+      setUserPlan: s.setUserPlan,
+      setHasSubscription: s.setHasSubscription,
+    }))
+  );
 
-  const isPro = userPlan === "pro" || userPlan === "lifetime";
-  const isFree = userPlan === "free";
+  const isPro = hasSubscription;
+  const isFree = !hasSubscription;
 
-  return { userPlan, planFeatures, isPro, isFree, setUserPlan };
+  return { userPlan, hasSubscription, isPro, isFree, setUserPlan, setHasSubscription };
 }

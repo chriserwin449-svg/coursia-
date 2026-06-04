@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 const TRIAL_DURATION_DAYS = 3;
 const TRIAL_MAX_COURSES = 3;
-const GRACE_PERIOD_DAYS = 7;
 
 interface PaywallStatus {
   canStudy: boolean;
@@ -14,37 +13,52 @@ interface PaywallStatus {
   trialCoursesGenerated: number;
   trialCoursesMax: number;
   hasSubscription: boolean;
-  subscriptionExpiryDate?: string;
-  inGracePeriod: boolean;
-  graceDaysRemaining?: number;
+  subscriptionPlan?: string;
+  subscriptionStatus?: string;
   isOfflineMode: boolean;
   showPaywall: boolean;
   paywallReason: string;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // ── 1. Fetch AppSettings ──
-    const settings = await db.appSettings.findUnique({ where: { id: "main" } });
+    // ── 1. Try to get user ID from query or header ──
+    let userId: string | null = null;
+    const authHeader = request.headers.get("Authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      userId = authHeader.substring(7);
+    } else {
+      const { searchParams } = new URL(request.url);
+      userId = searchParams.get("userId");
+    }
 
-    const isSubscribed = settings?.hasSubscription === true;
-    const updatedAt = settings?.updatedAt ?? null;
-
-    // ── 2. SUBSCRIBED (full access) ──
-    if (isSubscribed) {
-      return NextResponse.json<PaywallStatus>({
-        canStudy: true,
-        canGenerate: true,
-        canProgress: true,
-        inTrial: false,
-        trialCoursesGenerated: 0,
-        trialCoursesMax: TRIAL_MAX_COURSES,
-        hasSubscription: true,
-        inGracePeriod: false,
-        isOfflineMode: false,
-        showPaywall: false,
-        paywallReason: "subscribed",
+    // ── 2. Check user-level subscription ──
+    if (userId) {
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: {
+          subscriptionPlan: true,
+          subscriptionStatus: true,
+          email: true,
+        },
       });
+
+      if (user && user.subscriptionStatus === "active") {
+        return NextResponse.json<PaywallStatus>({
+          canStudy: true,
+          canGenerate: true,
+          canProgress: true,
+          inTrial: false,
+          trialCoursesGenerated: 0,
+          trialCoursesMax: TRIAL_MAX_COURSES,
+          hasSubscription: true,
+          subscriptionPlan: user.subscriptionPlan,
+          subscriptionStatus: user.subscriptionStatus,
+          isOfflineMode: false,
+          showPaywall: false,
+          paywallReason: "subscribed",
+        });
+      }
     }
 
     // ── 3. Count existing courses ──
@@ -68,7 +82,6 @@ export async function GET() {
         trialCoursesGenerated: 0,
         trialCoursesMax: TRIAL_MAX_COURSES,
         hasSubscription: false,
-        inGracePeriod: false,
         isOfflineMode: false,
         showPaywall: false,
         paywallReason: "no_courses",
@@ -95,10 +108,9 @@ export async function GET() {
         trialCoursesGenerated,
         trialCoursesMax: TRIAL_MAX_COURSES,
         hasSubscription: false,
-        inGracePeriod: false,
         isOfflineMode: false,
-        showPaywall: !canGenerate,
-        paywallReason: canGenerate ? "trial_active" : "trial_active",
+        showPaywall: false,
+        paywallReason: canGenerate ? "trial_active" : "trial_course_limit",
       });
     }
 
@@ -111,14 +123,12 @@ export async function GET() {
       trialCoursesGenerated,
       trialCoursesMax: TRIAL_MAX_COURSES,
       hasSubscription: false,
-      inGracePeriod: false,
       isOfflineMode: false,
       showPaywall: true,
       paywallReason: "trial_expired",
     });
   } catch (error) {
     console.error("[paywall-status] Error:", error);
-    // On error, be permissive — don't block users due to server errors
     return NextResponse.json<PaywallStatus>({
       canStudy: true,
       canGenerate: true,
@@ -127,7 +137,6 @@ export async function GET() {
       trialCoursesGenerated: 0,
       trialCoursesMax: TRIAL_MAX_COURSES,
       hasSubscription: false,
-      inGracePeriod: false,
       isOfflineMode: false,
       showPaywall: false,
       paywallReason: "no_courses",

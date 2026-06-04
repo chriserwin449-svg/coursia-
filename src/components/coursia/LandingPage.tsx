@@ -444,7 +444,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <button
-                onClick={() => user ? setView("create") : setView("auth")}
+                onClick={() => setView("offers")}
                 className="landing-monthly-btn-shimmer w-full py-4 rounded-full text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 cursor-pointer relative overflow-hidden"
               >
                 {tx.landing.pricing.monthly.cta}
@@ -490,7 +490,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <button
-                onClick={() => user ? setView("create") : setView("auth")}
+                onClick={() => setView("offers")}
                 className="landing-annual-btn-shimmer w-full py-4 rounded-full text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer relative overflow-hidden"
               >
                 {tx.landing.pricing.annual.cta}
@@ -501,8 +501,8 @@ export default function LandingPage() {
           {/* Payment provider note */}
           <p className="text-center text-xs text-muted-foreground/40 mt-10">
             {lang === "fr"
-              ? "Paiement sécurisé via Creem — disponible prochainement"
-              : "Secure payment via Creem — coming soon"}
+              ? "Paiement sécurisé via Creem"
+              : "Secure payment via Creem"}
           </p>
         </div>
       </section>

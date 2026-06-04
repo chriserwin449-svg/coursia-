@@ -49,7 +49,7 @@ export async function GET() {
       flameProgress,
       rewards,
       courseCreationCost: COURSE_CREATION_COST,
-      hasSubscription: settings.hasSubscription,
+      hasSubscription: false, // Checked per-user now, not globally
       totalEarned,
       totalSpent,
       transactions,

@@ -99,6 +99,13 @@ interface AppState {
   setShowLevelUp: (v: boolean) => void;
   levelUpData: { title: string; currentLevel: number; nextLevel: number } | null;
   setLevelUpData: (d: { title: string; currentLevel: number; nextLevel: number } | null) => void;
+  // Subscription
+  userPlan: string;
+  setUserPlan: (plan: string) => void;
+  hasSubscription: boolean;
+  setHasSubscription: (v: boolean) => void;
+  subscriptionStatus: string;
+  setSubscriptionStatus: (s: string) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -168,4 +175,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   setShowLevelUp: (v) => set({ showLevelUp: v }),
   levelUpData: null,
   setLevelUpData: (d) => set({ levelUpData: d }),
+  // Subscription
+  userPlan: "free",
+  setUserPlan: (plan) => set({ userPlan: plan }),
+  hasSubscription: false,
+  setHasSubscription: (v) => set({ hasSubscription: v }),
+  subscriptionStatus: "none",
+  setSubscriptionStatus: (s) => set({ subscriptionStatus: s }),
 }));

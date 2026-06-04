@@ -173,3 +173,37 @@ Stage Summary:
 - All requested features were either already implemented or now added
 - Pushed to GitHub commit 88a9267
 - Waiting for Creem credentials to integrate payment (FLW_PUBLIC_KEY, FLW_SECRET_KEY, FLW_WEBHOOK_SECRET, FLW_MONTHLY_PLAN_ID, FLW_ANNUAL_PLAN_ID)
+---
+Task ID: 2-creem
+Agent: Main Agent
+Task: Integrate Creem payment system into Coursia
+
+Work Log:
+- Researched Creem API documentation (api.creem.io/v1): checkout, webhook, signature verification
+- Updated Prisma schema: Added per-user subscription fields to User model (subscriptionPlan, subscriptionStatus, creemSubscriptionId, creemCustomerId, subscriptionStartDate, subscriptionEndDate)
+- Removed global AppSettings.hasSubscription field (now per-user)
+- Pushed schema changes via `bun run db:push`
+- Updated .env with Creem product IDs and env var placeholders (CREEM_API_KEY, CREEM_WEBHOOK_SECRET)
+- Created /api/subscription/checkout/route.ts: Creates Creem checkout sessions with product_id, metadata, success/cancel URLs
+- Created /api/subscription/webhook/route.ts: Handles Creem webhook events (subscription.active, subscription.paid, checkout.completed, subscription.canceled, subscription.expired, etc.) with HMAC-SHA256 signature verification
+- Updated /api/subscription/route.ts: Returns per-user subscription status from User model
+- Updated /api/courses/paywall-status/route.ts: Now checks user-level subscription via Authorization header or userId query param
+- Updated /api/auth/me/route.ts: Now includes subscription info in response
+- Updated /api/courses/generate/route.ts: Uses user.subscriptionStatus instead of AppSettings.hasSubscription for trial limit check
+- Updated /api/flames/route.ts: Removed reference to removed hasSubscription field
+- Updated /api/auth/register/route.ts: Removed hasSubscription from AppSettings creation
+- Updated /api/setup-db/route.ts: Removed hasSubscription from AppSettings table DDL
+- Updated Zustand store: Added userPlan, hasSubscription, subscriptionStatus + setters
+- Updated usePlan.ts hook: Uses correct store fields
+- Rewrote OffersPage.tsx: Connected checkout buttons to Creem API, added loading states, error handling, redirect to auth if not logged in, post-checkout status verification
+- Updated LandingPage.tsx: Removed "coming soon" from Creem text, monthly/annual buttons now redirect to Offers page
+- Replaced FAQ question #1 in OffersPage from "trial period" to "How does payment work on Coursia?"
+- Already subscribed: buttons show "Plan Actuel" and are disabled
+- Lint: 0 errors in src/ files
+
+Stage Summary:
+- Complete Creem payment integration ready (waiting for user to provide CREEM_API_KEY and CREEM_WEBHOOK_SECRET)
+- Per-user subscription tracking implemented
+- Checkout flow: OffersPage button → API → Creem checkout → redirect back → auto-verify
+- Webhook handler ready for all subscription lifecycle events
+- User needs to: 1) Get API key from Creem dashboard → Developers 2) Get webhook secret from same page 3) Add webhook URL: https://coursia-8oi4.vercel.app/api/subscription/webhook

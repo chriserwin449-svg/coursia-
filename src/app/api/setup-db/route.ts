@@ -16,7 +16,6 @@ DO $$ BEGIN ALTER TABLE "User" ADD CONSTRAINT "User_email_key" UNIQUE ("email");
 CREATE TABLE IF NOT EXISTS "AppSettings" (
     "id" TEXT NOT NULL PRIMARY KEY DEFAULT 'main',
     "flamePoints" INTEGER NOT NULL DEFAULT 0,
-    "hasSubscription" BOOLEAN NOT NULL DEFAULT false,
     "updatedAt" TIMESTAMP(3) NOT NULL
 );
 

@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, Crown, Zap, HelpCircle, ChevronDown, Star, AlertTriangle } from "lucide-react";
+import { Check, Crown, Zap, HelpCircle, ChevronDown, Star, AlertTriangle, Loader2 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 
 function FAQItem({
   question,
@@ -45,38 +45,117 @@ function FAQItem({
 
 export default function OffersPage() {
   const lang = useAppStore((s) => s.lang);
+  const userId = useAppStore((s) => s.userId);
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+  const setView = useAppStore((s) => s.setView);
   const tx = t(lang);
+
   const [trialExpired, setTrialExpired] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
+  // Check paywall & subscription status
   useEffect(() => {
-    fetch("/api/courses/paywall-status")
-      .then((r) => r.json())
-      .then((data) => {
+    const checkStatus = async () => {
+      try {
+        const headers: Record<string, string> = {};
+        if (userId) headers["Authorization"] = `Bearer ${userId}`;
+
+        const res = await fetch("/api/courses/paywall-status", { headers });
+        const data = await res.json();
         if (data.showPaywall && data.paywallReason === "trial_expired") {
           setTrialExpired(true);
         }
         if (data.hasSubscription) {
           setIsSubscribed(true);
         }
-      })
-      .catch(() => {});
-  }, []);
+      } catch {
+        // silently fail
+      }
+    };
+    checkStatus();
+  }, [userId]);
+
+  // Handle checkout
+  const handleCheckout = useCallback(
+    async (plan: "monthly" | "annual") => {
+      if (!isAuthenticated || !userId) {
+        setView("auth");
+        return;
+      }
+
+      setLoadingPlan(plan);
+      setCheckoutError(null);
+
+      try {
+        const res = await fetch("/api/subscription/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan, userId }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.checkoutUrl) {
+          setCheckoutError(
+            data.error || (lang === "fr" ? "Erreur lors de la création du paiement" : "Payment creation failed")
+          );
+          return;
+        }
+
+        // Redirect to Creem checkout
+        window.location.href = data.checkoutUrl;
+      } catch {
+        setCheckoutError(
+          lang === "fr" ? "Erreur de connexion. Réessaie." : "Connection error. Please try again."
+        );
+      } finally {
+        setLoadingPlan(null);
+      }
+    },
+    [isAuthenticated, userId, lang, setView]
+  );
+
+  // Check URL params for checkout result
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") === "success") {
+      // Re-check subscription status after successful checkout
+      const checkAfterCheckout = async () => {
+        try {
+          const headers: Record<string, string> = {};
+          if (userId) headers["Authorization"] = `Bearer ${userId}`;
+
+          const res = await fetch("/api/courses/paywall-status", { headers });
+          const data = await res.json();
+          if (data.hasSubscription) {
+            setIsSubscribed(true);
+            setTrialExpired(false);
+          }
+        } catch {
+          // silently fail
+        }
+      };
+      // Small delay to let webhook process
+      setTimeout(checkAfterCheckout, 2000);
+    }
+  }, [userId]);
 
   const faqs = useMemo(() => {
     if (lang === "fr") {
       return [
           {
-            q: "Puis-je annuler mon abonnement à tout moment ?",
-            a: "Oui, tu peux annuler ton abonnement à tout moment depuis tes paramètres. Ton accès reste actif jusqu'à la fin de la période payée.",
+            q: "Comment fonctionne le paiement sur Coursia ?",
+            a: "Le paiement est géré par Creem, une plateforme sécurisée. Tu seras redirigé vers la page de paiement de Creem où tu pourras payer par carte bancaire. Après le paiement, ton accès Pro est activé immédiatement.",
           },
           {
-            q: "Comment fonctionne la période d'essai gratuite ?",
-            a: "Avec le plan Découverte, tu peux créer 3 cours gratuitement pendant 7 jours. Tu peux lire et étudier tes cours pendant toute la période d'essai. Aucune carte bancaire n'est requise pour commencer.",
+            q: "Puis-je annuler mon abonnement à tout moment ?",
+            a: "Oui, tu peux annuler ton abonnement à tout moment. Ton accès reste actif jusqu'à la fin de la période payée. Pour annuler, contacte le support Coursia.",
           },
           {
             q: "Quelle différence entre le plan Mensuel et Annuel ?",
-            a: "Les deux plans offrent les mêmes fonctionnalités. Le plan Annuel te fait économiser 67 % par rapport au paiement mensuel, soit l'équivalent de 4 mois gratuits.",
+            a: "Les deux plans offrent les mêmes fonctionnalités. Le plan Annuel te fait économiser 64 % par rapport au paiement mensuel, soit l'équivalent de 4 mois gratuits.",
           },
           {
             q: "Les cours sont-ils disponibles hors ligne ?",
@@ -90,16 +169,16 @@ export default function OffersPage() {
     }
     return [
           {
-            q: "Can I cancel my subscription at any time?",
-            a: "Yes, you can cancel your subscription at any time from your settings. Your access remains active until the end of the paid period.",
+            q: "How does payment work on Coursia?",
+            a: "Payment is handled by Creem, a secure platform. You'll be redirected to Creem's payment page where you can pay by card. After payment, your Pro access is activated immediately.",
           },
           {
-            q: "How does the free trial work?",
-            a: "With the Discovery plan, you can create 3 free courses for 7 days. You can read and study your courses during the entire trial period. No credit card is required to get started.",
+            q: "Can I cancel my subscription at any time?",
+            a: "Yes, you can cancel your subscription at any time. Your access remains active until the end of the paid period. To cancel, contact Coursia support.",
           },
           {
             q: "What's the difference between Monthly and Annual?",
-            a: "Both plans offer the same features. The Annual plan saves you 67% compared to monthly billing — that's 4 months free.",
+            a: "Both plans offer the same features. The Annual plan saves you 64% compared to monthly billing — that's 4 months free.",
           },
           {
             q: "Are courses available offline?",
@@ -153,6 +232,16 @@ export default function OffersPage() {
                   ? "Tu es déjà abonné ! Accès illimité activé."
                   : "You're already subscribed! Unlimited access activated."}
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* ===== CHECKOUT ERROR ===== */}
+        {checkoutError && (
+          <div className="max-w-2xl mx-auto mb-8 animate-fade-in">
+            <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-red-500/10 border border-red-500/30">
+              <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm sm:text-base text-red-200 font-medium">{checkoutError}</p>
             </div>
           </div>
         )}
@@ -220,8 +309,21 @@ export default function OffersPage() {
                 </li>
               ))}
             </ul>
-            <button className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve cursor-pointer">
-              {tx.landing.pricing.monthly.cta}
+            <button
+              onClick={() => handleCheckout("monthly")}
+              disabled={loadingPlan === "monthly" || isSubscribed}
+              className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loadingPlan === "monthly" ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  {lang === "fr" ? "Redirection..." : "Redirecting..."}
+                </>
+              ) : isSubscribed ? (
+                <>{lang === "fr" ? "Plan Actuel" : "Current Plan"}</>
+              ) : (
+                tx.landing.pricing.monthly.cta
+              )}
             </button>
           </div>
 
@@ -263,8 +365,21 @@ export default function OffersPage() {
                 </li>
               ))}
             </ul>
-            <button className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer relative overflow-hidden">
-              {tx.landing.pricing.annual.cta}
+            <button
+              onClick={() => handleCheckout("annual")}
+              disabled={loadingPlan === "annual" || isSubscribed}
+              className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden flex items-center justify-center gap-2"
+            >
+              {loadingPlan === "annual" ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  {lang === "fr" ? "Redirection..." : "Redirecting..."}
+                </>
+              ) : isSubscribed ? (
+                <>{lang === "fr" ? "Plan Actuel" : "Current Plan"}</>
+              ) : (
+                tx.landing.pricing.annual.cta
+              )}
             </button>
           </div>
         </div>

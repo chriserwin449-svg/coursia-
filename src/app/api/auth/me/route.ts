@@ -12,17 +12,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ valid: false }, { status: 400 });
     }
 
-    // Verify user exists
-    const user = await db.user.findUnique({ where: { id: userId } });
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        subscriptionPlan: true,
+        subscriptionStatus: true,
+        subscriptionStartDate: true,
+      },
+    });
+
     if (!user) {
       return NextResponse.json({ valid: false }, { status: 401 });
     }
 
-    // Token is valid if user exists (simple token-based auth)
-    // The token itself is a random session identifier stored client-side
+    const isActive = user.subscriptionStatus === "active";
+
     return NextResponse.json({
       valid: true,
-      hasSubscription: false,
+      hasSubscription: isActive,
+      subscriptionPlan: user.subscriptionPlan,
+      subscriptionStatus: user.subscriptionStatus,
       user: {
         id: user.id,
         email: user.email,
@@ -47,15 +60,36 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = authHeader.substring(7);
-    const user = await db.user.findUnique({ where: { id: userId } });
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        subscriptionPlan: true,
+        subscriptionStatus: true,
+        subscriptionStartDate: true,
+      },
+    });
+
     if (!user) {
       return NextResponse.json({ valid: false }, { status: 401 });
     }
 
+    const isActive = user.subscriptionStatus === "active";
+
     return NextResponse.json({
       valid: true,
-      hasSubscription: false,
-      user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName },
+      hasSubscription: isActive,
+      subscriptionPlan: user.subscriptionPlan,
+      subscriptionStatus: user.subscriptionStatus,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
     });
   } catch (error) {
     console.error("Auth me error:", error);
