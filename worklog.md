@@ -50,3 +50,34 @@ Stage Summary:
 - Checkout URL includes proper paths for Creem validation
 - Random topic generation always returns a topic even when AI is unavailable
 - 6 files modified: register/route.ts, generate/route.ts, checkout/route.ts, random/route.ts, TopBar.tsx, auto-migrate.ts (new), setup-db/route.ts, supabase-setup.sql
+
+---
+Task ID: 3
+Agent: main
+Task: Make registration/login bulletproof for Vercel PostgreSQL (self-healing database)
+
+Work Log:
+- Root cause analysis: previous auto-migration only added COLUMNS to existing tables, but didn't handle MISSING tables. On Supabase PostgreSQL, some tables might not exist at all.
+- Completely rewrote register route (src/app/api/auth/register/route.ts):
+  - Added `ensureDatabaseReady()` function that creates ALL tables if missing (CREATE TABLE IF NOT EXISTS) for PostgreSQL
+  - Creates: User, AppSettings, Course, Chapter, Quiz, ChapterProgress, CourseQuiz, CourseProgress, FlameTransaction, StudySession
+  - Adds unique constraint on User.email if missing
+  - Adds all subscription/progress columns if missing
+  - ALL database operations now use raw SQL ($queryRawUnsafe/$executeRawUnsafe) instead of Prisma ORM
+  - Bypasses Prisma schema validation entirely — works even with schema mismatch
+  - Added detailed error logging at every step with debug info returned to client
+- Completely rewrote login route (src/app/api/auth/login/route.ts):
+  - Same self-healing approach: creates User table if missing, adds columns
+  - Uses only raw SQL for user lookup and password verification
+  - Upgrades legacy SHA-256 passwords to bcrypt
+- Updated auto-migrate.ts (src/lib/auto-migrate.ts):
+  - Now creates all tables if missing (not just adds columns)
+  - Covers all 10 models in the Prisma schema
+  - Used by course generation and other routes
+- Browser verification: registration tested end-to-end, 200 OK, user persisted, dashboard redirect works
+
+Stage Summary:
+- Register and login routes are now 100% raw SQL based for PostgreSQL
+- Database self-heals on first request (creates tables, adds columns, adds constraints)
+- Should resolve "Erreur lors de l'inscription" on Vercel permanently
+- Files modified: register/route.ts, login/route.ts, auto-migrate.ts

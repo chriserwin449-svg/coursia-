@@ -8,69 +8,202 @@ function generateToken(userId: string): string {
 }
 
 /**
- * Migrate a single column if it doesn't exist.
- * Runs each ALTER TABLE separately so one failure doesn't block others.
+ * Ensures the database is fully ready for registration.
+ * Creates tables if missing, adds columns if missing.
+ * Works for both SQLite and PostgreSQL.
  */
-async function migrateColumn(table: string, col: string, colDef: string): Promise<void> {
-  try {
-    await db.$executeRawUnsafe(
-      `DO $$ BEGIN ALTER TABLE "${table}" ADD COLUMN "${col}" ${colDef}; EXCEPTION WHEN duplicate_column THEN null; END $$;`
-    );
-  } catch (err) {
-    console.warn(`[migrate] ${table}.${col} failed:`, err instanceof Error ? err.message : err);
-  }
-}
-
-async function ensureAllColumns(): Promise<void> {
+async function ensureDatabaseReady(): Promise<void> {
   const dbUrl = process.env.DATABASE_URL;
-  if (!dbUrl || dbUrl.startsWith("file:")) return; // SQLite
+  const isPostgres = dbUrl && !dbUrl.startsWith("file:");
 
   try {
-    // User subscription columns
-    await migrateColumn("User", "subscriptionPlan", "TEXT NOT NULL DEFAULT 'free'");
-    await migrateColumn("User", "subscriptionStatus", "TEXT NOT NULL DEFAULT 'none'");
-    await migrateColumn("User", "creemSubscriptionId", "TEXT");
-    await migrateColumn("User", "creemCustomerId", "TEXT");
-    await migrateColumn("User", "subscriptionStartDate", "TIMESTAMP(3)");
-    await migrateColumn("User", "subscriptionEndDate", "TIMESTAMP(3)");
-    await migrateColumn("User", "trialStartDate", "TIMESTAMP(3)");
-    // Chapter level
-    await migrateColumn("Chapter", "level", "INTEGER NOT NULL DEFAULT 0");
-    // CourseProgress fields
-    await migrateColumn("CourseProgress", "maxUnlockedLevel", "INTEGER NOT NULL DEFAULT 0");
-    await migrateColumn("CourseProgress", "stoppedAtLevel", "INTEGER NOT NULL DEFAULT -1");
-    console.log("✅ Column migration check completed");
-  } catch (err) {
-    console.error("[migrate] Column migration failed:", err);
-  }
-}
+    if (isPostgres) {
+      // ─── PostgreSQL: Create tables if they don't exist ───
 
-/**
- * Try creating a user using only basic columns (no subscription fields).
- * If Prisma model has fields not in DB, we catch and provide detailed error.
- */
-async function createUserBasic(email: string, hashedPassword: string, firstName: string, lastName: string) {
-  // Attempt 1: Normal Prisma create (works if all columns exist)
-  try {
-    return await db.user.create({
-      data: { email, password: hashedPassword, firstName, lastName },
-    });
-  } catch (prismaErr) {
-    const msg = prismaErr instanceof Error ? prismaErr.message : String(prismaErr);
-    console.error("[register] Prisma create failed:", msg);
+      // User table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "User" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "email" TEXT NOT NULL,
+          "password" TEXT NOT NULL,
+          "firstName" TEXT NOT NULL,
+          "lastName" TEXT NOT NULL,
+          "subscriptionPlan" TEXT NOT NULL DEFAULT 'free',
+          "subscriptionStatus" TEXT NOT NULL DEFAULT 'none',
+          "creemSubscriptionId" TEXT,
+          "creemCustomerId" TEXT,
+          "subscriptionStartDate" TIMESTAMP(3),
+          "subscriptionEndDate" TIMESTAMP(3),
+          "trialStartDate" TIMESTAMP(3),
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      // Add unique constraint on email if missing
+      try {
+        await db.$executeRawUnsafe(`
+          DO $$ BEGIN
+            ALTER TABLE "User" ADD CONSTRAINT "User_email_key" UNIQUE ("email");
+          EXCEPTION WHEN duplicate_object THEN null; END $$;
+        `);
+      } catch { /* ignore */ }
 
-    // Attempt 2: Raw SQL insert with only basic columns (fallback if subscription columns missing)
-    if (msg.includes("does not exist") || msg.includes("column") || msg.includes("relation")) {
-      console.log("[register] Trying raw SQL fallback...");
-      const id = crypto.randomUUID();
-      await db.$executeRawUnsafe(
-        `INSERT INTO "User" ("id", "email", "password", "firstName", "lastName", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
-        id, email, hashedPassword, firstName, lastName
-      );
-      return await db.user.findUnique({ where: { id } });
+      // AppSettings table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "AppSettings" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "flamePoints" INTEGER NOT NULL DEFAULT 0,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // Course table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "Course" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "userId" TEXT,
+          "title" TEXT NOT NULL,
+          "description" TEXT NOT NULL DEFAULT '',
+          "sourceLinks" TEXT NOT NULL DEFAULT '[]',
+          "level" INTEGER NOT NULL DEFAULT 0,
+          "flameCost" INTEGER NOT NULL DEFAULT 0,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // Chapter table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "Chapter" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "title" TEXT NOT NULL,
+          "content" TEXT NOT NULL,
+          "summary" TEXT NOT NULL DEFAULT '',
+          "order" INTEGER NOT NULL,
+          "level" INTEGER NOT NULL DEFAULT 0,
+          "courseId" TEXT NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // Quiz table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "Quiz" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "questions" TEXT NOT NULL,
+          "chapterId" TEXT NOT NULL,
+          CONSTRAINT "Quiz_chapterId_key" UNIQUE ("chapterId")
+        );
+      `);
+
+      // ChapterProgress table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "ChapterProgress" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "chapterId" TEXT NOT NULL,
+          "completed" BOOLEAN NOT NULL DEFAULT false,
+          "score" INTEGER NOT NULL DEFAULT 0,
+          "completedAt" TIMESTAMP(3),
+          "flameAwarded" BOOLEAN NOT NULL DEFAULT false,
+          CONSTRAINT "ChapterProgress_chapterId_key" UNIQUE ("chapterId")
+        );
+      `);
+
+      // CourseQuiz table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "CourseQuiz" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "questions" TEXT NOT NULL,
+          "courseId" TEXT NOT NULL,
+          CONSTRAINT "CourseQuiz_courseId_key" UNIQUE ("courseId")
+        );
+      `);
+
+      // CourseProgress table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "CourseProgress" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "courseId" TEXT NOT NULL,
+          "completed" BOOLEAN NOT NULL DEFAULT false,
+          "score" INTEGER NOT NULL DEFAULT 0,
+          "passedAt" TIMESTAMP(3),
+          "flameAwarded" BOOLEAN NOT NULL DEFAULT false,
+          "maxUnlockedLevel" INTEGER NOT NULL DEFAULT 0,
+          "stoppedAtLevel" INTEGER NOT NULL DEFAULT -1,
+          CONSTRAINT "CourseProgress_courseId_key" UNIQUE ("courseId")
+        );
+      `);
+
+      // FlameTransaction table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "FlameTransaction" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "amount" INTEGER NOT NULL,
+          "reason" TEXT NOT NULL,
+          "courseId" TEXT,
+          "chapterId" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // StudySession table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "StudySession" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "userId" TEXT,
+          "chapterId" TEXT,
+          "courseId" TEXT NOT NULL,
+          "startTime" TIMESTAMP(3) NOT NULL,
+          "endTime" TIMESTAMP(3),
+          "durationSeconds" INTEGER NOT NULL DEFAULT 0
+        );
+      `);
+
+      // ─── Add missing columns to existing tables ───
+      const userColumns = [
+        ["subscriptionPlan", "TEXT NOT NULL DEFAULT 'free'"],
+        ["subscriptionStatus", "TEXT NOT NULL DEFAULT 'none'"],
+        ["creemSubscriptionId", "TEXT"],
+        ["creemCustomerId", "TEXT"],
+        ["subscriptionStartDate", "TIMESTAMP(3)"],
+        ["subscriptionEndDate", "TIMESTAMP(3)"],
+        ["trialStartDate", "TIMESTAMP(3)"],
+      ];
+      for (const [col, def] of userColumns) {
+        try {
+          await db.$executeRawUnsafe(
+            `DO $$ BEGIN ALTER TABLE "User" ADD COLUMN "${col}" ${def}; EXCEPTION WHEN duplicate_column THEN null; END $$;`
+          );
+        } catch { /* ignore */ }
+      }
+
+      // Chapter.level column
+      try {
+        await db.$executeRawUnsafe(
+          `DO $$ BEGIN ALTER TABLE "Chapter" ADD COLUMN "level" INTEGER NOT NULL DEFAULT 0; EXCEPTION WHEN duplicate_column THEN null; END $$;`
+        );
+      } catch { /* ignore */ }
+
+      // CourseProgress columns
+      const cpColumns = [
+        ["maxUnlockedLevel", "INTEGER NOT NULL DEFAULT 0"],
+        ["stoppedAtLevel", "INTEGER NOT NULL DEFAULT -1"],
+      ];
+      for (const [col, def] of cpColumns) {
+        try {
+          await db.$executeRawUnsafe(
+            `DO $$ BEGIN ALTER TABLE "CourseProgress" ADD COLUMN "${col}" ${def}; EXCEPTION WHEN duplicate_column THEN null; END $$;`
+          );
+        } catch { /* ignore */ }
+      }
+
+      console.log("✅ PostgreSQL database ensured ready");
     }
-
-    throw prismaErr;
+    // SQLite: Prisma handles it via schema.prisma — no action needed
+  } catch (err) {
+    console.error("[ensureDatabaseReady] Error:", err);
+    // Don't throw — let the actual operation fail with a clear error
   }
 }
 
@@ -101,7 +234,7 @@ export async function POST(request: NextRequest) {
     const first = firstName.trim();
     const last = lastName.trim();
 
-    // Test DB connection first
+    // Step 1: Test DB connection
     try {
       await db.$queryRaw`SELECT 1 as ok`;
     } catch (dbTestError: unknown) {
@@ -113,57 +246,91 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Auto-migrate: add missing columns one by one
-    await ensureAllColumns();
+    // Step 2: Ensure database schema is ready (creates tables + adds columns)
+    await ensureDatabaseReady();
 
-    // Check if user already exists
-    const existing = await db.user.findUnique({ where: { email: emailLower } });
-    if (existing) {
+    // Step 3: Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Step 4: Check if user already exists (raw SQL for reliability)
+    const dbUrl = process.env.DATABASE_URL;
+    const isPostgres = dbUrl && !dbUrl.startsWith("file:");
+
+    let existingUser: Array<{ id: string }> | null = null;
+    try {
+      existingUser = await db.$queryRawUnsafe(
+        `SELECT "id" FROM "User" WHERE "email" = $1 LIMIT 1`,
+        emailLower
+      ) as Array<{ id: string }>;
+    } catch (err) {
+      console.error("[register] User lookup error:", err);
+      return NextResponse.json(
+        { error: "Erreur lors de la vérification de l'email", debug: String(err) },
+        { status: 500 },
+      );
+    }
+
+    if (existingUser && existingUser.length > 0) {
       return NextResponse.json(
         { error: "Un compte existe déjà avec cet email" },
         { status: 409 },
       );
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    // Create user (with fallback to raw SQL if Prisma fails)
-    const user = await createUserBasic(emailLower, hashedPassword, first, last);
-
-    if (!user) {
+    // Step 5: Create user using raw SQL (bypasses Prisma schema validation)
+    const userId = crypto.randomUUID();
+    try {
+      if (isPostgres) {
+        await db.$executeRawUnsafe(
+          `INSERT INTO "User" ("id", "email", "password", "firstName", "lastName", "subscriptionPlan", "subscriptionStatus", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, 'free', 'none', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          userId, emailLower, hashedPassword, first, last
+        );
+      } else {
+        // SQLite
+        await db.$executeRawUnsafe(
+          `INSERT INTO "User" ("id", "email", "password", "firstName", "lastName", "subscriptionPlan", "subscriptionStatus", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, 'free', 'none', datetime('now'), datetime('now'))`,
+          userId, emailLower, hashedPassword, first, last
+        );
+      }
+    } catch (err) {
+      console.error("[register] User INSERT error:", err);
       return NextResponse.json(
-        { error: "Erreur lors de la création du compte", debug: "User creation returned null" },
+        { error: "Erreur lors de la création du compte", debug: String(err) },
         { status: 500 },
       );
     }
 
-    // Generate auth token
-    const token = generateToken(user.id);
+    // Step 6: Generate auth token
+    const token = generateToken(userId);
 
-    // Ensure AppSettings entry exists
+    // Step 7: Ensure AppSettings entry (non-blocking)
     try {
-      await db.appSettings.upsert({
-        where: { id: user.id },
-        update: {},
-        create: { id: user.id, flamePoints: 0 },
-      });
+      await db.$executeRawUnsafe(
+        `INSERT INTO "AppSettings" ("id", "flamePoints", "updatedAt")
+         VALUES ($1, 0, CURRENT_TIMESTAMP)
+         ON CONFLICT ("id") DO NOTHING`,
+        userId
+      );
     } catch {
-      // Non-blocking
+      // Non-blocking — AppSettings is not critical for registration
     }
+
+    console.log(`✅ [register] User created: ${emailLower} (${userId})`);
 
     return NextResponse.json({
       success: true,
       user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        id: userId,
+        email: emailLower,
+        firstName: first,
+        lastName: last,
       },
       token,
     });
   } catch (error: unknown) {
-    console.error("[register] Error:", error);
+    console.error("[register] Unhandled error:", error);
     const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
       { error: "Erreur lors de l'inscription", debug: msg },

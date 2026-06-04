@@ -7,32 +7,64 @@ function generateToken(userId: string): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
-async function migrateColumn(table: string, col: string, colDef: string): Promise<void> {
-  try {
-    await db.$executeRawUnsafe(
-      `DO $$ BEGIN ALTER TABLE "${table}" ADD COLUMN "${col}" ${colDef}; EXCEPTION WHEN duplicate_column THEN null; END $$;`
-    );
-  } catch {
-    // Ignore — non-critical
-  }
-}
-
-async function ensureAllColumns(): Promise<void> {
+/**
+ * Ensures the database is fully ready for login.
+ * Creates tables if missing, adds columns if missing.
+ */
+async function ensureDatabaseReady(): Promise<void> {
   const dbUrl = process.env.DATABASE_URL;
-  if (!dbUrl || dbUrl.startsWith("file:")) return;
+  const isPostgres = dbUrl && !dbUrl.startsWith("file:");
+
   try {
-    await migrateColumn("User", "subscriptionPlan", "TEXT NOT NULL DEFAULT 'free'");
-    await migrateColumn("User", "subscriptionStatus", "TEXT NOT NULL DEFAULT 'none'");
-    await migrateColumn("User", "creemSubscriptionId", "TEXT");
-    await migrateColumn("User", "creemCustomerId", "TEXT");
-    await migrateColumn("User", "subscriptionStartDate", "TIMESTAMP(3)");
-    await migrateColumn("User", "subscriptionEndDate", "TIMESTAMP(3)");
-    await migrateColumn("User", "trialStartDate", "TIMESTAMP(3)");
-    await migrateColumn("Chapter", "level", "INTEGER NOT NULL DEFAULT 0");
-    await migrateColumn("CourseProgress", "maxUnlockedLevel", "INTEGER NOT NULL DEFAULT 0");
-    await migrateColumn("CourseProgress", "stoppedAtLevel", "INTEGER NOT NULL DEFAULT -1");
-  } catch {
-    // Non-critical
+    if (isPostgres) {
+      // Create User table if it doesn't exist
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "User" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "email" TEXT NOT NULL,
+          "password" TEXT NOT NULL,
+          "firstName" TEXT NOT NULL,
+          "lastName" TEXT NOT NULL,
+          "subscriptionPlan" TEXT NOT NULL DEFAULT 'free',
+          "subscriptionStatus" TEXT NOT NULL DEFAULT 'none',
+          "creemSubscriptionId" TEXT,
+          "creemCustomerId" TEXT,
+          "subscriptionStartDate" TIMESTAMP(3),
+          "subscriptionEndDate" TIMESTAMP(3),
+          "trialStartDate" TIMESTAMP(3),
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      // Add unique constraint on email if missing
+      try {
+        await db.$executeRawUnsafe(`
+          DO $$ BEGIN
+            ALTER TABLE "User" ADD CONSTRAINT "User_email_key" UNIQUE ("email");
+          EXCEPTION WHEN duplicate_object THEN null; END $$;
+        `);
+      } catch { /* ignore */ }
+
+      // Add missing columns
+      const userColumns = [
+        ["subscriptionPlan", "TEXT NOT NULL DEFAULT 'free'"],
+        ["subscriptionStatus", "TEXT NOT NULL DEFAULT 'none'"],
+        ["creemSubscriptionId", "TEXT"],
+        ["creemCustomerId", "TEXT"],
+        ["subscriptionStartDate", "TIMESTAMP(3)"],
+        ["subscriptionEndDate", "TIMESTAMP(3)"],
+        ["trialStartDate", "TIMESTAMP(3)"],
+      ];
+      for (const [col, def] of userColumns) {
+        try {
+          await db.$executeRawUnsafe(
+            `DO $$ BEGIN ALTER TABLE "User" ADD COLUMN "${col}" ${def}; EXCEPTION WHEN duplicate_column THEN null; END $$;`
+          );
+        } catch { /* ignore */ }
+      }
+    }
+  } catch (err) {
+    console.error("[ensureDatabaseReady] Error:", err);
   }
 }
 
@@ -49,32 +81,43 @@ export async function POST(request: NextRequest) {
 
     const emailLower = email.toLowerCase().trim();
 
-    // Auto-migrate schema if needed
-    await ensureAllColumns();
-
-    // Find user — use raw query to avoid Prisma failing on missing columns
-    let user: Record<string, unknown> | null = null;
+    // Test DB connection
     try {
-      user = await db.user.findUnique({ where: { email: emailLower } }) as unknown as Record<string, unknown> | null;
-    } catch {
-      // Fallback: raw SQL query with only basic columns
-      try {
-        const rows = await db.$queryRawUnsafe(
-          `SELECT id, email, password, "firstName", "lastName" FROM "User" WHERE email = $1`,
-          emailLower
-        ) as Array<Record<string, unknown>>;
-        user = rows[0] || null;
-      } catch (err) {
-        console.error("[login] User lookup failed:", err);
-        return NextResponse.json({ error: "Erreur lors de la connexion" }, { status: 500 });
-      }
+      await db.$queryRaw`SELECT 1 as ok`;
+    } catch (dbTestError: unknown) {
+      const msg = dbTestError instanceof Error ? dbTestError.message : String(dbTestError);
+      console.error("[login] DB connection failed:", msg);
+      return NextResponse.json(
+        { error: "Base de données indisponible. Réessaie dans quelques instants.", debug: msg },
+        { status: 503 },
+      );
     }
+
+    // Ensure database schema is ready
+    await ensureDatabaseReady();
+
+    // Find user using raw SQL (bypasses Prisma schema validation)
+    let userRows: Array<Record<string, unknown>> | null = null;
+    try {
+      userRows = await db.$queryRawUnsafe(
+        `SELECT "id", "email", "password", "firstName", "lastName" FROM "User" WHERE "email" = $1 LIMIT 1`,
+        emailLower
+      ) as Array<Record<string, unknown>>;
+    } catch (err) {
+      console.error("[login] User lookup failed:", err);
+      return NextResponse.json(
+        { error: "Erreur lors de la connexion", debug: String(err) },
+        { status: 500 },
+      );
+    }
+
+    const user = userRows?.[0] || null;
 
     if (!user) {
       return NextResponse.json({ error: "user_not_found" }, { status: 404 });
     }
 
-    // Check password format (old hash vs new bcrypt)
+    // Check password format (bcrypt hash vs legacy SHA-256)
     const userPassword = user.password as string;
     let passwordValid = false;
 
@@ -91,10 +134,8 @@ export async function POST(request: NextRequest) {
       if (passwordValid) {
         const newHash = await bcrypt.hash(password, 12);
         try {
-          await db.$executeRawUnsafe(`UPDATE "User" SET password = $1 WHERE id = $2`, newHash, user.id);
-        } catch {
-          // Non-critical
-        }
+          await db.$executeRawUnsafe(`UPDATE "User" SET password = $1, "updatedAt" = CURRENT_TIMESTAMP WHERE id = $2`, newHash, user.id);
+        } catch { /* Non-critical */ }
       }
     }
 
@@ -104,6 +145,8 @@ export async function POST(request: NextRequest) {
 
     // Generate new auth token
     const token = generateToken(user.id as string);
+
+    console.log(`✅ [login] User logged in: ${emailLower}`);
 
     return NextResponse.json({
       success: true,
@@ -116,9 +159,9 @@ export async function POST(request: NextRequest) {
       token,
     });
   } catch (error) {
-    console.error("[login] Error:", error);
+    console.error("[login] Unhandled error:", error);
     return NextResponse.json(
-      { error: "Erreur lors de la connexion" },
+      { error: "Erreur lors de la connexion", debug: String(error) },
       { status: 500 },
     );
   }

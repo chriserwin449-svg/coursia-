@@ -29,3 +29,5 @@ try {
   console.error("❌ Failed to generate Prisma client:", error.message);
   process.exit(1);
 }
+
+console.log("✅ Vercel build preparation complete");
