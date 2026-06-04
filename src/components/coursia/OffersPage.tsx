@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, Crown, Zap, HelpCircle, ChevronDown, Star } from "lucide-react";
+import { Check, Crown, Zap, HelpCircle, ChevronDown, Star, AlertTriangle } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 function FAQItem({
   question,
@@ -46,6 +46,22 @@ function FAQItem({
 export default function OffersPage() {
   const lang = useAppStore((s) => s.lang);
   const tx = t(lang);
+  const [trialExpired, setTrialExpired] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/courses/paywall-status")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.showPaywall && data.paywallReason === "trial_expired") {
+          setTrialExpired(true);
+        }
+        if (data.hasSubscription) {
+          setIsSubscribed(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const faqs = useMemo(() => {
     if (lang === "fr") {
@@ -115,26 +131,57 @@ export default function OffersPage() {
           </p>
         </div>
 
+        {/* ===== TRIAL EXPIRED BANNER ===== */}
+        {trialExpired && (
+          <div className="max-w-2xl mx-auto mb-8 animate-fade-in">
+            <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+              <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm sm:text-base text-amber-200 font-medium">
+                {tx.offers.trialExpired}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ===== ALREADY SUBSCRIBED BANNER ===== */}
+        {isSubscribed && (
+          <div className="max-w-2xl mx-auto mb-8 animate-fade-in">
+            <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+              <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm sm:text-base text-emerald-200 font-medium">
+                {lang === "fr"
+                  ? "Tu es déjà abonné ! Accès illimité activé."
+                  : "You're already subscribed! Unlimited access activated."}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ===== PRICING CARDS ===== */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-start mb-20">
-          {/* FREE PLAN */}
-          <div className="pricing-card-float glass rounded-3xl p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
+        <div className={`grid gap-6 lg:gap-8 items-start mb-20 ${
+          trialExpired
+            ? "grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto"
+            : "grid-cols-1 md:grid-cols-3"
+        }`}>
+          {/* FREE PLAN — hidden when trial expired */}
+          {!trialExpired && (
+          <div className="pricing-card-float glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
             <div className="mb-6">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
+                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
                   <Zap className="w-6 h-6 text-mauve-light" />
                 </div>
-                <h3 className="text-xl font-bold">{tx.landing.pricing.free.name}</h3>
+                <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.free.name}</h3>
               </div>
               <p className="text-muted-foreground text-sm">{tx.landing.pricing.free.desc}</p>
             </div>
             <div className="mb-6">
-              <span className="text-4xl font-extrabold">{tx.landing.pricing.free.price}</span>
+              <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.free.price}</span>
               {lang === "fr" && (
                 <p className="text-sm text-gold font-semibold mt-1">{tx.landing.pricing.free.note}</p>
               )}
             </div>
-            <ul className="flex-1 space-y-3 mb-8">
+            <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
               {tx.landing.pricing.free.features.map((f) => (
                 <li key={f} className="flex items-start gap-3">
                   <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
@@ -142,27 +189,30 @@ export default function OffersPage() {
                 </li>
               ))}
             </ul>
-            <button className="w-full py-4 rounded-full border border-muted-foreground/20 text-foreground font-bold hover:bg-muted-foreground/10 transition-all duration-300 cursor-pointer">
+            <button className="w-full py-3.5 sm:py-4 rounded-full border border-muted-foreground/20 text-foreground font-bold hover:bg-muted-foreground/10 transition-all duration-300 cursor-pointer">
               {tx.landing.pricing.free.cta}
             </button>
           </div>
+          )}
 
           {/* MONTHLY PLAN */}
-          <div className="pricing-card-float monthly-card-glow glass rounded-3xl p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
+          <div className={`pricing-card-float monthly-card-glow glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300 ${
+            trialExpired ? "md:col-span-1" : ""
+          }`}>
             <div className="mb-6">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
+                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
                   <Zap className="w-6 h-6 text-mauve-light" />
                 </div>
-                <h3 className="text-xl font-bold">{tx.landing.pricing.monthly.name}</h3>
+                <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.monthly.name}</h3>
               </div>
               <p className="text-muted-foreground text-sm">{tx.landing.pricing.monthly.desc}</p>
             </div>
             <div className="mb-6">
-              <span className="text-4xl font-extrabold">{tx.landing.pricing.monthly.price}</span>
+              <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.monthly.price}</span>
               <span className="text-lg text-muted-foreground">{tx.landing.pricing.monthly.period}</span>
             </div>
-            <ul className="flex-1 space-y-3 mb-8">
+            <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
               {tx.landing.pricing.monthly.features.map((f) => (
                 <li key={f} className="flex items-start gap-3">
                   <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
@@ -170,13 +220,13 @@ export default function OffersPage() {
                 </li>
               ))}
             </ul>
-            <button className="w-full py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve cursor-pointer">
+            <button className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve cursor-pointer">
               {tx.landing.pricing.monthly.cta}
             </button>
           </div>
 
           {/* ANNUAL PLAN — highlighted */}
-          <div className="pricing-card-float annual-card-shimmer relative glass rounded-3xl p-8 flex flex-col border-2 border-gold/50 hover:border-gold/70 transition-all duration-300 shadow-[0_0_40px_rgba(234,179,8,0.1)]">
+          <div className="pricing-card-float annual-card-shimmer relative glass rounded-3xl p-5 sm:p-8 flex flex-col border-2 border-gold/50 hover:border-gold/70 transition-all duration-300 shadow-[0_0_40px_rgba(234,179,8,0.1)]">
             {/* Popular badge */}
             <span className="annual-badge-pulse absolute -top-4 left-1/2 -translate-x-1/2 px-5 py-1.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-xs font-extrabold uppercase tracking-wider z-10">
               <span className="flex items-center gap-1.5">
@@ -194,18 +244,18 @@ export default function OffersPage() {
 
             <div className="mb-6">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 rounded-2xl bg-gold/10 flex items-center justify-center">
+                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gold/10 flex items-center justify-center">
                   <Crown className="w-6 h-6 text-gold" />
                 </div>
-                <h3 className="text-xl font-bold">{tx.landing.pricing.annual.name}</h3>
+                <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.annual.name}</h3>
               </div>
               <p className="text-muted-foreground text-sm">{tx.landing.pricing.annual.desc}</p>
             </div>
             <div className="mb-6">
-              <span className="text-4xl font-extrabold">{tx.landing.pricing.annual.price}</span>
+              <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.annual.price}</span>
               <span className="text-lg text-muted-foreground">{tx.landing.pricing.annual.period}</span>
             </div>
-            <ul className="flex-1 space-y-3 mb-8">
+            <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
               {tx.landing.pricing.annual.features.map((f) => (
                 <li key={f} className="flex items-start gap-3">
                   <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
@@ -213,7 +263,7 @@ export default function OffersPage() {
                 </li>
               ))}
             </ul>
-            <button className="annual-btn-shimmer w-full py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer relative overflow-hidden">
+            <button className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer relative overflow-hidden">
               {tx.landing.pricing.annual.cta}
             </button>
           </div>
@@ -243,8 +293,8 @@ export default function OffersPage() {
         <div className="text-center pb-10">
           <p className="text-xs text-muted-foreground/50">
             {lang === "fr"
-              ? "Paiement sécurisé via LemonSqueezy"
-              : "Secure payment via LemonSqueezy"}
+              ? "Paiement sécurisé via Creem"
+              : "Secure payment via Creem"}
           </p>
         </div>
       </div>

@@ -9,7 +9,6 @@ import {
   Loader2,
   BookOpen,
   ChevronRight,
-  Signal,
   Globe,
   Crown,
 } from "lucide-react";
@@ -30,7 +29,6 @@ export default function CreateCourse() {
   const [linkInput, setLinkInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [level, setLevel] = useState(1); // 0=Beginner, 1=Intermediate, 2=Advanced
   const [courseLang, setCourseLang] = useState("fr"); // "fr" or "en"
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [courses, setCourses] = useState<CourseData[]>([]);
@@ -43,8 +41,6 @@ export default function CreateCourse() {
   const storeRandomTopic = useAppStore((s) => s.randomTopic);
   const storeRandomCourseLang = useAppStore((s) => s.randomCourseLang);
   const setStoreRandomTopic = useAppStore((s) => s.setRandomTopic);
-  const storeLevelUpData = useAppStore((s) => s.levelUpData);
-  const setStoreLevelUpData = useAppStore((s) => s.setLevelUpData);
   const prevRandomRef = useRef<string | null>(null);
 
   // ─── React to random topic changes from TopBar (instant, no reload) ───
@@ -56,15 +52,10 @@ export default function CreateCourse() {
       if (storeRandomCourseLang === "fr" || storeRandomCourseLang === "en") {
         setCourseLang(storeRandomCourseLang);
       }
-      // If coming from level-up, auto-set the next level
-      if (storeLevelUpData && storeLevelUpData.nextLevel >= 0 && storeLevelUpData.nextLevel <= 2) {
-        setLevel(storeLevelUpData.nextLevel);
-        setStoreLevelUpData(null);
-      }
       prevRandomRef.current = storeRandomTopic;
       setStoreRandomTopic(null); // consume it
     }
-  }, [storeRandomTopic, storeRandomCourseLang, setStoreRandomTopic, storeLevelUpData, setStoreLevelUpData]);
+  }, [storeRandomTopic, storeRandomCourseLang, setStoreRandomTopic]);
 
   // ─── Rotating placeholder with typing/fade effect ────────────────────
   const placeholders = tx.create.placeholders;
@@ -183,7 +174,7 @@ export default function CreateCourse() {
         body: JSON.stringify({
           title: title.trim(),
           sourceLinks: links,
-          level,
+          level: 0,
           courseLang,
           userId: useAppStore.getState().userId,
         }),
@@ -217,7 +208,6 @@ export default function CreateCourse() {
   };
 
   // ─── Helpers ──────────────────────────────────────────────────────────
-  const levelLabels = tx.create.levels;
   const courseLangLabels = tx.create.courseLangs;
 
   const formatDate = (dateStr: string) => {
@@ -326,56 +316,6 @@ export default function CreateCourse() {
               ))}
             </div>
           )}
-        </div>
-
-        {/* ─── Difficulty level selector ─── */}
-        <div className="mb-6">
-          <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
-            <Signal className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-            {tx.create.level}
-          </label>
-          <div className="grid grid-cols-3 gap-3">
-            {levelLabels.map((label, i) => {
-              const isSelected = level === i;
-              return (
-                <button
-                  key={i}
-                  onClick={() => setLevel(i)}
-                  className={`relative px-4 py-4 rounded-2xl font-bold text-center cursor-pointer transition-all duration-300 ${
-                    isSelected
-                      ? "bg-mauve/20 border-2 border-mauve text-mauve-light shadow-lg shadow-mauve/10"
-                      : "glass border-2 border-transparent text-muted-foreground hover:text-foreground hover:bg-white/5"
-                  }`}
-                >
-                  <div className="flex flex-col items-center gap-2">
-                    <div
-                      className={`flex gap-1 ${
-                        isSelected ? "text-mauve-light" : "text-muted-foreground/50"
-                      }`}
-                    >
-                      {[0, 1, 2].map((bar) => (
-                        <div
-                          key={bar}
-                          className={`w-1.5 rounded-full transition-all duration-300 ${
-                            bar <= i
-                              ? isSelected
-                                ? "bg-mauve-light h-5"
-                                : "bg-muted-foreground/40 h-3"
-                              : "bg-muted-foreground/20 h-2"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    <span className="text-sm md:text-base">{label}</span>
-                  </div>
-                  {/* Selected indicator dot */}
-                  {isSelected && (
-                    <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-mauve border-2 border-night" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         {/* ─── Course language selector ─── */}

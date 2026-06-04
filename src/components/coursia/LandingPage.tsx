@@ -498,11 +498,11 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* LemonSqueezy placeholder note */}
+          {/* Payment provider note */}
           <p className="text-center text-xs text-muted-foreground/40 mt-10">
             {lang === "fr"
-              ? "Paiement sécurisé via LemonSqueezy — disponible prochainement"
-              : "Secure payment via LemonSqueezy — coming soon"}
+              ? "Paiement sécurisé via Creem — disponible prochainement"
+              : "Secure payment via Creem — coming soon"}
           </p>
         </div>
       </section>
@@ -536,7 +536,7 @@ export default function LandingPage() {
             {(
               lang === "fr"
                 ? [
-                    { q: "Comment Coursia génère-t-il les cours ?", a: "Coursia utilise une intelligence artificielle avancée pour analyser ton sujet et créer un cours structuré avec des chapitres, des résumés et des quiz. Chaque cours est unique et adapté au niveau que tu choisis." },
+                    { q: "Comment fonctionne la progression par niveaux ?", a: "Chaque cours comporte 3 niveaux de difficulté : Débutant, Intermédiaire et Avancé. Tu commences toujours par le niveau Débutant. Après avoir terminé un niveau, une animation célèbre ta réussite et tu peux choisir de passer au suivant. Un récapitulatif IA t'aide à réviser les points clés avant de continuer." },
                     { q: "Les cours sont-ils personnalisés selon mon niveau ?", a: "Oui ! Tu peux choisir entre trois niveaux : Débutant, Intermédiaire et Avancé. L'IA adapte la complexité du contenu, les exemples et les quiz en fonction de ton niveau." },
                     { q: "Puis-je progresser d'un niveau à l'autre ?", a: "Absolument ! Après avoir terminé un cours à un niveau, Coursia te propose de passer au niveau supérieur avec un récapitulatif IA pour t'aider à progresser. Termine les 3 niveaux pour gagner un maximum de flammes !" },
                     { q: "Combien de cours puis-je créer ?", a: "Avec le plan Découverte, tu peux créer 3 cours gratuitement pendant 7 jours. Les plans payants offrent des cours illimités pour apprendre sans limites." },
@@ -544,7 +544,7 @@ export default function LandingPage() {
                     { q: "Puis-je accéder à mes cours depuis n'importe quel appareil ?", a: "Oui, Coursia est accessible depuis n'importe quel navigateur web. Tes cours et ta progression sont sauvegardés dans ton compte." },
                   ]
                 : [
-                    { q: "How does Coursia generate courses?", a: "Coursia uses advanced AI to analyze your topic and create a structured course with chapters, summaries and quizzes. Each course is unique and adapted to the level you choose." },
+                    { q: "How does level progression work?", a: "Each course has 3 difficulty levels: Beginner, Intermediate and Advanced. You always start at Beginner. After completing a level, a celebration animation plays and you can choose to advance. An AI recap helps you review key points before continuing." },
                     { q: "Are courses personalized to my level?", a: "Yes! You can choose between three levels: Beginner, Intermediate and Advanced. The AI adapts the content complexity, examples and quizzes based on your level." },
                     { q: "Can I progress from one level to another?", a: "Absolutely! After completing a course at one level, Coursia offers to move you to the next level with an AI recap to help you progress. Complete all 3 levels to earn maximum flames!" },
                     { q: "How many courses can I create?", a: "With the Discovery plan, you can create 3 free courses for 7 days. Paid plans offer unlimited courses to learn without limits." },

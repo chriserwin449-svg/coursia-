@@ -110,3 +110,42 @@ Stage Summary:
 - Mobile users see a bottom navigation bar instead of sidebar
 - CourseViewer has a chapter picker dropdown on mobile
 - No lint errors in any Coursia component
+
+---
+Task ID: 5
+Agent: Level System Subagent
+Task: Implement complete level progression system
+
+Work Log:
+- Updated Prisma schema: added `level` field (Int, default 0) to Chapter, `maxUnlockedLevel` (Int, default 0) and `stoppedAtLevel` (Int, default -1) to CourseProgress
+- Switched Prisma provider from PostgreSQL to SQLite to match sandbox DATABASE_URL
+- Fixed SQLite-incompatible `map` attributes in StudySession relations
+- Pushed schema to database via `bun run db:push`
+- Updated Course Generation API: changed chapter count from 5-16 to 4-6 per level, updated level descriptions
+- Updated generate API: default level changed from 1 to 0, added `level` field to chapter creation and response
+- Created `POST /api/courses/[id]/generate-level` endpoint: generates next level chapters using AI, updates maxUnlockedLevel in CourseProgress
+- Created `POST /api/courses/[id]/stop-level` endpoint: sets stoppedAtLevel in CourseProgress
+- Updated `GET /api/courses/[id]` to include `level` on each chapter, `maxUnlockedLevel`, and `stoppedAtLevel` in response
+- Updated store.ts types: added `level` to CourseChapter, added `maxUnlockedLevel` and `stoppedAtLevel` to CourseData
+- Updated CreateCourse: removed level selector UI entirely, always sends level=0 to API
+- Rewrote CourseViewer with full multi-level support:
+  - Sidebar groups chapters by level with visual level headers (emoji + name per level)
+  - Level-locked chapters show lock icon and are non-interactive
+  - Stopped chapters show red lock icon permanently
+  - Level badge shown in content header
+  - After final quiz: shows Review Screen with key points from completed level
+  - "Continue to Next Level" button generates next level via API with loading animation
+  - "Stop Here" button calls stop-level API and shows confirmation overlay
+  - All Levels Mastered screen (level 2 completion) shows big celebration with 500 flame bonus
+  - Level-aware navigation: cannot proceed to next chapter if it's level-locked
+  - Mobile dropdown also groups by level with level headers
+- No lint errors in any project source files (all 49 errors are in pre-existing build scripts)
+
+Stage Summary:
+- Complete 3-level course progression system implemented (Beginner/Intermediate/Advanced)
+- User always starts at Beginner (level 0) — no level selector in CreateCourse
+- After completing a level's final quiz: Review Screen → Continue or Stop choice
+- Next level generated on-demand via API, not by creating separate courses
+- Course locked if user stops; can still review unlocked content
+- All existing CourseViewer functionality preserved (chapter content, quiz, fullscreen, mobile responsive)
+- i18n translations from levelReview section used throughout

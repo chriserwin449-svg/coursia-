@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -55,6 +55,7 @@ model Chapter {
   content   String
   summary   String   @default("")
   order     Int
+  level     Int      @default(0)
   courseId  String
   course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   quiz      Quiz?
@@ -86,14 +87,16 @@ model CourseQuiz {
 }
 
 model CourseProgress {
-  id           String         @id @default(cuid())
-  courseId     String         @unique
-  course       Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  completed    Boolean        @default(false)
-  score        Int            @default(0)
-  passedAt     DateTime?
-  flameAwarded Boolean        @default(false)
-  sessions     StudySession[]
+  id                String         @id @default(cuid())
+  courseId          String         @unique
+  course            Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  completed         Boolean        @default(false)
+  score             Int            @default(0)
+  passedAt          DateTime?
+  flameAwarded      Boolean        @default(false)
+  maxUnlockedLevel  Int            @default(0)
+  stoppedAtLevel    Int            @default(-1)
+  sessions          StudySession[]
 }
 
 model StudySession {
@@ -101,8 +104,8 @@ model StudySession {
   userId          String?
   chapterId       String?
   courseId        String
-  course          Course          @relation(fields: [courseId], references: [id], onDelete: Cascade, map: "StudySession_course_fkey")
-  courseProgress  CourseProgress? @relation(fields: [courseId], references: [courseId], onDelete: Cascade, map: "StudySession_courseProgress_fkey")
+  course          Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseProgress  CourseProgress? @relation(fields: [courseId], references: [id], onDelete: Cascade)
   startTime       DateTime
   endTime         DateTime?
   durationSeconds Int      @default(0)

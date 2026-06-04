@@ -18,6 +18,7 @@ export interface CourseChapter {
   content: string;
   summary: string;
   order: number;
+  level: number;
   quiz?: QuizData | null;
   progress?: ChapterProgressData | null;
 }
@@ -50,6 +51,8 @@ export interface CourseData {
   overallProgress: number;
   courseCompleted?: boolean;
   courseScore?: number;
+  maxUnlockedLevel: number;
+  stoppedAtLevel: number;
 }
 
 interface AppState {

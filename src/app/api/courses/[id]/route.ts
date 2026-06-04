@@ -49,6 +49,7 @@ export async function GET(
         content: ch.content,
         summary: ch.summary,
         order: ch.order,
+        level: ch.level ?? 0,
         quiz: ch.quiz
           ? { id: ch.quiz.id, questions: safeJsonParse(ch.quiz.questions) }
           : null,
@@ -63,6 +64,8 @@ export async function GET(
       overallProgress,
       courseCompleted: course.progress?.completed ?? false,
       courseScore: course.progress?.score ?? 0,
+      maxUnlockedLevel: course.progress?.maxUnlockedLevel ?? 0,
+      stoppedAtLevel: course.progress?.stoppedAtLevel ?? -1,
     });
   } catch (error) {
     console.error("Fetch course error:", error);

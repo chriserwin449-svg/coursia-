@@ -228,7 +228,7 @@ async function generateCourse(
   sourceLinks: string[], sourceContext: string,
 ) {
   const langLabels: Record<string, string> = { fr: "français", en: "english" };
-  const levelLabels = ["Débutant (complet, accessible, exemples simples)", "Intermédiaire (approfondi, exemples pratiques, exercices de réflexion)", "Avancé (expert, cas complexes, analyses critiques, liens entre concepts)"];
+  const levelLabels = ["Débutant (complet, accessible, exemples simples, bases fondamentales)", "Intermédiaire (approfondi, exemples pratiques, exercices de réflexion, cas d'usage réels)", "Avancé (expert, cas complexes, analyses critiques, liens entre concepts, maîtrise totale)"];
   const links = sourceLinks.length > 0 ? `\nRéférences: ${sourceLinks.join(", ")}` : "";
   const langNote = courseLang === "en"
     ? "You MUST write the ENTIRE course in English. All chapter titles, content, summaries — everything in English."
@@ -387,7 +387,7 @@ async function generateCourse(
         `Level: ${levelLabels[level] || levelLabels[1]}`,
         `Subject: ${title}`,
         "",
-        "- You have TOTAL FREEDOM on the number of chapters: minimum 5, maximum 16.\n- The number of chapters MUST reflect the subject complexity, the volume of content needed, and the learner level.\n  - Simple/short subject + Beginner: 5-7 chapters\n  - Medium subject + Intermediate: 8-11 chapters\n  - Complex/advanced subject + Advanced: 12-16 chapters\n  - Always prefer MORE chapters over fewer. Depth and thoroughness matter.\n- Each chapter MUST contain at minimum 2-3 subchapters structured with ## in Markdown.",
+        "- You have TOTAL FREEDOM on the number of chapters: minimum 4, maximum 6.\n- This is level " + level + " of a multi-level course. Create 4-6 focused chapters for THIS level only.\n- Each chapter must be thorough and well-structured with depth.\n- Each chapter MUST contain at minimum 2-3 subchapters structured with ## in Markdown.",
         "- NEVER write a chapter without at least 2 ## headings inside.",
         `- ${langNote}`,
         "- Each chapter must contain at minimum 250 words of rich content.",
@@ -419,7 +419,7 @@ async function generateCourse(
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, sourceLinks = [], level = 1, courseLang = "fr", userId } = await request.json();
+    const { title, sourceLinks = [], level = 0, courseLang = "fr", userId } = await request.json();
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
@@ -480,6 +480,7 @@ export async function POST(request: NextRequest) {
             content: ch.content,
             summary: ch.summary,
             order: idx + 1,
+            level: level,
           })),
         },
       },
@@ -514,6 +515,7 @@ export async function POST(request: NextRequest) {
           content: ch.content,
           summary: ch.summary,
           order: ch.order,
+          level: ch.level,
         })),
       },
     });
