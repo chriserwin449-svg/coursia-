@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-const CREEM_API_BASE = "https://api.creem.io/v1";
+const CREEM_API_BASE = process.env.CREEM_API_BASE_URL || "https://api.creem.io/v1";
 
 export async function POST(request: NextRequest) {
   try {
