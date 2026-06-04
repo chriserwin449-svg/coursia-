@@ -149,3 +149,27 @@ Stage Summary:
 - Course locked if user stops; can still review unlocked content
 - All existing CourseViewer functionality preserved (chapter content, quiz, fullscreen, mobile responsive)
 - i18n translations from levelReview section used throughout
+---
+Task ID: 5-8
+Agent: Main Agent
+Task: Complete level progression system + paywall fixes + Creem payment + FAQ update
+
+Work Log:
+- Added paywall i18n translations (title/subtitle/description/benefits/upgrade/later) for both FR and EN
+- Added levelReview i18n translations (review screen, stop confirm, mastery, etc.)
+- Replaced LandingPage FAQ #1 from "How does Coursia generate courses?" to "How does level progression work?"
+- Updated payment text from LemonSqueezy to Creem in LandingPage and OffersPage
+- Updated OffersPage to fetch paywall status and conditionally hide Free plan when trial expired
+- Added trial expired banner and already subscribed banner to OffersPage
+- Verified Prisma schema already has: level on Chapter, maxUnlockedLevel + stoppedAtLevel on CourseProgress
+- Created /api/courses/[id]/generate-level/route.ts - generates next level chapters via Groq AI
+- Created /api/courses/[id]/stop-level/route.ts - sets stoppedAtLevel on CourseProgress
+- Verified CourseViewer already has complete multi-level support: level grouping, locking, review screen, stop confirm, all-mastered celebration
+- Verified CreateCourse already uses level:0 hardcoded (always Beginner)
+- Verified store.ts already has maxUnlockedLevel and stoppedAtLevel in CourseData
+- Lint: 0 errors in Coursia code (only infra files)
+
+Stage Summary:
+- All requested features were either already implemented or now added
+- Pushed to GitHub commit 88a9267
+- Waiting for Creem credentials to integrate payment (FLW_PUBLIC_KEY, FLW_SECRET_KEY, FLW_WEBHOOK_SECRET, FLW_MONTHLY_PLAN_ID, FLW_ANNUAL_PLAN_ID)
