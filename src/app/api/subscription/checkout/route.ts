@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-const CREEM_API_BASE = process.env.CREEM_API_BASE_URL || "https://api.creem.io/v1";
+function getCreemBaseUrl(): string {
+  // Auto-detect test vs production from API key
+  const apiKey = process.env.CREEM_API_KEY || "";
+  if (apiKey.startsWith("creem_test_")) {
+    return "https://test-api.creem.io/v1";
+  }
+  return process.env.CREEM_API_BASE_URL || "https://api.creem.io/v1";
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,8 +45,9 @@ export async function POST(request: NextRequest) {
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://coursia-8oi4.vercel.app";
+    const creemBase = getCreemBaseUrl();
 
-    const res = await fetch(`${CREEM_API_BASE}/checkouts`, {
+    const res = await fetch(`${creemBase}/checkouts`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
