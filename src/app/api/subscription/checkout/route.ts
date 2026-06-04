@@ -48,7 +48,6 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         product_id: productId,
         success_url: `${appUrl}?checkout=success&plan=${plan}`,
-        cancel_url: `${appUrl}?checkout=cancel`,
         customer: customerEmail ? { email: customerEmail } : undefined,
         metadata: {
           userId,
