@@ -22,6 +22,8 @@ export async function POST(request: NextRequest) {
         subscriptionPlan: true,
         subscriptionStatus: true,
         subscriptionStartDate: true,
+        subscriptionEndDate: true,
+        trialStartDate: true,
       },
     });
 
@@ -70,6 +72,8 @@ export async function GET(request: NextRequest) {
         subscriptionPlan: true,
         subscriptionStatus: true,
         subscriptionStartDate: true,
+        subscriptionEndDate: true,
+        trialStartDate: true,
       },
     });
 

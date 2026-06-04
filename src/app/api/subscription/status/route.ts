@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 /**
  * GET /api/subscription/status
@@ -6,10 +6,16 @@ import { NextResponse } from "next/server";
  * Proxy endpoint that forwards to /api/courses/paywall-status and
  * returns a simplified subscription-related payload for the client.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    const res = await fetch(`${baseUrl}/api/courses/paywall-status`);
+    // Pass userId from query or header to paywall-status
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId") || request.headers.get("Authorization")?.replace("Bearer ", "") || "";
+
+    const url = new URL("/api/courses/paywall-status", request.url);
+    if (userId) url.searchParams.set("userId", userId);
+
+    const res = await fetch(url.toString());
 
     if (!res.ok) {
       console.error("[subscription/status] paywall-status returned", res.status);
@@ -23,7 +29,17 @@ export async function GET() {
 
     return NextResponse.json({
       hasSubscription: data.hasSubscription,
+      subscriptionPlan: data.subscriptionPlan,
+      subscriptionStatus: data.subscriptionStatus,
+      subscriptionEndDate: data.subscriptionEndDate,
       inTrial: data.inTrial,
+      trialDaysRemaining: data.trialDaysRemaining,
+      trialCoursesGenerated: data.trialCoursesGenerated,
+      trialCoursesMax: data.trialCoursesMax,
+      inGracePeriod: data.inGracePeriod,
+      graceDaysRemaining: data.graceDaysRemaining,
+      showRenewalReminder: data.showRenewalReminder,
+      renewalDaysRemaining: data.renewalDaysRemaining,
       canStudy: data.canStudy,
       canGenerate: data.canGenerate,
       canProgress: data.canProgress,

@@ -22,7 +22,6 @@ async function grantSubscription(
   customerId: string,
   plan: string
 ) {
-  // Find user by email and update subscription
   const user = await db.user.findUnique({ where: { email: customerEmail } });
   if (!user) {
     console.warn(`[webhook] User not found for email: ${customerEmail}`);
@@ -37,6 +36,7 @@ async function grantSubscription(
       creemSubscriptionId: subscriptionId,
       creemCustomerId: customerId,
       subscriptionStartDate: new Date(),
+      subscriptionEndDate: null, // Clear any previous end date
       updatedAt: new Date(),
     },
   });
@@ -51,11 +51,12 @@ async function revokeSubscription(customerEmail: string, reason: string) {
     return;
   }
 
+  // Set subscriptionEndDate for grace period calculation
   await db.user.update({
     where: { id: user.id },
     data: {
       subscriptionStatus: reason === "expired" ? "expired" : "canceled",
-      subscriptionEndDate: new Date(),
+      subscriptionEndDate: new Date(), // Start grace period from now
       updatedAt: new Date(),
     },
   });
@@ -98,7 +99,6 @@ export async function POST(request: NextRequest) {
       }
 
       case "checkout.completed": {
-        // One-time payment - also handle subscription creation if it came with one
         const customer = event.data?.customer || event.customer;
         const subscription = event.data?.subscription || event.subscription;
         const metadata = event.data?.metadata || event.metadata;

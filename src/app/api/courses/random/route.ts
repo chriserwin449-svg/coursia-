@@ -106,7 +106,27 @@ N'utilise pas de guillemets doubles dans les valeurs des champs.`,
     }
 
     if (!topic || typeof topic !== "object" || !("title" in topic)) {
-      throw new Error("Failed to parse random topic");
+      // Fallback: return a random topic from a predefined list
+      const fallbackTopics = [
+        { title: "Comment les algorithmes de TikTok manipulent ton attention", description: "Décryptage de l'engagement addictif" },
+        { title: "Pourquoi ton cerveau choisit la mauvaise décision quand tu es fatigué", description: "La science de la fatigue décisionnelle" },
+        { title: "Les secrets de la négociation utilisés par les agents du FBI", description: "Techniques de communication avancée" },
+        { title: "Comment la musique modifie littéralement ton cerveau", description: "Neuroscience de la musique" },
+        { title: "Les 5 erreurs mentales qui te font perdre de l'argent", description: "Biais cognitifs et finance" },
+        { title: "Pourquoi les gens les plus intelligents prennent parfois les pires décisions", description: "Le paradoxe de l'intelligence" },
+        { title: "Comment les couleurs influencent tes achats sans que tu le saches", description: "Psychologie du marketing visuel" },
+        { title: "Le pouvoir caché du silence dans la communication", description: "Techniques d'écoute active" },
+        { title: "Comment les chefs étoilés manipulent ta perception du goût", description: "Neurogastronomie et psychologie" },
+        { title: "Les stratégies mentales des champions olympiques", description: "Préparation mentale et performance" },
+        { title: "Comment la gravité affecte ton corps au quotidien", description: "Physique du corps humain" },
+        { title: "Les codes secrets du langage corporel", description: "Communication non-verbale" },
+        { title: "Pourquoi tu rêves et ce que ça révèle de toi", description: "Neuroscience des rêves" },
+        { title: "Comment l'espace change ton corps en altitude zéro", description: "Astronaute et physiologie" },
+        { title: "Les illusions d'optique qui prouvent que ton cerveau te ment", description: "Perception visuelle et neurosciences" },
+      ];
+      const randomIndex = Math.floor(Math.random() * fallbackTopics.length);
+      const t = fallbackTopics[randomIndex];
+      return NextResponse.json({ success: true, topic: t, fallback: true });
     }
 
     const t = topic as { title: string; description: string };

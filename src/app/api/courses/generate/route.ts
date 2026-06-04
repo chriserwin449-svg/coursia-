@@ -427,10 +427,24 @@ export async function POST(request: NextRequest) {
 
     // ── Trial limit check: max 3 free courses if no subscription ──
     if (userId) {
-      const user = await db.user.findUnique({ where: { id: userId }, select: { subscriptionStatus: true } });
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { subscriptionStatus: true, trialStartDate: true, createdAt: true },
+      });
       const hasSubscription = user?.subscriptionStatus === "active";
       if (!hasSubscription) {
         const existingCourses = await db.course.count({ where: { userId } });
+
+        // Check if trial has expired (7 days from first course creation or account creation)
+        if (existingCourses > 0) {
+          const trialStart = user?.trialStartDate ? new Date(user.trialStartDate) : (user?.createdAt ? new Date(user.createdAt) : new Date());
+          const now = new Date();
+          const diffDays = (now.getTime() - trialStart.getTime()) / (1000 * 60 * 60 * 24);
+          if (diffDays >= 7) {
+            return NextResponse.json({ error: "TRIAL_EXPIRED", requiresSubscription: true }, { status: 403 });
+          }
+        }
+
         if (existingCourses >= 3) {
           return NextResponse.json({ error: "TRIAL_LIMIT", requiresSubscription: true }, { status: 403 });
         }
@@ -474,6 +488,7 @@ export async function POST(request: NextRequest) {
         sourceLinks: JSON.stringify(sourceLinks),
         level: level,
         flameCost: 0,
+        userId: userId || null,
         chapters: {
           create: result.chapters.map((ch, idx) => ({
             title: ch.title,
@@ -490,6 +505,17 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    // Set trial start date on user when creating first course
+    if (userId) {
+      const existingCount = await db.course.count({ where: { userId } });
+      if (existingCount <= 1) {
+        await db.user.update({
+          where: { id: userId },
+          data: { trialStartDate: new Date() },
+        });
+      }
+    }
 
     // Create CourseProgress so study sessions work immediately
     await db.courseProgress.upsert({

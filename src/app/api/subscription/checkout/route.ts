@@ -49,7 +49,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const successUrl = "https://coursia-8oi4.vercel.app/?checkout=success&plan=" + plan;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://coursia-8oi4.vercel.app";
+    const successUrl = appUrl;
+    const cancelUrl = appUrl;
     const creemBase = getCreemBaseUrl();
 
     console.log("[checkout] Creating checkout:", {
@@ -57,6 +59,7 @@ export async function POST(request: NextRequest) {
       productId,
       creemBase,
       successUrl,
+      cancelUrl,
       hasEmail: !!customerEmail,
     });
 
@@ -69,6 +72,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         product_id: productId,
         success_url: successUrl,
+        cancel_url: cancelUrl,
         customer: customerEmail ? { email: customerEmail } : undefined,
         metadata: {
           userId,

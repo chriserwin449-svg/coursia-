@@ -1,19 +1,25 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 function safeJsonParse(str: string, fallback: unknown = []): unknown {
   try { return JSON.parse(str); } catch { return fallback; }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Optionally filter by userId
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId") || undefined;
+
     const courses = await db.course.findMany({
+      where: userId ? { userId } : undefined,
       orderBy: { createdAt: "desc" },
       include: {
         chapters: {
           orderBy: { order: "asc" },
           include: { progress: true },
         },
+        progress: true,
       },
     });
 
@@ -31,12 +37,18 @@ export async function GET() {
         description: course.description,
         sourceLinks: safeJsonParse(course.sourceLinks) as string[],
         createdAt: course.createdAt,
+        overallProgress,
+        courseCompleted: course.progress?.completed || false,
+        courseScore: course.progress?.score || 0,
+        maxUnlockedLevel: course.progress?.maxUnlockedLevel || 0,
+        stoppedAtLevel: course.progress?.stoppedAtLevel ?? -1,
         chapters: course.chapters.map((ch) => ({
           id: ch.id,
           title: ch.title,
           content: ch.content,
           summary: ch.summary,
           order: ch.order,
+          level: ch.level,
           progress: ch.progress
             ? {
                 completed: ch.progress.completed,
@@ -45,7 +57,6 @@ export async function GET() {
               }
             : null,
         })),
-        overallProgress,
       };
     });
 

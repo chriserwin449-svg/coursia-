@@ -37,7 +37,8 @@ export default function Library() {
   const fetchCourses = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/courses");
+      const userId = useAppStore.getState().userId;
+      const res = await fetch(`/api/courses?userId=${userId || ''}`);
       const data = await res.json();
       if (res.ok) setCourses(data.courses || []);
     } catch { /* */ }

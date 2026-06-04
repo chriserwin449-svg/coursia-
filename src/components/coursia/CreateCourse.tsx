@@ -36,6 +36,9 @@ export default function CreateCourse() {
   const [suggestedTopic, setSuggestedTopic] = useState("");
   const [hasSubscription, setHasSubscription] = useState(false);
   const [coursesRemaining, setCoursesRemaining] = useState(3);
+  const [inTrial, setInTrial] = useState(false);
+  const [trialExpired, setTrialExpired] = useState(false);
+  const [inGracePeriod, setInGracePeriod] = useState(false);
 
   // ─── Store refs for random topic ────────────────────────────────────────
   const storeRandomTopic = useAppStore((s) => s.randomTopic);
@@ -101,23 +104,26 @@ export default function CreateCourse() {
   // ─── Fetch courses & subscription status ───────────────────────────
   const fetchCourses = useCallback(async () => {
     try {
-      const res = await fetch("/api/courses");
+      const res = await fetch(`/api/courses?userId=${useAppStore.getState().userId || ''}`);
       if (res.ok) {
         const data = await res.json();
         const list = (data.courses as CourseData[]) || [];
         setCourses(list);
+      }
 
-        // Check subscription
-        let isSub = false;
-        const subRes = await fetch("/api/auth/me");
-        if (subRes.ok) {
-          const subData = await subRes.json();
-          isSub = subData.hasSubscription === true;
-        }
-        setHasSubscription(isSub);
-        // Calculate remaining free courses
-        if (!isSub) {
-          setCoursesRemaining(Math.max(0, 3 - list.length));
+      // Check subscription & trial status via paywall-status API
+      const userId = useAppStore.getState().userId;
+      const headers: Record<string, string> = {};
+      if (userId) headers["Authorization"] = `Bearer ${userId}`;
+      const pwRes = await fetch("/api/courses/paywall-status", { headers });
+      if (pwRes.ok) {
+        const pw = await pwRes.json();
+        setHasSubscription(pw.hasSubscription);
+        setInTrial(pw.inTrial);
+        setTrialExpired(pw.showPaywall && pw.paywallReason === "trial_expired");
+        setInGracePeriod(pw.inGracePeriod);
+        if (!pw.hasSubscription) {
+          setCoursesRemaining(Math.max(0, pw.trialCoursesMax - pw.trialCoursesGenerated));
         } else {
           setCoursesRemaining(999);
         }
@@ -182,7 +188,7 @@ export default function CreateCourse() {
 
       const data = await res.json();
       if (!res.ok) {
-        if (data.error === "TRIAL_LIMIT") {
+        if (data.error === "TRIAL_LIMIT" || data.error === "TRIAL_EXPIRED") {
           setView("offers");
           return;
         }
@@ -352,17 +358,19 @@ export default function CreateCourse() {
           </div>
         </div>
 
-        {/* ─── Trial banner ─── */}
-        {!hasSubscription && (
+        {/* ─── Trial/Grace banner ─── */}
+        {!hasSubscription && !inGracePeriod && (
           <div className={`mb-6 p-4 rounded-2xl border text-center transition-all duration-300 ${
-            coursesRemaining <= 0
+            trialExpired || coursesRemaining <= 0
               ? "bg-destructive/10 border-destructive/30"
               : "glass"
           }`}>
-            {coursesRemaining <= 0 ? (
+            {trialExpired || coursesRemaining <= 0 ? (
               <>
                 <p className="text-sm font-bold text-destructive mb-2">
-                  {lang === "fr" ? "✨ Limite d'essai atteinte" : "\u2728 Trial limit reached"}
+                  {trialExpired
+                    ? (lang === "fr" ? "Essai terminé" : "Trial ended")
+                    : (lang === "fr" ? "Limite d'essai atteinte" : "Trial limit reached")}
                 </p>
                 <button
                   onClick={() => setView("offers")}
@@ -375,10 +383,17 @@ export default function CreateCourse() {
             ) : (
               <p className="text-sm font-semibold text-muted-foreground">
                 {lang === "fr"
-                  ? `\uD83D\uDD25 Il te reste ${coursesRemaining} cours\u00A0gratuit${coursesRemaining > 1 ? "s" : ""}`
-                  : `\uD83D\uDD25 You have ${coursesRemaining} free course${coursesRemaining > 1 ? "s" : ""} remaining`}
+                  ? `Il te reste ${coursesRemaining} cours gratuit${coursesRemaining > 1 ? "s" : ""}`
+                  : `You have ${coursesRemaining} free course${coursesRemaining > 1 ? "s" : ""} remaining`}
               </p>
             )}
+          </div>
+        )}
+        {inGracePeriod && (
+          <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center">
+            <p className="text-sm font-semibold text-amber-200">
+              {lang === "fr" ? "Lecture seule — Période de grâce" : "Read-only — Grace period"}
+            </p>
           </div>
         )}
 

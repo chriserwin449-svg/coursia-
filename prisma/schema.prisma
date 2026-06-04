@@ -19,6 +19,7 @@ model User {
   creemCustomerId         String?  // Creem customer ID (cust_xxx)
   subscriptionStartDate  DateTime?
   subscriptionEndDate    DateTime?
+  trialStartDate         DateTime?  // Starts when user creates first course
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 }

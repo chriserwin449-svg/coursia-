@@ -106,6 +106,23 @@ interface AppState {
   setHasSubscription: (v: boolean) => void;
   subscriptionStatus: string;
   setSubscriptionStatus: (s: string) => void;
+  // Trial
+  inTrial: boolean;
+  setInTrial: (v: boolean) => void;
+  trialDaysRemaining: number;
+  setTrialDaysRemaining: (d: number) => void;
+  trialCoursesGenerated: number;
+  setTrialCoursesGenerated: (c: number) => void;
+  // Grace period
+  inGracePeriod: boolean;
+  setInGracePeriod: (v: boolean) => void;
+  graceDaysRemaining: number;
+  setGraceDaysRemaining: (d: number) => void;
+  // Renewal
+  showRenewalReminder: boolean;
+  setShowRenewalReminder: (v: boolean) => void;
+  renewalDaysRemaining: number;
+  setRenewalDaysRemaining: (d: number) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -182,4 +199,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   setHasSubscription: (v) => set({ hasSubscription: v }),
   subscriptionStatus: "none",
   setSubscriptionStatus: (s) => set({ subscriptionStatus: s }),
+  // Trial
+  inTrial: false,
+  setInTrial: (v) => set({ inTrial: v }),
+  trialDaysRemaining: 0,
+  setTrialDaysRemaining: (d) => set({ trialDaysRemaining: d }),
+  trialCoursesGenerated: 0,
+  setTrialCoursesGenerated: (c) => set({ trialCoursesGenerated: c }),
+  // Grace period
+  inGracePeriod: false,
+  setInGracePeriod: (v) => set({ inGracePeriod: v }),
+  graceDaysRemaining: 0,
+  setGraceDaysRemaining: (d) => set({ graceDaysRemaining: d }),
+  // Renewal
+  showRenewalReminder: false,
+  setShowRenewalReminder: (v) => set({ showRenewalReminder: v }),
+  renewalDaysRemaining: 0,
+  setRenewalDaysRemaining: (d) => set({ renewalDaysRemaining: d }),
 }));
