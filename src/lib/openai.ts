@@ -1,7 +1,7 @@
 import ZAI from "z-ai-web-dev-sdk";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
-export type AIProvider = "google" | "openai" | "groq" | "zai" | "free";
+export type AIProvider = "zai" | "google" | "openai" | "groq" | "free";
 
 interface ProviderInfo {
   provider: AIProvider;
@@ -11,73 +11,63 @@ interface ProviderInfo {
   model?: string;
 }
 
-function detectProviderFromKey(key: string): AIProvider {
-  if (key.startsWith("AIza") || key.startsWith("AQ.")) return "google";
-  if (key.startsWith("gsk_")) return "groq";
-  if (key.startsWith("sk-")) return "openai";
-  return "free";
-}
-
 export async function getActiveProvider(): Promise<ProviderInfo> {
-  // Priority: GROQ_API_KEY > OPENAI_API_KEY > z-ai
+  // Priority 1: z-ai SDK (always available, works on Vercel)
+  try {
+    const zai = await ZAI.create();
+    if (zai) {
+      return { provider: "zai", label: "Coursia AI", isFree: true, hasApiKey: true, model: "default" };
+    }
+  } catch { /* not available */ }
+
+  // Priority 2: GROQ_API_KEY
   const groqKey = process.env.GROQ_API_KEY;
   if (groqKey) {
     return { provider: "groq", label: "Groq (Llama 3.3 70B)", isFree: true, hasApiKey: true, model: "llama-3.3-70b-versatile" };
   }
 
+  // Priority 3: OPENAI_API_KEY (can be Google Gemini or OpenAI)
   const apiKey = process.env.OPENAI_API_KEY;
   if (apiKey) {
-    const provider = detectProviderFromKey(apiKey);
-    const labels: Record<AIProvider, string> = {
-      google: "Google Gemini",
-      openai: "OpenAI GPT-4o",
-      groq: "Groq",
-      zai: "Z.ai (Coursia AI)",
-      free: "Free Tier",
-    };
-    const models: Record<AIProvider, string> = {
-      google: "gemini-2.0-flash",
-      openai: "gpt-4o",
-      groq: "llama-3.3-70b-versatile",
-      zai: "default",
-      free: "default",
-    };
-    return { provider, label: labels[provider], isFree: false, hasApiKey: true, model: models[provider] };
-  }
-
-  if (process.env.ZAI_BASE_URL && process.env.ZAI_API_KEY) {
-    return { provider: "zai", label: "Z.ai (Coursia AI)", isFree: true, hasApiKey: true, model: "default" };
+    if (apiKey.startsWith("AIza") || apiKey.startsWith("AQ.")) {
+      return { provider: "google", label: "Google Gemini", isFree: false, hasApiKey: true, model: "gemini-2.0-flash" };
+    }
+    if (apiKey.startsWith("sk-")) {
+      return { provider: "openai", label: "OpenAI GPT-4o", isFree: false, hasApiKey: true, model: "gpt-4o" };
+    }
+    if (apiKey.startsWith("gsk_")) {
+      return { provider: "groq", label: "Groq (Llama 3.3 70B)", isFree: true, hasApiKey: true, model: "llama-3.3-70b-versatile" };
+    }
   }
 
   return { provider: "free", label: "Free Tier (Coursia AI)", isFree: true, hasApiKey: false };
 }
 
+const EXTERNAL_API_TIMEOUT = 60_000;
+
 /**
- * Returns the admin API key from environment variables.
+ * Call z-ai SDK (primary provider — always available)
  */
-function getAIKey(): string | null {
-  const envKey = process.env.OPENAI_API_KEY;
-  if (envKey && (envKey.startsWith("sk-") || envKey.startsWith("AIza") || envKey.startsWith("AQ."))) return envKey;
+async function callZAI(
+  messages: Array<{ role: string; content: string }>,
+  options?: { temperature?: number; maxTokens?: number },
+): Promise<{ content: string } | null> {
+  try {
+    const zai = await ZAI.create();
+    const completion = await zai.chat.completions.create({
+      messages: messages as Array<{ role: "user" | "system" | "assistant"; content: string }>,
+      thinking: { type: "disabled" },
+    });
+    const content = completion.choices?.[0]?.message?.content || "";
+    if (content) {
+      console.log("[ZAI] Success");
+      return { content };
+    }
+  } catch (error) {
+    console.error("[ZAI] Failed:", error instanceof Error ? error.message : error);
+  }
   return null;
 }
-
-/**
- * Create ZAI client from environment variables or file config.
- */
-async function createZAIClient() {
-  if (process.env.ZAI_BASE_URL && process.env.ZAI_API_KEY) {
-    return ZAI.create({
-      baseUrl: process.env.ZAI_BASE_URL,
-      apiKey: process.env.ZAI_API_KEY,
-      chatId: process.env.ZAI_CHAT_ID || "",
-      userId: process.env.ZAI_USER_ID || "",
-      token: process.env.ZAI_TOKEN || "",
-    });
-  }
-  return ZAI.create();
-}
-
-const EXTERNAL_API_TIMEOUT = 60_000;
 
 /**
  * Call Groq API (uses OpenAI-compatible format)
@@ -171,8 +161,17 @@ async function callOpenAIWithFallback(
   return null;
 }
 
+/**
+ * Smart AI chat completion with automatic provider routing.
+ * Priority: z-ai SDK > Groq > OpenAI/Google > Free
+ */
 export async function smartChatCompletion(messages: Array<{ role: string; content: string }>, options?: { temperature?: number; maxTokens?: number }) {
-  // Priority 1: Groq (free, fast, works everywhere)
+  // Priority 1: z-ai SDK (always available, works everywhere including Vercel)
+  console.log("[AI] Trying z-ai SDK as primary provider...");
+  const zaiResult = await callZAI(messages, options);
+  if (zaiResult) return { content: zaiResult.content, provider: "zai" as const };
+
+  // Priority 2: Groq (free, fast)
   const groqKey = process.env.GROQ_API_KEY;
   if (groqKey) {
     console.log("[AI] Using Groq");
@@ -181,13 +180,12 @@ export async function smartChatCompletion(messages: Array<{ role: string; conten
     console.error("[Groq] Failed");
   }
 
-  // Priority 2: OPENAI_API_KEY (can be Google Gemini or OpenAI)
-  const apiKey = getAIKey();
+  // Priority 3: OPENAI_API_KEY (can be Google Gemini or OpenAI)
+  const apiKey = process.env.OPENAI_API_KEY;
   if (apiKey) {
-    const provider = detectProviderFromKey(apiKey);
-
     // Google Gemini
-    if (provider === "google") {
+    if (apiKey.startsWith("AIza") || apiKey.startsWith("AQ.")) {
+      console.log("[AI] Using Google Gemini");
       try {
         const response = await fetchWithTimeout(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -215,26 +213,15 @@ export async function smartChatCompletion(messages: Array<{ role: string; conten
     }
 
     // OpenAI
-    if (provider === "openai") {
+    if (apiKey.startsWith("sk-")) {
+      console.log("[AI] Using OpenAI");
       const result = await callOpenAIWithFallback(apiKey, messages, options);
       if (result) return { content: result.content, provider: "openai" as const };
       console.log("[OpenAI] All models failed");
     }
   }
 
-  // Priority 3: z-ai fallback (local dev only)
-  try {
-    console.log("[AI] Using z-ai fallback");
-    const zai = await createZAIClient();
-    const completion = await zai.chat.completions.create({
-      messages: messages as Array<{ role: "user" | "system" | "assistant"; content: string }>,
-      thinking: { type: "disabled" },
-    });
-    const content = completion.choices?.[0]?.message?.content || "";
-    if (content) return { content, provider: "zai" as const };
-  } catch (error) {
-    console.error("[AI] z-ai fallback failed:", error instanceof Error ? error.message : error);
-  }
-
+  // All providers failed
+  console.error("[AI] All providers failed — no course can be generated");
   return { content: "", provider: "free" as const };
 }
