@@ -738,7 +738,7 @@ export default function CourseViewer() {
                   <p className="text-lg text-foreground/80 leading-relaxed">{currentChapter.summary}</p>
                 </div>
               )}
-              <div className="prose prose-invert max-w-none text-[17px] leading-7 animate-fade-in-slide-right prose-p:text-[1.125rem] prose-p:leading-[1.95] prose-p:mb-6 prose-h2:text-[1.55rem] prose-h2:mt-12 prose-h2:mb-6 prose-h3:text-[1.35rem] prose-h3:mt-10 prose-h3:mb-5 prose-li:text-[1.125rem] prose-li:my-2 prose-li:leading-[1.9] prose-ul:my-6 prose-ol:my-6 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
+              <div className="prose prose-invert max-w-none text-[18px] leading-8 animate-fade-in-slide-right prose-p:text-[1.175rem] prose-p:leading-[2] prose-p:mb-6 prose-h2:text-[1.6rem] prose-h2:mt-12 prose-h2:mb-6 prose-h3:text-[1.4rem] prose-h3:mt-10 prose-h3:mb-5 prose-li:text-[1.175rem] prose-li:my-2 prose-li:leading-[2] prose-ul:my-6 prose-ol:my-6 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
                 <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
               </div>
             </div>
@@ -985,13 +985,13 @@ export default function CourseViewer() {
                 </div>
               )}
 
-              <div className="prose prose-invert max-w-none text-[15px] sm:text-[17px] leading-7
+              <div className="prose prose-invert max-w-none text-[15px] sm:text-[18px] leading-8
                 prose-headings:font-extrabold
                 prose-h1:text-3xl sm:text-4xl prose-h1:mt-10 sm:mt-14 prose-h1:mb-4 sm:mb-6
-                prose-h2:text-[1.25rem] sm:text-[1.55rem] prose-h2:mt-8 sm:mt-12 prose-h2:mb-4 sm:mb-6
-                prose-h3:text-[1.15rem] sm:text-[1.35rem] prose-h3:mt-6 sm:mt-10 prose-h3:mb-3 sm:mb-5
-                prose-p:text-[0.98rem] sm:text-[1.125rem] prose-p:leading-[1.8] sm:leading-[1.95] prose-p:text-foreground/90 prose-p:mb-4 sm:mb-5
-                prose-li:text-[0.98rem] sm:text-[1.125rem] prose-li:text-foreground/90 prose-li:leading-[1.8] sm:leading-[1.9] prose-li:my-1 sm:my-2
+                prose-h2:text-[1.25rem] sm:text-[1.6rem] prose-h2:mt-8 sm:mt-12 prose-h2:mb-4 sm:mb-6
+                prose-h3:text-[1.15rem] sm:text-[1.4rem] prose-h3:mt-6 sm:mt-10 prose-h3:mb-3 sm:mb-5
+                prose-p:text-[0.98rem] sm:text-[1.175rem] prose-p:leading-[1.8] sm:leading-[2] prose-p:text-foreground/90 prose-p:mb-4 sm:mb-5
+                prose-li:text-[0.98rem] sm:text-[1.175rem] prose-li:text-foreground/90 prose-li:leading-[1.8] sm:leading-[2] prose-li:my-1 sm:my-2
                 prose-ul:my-4 sm:my-6 prose-ol:my-4 sm:my-6
                 prose-strong:text-gold
                 prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-2 prose-code:py-1 prose-code:rounded-lg prose-code:text-[0.85rem] sm:text-[0.95rem]

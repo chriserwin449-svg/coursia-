@@ -39,6 +39,8 @@ export default function CreateCourse() {
   const [inTrial, setInTrial] = useState(false);
   const [trialExpired, setTrialExpired] = useState(false);
   const [inGracePeriod, setInGracePeriod] = useState(false);
+  const [selectedLevel, setSelectedLevel] = useState(0);
+  const [isRandomTopic, setIsRandomTopic] = useState(false);
 
   // ─── Store refs for random topic ────────────────────────────────────────
   const storeRandomTopic = useAppStore((s) => s.randomTopic);
@@ -52,6 +54,8 @@ export default function CreateCourse() {
       setTitle(storeRandomTopic);
       setSuggestedTopic(storeRandomTopic);
       setShowSuggested(true);
+      setIsRandomTopic(true);
+      setSelectedLevel(0);
       if (storeRandomCourseLang === "fr" || storeRandomCourseLang === "en") {
         setCourseLang(storeRandomCourseLang);
       }
@@ -143,6 +147,7 @@ export default function CreateCourse() {
     if (newTitle.trim() !== suggestedTopic.trim()) {
       setShowSuggested(false);
       setSuggestedTopic("");
+      setIsRandomTopic(false);
     }
   };
 
@@ -180,7 +185,7 @@ export default function CreateCourse() {
         body: JSON.stringify({
           title: title.trim(),
           sourceLinks: links,
-          level: 0,
+          level: isRandomTopic ? 0 : selectedLevel,
           courseLang,
           userId: useAppStore.getState().userId,
         }),
@@ -358,6 +363,47 @@ export default function CreateCourse() {
           </div>
         </div>
 
+        {/* ─── Level selector ─── */}
+        {!isRandomTopic && (
+          <div className="mb-8">
+            <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
+              {tx.create.level}
+            </label>
+            <div className="grid grid-cols-3 gap-3">
+              {tx.create.levels.map((levelName, i) => {
+                const isSelected = selectedLevel === i;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedLevel(i)}
+                    className={`relative px-4 py-4 rounded-2xl font-bold text-center cursor-pointer transition-all duration-300 ${
+                      isSelected
+                        ? "bg-mauve/20 border-2 border-mauve text-mauve-light shadow-lg shadow-mauve/10"
+                        : "glass border-2 border-transparent text-muted-foreground hover:text-foreground hover:bg-white/5"
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-xl">{["🌱", "⚡", "🔥"][i]}</span>
+                      <span className="text-sm md:text-base">{levelName}</span>
+                    </div>
+                    {isSelected && (
+                      <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-mauve border-2 border-night" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {isRandomTopic && (
+          <div className="mb-8 flex items-center gap-2">
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{tx.create.level}</span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-mauve/15 border border-mauve/25 text-xs font-bold text-mauve-light">
+              🌱 {tx.create.levels[0]}
+            </span>
+          </div>
+        )}
+
         {/* ─── Trial/Grace banner ─── */}
         {!hasSubscription && !inGracePeriod && (
           <div className={`mb-6 p-4 rounded-2xl border text-center transition-all duration-300 ${
@@ -383,8 +429,8 @@ export default function CreateCourse() {
             ) : (
               <p className="text-sm font-semibold text-muted-foreground">
                 {lang === "fr"
-                  ? `Il te reste ${coursesRemaining} cours gratuit${coursesRemaining > 1 ? "s" : ""}`
-                  : `You have ${coursesRemaining} free course${coursesRemaining > 1 ? "s" : ""} remaining`}
+                  ? `${useAppStore.getState().user?.firstName || ""}, il te reste ${coursesRemaining} cours gratuit${coursesRemaining > 1 ? "s" : ""} sur Coursia !`
+                  : `${useAppStore.getState().user?.firstName || ""}, you have ${coursesRemaining} free course${coursesRemaining > 1 ? "s" : ""} remaining on Coursia!`}
               </p>
             )}
           </div>
