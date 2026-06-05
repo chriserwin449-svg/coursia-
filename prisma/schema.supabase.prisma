@@ -1,0 +1,134 @@
+// ═══════════════════════════════════════════════════════════════════════
+// SUPABASE-READY PRISMA SCHEMA (PostgreSQL)
+// ═══════════════════════════════════════════════════════════════════════
+// When you're ready to switch to Supabase:
+// 1. Create a free project at https://supabase.com
+// 2. Get your connection strings from Settings > Database
+// 3. Replace schema.prisma content with this file
+// 4. Update .env with your Supabase DATABASE_URL and DIRECT_URL
+// 5. Run: bun run db:push
+// ═══════════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // Supabase connection pooling bypass for migrations
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  firstName     String
+  lastName      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  courses       Course[]
+  studySessions StudySession[]
+}
+
+model AppSettings {
+  id              String   @id @default("main")
+  flamePoints     Int      @default(0)
+  hasSubscription Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+}
+
+model FlameTransaction {
+  id        String   @id @default(cuid())
+  amount    Int
+  reason    String
+  courseId  String?
+  chapterId String?
+  createdAt DateTime @default(now())
+
+  course   Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  chapter  Chapter? @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  userId      String?
+  title       String
+  description String   @default("")
+  sourceLinks String   @default("[]")
+  level       Int      @default(0)
+  flameCost   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  chapters    Chapter[]
+  finalQuiz   CourseQuiz?
+  progress    CourseProgress?
+  sessions    StudySession[]
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  flameTransactions FlameTransaction[]
+}
+
+model Chapter {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  summary   String   @default("")
+  order     Int
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  quiz      Quiz?
+  progress  ChapterProgress?
+
+  flameTransactions FlameTransaction[]
+}
+
+model Quiz {
+  id        String   @id @default(cuid())
+  questions String
+  chapterId String   @unique
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+}
+
+model ChapterProgress {
+  id          String    @id @default(cuid())
+  chapterId   String    @unique
+  chapter     Chapter   @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  completed   Boolean   @default(false)
+  score       Int       @default(0)
+  completedAt DateTime?
+  flameAwarded Boolean  @default(false)
+}
+
+model CourseQuiz {
+  id        String @id @default(cuid())
+  questions String
+  courseId  String @unique
+  course    Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+}
+
+model CourseProgress {
+  id           String        @id @default(cuid())
+  courseId     String        @unique
+  course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  completed    Boolean       @default(false)
+  score        Int           @default(0)
+  passedAt     DateTime?
+  flameAwarded Boolean       @default(false)
+  sessions     StudySession[]
+}
+
+model StudySession {
+  id              String          @id @default(cuid())
+  userId          String?
+  chapterId       String?
+  courseId        String
+  course          Course          @relation(fields: [courseId], references: [id], onDelete: Cascade, map: "StudySession_course_fkey")
+  courseProgress  CourseProgress? @relation(fields: [courseId], references: [courseId], onDelete: Cascade, map: "StudySession_courseProgress_fkey")
+  startTime       DateTime
+  endTime         DateTime?
+  durationSeconds Int             @default(0)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
