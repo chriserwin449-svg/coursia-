@@ -72,6 +72,35 @@ export default function AppShell() {
     }
   }, [setAuthToken]);
 
+  // Handle payment success redirect from Creem checkout
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get("payment");
+
+    if (paymentStatus === "success") {
+      const lang = useAppStore.getState().lang;
+      // Show success message via confetti/celebration
+      const message = lang === "fr"
+        ? "Paiement réussi ! Ton abonnement est maintenant actif."
+        : "Payment successful! Your subscription is now active.";
+
+      useAppStore.getState().setShowCelebration(true);
+      useAppStore.getState().setCelebrationMessage(message);
+
+      // Clean URL (remove query params without page reload)
+      window.history.replaceState({}, "", window.location.pathname);
+
+      // Redirect to offers page to show active subscription status
+      const isAuthenticated = useAppStore.getState().isAuthenticated;
+      if (isAuthenticated) {
+        useAppStore.getState().setView("offers");
+      } else {
+        useAppStore.getState().setView("landing");
+      }
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-night">
       {view === "landing" ? (

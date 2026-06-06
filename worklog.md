@@ -1,83 +1,45 @@
+# Coursia Worklog
+
 ---
 Task ID: 1
-Agent: main
-Task: Complete subscription system overhaul for Coursia
+Agent: Main Agent
+Task: Complete payment system overhaul, UI fixes, and security hardening for Coursia
 
 Work Log:
-- Fixed checkout route: simplified success_url, added cancel_url, removed query params
-- Updated both Prisma schemas (SQLite + PostgreSQL): added trialStartDate to User model
-- Rewrote paywall-status API: 7-day trial, 3 course max, per-user isolation, 3-day grace period, renewal reminders
-- Updated course generation API: saves userId on courses, sets trialStartDate on first course, 7-day trial check
-- Updated webhook: clears subscriptionEndDate on grant, sets subscriptionEndDate on revoke for grace period calculation
-- Rewrote OffersPage: grace period banner, renewal countdown, trial status banner, improved FAQ accordion
-- Updated i18n: added gracePeriod, gracePeriodExpired, graceReadonly, renewalReminder, renewalExpired, subscribed, coursesRemaining, daysRemaining strings
-- Updated store: added inTrial, trialDaysRemaining, trialCoursesGenerated, inGracePeriod, graceDaysRemaining, showRenewalReminder, renewalDaysRemaining
-- Updated CreateCourse: proper paywall status checking, trial/grace period banners
-- Updated Library: per-user course filtering
-- Updated courses API: accepts userId query param for filtering, includes progress data
-- Updated subscription/status proxy: forwards all new fields
-- Updated auth/me: includes subscriptionEndDate and trialStartDate
-- Fixed random topic generation: added fallback topic list when AI is unavailable
+- Updated i18n.ts (FR + EN): annual price $28.99 with originalPrice $42.99 strikethrough, periodNote "première année"/"first year"
+- Updated i18n.ts: renamed "Niveau de difficulté" → "Niveau du cours" / "Difficulty level" → "Course level"
+- Updated CreateCourse.tsx: removed emojis (🌱⚡🔥) from course level selector buttons
+- Updated CreateCourse.tsx: removed emoji from random topic level badge
+- Updated OffersPage.tsx: added strikethrough original price for annual card, "Offre de lancement" label
+- Updated OffersPage.tsx: updated FAQ to remove Creem references, replaced with generic "plateforme sécurisée"
+- Updated OffersPage.tsx: bottom payment note changed from "Paiement sécurisé via Creem" → "Paiement 100% sécurisé"
+- Updated LandingPage.tsx: same annual pricing strikethrough and "Offre de lancement" treatment
+- Updated LandingPage.tsx: payment reference changed to generic "Paiement 100% sécurisé"
+- Rewrote /api/subscription/checkout/route.ts with:
+  - In-memory rate limiting (5 requests per user per minute)
+  - UUID validation for userId
+  - Email validation
+  - Input sanitization (strip dangerous chars)
+  - Nonce generation for idempotency
+  - Checkout URL HTTPS validation
+  - Security headers (no-cache, X-Content-Type-Options, X-Frame-Options)
+  - Server-side price configuration (tamper-proof)
+- Rewrote /api/subscription/webhook/route.ts with:
+  - HMAC-SHA256 constant-time comparison (timing-safe, crypto.timingSafeEqual)
+  - Event idempotency map (24h window, auto-cleanup every 10 min)
+  - Anti-replay timestamp freshness check (±5 min tolerance)
+  - JSON parse error handling
+  - Security headers
+  - GET method rejection (405)
+- Updated AppShell.tsx: added payment success handler that detects ?payment=success URL param, shows celebration message, cleans URL, redirects to offers page
+- Verified: ESLint passes with 0 errors in src/ directory
+- Verified: Server compiles and serves HTTP 200 on first request (confirmed via curl)
+- Sandbox memory constraints prevent persistent browser testing, but compilation is verified
 
 Stage Summary:
-- All 16 files modified and committed
-- Pushed to GitHub (commit ac5421b)
-- Lint passes for all source files
-- Server compiles and serves pages (200 response confirmed)
-
----
-Task ID: 2
-Agent: main
-Task: Fix registration error, checkout URL, and random topic generation
-
-Work Log:
-- Investigated "Erreur lors de l'inscription" error - root cause: PostgreSQL database missing subscription columns
-- Created auto-migration utility (src/lib/auto-migrate.ts) that adds missing columns via ALTER TABLE IF NOT EXISTS
-- Updated register route to call ensureSchemaUpToDate() before creating user
-- Updated course generation route to call ensureSchemaUpToDate() before saving
-- Updated setup-db API with complete schema including all subscription columns
-- Updated supabase-setup.sql with all new columns (subscriptionPlan, subscriptionStatus, creemSubscriptionId, creemCustomerId, subscriptionStartDate, subscriptionEndDate, trialStartDate, Chapter.level, CourseProgress.maxUnlockedLevel, CourseProgress.stoppedAtLevel)
-- Fixed checkout URLs: added paths (/?payment=success and /offers?payment=cancelled)
-- Hardcoded Vercel fallback URL in checkout route
-- Improved random topic generation: larger fallback list (30 topics), better error handling, never returns error
-- Updated TopBar random generation: proper error handling instead of silent fail
-- Verified registration works locally (200 OK)
-- Verified random topic generation works (returns fallback topic)
-
-Stage Summary:
-- Auto-migration system created - runs automatically on first registration/course creation
-- Registration error should be fixed on Vercel after deployment
-- Checkout URL includes proper paths for Creem validation
-- Random topic generation always returns a topic even when AI is unavailable
-- 6 files modified: register/route.ts, generate/route.ts, checkout/route.ts, random/route.ts, TopBar.tsx, auto-migrate.ts (new), setup-db/route.ts, supabase-setup.sql
-
----
-Task ID: 3
-Agent: main
-Task: Make registration/login bulletproof for Vercel PostgreSQL (self-healing database)
-
-Work Log:
-- Root cause analysis: previous auto-migration only added COLUMNS to existing tables, but didn't handle MISSING tables. On Supabase PostgreSQL, some tables might not exist at all.
-- Completely rewrote register route (src/app/api/auth/register/route.ts):
-  - Added `ensureDatabaseReady()` function that creates ALL tables if missing (CREATE TABLE IF NOT EXISTS) for PostgreSQL
-  - Creates: User, AppSettings, Course, Chapter, Quiz, ChapterProgress, CourseQuiz, CourseProgress, FlameTransaction, StudySession
-  - Adds unique constraint on User.email if missing
-  - Adds all subscription/progress columns if missing
-  - ALL database operations now use raw SQL ($queryRawUnsafe/$executeRawUnsafe) instead of Prisma ORM
-  - Bypasses Prisma schema validation entirely — works even with schema mismatch
-  - Added detailed error logging at every step with debug info returned to client
-- Completely rewrote login route (src/app/api/auth/login/route.ts):
-  - Same self-healing approach: creates User table if missing, adds columns
-  - Uses only raw SQL for user lookup and password verification
-  - Upgrades legacy SHA-256 passwords to bcrypt
-- Updated auto-migrate.ts (src/lib/auto-migrate.ts):
-  - Now creates all tables if missing (not just adds columns)
-  - Covers all 10 models in the Prisma schema
-  - Used by course generation and other routes
-- Browser verification: registration tested end-to-end, 200 OK, user persisted, dashboard redirect works
-
-Stage Summary:
-- Register and login routes are now 100% raw SQL based for PostgreSQL
-- Database self-heals on first request (creates tables, adds columns, adds constraints)
-- Should resolve "Erreur lors de l'inscription" on Vercel permanently
-- Files modified: register/route.ts, login/route.ts, auto-migrate.ts
+- All 3 pending UI changes completed (pricing, emojis, level label)
+- Payment system fully hardened with rate limiting, idempotency, anti-replay, constant-time crypto
+- Payment success flow implemented in AppShell
+- Code compiles and runs correctly (HTTP 200 verified)
+- Creem integration maintained (compatible with new bank account)
+- Next step: User needs to create Creem account with bank account, get API keys, then deploy to Vercel

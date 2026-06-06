@@ -183,7 +183,7 @@ export default function OffersPage() {
       return [
         {
           q: "Comment fonctionne le paiement sur Coursia ?",
-          a: "Le paiement est géré par Creem, une plateforme sécurisée. Tu seras redirigé vers la page de paiement de Creem où tu pourras payer par carte bancaire. Après le paiement, ton accès Pro est activé immédiatement.",
+          a: "Le paiement est géré par une plateforme sécurisée. Tu seras redirigé vers une page de paiement où tu pourras payer par carte bancaire. Après le paiement, ton accès Pro est activé immédiatement.",
         },
         {
           q: "Puis-je annuler mon abonnement à tout moment ?",
@@ -206,7 +206,7 @@ export default function OffersPage() {
     return [
       {
         q: "How does payment work on Coursia?",
-        a: "Payment is handled by Creem, a secure platform. You'll be redirected to Creem's payment page where you can pay by card. After payment, your Pro access is activated immediately.",
+        a: "Payment is handled by a secure platform. You'll be redirected to a payment page where you can pay by card. After payment, your Pro access is activated immediately.",
       },
       {
         q: "Can I cancel my subscription at any time?",
@@ -433,8 +433,18 @@ export default function OffersPage() {
               <p className="text-muted-foreground text-sm">{tx.landing.pricing.annual.desc}</p>
             </div>
             <div className="mb-6">
-              <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.annual.price}</span>
+              {tx.landing.pricing.annual.originalPrice && (
+                <span className="text-lg text-muted-foreground line-through mr-2">
+                  {tx.landing.pricing.annual.originalPrice}
+                </span>
+              )}
+              <span className="text-3xl sm:text-4xl font-extrabold text-gold">{tx.landing.pricing.annual.price}</span>
               <span className="text-lg text-muted-foreground">{tx.landing.pricing.annual.period}</span>
+              {tx.landing.pricing.annual.periodNote && (
+                <p className="text-xs text-emerald-400 font-semibold mt-1">
+                  {lang === "fr" ? `Offre de lancement` : `Launch offer`}
+                </p>
+              )}
             </div>
             <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
               {tx.landing.pricing.annual.features.map((f) => (
@@ -487,8 +497,8 @@ export default function OffersPage() {
         <div className="text-center pb-10">
           <p className="text-xs text-muted-foreground/50">
             {lang === "fr"
-              ? "Paiement sécurisé via Creem"
-              : "Secure payment via Creem"}
+              ? "Paiement 100% sécurisé"
+              : "100% secure payment"}
           </p>
         </div>
       </div>

@@ -478,8 +478,18 @@ export default function LandingPage() {
                 <p className="text-muted-foreground text-sm">{tx.landing.pricing.annual.desc}</p>
               </div>
               <div className="mb-6">
+                {tx.landing.pricing.annual.originalPrice && (
+                  <span className="text-xl text-muted-foreground line-through mr-2">
+                    {tx.landing.pricing.annual.originalPrice}
+                  </span>
+                )}
                 <span className="text-4xl font-extrabold">{tx.landing.pricing.annual.price}</span>
                 <span className="text-lg text-muted-foreground">{tx.landing.pricing.annual.period}</span>
+                {tx.landing.pricing.annual.periodNote && (
+                  <p className="text-xs text-emerald-400 font-semibold mt-1">
+                    {lang === "fr" ? "Offre de lancement" : "Launch offer"}
+                  </p>
+                )}
               </div>
               <ul className="flex-1 space-y-3 mb-8">
                 {tx.landing.pricing.annual.features.map((f) => (
@@ -501,8 +511,8 @@ export default function LandingPage() {
           {/* Payment provider note */}
           <p className="text-center text-xs text-muted-foreground/40 mt-10">
             {lang === "fr"
-              ? "Paiement sécurisé via Creem"
-              : "Secure payment via Creem"}
+              ? "Paiement 100% sécurisé"
+              : "100% secure payment"}
           </p>
         </div>
       </section>

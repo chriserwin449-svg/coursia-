@@ -382,10 +382,7 @@ export default function CreateCourse() {
                         : "glass border-2 border-transparent text-muted-foreground hover:text-foreground hover:bg-white/5"
                     }`}
                   >
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="text-xl">{["🌱", "⚡", "🔥"][i]}</span>
-                      <span className="text-sm md:text-base">{levelName}</span>
-                    </div>
+                    <span className="text-sm md:text-base">{levelName}</span>
                     {isSelected && (
                       <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-mauve border-2 border-night" />
                     )}
@@ -399,7 +396,7 @@ export default function CreateCourse() {
           <div className="mb-8 flex items-center gap-2">
             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{tx.create.level}</span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-mauve/15 border border-mauve/25 text-xs font-bold text-mauve-light">
-              🌱 {tx.create.levels[0]}
+              {tx.create.levels[0]}
             </span>
           </div>
         )}
