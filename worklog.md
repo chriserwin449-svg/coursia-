@@ -74,3 +74,51 @@ Stage Summary:
 - Creem replaced by Flutterwave (available in RDC, full API, international cards + mobile money)
 - Security: SHA512 signature, double transaction verification, rate limiting, idempotency
 - User needs to: (1) Create Flutterwave business account, (2) Get FLW_SECRET_KEY + FLW_WEBHOOK_SECRET, (3) Set env vars on Vercel
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Replace Flutterwave with Fondeka-based manual payment (Flutterwave also not available in RDC)
+
+Work Log:
+- User confirmed Flutterwave is NOT available in RDC either
+- Analyzed options: Creem ❌, Lemon Squeezy ❌, FedaPay ❌, CinetPay ❌, Flutterwave ❌, crypto ❌
+- Chose Fondeka payment link with manual confirmation flow
+- Added PaymentRequest model to Prisma schema (userId, plan, amount, status, paymentProof, txRef, adminNote)
+- Rewrote /api/subscription/checkout/route.ts:
+  - Creates PaymentRequest record in DB
+  - Returns FONDEKA_PAY_LINK env var as checkoutUrl (opens in new tab)
+  - Returns requestId for "I paid" confirmation flow
+  - Rate limiting, UUID validation, already-subscribed check
+- Created /api/subscription/confirm/route.ts:
+  - User calls after paying on Fondeka to confirm
+  - Updates PaymentRequest status to "pending_verification"
+  - Accepts optional txRef and paymentProof
+  - Ownership verification (userId must match)
+  - Rate limiting
+- Created /api/subscription/admin/pending/route.ts (GET):
+  - Lists all pending/pending_verification payment requests
+  - Includes user info (email, name, subscription status)
+  - Admin auth via ADMIN_SECRET with timing-safe comparison
+- Created /api/subscription/admin/approve/route.ts (POST):
+  - Admin approves payment → activates subscription
+  - Calculates end date (monthly: +1 month, annual: +1 year)
+  - Updates User subscription fields
+- Created /api/subscription/admin/reject/route.ts (POST):
+  - Admin rejects payment with optional note
+- Updated /api/subscription/webhook/route.ts: placeholder for future automated gateway
+- Updated OffersPage.tsx:
+  - Payment steps UI: instructions 1-2-3-4 after redirect to Fondeka
+  - "J'ai effectué le paiement" button calls /api/subscription/confirm
+  - Auto-polling subscription status every 10s (max 5 min) after confirmation
+  - Confirmation success/error states with emerald banners
+  - Pricing cards hidden during payment flow, shown after completion
+  - ExternalLink icon on checkout buttons
+- Updated i18n.ts: 13 new payment strings (FR + EN) for confirmation flow
+- ESLint clean (0 errors in src/)
+- Committed and pushed to GitHub (9812910)
+
+Stage Summary:
+- Fondeka-based payment system operational: redirect → pay → confirm → admin approve
+- User needs to: (1) Set FONDEKA_PAY_LINK env var on Vercel (their Fondeka payment link), (2) Set ADMIN_SECRET env var, (3) Use admin endpoints to approve payments
+- Future upgrade path: when an automated gateway becomes available in RDC, only checkout + webhook need rewriting
