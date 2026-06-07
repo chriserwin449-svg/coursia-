@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Crown, Zap, HelpCircle, ChevronDown, Star, AlertTriangle, Loader2, Clock, ShieldAlert, Gift } from "lucide-react";
+import { Check, Crown, Zap, HelpCircle, ChevronDown, Star, AlertTriangle, Loader2, Clock, ShieldAlert, Gift, ExternalLink, CreditCard, ArrowRight } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import { useState, useMemo, useEffect, useCallback } from "react";
@@ -68,6 +68,12 @@ export default function OffersPage() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
+  // Fondeka payment flow states
+  const [paymentRequestId, setPaymentRequestId] = useState<string | null>(null);
+  const [showPaymentSteps, setShowPaymentSteps] = useState(false);
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+
   // Check paywall & subscription status
   useEffect(() => {
     const checkStatus = async () => {
@@ -111,7 +117,39 @@ export default function OffersPage() {
     checkStatus();
   }, [userId]);
 
-  // Handle checkout
+  // Check URL params for payment=pending (user returned from Fondeka)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get("payment");
+    const requestId = params.get("request_id");
+
+    if (paymentStatus === "pending" && requestId) {
+      setPaymentRequestId(requestId);
+      setShowPaymentSteps(true);
+      // Clean URL
+      window.history.replaceState({}, "", "/");
+    } else if (paymentStatus === "success") {
+      // Also handle the old success flow
+      const checkAfterCheckout = async () => {
+        try {
+          const headers: Record<string, string> = {};
+          if (userId) headers["Authorization"] = `Bearer ${userId}`;
+          const res = await fetch("/api/courses/paywall-status", { headers });
+          const data = await res.json();
+          if (data.hasSubscription && data.subscriptionStatus === "active") {
+            setIsSubscribed(true);
+            setTrialExpired(false);
+            setInGracePeriod(false);
+            setGraceExpired(false);
+          }
+        } catch { /* silent */ }
+      };
+      setTimeout(checkAfterCheckout, 2000);
+      window.history.replaceState({}, "", "/");
+    }
+  }, [userId]);
+
+  // Handle checkout — calls API then opens Fondeka link in new tab
   const handleCheckout = useCallback(
     async (plan: "monthly" | "annual") => {
       if (!isAuthenticated || !userId) {
@@ -131,15 +169,24 @@ export default function OffersPage() {
 
         const data = await res.json();
 
-        if (!res.ok || !data.checkoutUrl) {
+        if (!res.ok) {
           setCheckoutError(
             data.error || (lang === "fr" ? "Erreur lors de la création du paiement" : "Payment creation failed")
           );
           return;
         }
 
-        // Redirect to Creem checkout
-        window.location.href = data.checkoutUrl;
+        // Store request ID for "I paid" flow
+        if (data.requestId) {
+          setPaymentRequestId(data.requestId);
+        }
+
+        // Open Fondeka payment link in new tab
+        if (data.checkoutUrl) {
+          window.open(data.checkoutUrl, "_blank");
+          // Show payment steps after redirect
+          setShowPaymentSteps(true);
+        }
       } catch {
         setCheckoutError(
           lang === "fr" ? "Erreur de connexion. Réessaie." : "Connection error. Please try again."
@@ -151,30 +198,52 @@ export default function OffersPage() {
     [isAuthenticated, userId, lang, setView]
   );
 
-  // Check URL params for checkout result
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("checkout") === "success") {
-      const checkAfterCheckout = async () => {
-        try {
-          const headers: Record<string, string> = {};
-          if (userId) headers["Authorization"] = `Bearer ${userId}`;
+  // Handle "I paid" confirmation
+  const handleConfirmPayment = useCallback(async () => {
+    if (!userId || !paymentRequestId) return;
 
-          const res = await fetch("/api/courses/paywall-status", { headers });
-          const data = await res.json();
-          if (data.hasSubscription && data.subscriptionStatus === "active") {
-            setIsSubscribed(true);
-            setTrialExpired(false);
-            setInGracePeriod(false);
-            setGraceExpired(false);
-          }
-        } catch {
-          // silently fail
-        }
-      };
-      setTimeout(checkAfterCheckout, 2000);
+    setConfirmingPayment(true);
+    try {
+      const res = await fetch("/api/subscription/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          requestId: paymentRequestId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setPaymentConfirmed(true);
+        // Poll subscription status every 10 seconds
+        const pollInterval = setInterval(async () => {
+          try {
+            const headers: Record<string, string> = {};
+            if (userId) headers["Authorization"] = `Bearer ${userId}`;
+            const statusRes = await fetch("/api/courses/paywall-status", { headers });
+            const statusData = await statusRes.json();
+            if (statusData.hasSubscription && statusData.subscriptionStatus === "active") {
+              clearInterval(pollInterval);
+              setIsSubscribed(true);
+              setPaymentConfirmed(false);
+              setShowPaymentSteps(false);
+            }
+          } catch { /* keep polling */ }
+        }, 10_000);
+
+        // Auto-stop polling after 5 minutes
+        setTimeout(() => clearInterval(pollInterval), 300_000);
+      } else {
+        setCheckoutError(data.error || "Confirmation failed");
+      }
+    } catch {
+      setCheckoutError(lang === "fr" ? "Erreur de connexion" : "Connection error");
+    } finally {
+      setConfirmingPayment(false);
     }
-  }, [userId]);
+  }, [userId, paymentRequestId, lang]);
 
   const suffix = (n: number) => (n > 1 ? (lang === "fr" ? "s" : "s") : "");
 
@@ -183,7 +252,7 @@ export default function OffersPage() {
       return [
         {
           q: "Comment fonctionne le paiement sur Coursia ?",
-          a: "Le paiement est géré par une plateforme sécurisée. Tu seras redirigé vers une page de paiement où tu pourras payer par carte bancaire. Après le paiement, ton accès Pro est activé immédiatement.",
+          a: "Clique sur le plan choisi, tu seras redirigé vers notre page de paiement sécurisé. Après le paiement, reviens sur Coursia et clique sur 'J'ai effectué le paiement' pour confirmer. Ton accès Pro est activé après vérification.",
         },
         {
           q: "Puis-je annuler mon abonnement à tout moment ?",
@@ -206,7 +275,7 @@ export default function OffersPage() {
     return [
       {
         q: "How does payment work on Coursia?",
-        a: "Payment is handled by a secure platform. You'll be redirected to a payment page where you can pay by card. After payment, your Pro access is activated immediately.",
+        a: "Click on your chosen plan, you'll be redirected to our secure payment page. After paying, come back to Coursia and click 'I've made the payment' to confirm. Your Pro access is activated after verification.",
       },
       {
         q: "Can I cancel my subscription at any time?",
@@ -245,6 +314,65 @@ export default function OffersPage() {
             {tx.offers.subtitle}
           </p>
         </div>
+
+        {/* ===== PAYMENT STEPS (shown after redirect to Fondeka) ===== */}
+        {showPaymentSteps && !isSubscribed && (
+          <div className="max-w-2xl mx-auto mb-8 space-y-3">
+            <div className="glass rounded-3xl p-5 sm:p-6 border border-mauve/30 animate-fade-in">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-mauve/20 flex items-center justify-center">
+                  <CreditCard className="w-5 h-5 text-mauve-light" />
+                </div>
+                <h3 className="text-lg font-bold">{tx.offers.paymentPendingTitle}</h3>
+              </div>
+
+              {paymentConfirmed ? (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                    <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-300">{tx.offers.paymentConfirmed}</p>
+                      <p className="text-xs text-emerald-400/70 mt-1">{tx.offers.paymentConfirmedDesc}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 py-2">
+                    <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
+                    <span className="text-xs text-muted-foreground">
+                      {lang === "fr" ? "Vérification en cours..." : "Verification in progress..."}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground mb-4">{tx.offers.paymentPendingDesc}</p>
+                  <div className="space-y-2 mb-5">
+                    <p className="text-sm text-foreground/80">{tx.offers.paymentPendingStep1}</p>
+                    <p className="text-sm text-foreground/80">{tx.offers.paymentPendingStep2}</p>
+                    <p className="text-sm text-foreground/80">{tx.offers.paymentPendingStep3}</p>
+                    <p className="text-sm text-muted-foreground">{tx.offers.paymentPendingStep4}</p>
+                  </div>
+                  <button
+                    onClick={handleConfirmPayment}
+                    disabled={confirmingPayment}
+                    className="w-full py-3.5 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold hover:from-emerald-400 hover:to-emerald-500 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {confirmingPayment ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        {lang === "fr" ? "Envoi en cours..." : "Sending..."}
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-5 h-5" />
+                        {tx.offers.iPaid}
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ===== STATUS BANNERS ===== */}
         <div className="max-w-2xl mx-auto mb-8 space-y-3">
@@ -328,150 +456,158 @@ export default function OffersPage() {
         </div>
 
         {/* ===== PRICING CARDS ===== */}
-        <div className={`grid gap-6 lg:gap-8 items-start mb-20 ${
-          (trialExpired || graceExpired)
-            ? "grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto"
-            : "grid-cols-1 md:grid-cols-3"
-        }`}>
-          {/* FREE PLAN — hidden when trial expired or grace expired */}
-          {!trialExpired && !graceExpired && (
-          <div className="pricing-card-float glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
-            <div className="mb-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
-                  <Zap className="w-6 h-6 text-mauve-light" />
+        {!(showPaymentSteps && !isSubscribed) && (
+          <div className={`grid gap-6 lg:gap-8 items-start mb-20 ${
+            (trialExpired || graceExpired)
+              ? "grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto"
+              : "grid-cols-1 md:grid-cols-3"
+          }`}>
+            {/* FREE PLAN — hidden when trial expired or grace expired */}
+            {!trialExpired && !graceExpired && (
+            <div className="pricing-card-float glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
+              <div className="mb-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
+                    <Zap className="w-6 h-6 text-mauve-light" />
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.free.name}</h3>
                 </div>
-                <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.free.name}</h3>
+                <p className="text-muted-foreground text-sm">{tx.landing.pricing.free.desc}</p>
               </div>
-              <p className="text-muted-foreground text-sm">{tx.landing.pricing.free.desc}</p>
+              <div className="mb-6">
+                <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.free.price}</span>
+                {lang === "fr" && (
+                  <p className="text-sm text-gold font-semibold mt-1">{tx.landing.pricing.free.note}</p>
+                )}
+              </div>
+              <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
+                {tx.landing.pricing.free.features.map((f) => (
+                  <li key={f} className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-muted-foreground">{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <button className="w-full py-3.5 sm:py-4 rounded-full border border-muted-foreground/20 text-foreground font-bold hover:bg-muted-foreground/10 transition-all duration-300 cursor-pointer">
+                {tx.landing.pricing.free.cta}
+              </button>
             </div>
-            <div className="mb-6">
-              <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.free.price}</span>
-              {lang === "fr" && (
-                <p className="text-sm text-gold font-semibold mt-1">{tx.landing.pricing.free.note}</p>
-              )}
-            </div>
-            <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
-              {tx.landing.pricing.free.features.map((f) => (
-                <li key={f} className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm text-muted-foreground">{f}</span>
-                </li>
-              ))}
-            </ul>
-            <button className="w-full py-3.5 sm:py-4 rounded-full border border-muted-foreground/20 text-foreground font-bold hover:bg-muted-foreground/10 transition-all duration-300 cursor-pointer">
-              {tx.landing.pricing.free.cta}
-            </button>
-          </div>
-          )}
+            )}
 
-          {/* MONTHLY PLAN */}
-          <div className="pricing-card-float monthly-card-glow glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
-            <div className="mb-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
-                  <Zap className="w-6 h-6 text-mauve-light" />
+            {/* MONTHLY PLAN */}
+            <div className="pricing-card-float monthly-card-glow glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
+              <div className="mb-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
+                    <Zap className="w-6 h-6 text-mauve-light" />
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.monthly.name}</h3>
                 </div>
-                <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.monthly.name}</h3>
+                <p className="text-muted-foreground text-sm">{tx.landing.pricing.monthly.desc}</p>
               </div>
-              <p className="text-muted-foreground text-sm">{tx.landing.pricing.monthly.desc}</p>
-            </div>
-            <div className="mb-6">
-              <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.monthly.price}</span>
-              <span className="text-lg text-muted-foreground">{tx.landing.pricing.monthly.period}</span>
-            </div>
-            <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
-              {tx.landing.pricing.monthly.features.map((f) => (
-                <li key={f} className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm text-muted-foreground">{f}</span>
-                </li>
-              ))}
-            </ul>
-            <button
-              onClick={() => handleCheckout("monthly")}
-              disabled={loadingPlan === "monthly" || (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired)}
-              className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {loadingPlan === "monthly" ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  {lang === "fr" ? "Redirection..." : "Redirecting..."}
-                </>
-              ) : isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired ? (
-                <>{lang === "fr" ? "Plan Actuel" : "Current Plan"}</>
-              ) : (
-                tx.landing.pricing.monthly.cta
-              )}
-            </button>
-          </div>
-
-          {/* ANNUAL PLAN — highlighted */}
-          <div className="pricing-card-float annual-card-shimmer relative glass rounded-3xl p-5 sm:p-8 flex flex-col border-2 border-gold/50 hover:border-gold/70 transition-all duration-300 shadow-[0_0_40px_rgba(234,179,8,0.1)]">
-            {/* Popular badge */}
-            <span className="annual-badge-pulse absolute -top-4 left-1/2 -translate-x-1/2 px-5 py-1.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-xs font-extrabold uppercase tracking-wider z-10">
-              <span className="flex items-center gap-1.5">
-                <Crown className="w-3.5 h-3.5" />
-                {tx.landing.pricing.annual.badge}
-              </span>
-            </span>
-
-            {/* Save badge */}
-            <div className="flex justify-end mb-2">
-              <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold">
-                {tx.landing.pricing.annual.save}
-              </span>
-            </div>
-
-            <div className="mb-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gold/10 flex items-center justify-center">
-                  <Crown className="w-6 h-6 text-gold" />
-                </div>
-                <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.annual.name}</h3>
+              <div className="mb-6">
+                <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.monthly.price}</span>
+                <span className="text-lg text-muted-foreground">{tx.landing.pricing.monthly.period}</span>
               </div>
-              <p className="text-muted-foreground text-sm">{tx.landing.pricing.annual.desc}</p>
+              <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
+                {tx.landing.pricing.monthly.features.map((f) => (
+                  <li key={f} className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-muted-foreground">{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => handleCheckout("monthly")}
+                disabled={loadingPlan === "monthly" || (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired)}
+                className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loadingPlan === "monthly" ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    {lang === "fr" ? "Redirection..." : "Redirecting..."}
+                  </>
+                ) : isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired ? (
+                  <>{lang === "fr" ? "Plan Actuel" : "Current Plan"}</>
+                ) : (
+                  <>
+                    {tx.landing.pricing.monthly.cta}
+                    <ExternalLink className="w-4 h-4" />
+                  </>
+                )}
+              </button>
             </div>
-            <div className="mb-6">
-              {tx.landing.pricing.annual.originalPrice && (
-                <span className="text-lg text-muted-foreground line-through mr-2">
-                  {tx.landing.pricing.annual.originalPrice}
+
+            {/* ANNUAL PLAN — highlighted */}
+            <div className="pricing-card-float annual-card-shimmer relative glass rounded-3xl p-5 sm:p-8 flex flex-col border-2 border-gold/50 hover:border-gold/70 transition-all duration-300 shadow-[0_0_40px_rgba(234,179,8,0.1)]">
+              {/* Popular badge */}
+              <span className="annual-badge-pulse absolute -top-4 left-1/2 -translate-x-1/2 px-5 py-1.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-xs font-extrabold uppercase tracking-wider z-10">
+                <span className="flex items-center gap-1.5">
+                  <Crown className="w-3.5 h-3.5" />
+                  {tx.landing.pricing.annual.badge}
                 </span>
-              )}
-              <span className="text-3xl sm:text-4xl font-extrabold text-gold">{tx.landing.pricing.annual.price}</span>
-              <span className="text-lg text-muted-foreground">{tx.landing.pricing.annual.period}</span>
-              {tx.landing.pricing.annual.periodNote && (
-                <p className="text-xs text-emerald-400 font-semibold mt-1">
-                  {lang === "fr" ? `Offre de lancement` : `Launch offer`}
-                </p>
-              )}
+              </span>
+
+              {/* Save badge */}
+              <div className="flex justify-end mb-2">
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold">
+                  {tx.landing.pricing.annual.save}
+                </span>
+              </div>
+
+              <div className="mb-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gold/10 flex items-center justify-center">
+                    <Crown className="w-6 h-6 text-gold" />
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.annual.name}</h3>
+                </div>
+                <p className="text-muted-foreground text-sm">{tx.landing.pricing.annual.desc}</p>
+              </div>
+              <div className="mb-6">
+                {tx.landing.pricing.annual.originalPrice && (
+                  <span className="text-lg text-muted-foreground line-through mr-2">
+                    {tx.landing.pricing.annual.originalPrice}
+                  </span>
+                )}
+                <span className="text-3xl sm:text-4xl font-extrabold text-gold">{tx.landing.pricing.annual.price}</span>
+                <span className="text-lg text-muted-foreground">{tx.landing.pricing.annual.period}</span>
+                {tx.landing.pricing.annual.periodNote && (
+                  <p className="text-xs text-emerald-400 font-semibold mt-1">
+                    {lang === "fr" ? `Offre de lancement` : `Launch offer`}
+                  </p>
+                )}
+              </div>
+              <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
+                {tx.landing.pricing.annual.features.map((f) => (
+                  <li key={f} className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-muted-foreground">{f}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => handleCheckout("annual")}
+                disabled={loadingPlan === "annual" || (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired)}
+                className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden flex items-center justify-center gap-2"
+              >
+                {loadingPlan === "annual" ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    {lang === "fr" ? "Redirection..." : "Redirecting..."}
+                  </>
+                ) : isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired ? (
+                  <>{lang === "fr" ? "Plan Actuel" : "Current Plan"}</>
+                ) : (
+                  <>
+                    {tx.landing.pricing.annual.cta}
+                    <ExternalLink className="w-4 h-4" />
+                  </>
+                )}
+              </button>
             </div>
-            <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
-              {tx.landing.pricing.annual.features.map((f) => (
-                <li key={f} className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm text-muted-foreground">{f}</span>
-                </li>
-              ))}
-            </ul>
-            <button
-              onClick={() => handleCheckout("annual")}
-              disabled={loadingPlan === "annual" || (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired)}
-              className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden flex items-center justify-center gap-2"
-            >
-              {loadingPlan === "annual" ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  {lang === "fr" ? "Redirection..." : "Redirecting..."}
-                </>
-              ) : isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired ? (
-                <>{lang === "fr" ? "Plan Actuel" : "Current Plan"}</>
-              ) : (
-                tx.landing.pricing.annual.cta
-              )}
-            </button>
           </div>
-        </div>
+        )}
 
         {/* ===== FAQ SECTION ===== */}
         <div className="max-w-3xl mx-auto mb-16">
@@ -497,8 +633,8 @@ export default function OffersPage() {
         <div className="text-center pb-10">
           <p className="text-xs text-muted-foreground/50">
             {lang === "fr"
-              ? "Paiement 100% sécurisé"
-              : "100% secure payment"}
+              ? "Paiement 100% sécurisé via Fondeka"
+              : "100% secure payment via Fondeka"}
           </p>
         </div>
       </div>
