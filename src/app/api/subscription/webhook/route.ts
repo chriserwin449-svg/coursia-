@@ -25,7 +25,7 @@ function markEventProcessed(eventId: string): void {
   }
 }
 
-// ─── Database column auto-migration ─────────────────────────────────────
+// ─── Database column auto-migration (for Supabase/PostgreSQL) ──────────
 async function migrateColumn(table: string, col: string, colDef: string): Promise<void> {
   try {
     await db.$executeRawUnsafe(
@@ -45,29 +45,33 @@ async function ensureAllColumns(): Promise<void> {
     await migrateColumn("User", "subscriptionStartDate", "TIMESTAMP(3)");
     await migrateColumn("User", "subscriptionEndDate", "TIMESTAMP(3)");
     await migrateColumn("User", "trialStartDate", "TIMESTAMP(3)");
+    await migrateColumn("User", "paymentProvider", "TEXT NOT NULL DEFAULT 'none'");
   } catch { /* non-critical */ }
 }
 
-// ─── HMAC-SHA256 signature verification ─────────────────────────────────
-const CREEM_WEBHOOK_SECRET = process.env.CREEM_WEBHOOK_SECRET || "";
+// ─── Flutterwave webhook signature verification (SHA512) ──────────────
+const FLW_WEBHOOK_SECRET = process.env.FLW_WEBHOOK_SECRET || "";
 
-function verifySignature(payload: string, signature: string): boolean {
-  if (!CREEM_WEBHOOK_SECRET) {
-    console.error("[webhook] CREEM_WEBHOOK_SECRET not configured");
+function verifyFlutterwaveSignature(payload: string, signature: string): boolean {
+  if (!FLW_WEBHOOK_SECRET) {
+    console.error("[webhook] FLW_WEBHOOK_SECRET not configured");
     return false;
   }
   if (!signature || signature.length < 10) {
     console.warn("[webhook] Missing or invalid signature");
     return false;
   }
-  const computed = crypto
-    .createHmac("sha256", CREEM_WEBHOOK_SECRET)
-    .update(payload)
+
+  // Flutterwave uses SHA512 of raw body + webhook secret hash
+  const expected = crypto
+    .createHash("sha512")
+    .update(payload + FLW_WEBHOOK_SECRET)
     .digest("hex");
+
   // Constant-time comparison to prevent timing attacks
   try {
     return crypto.timingSafeEqual(
-      Buffer.from(computed, "hex"),
+      Buffer.from(expected, "hex"),
       Buffer.from(signature, "hex")
     );
   } catch {
@@ -75,10 +79,68 @@ function verifySignature(payload: string, signature: string): boolean {
   }
 }
 
+// ─── Transaction verification with Flutterwave API ──────────────────────
+async function verifyTransaction(transactionId: number): Promise<{
+  verified: boolean;
+  txRef?: string;
+  amount?: number;
+  currency?: string;
+  status?: string;
+  customerEmail?: string;
+  customerName?: string;
+  meta?: Record<string, string>;
+}> {
+  const secretKey = process.env.FLW_SECRET_KEY;
+  if (!secretKey) {
+    console.error("[webhook] FLW_SECRET_KEY not set for verification");
+    return { verified: false };
+  }
+
+  try {
+    const res = await fetch(
+      `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": secretKey,
+        },
+      }
+    );
+
+    const data = await res.json();
+
+    if (data.status === "success" && data.data?.status === "successful") {
+      return {
+        verified: true,
+        txRef: data.data.tx_ref,
+        amount: data.data.amount,
+        currency: data.data.currency,
+        status: data.data.status,
+        customerEmail: data.data.customer?.email,
+        customerName: data.data.customer?.name,
+        meta: data.data.meta,
+      };
+    }
+
+    console.warn("[webhook] Transaction verification failed:", {
+      id: transactionId,
+      status: data.data?.status,
+      message: data.message,
+    });
+
+    return { verified: false };
+  } catch (err) {
+    console.error("[webhook] Transaction verification error:", err);
+    return { verified: false };
+  }
+}
+
 // ─── Timestamp freshness check (anti-replay) ────────────────────────────
 function isEventFresh(eventTimestamp: string | number | undefined): boolean {
-  if (!eventTimestamp) return true; // can't verify, allow through
-  const ts = typeof eventTimestamp === "string" ? new Date(eventTimestamp).getTime() : eventTimestamp;
+  if (!eventTimestamp) return true;
+  const ts = typeof eventTimestamp === "string"
+    ? new Date(eventTimestamp).getTime()
+    : eventTimestamp;
   const now = Date.now();
   const ageMs = now - ts;
   // Reject events older than 30 minutes or from the future (> 5 min)
@@ -88,9 +150,10 @@ function isEventFresh(eventTimestamp: string | number | undefined): boolean {
 // ─── Subscription management ────────────────────────────────────────────
 async function grantSubscription(
   customerEmail: string,
-  subscriptionId: string,
+  transactionRef: string,
   customerId: string,
-  plan: string
+  plan: string,
+  provider: string
 ) {
   const user = await db.user.findUnique({ where: { email: customerEmail } });
   if (!user) {
@@ -103,15 +166,16 @@ async function grantSubscription(
     data: {
       subscriptionPlan: plan === "annual" ? "annual" : "monthly",
       subscriptionStatus: "active",
-      creemSubscriptionId: subscriptionId,
-      creemCustomerId: customerId,
+      creemSubscriptionId: transactionRef, // Reuse column for Flutterwave tx_ref
+      creemCustomerId: customerId,         // Reuse column for Flutterwave customer ID
       subscriptionStartDate: new Date(),
       subscriptionEndDate: null,
+      paymentProvider: provider,
       updatedAt: new Date(),
     },
   });
 
-  console.log(`[webhook] Subscription activated for ${customerEmail} (${plan})`);
+  console.log(`[webhook] Subscription activated for ${customerEmail} (${plan}, ${provider})`);
 }
 
 async function revokeSubscription(customerEmail: string, reason: string) {
@@ -147,11 +211,11 @@ export async function POST(request: NextRequest) {
   try {
     // 1. Read raw body for signature verification
     const body = await request.text();
-    const signature = request.headers.get("creem-signature") || "";
+    const signature = request.headers.get("verif-hash") || "";
 
-    // 2. Verify HMAC signature (constant-time comparison)
-    if (!verifySignature(body, signature)) {
-      console.warn("[webhook] Invalid signature");
+    // 2. Verify Flutterwave SHA512 signature (constant-time comparison)
+    if (!verifyFlutterwaveSignature(body, signature)) {
+      console.warn("[webhook] Invalid Flutterwave signature");
       return NextResponse.json(
         { error: "Invalid signature" },
         { status: 401, headers: securityHeaders() }
@@ -170,10 +234,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const eventType = (event.type as string) || (event.event_type as string) || "";
-    const eventId = (event.id as string) || (event.data?.id as string) || "";
+    const eventType = String(event.event || "");
+    const eventData = event.data as Record<string, unknown> | undefined;
+    const eventId = String(eventData?.id || eventData?.tx_ref || "");
+    const transactionId = Number(eventData?.id || 0);
 
-    console.log(`[webhook] Received event: ${eventType} (id: ${eventId?.slice(0, 12) || "unknown"})`);
+    console.log(`[webhook] Received event: ${eventType} (id: ${eventId}, tx: ${String(eventData?.tx_ref || "").slice(0, 20)})`);
 
     // 4. Idempotency check
     if (isEventProcessed(eventId)) {
@@ -185,7 +251,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Anti-replay: check timestamp freshness
-    const eventTs = (event.data?.timestamp as string) || (event.created_at as string);
+    const eventTs = String(eventData?.created_at || event.created_at);
     if (!isEventFresh(eventTs)) {
       console.warn(`[webhook] Stale or future-dated event rejected: ${eventType}`);
       return NextResponse.json(
@@ -197,52 +263,64 @@ export async function POST(request: NextRequest) {
     // 6. Auto-migrate columns if needed
     await ensureAllColumns();
 
-    // 7. Route event
+    // 7. Route events
     switch (eventType) {
-      case "subscription.active":
-      case "subscription.paid": {
-        const customer = event.data?.customer || event.customer;
-        const subscription = event.data?.subscription || event.subscription;
-        const metadata = event.data?.metadata || event.metadata;
+      case "charge.completed": {
+        // Only process successful charges
+        const chargeStatus = String(eventData?.status || "").toLowerCase();
+        if (chargeStatus !== "successful") {
+          console.log(`[webhook] Charge not successful (${chargeStatus}), skipping`);
+          break;
+        }
 
-        if (customer?.email && subscription?.id) {
-          const plan = metadata?.plan || "monthly";
-          await grantSubscription(
-            String(customer.email),
-            String(subscription.id),
-            String(customer.id || ""),
-            String(plan)
-          );
+        // Double-verify with Flutterwave API to prevent fraud
+        if (transactionId > 0) {
+          const verification = await verifyTransaction(transactionId);
+
+          if (!verification.verified) {
+            console.error("[webhook] Transaction verification failed, rejecting:", transactionId);
+            break;
+          }
+
+          // Use verified data (more reliable than webhook payload)
+          const customerEmail = verification.customerEmail
+            || String(eventData?.customer?.email || "");
+          const customerId = String(eventData?.customer?.id || "");
+          const txRef = verification.txRef || String(eventData?.tx_ref || "");
+          const plan = (verification.meta?.plan as string)
+            || (eventData?.meta as Record<string, string>)?.plan
+            || "monthly";
+
+          if (customerEmail) {
+            await grantSubscription(
+              customerEmail,
+              txRef,
+              customerId,
+              plan,
+              "flutterwave"
+            );
+          }
         }
         break;
       }
 
-      case "checkout.completed": {
-        const customer = event.data?.customer || event.customer;
-        const subscription = event.data?.subscription || event.subscription;
-        const metadata = event.data?.metadata || event.metadata;
-
-        if (customer?.email && subscription?.id) {
-          const plan = metadata?.plan || "monthly";
-          await grantSubscription(
-            String(customer.email),
-            String(subscription.id),
-            String(customer.id || ""),
-            String(plan)
-          );
-        }
+      case "transfer.completed":
+      case "transfer.failed": {
+        // Payout events — log for monitoring
+        console.log(`[webhook] Transfer event: ${eventType}`, {
+          amount: eventData?.amount,
+          status: eventData?.status,
+        });
         break;
       }
 
-      case "subscription.canceled":
-      case "subscription.scheduled_cancel":
-      case "subscription.expired":
-      case "subscription.past_due": {
-        const customer = event.data?.customer || event.customer;
-        const reason = eventType === "expired" ? "expired" : "canceled";
+      case "subscription.cancel":
+      case "subscription.expiry": {
+        const customerEmail = String(eventData?.customer?.email || "");
+        const reason = eventType === "subscription.expiry" ? "expired" : "canceled";
 
-        if (customer?.email) {
-          await revokeSubscription(String(customer.email), reason);
+        if (customerEmail) {
+          await revokeSubscription(customerEmail, reason);
         }
         break;
       }

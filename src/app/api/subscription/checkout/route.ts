@@ -24,7 +24,7 @@ function checkRateLimit(userId: string): boolean {
   return true;
 }
 
-// ─── Cleanup old rate limit entries every 5 minutes ─────────────────────
+// Cleanup old rate limit entries every 5 minutes
 setInterval(() => {
   const now = Date.now();
   for (const [key, val] of checkoutAttempts) {
@@ -34,30 +34,27 @@ setInterval(() => {
 
 // ─── Price configuration (server-side, tamper-proof) ────────────────────
 const PLAN_CONFIG = {
-  monthly: { amountCents: 999, currency: "usd" },
-  annual: { amountCents: 2899, currency: "usd" },
+  monthly: { amount: 999, currency: "USD" },   // $9.99
+  annual: { amount: 2899, currency: "USD" },    // $28.99
 } as const;
 
 type PlanType = keyof typeof PLAN_CONFIG;
 
-// ─── Input sanitization ──────────────────────────────────────────────────
+// ─── Input validation ──────────────────────────────────────────────────────
 function isValidPlan(plan: string): plan is PlanType {
   return plan === "monthly" || plan === "annual";
 }
 
 function isValidUserId(userId: string): boolean {
-  // UUID v4 format validation
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return uuidRegex.test(userId);
 }
 
 function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function sanitizeString(str: string): string {
-  // Remove potentially dangerous characters
   return str.replace(/[<>'"&;(){}[\]]/g, "").trim().slice(0, 255);
 }
 
@@ -71,9 +68,11 @@ function securityHeaders(): HeadersInit {
   };
 }
 
-// ─── nonce generation for idempotency ────────────────────────────────────
-function generateCheckoutNonce(): string {
-  return crypto.randomBytes(16).toString("hex");
+// ─── Transaction reference generation ────────────────────────────────────
+function generateTxRef(): string {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = crypto.randomBytes(6).toString("hex").toUpperCase();
+  return `CRS-${timestamp}-${random}`;
 }
 
 // ─── Main handler ────────────────────────────────────────────────────────
@@ -117,117 +116,112 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5. Check API key
-    const apiKey = process.env.CREEM_API_KEY;
-    if (!apiKey) {
-      console.error("[checkout] CREEM_API_KEY not set");
+    // 5. Check Flutterwave API key
+    const secretKey = process.env.FLW_SECRET_KEY;
+    if (!secretKey) {
+      console.error("[checkout] FLW_SECRET_KEY not set");
       return NextResponse.json(
         { error: "Payment not configured" },
         { status: 500, headers: securityHeaders() }
       );
     }
 
-    // 6. Check product IDs
-    const productId =
-      plan === "annual"
-        ? process.env.CREEM_ANNUAL_PRODUCT_ID
-        : process.env.CREEM_MONTHLY_PRODUCT_ID;
-
-    if (!productId) {
-      console.error("[checkout] Product ID not configured for plan:", plan);
-      return NextResponse.json(
-        { error: "Product not configured" },
-        { status: 500, headers: securityHeaders() }
-      );
-    }
-
-    // 7. Fetch user email from DB
+    // 6. Fetch user info from DB
     let customerEmail = "";
+    let customerName = "";
     try {
       const user = await db.user.findUnique({
         where: { id: userId },
-        select: { email: true },
+        select: { email: true, firstName: true, lastName: true },
       });
-      customerEmail = user?.email || "";
+      if (user) {
+        customerEmail = user.email || "";
+        customerName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+      }
     } catch (dbErr) {
-      console.warn("[checkout] Could not fetch user email:", dbErr);
+      console.warn("[checkout] Could not fetch user info:", dbErr);
     }
 
-    // 8. Build checkout request
+    // 7. Build Flutterwave payment request
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://coursia-8oi4.vercel.app";
-    const nonce = generateCheckoutNonce();
-    const successUrl = `${appUrl}/?payment=success&plan=${plan}&nonce=${encodeURIComponent(nonce)}`;
+    const txRef = generateTxRef();
+    const redirectUrl = `${appUrl}/?payment=success&plan=${plan}&tx_ref=${encodeURIComponent(txRef)}`;
 
-    const creemBase = apiKey.startsWith("creem_test_")
-      ? "https://test-api.creem.io/v1"
-      : "https://api.creem.io/v1";
+    const planConfig = PLAN_CONFIG[plan];
 
-    console.log("[checkout] Creating checkout:", {
+    console.log("[checkout] Creating Flutterwave payment:", {
       plan,
-      productId,
-      amount: PLAN_CONFIG[plan].amountCents,
+      amount: planConfig.amount,
       userId: userId.slice(0, 8) + "...",
       hasEmail: !!customerEmail,
-      nonce: nonce.slice(0, 8) + "...",
+      txRef: txRef,
     });
 
-    // 9. Create Creem checkout
-    const res = await fetch(`${creemBase}/checkouts`, {
+    // 8. Call Flutterwave API
+    const res = await fetch("https://api.flutterwave.com/v3/payments", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": apiKey,
+        "Authorization": secretKey,
       },
       body: JSON.stringify({
-        product_id: productId,
-        success_url: successUrl,
+        tx_ref: txRef,
+        amount: planConfig.amount,
+        currency: planConfig.currency,
+        redirect_url: redirectUrl,
+        payment_options: "card,mobilemoney,ussd,bank_transfer",
         customer: customerEmail && isValidEmail(customerEmail)
-          ? { email: customerEmail }
-          : undefined,
-        metadata: {
+          ? { email: sanitizeString(customerEmail), name: sanitizeString(customerName) || "Coursia User" }
+          : { email: `${userId.slice(0, 8)}@coursia.app`, name: "Coursia User" },
+        meta: {
           userId: sanitizeString(userId),
           plan: sanitizeString(plan),
-          nonce,
           appSource: "coursia",
-          timestamp: Date.now().toString(),
+        },
+        customizations: {
+          title: plan === "annual"
+            ? "Coursia Pro - Annuel"
+            : "Coursia Pro - Mensuel",
+          description: plan === "annual"
+            ? "Abonnement annuel Coursia Pro"
+            : "Abonnement mensuel Coursia Pro",
+          logo: "https://coursia-8oi4.vercel.app/logo.png",
         },
       }),
     });
 
     const data = await res.json();
 
-    console.log("[checkout] Creem response:", {
+    console.log("[checkout] Flutterwave response:", {
       status: res.status,
       ok: res.ok,
-      id: data.id,
-      hasCheckoutUrl: !!data.checkout_url,
-      error: data.error,
-      mode: data.mode,
+      txRef: data.data?.tx_ref,
+      hasLink: !!data.data?.link,
+      error: data.message,
     });
 
-    if (!res.ok) {
+    if (!res.ok || data.status !== "success") {
       return NextResponse.json(
         {
-          error: Array.isArray(data.message)
-            ? data.message.join(", ")
-            : (data.error || data.message || "Checkout creation failed"),
+          error: data.message || "Payment initialization failed",
         },
-        { status: res.status, headers: securityHeaders() }
+        { status: res.status >= 500 ? 502 : 400, headers: securityHeaders() }
       );
     }
 
-    if (!data.checkout_url) {
+    const paymentLink = data.data?.link;
+    if (!paymentLink) {
       return NextResponse.json(
-        { error: "No checkout URL returned" },
+        { error: "No payment link returned" },
         { status: 500, headers: securityHeaders() }
       );
     }
 
-    // 10. Validate checkout URL is HTTPS
-    if (!data.checkout_url.startsWith("https://")) {
-      console.error("[checkout] Invalid checkout URL scheme:", data.checkout_url);
+    // 9. Validate payment link is HTTPS
+    if (!paymentLink.startsWith("https://")) {
+      console.error("[checkout] Invalid payment link scheme:", paymentLink);
       return NextResponse.json(
-        { error: "Invalid checkout URL" },
+        { error: "Invalid payment link" },
         { status: 500, headers: securityHeaders() }
       );
     }
@@ -235,8 +229,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        checkoutUrl: data.checkout_url,
-        checkoutId: data.id,
+        checkoutUrl: paymentLink,
+        checkoutId: txRef,
       },
       { headers: securityHeaders() }
     );
