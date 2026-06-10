@@ -478,18 +478,8 @@ export default function LandingPage() {
                 <p className="text-muted-foreground text-sm">{tx.landing.pricing.annual.desc}</p>
               </div>
               <div className="mb-6">
-                {tx.landing.pricing.annual.originalPrice && (
-                  <span className="text-xl text-muted-foreground line-through mr-2">
-                    {tx.landing.pricing.annual.originalPrice}
-                  </span>
-                )}
                 <span className="text-4xl font-extrabold">{tx.landing.pricing.annual.price}</span>
                 <span className="text-lg text-muted-foreground">{tx.landing.pricing.annual.period}</span>
-                {tx.landing.pricing.annual.periodNote && (
-                  <p className="text-xs text-emerald-400 font-semibold mt-1">
-                    {lang === "fr" ? "Offre de lancement" : "Launch offer"}
-                  </p>
-                )}
               </div>
               <ul className="flex-1 space-y-3 mb-8">
                 {tx.landing.pricing.annual.features.map((f) => (
@@ -549,7 +539,7 @@ export default function LandingPage() {
                     { q: "Comment fonctionne la progression par niveaux ?", a: "Chaque cours comporte 3 niveaux de difficulté : Débutant, Intermédiaire et Avancé. Tu commences toujours par le niveau Débutant. Après avoir terminé un niveau, une animation célèbre ta réussite et tu peux choisir de passer au suivant. Un récapitulatif IA t'aide à réviser les points clés avant de continuer." },
                     { q: "Les cours sont-ils personnalisés selon mon niveau ?", a: "Oui ! Tu peux choisir entre trois niveaux : Débutant, Intermédiaire et Avancé. L'IA adapte la complexité du contenu, les exemples et les quiz en fonction de ton niveau." },
                     { q: "Puis-je progresser d'un niveau à l'autre ?", a: "Absolument ! Après avoir terminé un cours à un niveau, Coursia te propose de passer au niveau supérieur avec un récapitulatif IA pour t'aider à progresser. Termine les 3 niveaux pour gagner un maximum de flammes !" },
-                    { q: "Combien de cours puis-je créer ?", a: "Avec le plan Découverte, tu peux créer 3 cours gratuitement pendant 7 jours. Les plans payants offrent des cours illimités pour apprendre sans limites." },
+                    { q: "Combien de cours puis-je créer ?", a: "Avec le plan Découverte, tu peux créer 15 cours gratuitement pendant 3 jours. Les plans payants offrent des cours illimités pour apprendre sans limites." },
                     { q: "Comment fonctionne le système de flammes ?", a: "Les flammes sont ta monnaie d'apprentissage ! Tu en gagnes en réussissant des quiz et en terminant des cours. Utilise-les pour créer de nouveaux cours ou débloque des badges en accumulant des points." },
                     { q: "Puis-je accéder à mes cours depuis n'importe quel appareil ?", a: "Oui, Coursia est accessible depuis n'importe quel navigateur web. Tes cours et ta progression sont sauvegardés dans ton compte." },
                   ]
@@ -557,7 +547,7 @@ export default function LandingPage() {
                     { q: "How does level progression work?", a: "Each course has 3 difficulty levels: Beginner, Intermediate and Advanced. You always start at Beginner. After completing a level, a celebration animation plays and you can choose to advance. An AI recap helps you review key points before continuing." },
                     { q: "Are courses personalized to my level?", a: "Yes! You can choose between three levels: Beginner, Intermediate and Advanced. The AI adapts the content complexity, examples and quizzes based on your level." },
                     { q: "Can I progress from one level to another?", a: "Absolutely! After completing a course at one level, Coursia offers to move you to the next level with an AI recap to help you progress. Complete all 3 levels to earn maximum flames!" },
-                    { q: "How many courses can I create?", a: "With the Discovery plan, you can create 3 free courses for 7 days. Paid plans offer unlimited courses to learn without limits." },
+                    { q: "How many courses can I create?", a: "With the Discovery plan, you can create 15 free courses for 3 days. Paid plans offer unlimited courses to learn without limits." },
                     { q: "How does the flame system work?", a: "Flames are your learning currency! You earn them by passing quizzes and completing courses. Use them to create new courses or unlock badges by accumulating points." },
                     { q: "Can I access my courses from any device?", a: "Yes, Coursia is accessible from any web browser. Your courses and progress are saved in your account." },
                   ]

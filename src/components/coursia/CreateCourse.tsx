@@ -35,10 +35,12 @@ export default function CreateCourse() {
   const [showSuggested, setShowSuggested] = useState(false);
   const [suggestedTopic, setSuggestedTopic] = useState("");
   const [hasSubscription, setHasSubscription] = useState(false);
-  const [coursesRemaining, setCoursesRemaining] = useState(3);
+  const [coursesRemaining, setCoursesRemaining] = useState(15);
   const [inTrial, setInTrial] = useState(false);
   const [trialExpired, setTrialExpired] = useState(false);
   const [inGracePeriod, setInGracePeriod] = useState(false);
+  const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
+  const [trialCoursesMax, setTrialCoursesMax] = useState(15);
   const [selectedLevel, setSelectedLevel] = useState(0);
   const [isRandomTopic, setIsRandomTopic] = useState(false);
 
@@ -126,8 +128,12 @@ export default function CreateCourse() {
         setInTrial(pw.inTrial);
         setTrialExpired(pw.showPaywall && pw.paywallReason === "trial_expired");
         setInGracePeriod(pw.inGracePeriod);
-        if (!pw.hasSubscription) {
-          setCoursesRemaining(Math.max(0, pw.trialCoursesMax - pw.trialCoursesGenerated));
+        if (pw.inTrial) {
+          setTrialDaysRemaining(pw.trialDaysRemaining || 0);
+          setTrialCoursesMax(pw.trialCoursesMax || 15);
+          setCoursesRemaining(Math.max(0, (pw.trialCoursesMax || 15) - (pw.trialCoursesGenerated || 0)));
+        } else if (!pw.hasSubscription) {
+          setCoursesRemaining(Math.max(0, (pw.trialCoursesMax || 15) - (pw.trialCoursesGenerated || 0)));
         } else {
           setCoursesRemaining(999);
         }
@@ -423,6 +429,14 @@ export default function CreateCourse() {
                   {lang === "fr" ? "Voir les abonnements" : "See plans"}
                 </button>
               </>
+            ) : inTrial ? (
+              <p className="text-sm font-semibold text-gold">
+                {tx.create.trialCounter
+                  .replace("{days}", String(trialDaysRemaining))
+                  .replace("{suffix}", trialDaysRemaining > 1 ? (lang === "fr" ? tx.create.trialCounterDays : tx.create.trialCounterDays) : (lang === "fr" ? tx.create.trialCounterDay : tx.create.trialCounterDay))
+                  .replace("{remaining}", String(coursesRemaining))
+                  .replace("{max}", String(trialCoursesMax))}
+              </p>
             ) : (
               <p className="text-sm font-semibold text-muted-foreground">
                 {lang === "fr"

@@ -3,7 +3,7 @@
 import { Check, Crown, Zap, HelpCircle, ChevronDown, Star, AlertTriangle, Loader2, Clock, ShieldAlert, Gift, ExternalLink, CreditCard, ArrowRight } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 
 function FAQItem({
   question,
@@ -53,26 +53,36 @@ export default function OffersPage() {
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const setView = useAppStore((s) => s.setView);
   const tx = t(lang);
+  const setHasNotification = useAppStore((s) => s.setHasNotification);
+  const setNotificationDismissed = useAppStore((s) => s.setNotificationDismissed);
 
   const [trialExpired, setTrialExpired] = useState(false);
   const [inTrial, setInTrial] = useState(false);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
   const [trialCoursesGenerated, setTrialCoursesGenerated] = useState(0);
-  const [trialCoursesMax] = useState(3);
+  const [trialCoursesMax] = useState(15);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [subscriptionPlan, setSubscriptionPlan] = useState<string>("");
   const [inGracePeriod, setInGracePeriod] = useState(false);
   const [graceDaysRemaining, setGraceDaysRemaining] = useState(0);
   const [graceExpired, setGraceExpired] = useState(false);
   const [showRenewalReminder, setShowRenewalReminder] = useState(false);
   const [renewalDaysRemaining, setRenewalDaysRemaining] = useState(0);
+  const [renewalUrgency, setRenewalUrgency] = useState<string>("none");
+  const [timeRemainingMs, setTimeRemainingMs] = useState<number | undefined>();
+  const [firstName, setFirstName] = useState<string>("");
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
-  // Fondeka payment flow states
+  // Fondeka/Chariow payment flow states
   const [paymentRequestId, setPaymentRequestId] = useState<string | null>(null);
   const [showPaymentSteps, setShowPaymentSteps] = useState(false);
   const [confirmingPayment, setConfirmingPayment] = useState(false);
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+
+  // Countdown timer for last 24 hours
+  const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Check paywall & subscription status
   useEffect(() => {
@@ -83,6 +93,9 @@ export default function OffersPage() {
 
         const res = await fetch("/api/courses/paywall-status", { headers });
         const data = await res.json();
+
+        // First name
+        if (data.firstName) setFirstName(data.firstName);
 
         // Trial
         if (data.inTrial) {
@@ -96,10 +109,20 @@ export default function OffersPage() {
         // Subscription
         if (data.hasSubscription && data.subscriptionStatus === "active") {
           setIsSubscribed(true);
+          setSubscriptionPlan(data.subscriptionPlan || "monthly");
           setTrialExpired(false);
+
           if (data.showRenewalReminder) {
             setShowRenewalReminder(true);
             setRenewalDaysRemaining(data.renewalDaysRemaining || 0);
+            setRenewalUrgency(data.renewalUrgency || "none");
+            setTimeRemainingMs(data.timeRemainingMs);
+
+            // Set notification dot in store
+            setHasNotification(true);
+          } else {
+            // Subscribed but not ending — clear notification
+            setHasNotification(false);
           }
         }
 
@@ -115,9 +138,119 @@ export default function OffersPage() {
       }
     };
     checkStatus();
-  }, [userId]);
 
-  // Check URL params for payment=pending (user returned from Fondeka)
+    // When user views offers page, dismiss notification
+    setNotificationDismissed(true);
+    setHasNotification(false);
+  }, [userId, setHasNotification, setNotificationDismissed]);
+
+  // Countdown timer for last 24 hours
+  useEffect(() => {
+    if (renewalUrgency !== "last24hours" || !timeRemainingMs) {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      return;
+    }
+
+    const updateCountdown = () => {
+      const now = Date.now();
+      // Recalculate from subscription end date (stored initially)
+      const remaining = Math.max(0, timeRemainingMs - (now - ((window as unknown as Record<string, number>).__countdownStart || now)));
+
+      if (remaining <= 0) {
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+        setCountdown({ hours: 0, minutes: 0, seconds: 0 });
+        return;
+      }
+
+      const totalSeconds = Math.floor(remaining / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      setCountdown({ hours, minutes, seconds });
+    };
+
+    // Store the start time for calculations
+    (window as unknown as Record<string, number>).__countdownStart = Date.now();
+
+    // Fetch fresh timeRemainingMs periodically to stay in sync
+    const fetchFreshTime = async () => {
+      try {
+        const headers: Record<string, string> = {};
+        if (userId) headers["Authorization"] = `Bearer ${userId}`;
+        const res = await fetch("/api/courses/paywall-status", { headers });
+        const data = await res.json();
+        if (data.timeRemainingMs) {
+          setTimeRemainingMs(data.timeRemainingMs);
+          (window as unknown as Record<string, number>).__countdownStart = Date.now();
+        }
+      } catch { /* ignore */ }
+    };
+
+    updateCountdown();
+    countdownIntervalRef.current = setInterval(() => {
+      updateCountdown();
+    }, 1000);
+
+    // Refresh from server every 30 seconds to prevent drift
+    const refreshInterval = setInterval(fetchFreshTime, 30_000);
+
+    return () => {
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      clearInterval(refreshInterval);
+    };
+  }, [renewalUrgency, timeRemainingMs, userId]);
+
+  // Get the renewal reminder message based on urgency
+  const getRenewalMessage = useMemo(() => {
+    const name = firstName || (lang === "fr" ? "Bonjour" : "Hey");
+    const isAnnual = subscriptionPlan === "annual";
+
+    if (renewalUrgency === "last24hours") {
+      const key = isAnnual ? "renewalAnnual24hCountdown" : "renewalMonthly24hCountdown";
+      return tx.offers[key]
+        .replace("{name}", name)
+        .replace("{hours}", String(countdown.hours))
+        .replace("{minutes}", String(countdown.minutes).padStart(2, "0"))
+        .replace("{seconds}", String(countdown.seconds).padStart(2, "0"));
+    }
+
+    const keyMap: Record<string, string> = isAnnual
+      ? {
+          "1month": "renewalAnnual1Month",
+          "2weeks": "renewalAnnual2Weeks",
+          "1week": "renewalAnnual1Week",
+          "3days": "renewalAnnual3Days",
+          "24hours": "renewalAnnual24Hours",
+        }
+      : {
+          "1week": "renewalMonthly1Week",
+          "3days": "renewalMonthly3Days",
+          "24hours": "renewalMonthly24Hours",
+        };
+
+    const key = keyMap[renewalUrgency];
+    if (key && (tx.offers as Record<string, string>)[key]) {
+      return (tx.offers as Record<string, string>)[key].replace("{name}", name);
+    }
+
+    return null;
+  }, [renewalUrgency, firstName, subscriptionPlan, lang, countdown, tx.offers]);
+
+  // Determine the urgency color
+  const getUrgencyColor = () => {
+    if (renewalUrgency === "last24hours" || renewalUrgency === "24hours" || renewalUrgency === "3days") {
+      return "bg-red-500/10 border-red-500/30 text-red-200";
+    }
+    if (renewalUrgency === "1week") {
+      return "bg-amber-500/10 border-amber-500/30 text-amber-200";
+    }
+    return "bg-amber-500/10 border-amber-500/30 text-amber-200";
+  };
+
+  // Check URL params for payment=pending (user returned from Chariow)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get("payment");
@@ -141,15 +274,17 @@ export default function OffersPage() {
             setTrialExpired(false);
             setInGracePeriod(false);
             setGraceExpired(false);
+            setShowRenewalReminder(false);
+            setHasNotification(false);
           }
         } catch { /* silent */ }
       };
       setTimeout(checkAfterCheckout, 2000);
       window.history.replaceState({}, "", "/");
     }
-  }, [userId]);
+  }, [userId, setHasNotification]);
 
-  // Handle checkout — calls API then opens Fondeka link in new tab
+  // Handle checkout — calls API then opens Chariow link in new tab
   const handleCheckout = useCallback(
     async (plan: "monthly" | "annual") => {
       if (!isAuthenticated || !userId) {
@@ -181,7 +316,7 @@ export default function OffersPage() {
           setPaymentRequestId(data.requestId);
         }
 
-        // Open Fondeka payment link in new tab
+        // Open Chariow payment link in new tab
         if (data.checkoutUrl) {
           window.open(data.checkoutUrl, "_blank");
           // Show payment steps after redirect
@@ -229,6 +364,8 @@ export default function OffersPage() {
               setIsSubscribed(true);
               setPaymentConfirmed(false);
               setShowPaymentSteps(false);
+              setShowRenewalReminder(false);
+              setHasNotification(false);
             }
           } catch { /* keep polling */ }
         }, 10_000);
@@ -243,7 +380,7 @@ export default function OffersPage() {
     } finally {
       setConfirmingPayment(false);
     }
-  }, [userId, paymentRequestId, lang]);
+  }, [userId, paymentRequestId, lang, setHasNotification]);
 
   const suffix = (n: number) => (n > 1 ? (lang === "fr" ? "s" : "s") : "");
 
@@ -252,7 +389,7 @@ export default function OffersPage() {
       return [
         {
           q: "Comment fonctionne le paiement sur Coursia ?",
-          a: "Clique sur le plan choisi, tu seras redirigé vers notre page de paiement sécurisé. Après le paiement, reviens sur Coursia et clique sur 'J'ai effectué le paiement' pour confirmer. Ton accès Pro est activé après vérification.",
+          a: "Clique sur le plan choisi, tu seras redirigé vers notre page de paiement sécurisée. Après le paiement, reviens sur Coursia et clique sur 'J'ai effectué le paiement' pour confirmer. Ton accès Pro est activé après vérification.",
         },
         {
           q: "Puis-je annuler mon abonnement à tout moment ?",
@@ -260,11 +397,11 @@ export default function OffersPage() {
         },
         {
           q: "Quelle différence entre le plan Mensuel et Annuel ?",
-          a: "Les deux plans offrent les mêmes fonctionnalités. Le plan Annuel te fait économiser 64 % par rapport au paiement mensuel, soit l'équivalent de 4 mois gratuits.",
+          a: "Les deux plans offrent les mêmes fonctionnalités. Le plan Annuel te donne un accès complet pendant 1 an au prix de $42.99, soit un excellent rapport qualité-prix.",
         },
         {
-          q: "Comment fonctionne l'essai gratuit de 7 jours ?",
-          a: "Tu peux créer jusqu'à 3 cours pendant tes 7 jours d'essai. Après l'essai, tu dois souscrire un abonnement pour continuer à créer des cours. Si tu paies pendant l'essai, celui-ci s'arrête immédiatement.",
+          q: "Comment fonctionne l'essai gratuit de 3 jours ?",
+          a: "Tu peux créer jusqu'à 15 cours pendant tes 3 jours d'essai. Après l'essai, tu dois souscrire un abonnement pour continuer à créer des cours. Si tu paies pendant l'essai, celui-ci s'arrête immédiatement.",
         },
         {
           q: "Que se passe-t-il quand mon abonnement se termine ?",
@@ -283,11 +420,11 @@ export default function OffersPage() {
       },
       {
         q: "What's the difference between Monthly and Annual?",
-        a: "Both plans offer the same features. The Annual plan saves you 64% compared to monthly billing — that's 4 months free.",
+        a: "Both plans offer the same features. The Annual plan gives you full access for 1 year at $42.99 — excellent value for money.",
       },
       {
-        q: "How does the 7-day free trial work?",
-        a: "You can create up to 3 courses during your 7-day trial. After the trial, you need to subscribe to keep creating courses. If you pay during the trial, it ends immediately.",
+        q: "How does the 3-day free trial work?",
+        a: "You can create up to 15 courses during your 3-day trial. After the trial, you need to subscribe to keep creating courses. If you pay during the trial, it ends immediately.",
       },
       {
         q: "What happens when my subscription ends?",
@@ -295,6 +432,15 @@ export default function OffersPage() {
       },
     ];
   }, [lang]);
+
+  // Personalized message when subscribed but not ending
+  const cannotRenewMessage = useMemo(() => {
+    if (isSubscribed && !showRenewalReminder) {
+      const name = firstName || "";
+      return tx.offers.cannotRenewEarly.replace("{name}", name || (lang === "fr" ? "Bonjour" : "Hey"));
+    }
+    return null;
+  }, [isSubscribed, showRenewalReminder, firstName, lang, tx.offers]);
 
   return (
     <>
@@ -315,7 +461,7 @@ export default function OffersPage() {
           </p>
         </div>
 
-        {/* ===== PAYMENT STEPS (shown after redirect to Fondeka) ===== */}
+        {/* ===== PAYMENT STEPS (shown after redirect to Chariow) ===== */}
         {showPaymentSteps && !isSubscribed && (
           <div className="max-w-2xl mx-auto mb-8 space-y-3">
             <div className="glass rounded-3xl p-5 sm:p-6 border border-mauve/30 animate-fade-in">
@@ -376,14 +522,22 @@ export default function OffersPage() {
 
         {/* ===== STATUS BANNERS ===== */}
         <div className="max-w-2xl mx-auto mb-8 space-y-3">
-          {/* Renewal reminder (subscribed, ending soon) */}
-          {showRenewalReminder && (
-            <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 animate-fade-in">
-              <Clock className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+          {/* Personalized renewal reminder (subscribed, ending soon) */}
+          {showRenewalReminder && getRenewalMessage && (
+            <div className={`flex items-start gap-3 p-4 sm:p-5 rounded-2xl border animate-fade-in ${getUrgencyColor()}`}>
+              <Clock className={`w-5 h-5 flex-shrink-0 mt-0.5 ${renewalUrgency === "last24hours" || renewalUrgency === "24hours" || renewalUrgency === "3days" ? "text-red-400" : "text-amber-400"}`} />
               <div>
-                <p className="text-sm sm:text-base text-amber-200 font-medium">
-                  {tx.offers.renewalReminder.replace("{days}", String(renewalDaysRemaining)).replace("{suffix}", suffix(renewalDaysRemaining))}
+                <p className="text-xs font-bold uppercase tracking-wider mb-1 opacity-70">
+                  {tx.offers.subscriptionEndingSoon}
                 </p>
+                <p className="text-sm sm:text-base font-medium">
+                  {getRenewalMessage}
+                </p>
+                {renewalUrgency === "last24hours" && (
+                  <p className="text-2xl sm:text-3xl font-extrabold mt-2 tabular-nums tracking-wide">
+                    {String(countdown.hours).padStart(2, "0")}:{String(countdown.minutes).padStart(2, "0")}:{String(countdown.seconds).padStart(2, "0")}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -436,13 +590,18 @@ export default function OffersPage() {
             </div>
           )}
 
-          {/* Already subscribed banner */}
+          {/* Already subscribed banner (not ending) — personalized */}
           {isSubscribed && !showRenewalReminder && (
             <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 animate-fade-in">
               <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-              <p className="text-sm sm:text-base text-emerald-200 font-medium">
-                {tx.offers.subscribed}
-              </p>
+              <div>
+                <p className="text-sm sm:text-base text-emerald-200 font-medium">
+                  {tx.offers.subscribed}
+                </p>
+                {cannotRenewMessage && (
+                  <p className="text-xs text-emerald-300/70 mt-1">{cannotRenewMessage}</p>
+                )}
+              </div>
             </div>
           )}
 
@@ -548,12 +707,14 @@ export default function OffersPage() {
                 </span>
               </span>
 
-              {/* Save badge */}
-              <div className="flex justify-end mb-2">
-                <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold">
-                  {tx.landing.pricing.annual.save}
-                </span>
-              </div>
+              {/* Save badge (now "1 an d'accès") */}
+              {tx.landing.pricing.annual.save && (
+                <div className="flex justify-end mb-2">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold">
+                    {tx.landing.pricing.annual.save}
+                  </span>
+                </div>
+              )}
 
               <div className="mb-6">
                 <div className="flex items-center gap-3 mb-2">
@@ -565,18 +726,8 @@ export default function OffersPage() {
                 <p className="text-muted-foreground text-sm">{tx.landing.pricing.annual.desc}</p>
               </div>
               <div className="mb-6">
-                {tx.landing.pricing.annual.originalPrice && (
-                  <span className="text-lg text-muted-foreground line-through mr-2">
-                    {tx.landing.pricing.annual.originalPrice}
-                  </span>
-                )}
                 <span className="text-3xl sm:text-4xl font-extrabold text-gold">{tx.landing.pricing.annual.price}</span>
                 <span className="text-lg text-muted-foreground">{tx.landing.pricing.annual.period}</span>
-                {tx.landing.pricing.annual.periodNote && (
-                  <p className="text-xs text-emerald-400 font-semibold mt-1">
-                    {lang === "fr" ? `Offre de lancement` : `Launch offer`}
-                  </p>
-                )}
               </div>
               <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
                 {tx.landing.pricing.annual.features.map((f) => (
@@ -633,8 +784,8 @@ export default function OffersPage() {
         <div className="text-center pb-10">
           <p className="text-xs text-muted-foreground/50">
             {lang === "fr"
-              ? "Paiement 100% sécurisé via Fondeka"
-              : "100% secure payment via Fondeka"}
+              ? "Paiement 100% sécurisé via Chariow"
+              : "100% secure payment via Chariow"}
           </p>
         </div>
       </div>
@@ -701,6 +852,15 @@ export default function OffersPage() {
         to { opacity: 1; transform: translateY(0); }
       }
       .animate-fade-in { animation: fade-in 0.4s ease-out; }
+
+      /* Notification dot pulse */
+      @keyframes notification-pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.4; transform: scale(0.85); }
+      }
+      .notification-dot {
+        animation: notification-pulse 2s ease-in-out infinite;
+      }
     `}</style>
     </>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Globe, Shuffle, Loader2 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -14,9 +14,43 @@ export default function TopBar() {
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
   const setRandomTopic = useAppStore((s) => s.setRandomTopic);
   const setRandomCourseLang = useAppStore((s) => s.setRandomCourseLang);
+  const userId = useAppStore((s) => s.userId);
+  const setInTrial = useAppStore((s) => s.setInTrial);
+  const setTrialDaysRemaining = useAppStore((s) => s.setTrialDaysRemaining);
+  const setTrialCoursesGenerated = useAppStore((s) => s.setTrialCoursesGenerated);
 
   const [loadingRandom, setLoadingRandom] = useState(false);
   const [randomLang, setRandomLang] = useState<"fr" | "en">(lang);
+  const [trialInfo, setTrialInfo] = useState<{ days: number; remaining: number; max: number } | null>(null);
+
+  // Fetch paywall-status on mount to get trial info
+  useEffect(() => {
+    const fetchTrialInfo = async () => {
+      if (!userId) return;
+      try {
+        const headers: Record<string, string> = {};
+        headers["Authorization"] = `Bearer ${userId}`;
+        const res = await fetch("/api/courses/paywall-status", { headers });
+        const data = await res.json();
+        if (data.inTrial) {
+          setInTrial(true);
+          setTrialDaysRemaining(data.trialDaysRemaining || 0);
+          setTrialCoursesGenerated(data.trialCoursesGenerated || 0);
+          setTrialInfo({
+            days: data.trialDaysRemaining || 0,
+            remaining: (data.trialCoursesMax || 15) - (data.trialCoursesGenerated || 0),
+            max: data.trialCoursesMax || 15,
+          });
+        } else {
+          setInTrial(false);
+          setTrialInfo(null);
+        }
+      } catch {
+        // silently ignore
+      }
+    };
+    fetchTrialInfo();
+  }, [userId, setInTrial, setTrialDaysRemaining, setTrialCoursesGenerated]);
 
   const updateLang = (newLang: "fr" | "en") => {
     setLang(newLang);
@@ -42,6 +76,15 @@ export default function TopBar() {
     }
   };
 
+  // Build trial counter text
+  const trialCounterText = trialInfo
+    ? tx.create.trialCounter
+        .replace("{days}", String(trialInfo.days))
+        .replace("{suffix}", trialInfo.days > 1 ? (lang === "fr" ? tx.create.trialCounterDays : tx.create.trialCounterDays) : (lang === "fr" ? tx.create.trialCounterDay : tx.create.trialCounterDay))
+        .replace("{remaining}", String(trialInfo.remaining))
+        .replace("{max}", String(trialInfo.max))
+    : null;
+
   return (
     <div
       className={`fixed top-0 right-0 z-30 flex items-center gap-2 py-2 md:py-3 pr-4 transition-all duration-300 ease-in-out ${
@@ -50,6 +93,13 @@ export default function TopBar() {
           : "ml-0 md:ml-[72px] lg:ml-64"
       }`}
     >
+      {/* Trial counter pill — show when user is in trial */}
+      {trialInfo && trialCounterText && (
+        <div className="hidden sm:flex items-center px-3 py-1.5 rounded-full bg-gold/10 border border-gold/25 text-gold text-xs font-bold animate-fade-in">
+          {trialCounterText}
+        </div>
+      )}
+
       {/* Random course + language selector — only on create page */}
       {view === "create" && (
       <div className="flex items-center rounded-2xl glass overflow-hidden">

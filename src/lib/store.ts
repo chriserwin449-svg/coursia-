@@ -123,6 +123,11 @@ interface AppState {
   setShowRenewalReminder: (v: boolean) => void;
   renewalDaysRemaining: number;
   setRenewalDaysRemaining: (d: number) => void;
+  // Notification dot
+  hasNotification: boolean;
+  setHasNotification: (v: boolean) => void;
+  notificationDismissed: boolean;
+  setNotificationDismissed: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -216,4 +221,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   setShowRenewalReminder: (v) => set({ showRenewalReminder: v }),
   renewalDaysRemaining: 0,
   setRenewalDaysRemaining: (d) => set({ renewalDaysRemaining: d }),
+  // Notification dot
+  hasNotification: false,
+  setHasNotification: (v) => set({ hasNotification: v }),
+  notificationDismissed: false,
+  setNotificationDismissed: (v) => set({ notificationDismissed: v }),
 }));

@@ -16,8 +16,13 @@ export default function Sidebar() {
   const user = useAppStore((s) => s.user);
   const setUser = useAppStore((s) => s.setUser);
   const setAuthToken = useAppStore((s) => s.setAuthToken);
+  const hasNotification = useAppStore((s) => s.hasNotification);
+  const notificationDismissed = useAppStore((s) => s.notificationDismissed);
+  const setNotificationDismissed = useAppStore((s) => s.setNotificationDismissed);
 
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+
+  const showDot = hasNotification && !notificationDismissed && view !== "offers";
 
   const NAV_ITEMS = useMemo(() => [
     { view: "create" as const, label: tx.nav.create, icon: BookOpen },
@@ -34,6 +39,11 @@ export default function Sidebar() {
     setUser(null);
     setAuthToken(null);
     setView("landing");
+  };
+
+  const handleOffersClick = () => {
+    setNotificationDismissed(true);
+    setView("offers");
   };
 
   return (
@@ -129,11 +139,11 @@ export default function Sidebar() {
             )}
           </button>
 
-          {/* Offers link */}
+          {/* Offers link — with notification dot */}
           <button
-            onClick={() => setView("offers")}
+            onClick={handleOffersClick}
             title={collapsed ? tx.nav.offers : undefined}
-            className={`w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3 rounded-2xl transition-all duration-200 cursor-pointer ${
+            className={`w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3 rounded-2xl transition-all duration-200 cursor-pointer relative ${
               view === "offers"
                 ? "bg-gold/10 text-gold"
                 : "text-muted-foreground/50 hover:bg-white/5 hover:text-muted-foreground"
@@ -143,6 +153,10 @@ export default function Sidebar() {
             {!collapsed && <span className="hidden md:block text-sm font-semibold truncate">
               {tx.nav.offers}
             </span>}
+            {/* Red blinking dot */}
+            {showDot && (
+              <span className="notification-dot absolute top-2 right-2 md:top-2.5 md:right-3 w-2.5 h-2.5 rounded-full bg-red-500" />
+            )}
           </button>
         </div>
       </aside>

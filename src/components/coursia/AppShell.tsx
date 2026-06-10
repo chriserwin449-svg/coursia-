@@ -20,6 +20,9 @@ function MobileBottomNav() {
   const setView = useAppStore((s) => s.setView);
   const lang = useAppStore((s) => s.lang);
   const tx = t(lang);
+  const hasNotification = useAppStore((s) => s.hasNotification);
+  const notificationDismissed = useAppStore((s) => s.notificationDismissed);
+  const setNotificationDismissed = useAppStore((s) => s.setNotificationDismissed);
 
   const NAV_ITEMS = [
     { view: "create" as const, label: tx.nav.create, icon: BookOpen },
@@ -28,16 +31,22 @@ function MobileBottomNav() {
     { view: "offers" as const, label: tx.nav.offers, icon: Tag },
   ];
 
+  const showDot = hasNotification && !notificationDismissed && view !== "offers";
+
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-night-light/95 backdrop-blur-lg border-t border-border">
       <div className="flex items-center justify-around py-1.5 px-1">
         {NAV_ITEMS.map((item) => {
           const isActive = view === item.view;
+          const isOffers = item.view === "offers";
           return (
             <button
               key={item.view}
-              onClick={() => setView(item.view)}
-              className={`flex flex-col items-center gap-0.5 py-1.5 px-2 sm:px-3 rounded-xl transition-all duration-200 cursor-pointer ${
+              onClick={() => {
+                if (isOffers) setNotificationDismissed(true);
+                setView(item.view);
+              }}
+              className={`flex flex-col items-center gap-0.5 py-1.5 px-2 sm:px-3 rounded-xl transition-all duration-200 cursor-pointer relative ${
                 isActive
                   ? "text-mauve-light"
                   : "text-muted-foreground hover:text-foreground"
@@ -45,6 +54,10 @@ function MobileBottomNav() {
             >
               <item.icon className={`w-5 h-5 ${isActive ? "text-mauve-light" : ""}`} />
               <span className="text-[10px] font-semibold leading-tight">{item.label}</span>
+              {/* Red blinking dot on Offers tab */}
+              {isOffers && showDot && (
+                <span className="notification-dot absolute top-1 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500" />
+              )}
             </button>
           );
         })}

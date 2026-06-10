@@ -35,7 +35,7 @@ setInterval(() => {
 // ─── Price configuration (server-side, tamper-proof) ────────────────────
 const PLAN_CONFIG = {
   monthly: { amount: 999, currency: "USD" },   // $9.99
-  annual: { amount: 2899, currency: "USD" },    // $28.99
+  annual: { amount: 4299, currency: "USD" },    // $42.99
 } as const;
 
 type PlanType = keyof typeof PLAN_CONFIG;
@@ -122,10 +122,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 6. Check for Fondeka payment link
-    const fondekaLink = process.env.FONDEKA_PAY_LINK;
-    if (!fondekaLink) {
-      console.error("[checkout] FONDEKA_PAY_LINK not set");
+    // 6. Get the correct Chariow link for the plan
+    const chariowLink = plan === "monthly"
+      ? process.env.CHARIOW_MONTHLY_LINK
+      : process.env.CHARIOW_ANNUAL_LINK;
+
+    if (!chariowLink) {
+      console.error(`[checkout] CHARIOW_${plan.toUpperCase()}_LINK not set`);
       return NextResponse.json(
         { error: "Payment not configured" },
         { status: 500, headers: securityHeaders() }
@@ -155,11 +158,11 @@ export async function POST(request: NextRequest) {
       returnUrl,
     });
 
-    // 8. Return Fondeka payment link + return URL
+    // 8. Return Chariow payment link + return URL
     return NextResponse.json(
       {
         success: true,
-        checkoutUrl: fondekaLink,
+        checkoutUrl: chariowLink,
         returnUrl,
         requestId: paymentRequest.id,
         amount: planConfig.amount,

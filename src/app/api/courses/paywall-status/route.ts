@@ -23,10 +23,38 @@ async function ensureAllColumns(): Promise<void> {
   } catch { /* non-critical */ }
 }
 
-const TRIAL_DURATION_DAYS = 7;
-const TRIAL_MAX_COURSES = 3;
+const TRIAL_DURATION_DAYS = 3;
+const TRIAL_MAX_COURSES = 15;
 const GRACE_PERIOD_DAYS = 3;
-const RENEWAL_REMINDER_DAYS = 3;
+
+type RenewalUrgency = "1month" | "2weeks" | "1week" | "3days" | "24hours" | "last24hours" | "none";
+
+function computeRenewalUrgency(endDate: Date, plan: string): { urgency: RenewalUrgency; showReminder: boolean; timeRemainingMs?: number } {
+  const now = new Date();
+  const msRemaining = endDate.getTime() - now.getTime();
+  const hoursRemaining = msRemaining / (1000 * 60 * 60);
+  const daysRemaining = msRemaining / (1000 * 60 * 60 * 24);
+
+  if (plan === "annual") {
+    // Annual: 30 days, 14 days, 7 days, 3 days, 24 hours, last 24 hours
+    if (hoursRemaining <= 0) return { urgency: "none", showReminder: false };
+    if (hoursRemaining <= 24) return { urgency: "last24hours", showReminder: true, timeRemainingMs: msRemaining };
+    if (daysRemaining <= 1) return { urgency: "24hours", showReminder: true };
+    if (daysRemaining <= 3) return { urgency: "3days", showReminder: true };
+    if (daysRemaining <= 7) return { urgency: "1week", showReminder: true };
+    if (daysRemaining <= 14) return { urgency: "2weeks", showReminder: true };
+    if (daysRemaining <= 30) return { urgency: "1month", showReminder: true };
+    return { urgency: "none", showReminder: false };
+  }
+
+  // Monthly: 7 days, 3 days, 24 hours, last 24 hours
+  if (hoursRemaining <= 0) return { urgency: "none", showReminder: false };
+  if (hoursRemaining <= 24) return { urgency: "last24hours", showReminder: true, timeRemainingMs: msRemaining };
+  if (daysRemaining <= 1) return { urgency: "24hours", showReminder: true };
+  if (daysRemaining <= 3) return { urgency: "3days", showReminder: true };
+  if (daysRemaining <= 7) return { urgency: "1week", showReminder: true };
+  return { urgency: "none", showReminder: false };
+}
 
 interface PaywallStatus {
   canStudy: boolean;
@@ -44,9 +72,12 @@ interface PaywallStatus {
   graceDaysRemaining?: number;
   showRenewalReminder: boolean;
   renewalDaysRemaining?: number;
+  renewalUrgency: RenewalUrgency;
+  timeRemainingMs?: number;
   isOfflineMode: boolean;
   showPaywall: boolean;
   paywallReason: string;
+  firstName?: string;
 }
 
 export async function GET(request: NextRequest) {
@@ -76,6 +107,7 @@ export async function GET(request: NextRequest) {
         hasSubscription: false,
         inGracePeriod: false,
         showRenewalReminder: false,
+        renewalUrgency: "none",
         isOfflineMode: false,
         showPaywall: false,
         paywallReason: "no_user",
@@ -90,7 +122,9 @@ export async function GET(request: NextRequest) {
         subscriptionStatus: true,
         subscriptionEndDate: true,
         trialStartDate: true,
+        createdAt: true,
         email: true,
+        firstName: true,
       },
     });
 
@@ -99,15 +133,17 @@ export async function GET(request: NextRequest) {
       const endDate = user.subscriptionEndDate ? new Date(user.subscriptionEndDate) : null;
       const now = new Date();
 
-      // Check if subscription is ending soon (within RENEWAL_REMINDER_DAYS)
       let showRenewalReminder = false;
       let renewalDaysRemaining = 0;
+      let renewalUrgency: RenewalUrgency = "none";
+      let timeRemainingMs: number | undefined;
+
       if (endDate && endDate > now) {
-        const daysUntilEnd = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        if (daysUntilEnd <= RENEWAL_REMINDER_DAYS) {
-          showRenewalReminder = true;
-          renewalDaysRemaining = daysUntilEnd;
-        }
+        const { urgency, showReminder, timeRemainingMs: trm } = computeRenewalUrgency(endDate, user.subscriptionPlan || "monthly");
+        showRenewalReminder = showReminder;
+        renewalUrgency = urgency;
+        renewalDaysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        timeRemainingMs = trm;
       }
 
       return NextResponse.json<PaywallStatus>({
@@ -124,14 +160,17 @@ export async function GET(request: NextRequest) {
         inGracePeriod: false,
         showRenewalReminder,
         renewalDaysRemaining,
+        renewalUrgency,
+        timeRemainingMs,
         isOfflineMode: false,
         showPaywall: false,
         paywallReason: "subscribed",
+        firstName: user.firstName || undefined,
       });
     }
 
     // ── 5. GRACE PERIOD (subscription expired/canceled but within GRACE_PERIOD_DAYS) ──
-    if (user && user.subscriptionEndDate && 
+    if (user && user.subscriptionEndDate &&
         (user.subscriptionStatus === "expired" || user.subscriptionStatus === "canceled" || user.subscriptionStatus === "past_due")) {
       const endDate = new Date(user.subscriptionEndDate);
       const now = new Date();
@@ -153,9 +192,11 @@ export async function GET(request: NextRequest) {
           inGracePeriod: true,
           graceDaysRemaining: graceRemaining,
           showRenewalReminder: false,
+          renewalUrgency: "none",
           isOfflineMode: false,
           showPaywall: false,
           paywallReason: "grace_period",
+          firstName: user.firstName || undefined,
         });
       }
 
@@ -173,9 +214,11 @@ export async function GET(request: NextRequest) {
         subscriptionEndDate: user.subscriptionEndDate?.toISOString(),
         inGracePeriod: false,
         showRenewalReminder: false,
+        renewalUrgency: "none",
         isOfflineMode: false,
         showPaywall: true,
         paywallReason: "grace_expired",
+        firstName: user.firstName || undefined,
       });
     }
 
@@ -197,9 +240,11 @@ export async function GET(request: NextRequest) {
           hasSubscription: false,
           inGracePeriod: false,
           showRenewalReminder: false,
+          renewalUrgency: "none",
           isOfflineMode: false,
           showPaywall: false,
           paywallReason: "no_courses",
+          firstName: user.firstName || undefined,
         });
       }
 
@@ -225,9 +270,11 @@ export async function GET(request: NextRequest) {
           hasSubscription: false,
           inGracePeriod: false,
           showRenewalReminder: false,
+          renewalUrgency: "none",
           isOfflineMode: false,
           showPaywall: false,
           paywallReason: canGenerate ? "trial_active" : "trial_course_limit",
+          firstName: user.firstName || undefined,
         });
       }
 
@@ -242,9 +289,11 @@ export async function GET(request: NextRequest) {
         hasSubscription: false,
         inGracePeriod: false,
         showRenewalReminder: false,
+        renewalUrgency: "none",
         isOfflineMode: false,
         showPaywall: true,
         paywallReason: "trial_expired",
+        firstName: user.firstName || undefined,
       });
     }
 
@@ -259,6 +308,7 @@ export async function GET(request: NextRequest) {
       hasSubscription: false,
       inGracePeriod: false,
       showRenewalReminder: false,
+      renewalUrgency: "none",
       isOfflineMode: false,
       showPaywall: false,
       paywallReason: "no_user",
@@ -275,6 +325,7 @@ export async function GET(request: NextRequest) {
       hasSubscription: false,
       inGracePeriod: false,
       showRenewalReminder: false,
+      renewalUrgency: "none",
       isOfflineMode: false,
       showPaywall: false,
       paywallReason: "error",

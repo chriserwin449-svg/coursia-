@@ -539,3 +539,13 @@
   transform: scale(0.97) translateY(0);
   transition-duration: 0.1s;
 }
+
+/* Notification dot pulse (subtle blink) */
+@keyframes notification-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.8); }
+}
+
+.notification-dot {
+  animation: notification-pulse 2s ease-in-out infinite;
+}
