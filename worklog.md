@@ -122,3 +122,43 @@ Stage Summary:
 - Fondeka-based payment system operational: redirect → pay → confirm → admin approve
 - User needs to: (1) Set FONDEKA_PAY_LINK env var on Vercel (their Fondeka payment link), (2) Set ADMIN_SECRET env var, (3) Use admin endpoints to approve payments
 - Future upgrade path: when an automated gateway becomes available in RDC, only checkout + webhook need rewriting
+
+---
+Task ID: 4
+Agent: Full-stack Developer
+Task: Chariow payment integration, 3-day trial with 15 courses, subscription reminders, notification dots
+
+Work Log:
+- paywall-status API: TRIAL_DURATION_DAYS 7→3, TRIAL_MAX_COURSES 3→15
+- paywall-status API: Added computeRenewalUrgency() with plan-aware thresholds:
+  - Monthly: 7d → 3d → 24h → last24h with countdown
+  - Annual: 30d → 14d → 7d → 3d → 24h → last24h with countdown
+- paywall-status API: Added renewalUrgency, timeRemainingMs, firstName fields to response
+- store.ts: Added hasNotification/setHasNotification, notificationDismissed/setNotificationDismissed
+- i18n.ts: Updated trial references (7→3 days, 3→15 courses), annual price $42.99 (no discount)
+- i18n.ts: Added 14 renewal reminder strings (FR + EN) for personalized countdowns
+- i18n.ts: Added trialCounter, trialCounterDay/Days, cannotRenewEarly strings
+- checkout/route.ts: Replaced FONDEKA_PAY_LINK with CHARIOW_MONTHLY_LINK + CHARIOW_ANNUAL_LINK
+- checkout/route.ts: Annual price 2899→4299 ($42.99)
+- TopBar.tsx: Added gold trial counter pill "2 jours d'essai · 12/15 cours" next to random topic button
+- Sidebar.tsx: Added red blinking notification dot on "Offres" button (stops when user visits offers)
+- AppShell.tsx: Same red blinking dot on mobile bottom nav "Offres" tab
+- globals.css: Added .notification-dot CSS animation (subtle pulse)
+- OffersPage.tsx: Personalized renewal reminders with user firstName
+- OffersPage.tsx: Live countdown timer (HH:MM:SS) in last 24 hours, updates every second
+- OffersPage.tsx: "Cannot renew early" message when subscription is active but not ending
+- OffersPage.tsx: Sets hasNotification in store for blinking dot logic
+- OffersPage.tsx: Removed annual discount (no strikethrough, no "Offre de lancement")
+- CreateCourse.tsx: Updated trial banner to show "X jours d'essai · Y/15 cours" format
+- LandingPage.tsx: Updated annual pricing ($42.99), removed strikethrough/discount
+- LandingPage.tsx: Updated free plan description (15 courses, 3 days)
+- ESLint clean (0 errors in src/)
+- Committed and pushed to GitHub (db81ec1)
+
+Stage Summary:
+- Chariow integration ready: user needs to set CHARIOW_MONTHLY_LINK and CHARIOW_ANNUAL_LINK env vars
+- Trial: 3 days, 15 courses max, with live counter in TopBar
+- Subscription renewal: personalized reminders with countdown timers
+- Notification system: red blinking dot on "Offres" nav item
+- Annual plan: $42.99 with no discount
+- User needs to: (1) Create Chariow products + get payment links, (2) Set CHARIOW_MONTHLY_LINK + CHARIOW_ANNUAL_LINK + ADMIN_SECRET on Vercel
