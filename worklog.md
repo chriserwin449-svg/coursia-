@@ -162,3 +162,26 @@ Stage Summary:
 - Notification system: red blinking dot on "Offres" nav item
 - Annual plan: $42.99 with no discount
 - User needs to: (1) Create Chariow products + get payment links, (2) Set CHARIOW_MONTHLY_LINK + CHARIOW_ANNUAL_LINK + ADMIN_SECRET on Vercel
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix critical bugs and prepare Chariow payment integration for Coursia
+
+Work Log:
+- Read all key project files to assess current state (i18n, prisma, APIs, components)
+- Discovered generate route still had OLD trial limits (7 days, 3 courses) — THIS was the "preview" bug
+- Fixed generate/route.ts: trial 7→3 days, course limit 3→15 courses
+- Fixed admin/approve/route.ts: changed provider from "fondeka" to "chariow"
+- Fixed notification logic bug: notification was permanently dismissed when entering Offers page and never restored
+- Added periodic paywall-status check in AppShell (every 60s) to keep notification state fresh
+- Updated MobileBottomNav: simplified notification dot condition to `hasNotification && view !== "offers"` (removed permanent dismissal)
+- Updated Sidebar: same notification dot fix
+- Cleaned up OffersPage: removed all setHasNotification/setNotificationDismissed references (AppShell now handles this)
+- Ran ESLint: no errors in src/ (only pre-existing errors in utility scripts)
+- Started dev server and verified with Agent Browser: landing page renders correctly, pricing shows $42.99 annual, 3-day trial, 15 courses
+
+Stage Summary:
+- "Preview bug" was the generate API having old limits (7 days / 3 courses) mismatched with frontend (3 days / 15 courses)
+- Notification system now works correctly: dot shows on all pages when subscription is ending, hidden on Offers page, reappears when leaving
+- Chariow integration is code-ready (uses CHARIOW_MONTHLY_LINK and CHARIOW_ANNUAL_LINK env vars)
+- User needs to set CHARIOW_MONTHLY_LINK and CHARIOW_ANNUAL_LINK environment variables on Vercel

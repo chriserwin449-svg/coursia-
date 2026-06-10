@@ -447,7 +447,7 @@ export async function POST(request: NextRequest) {
       } catch { /* skip */ }
     }
 
-    // ── Trial limit check: max 3 free courses if no subscription ──
+    // ── Trial limit check: max 15 free courses, 3-day trial if no subscription ──
     if (userId) {
       const user = await db.user.findUnique({
         where: { id: userId },
@@ -457,17 +457,17 @@ export async function POST(request: NextRequest) {
       if (!hasSubscription) {
         const existingCourses = await db.course.count({ where: { userId } });
 
-        // Check if trial has expired (7 days from first course creation or account creation)
+        // Check if trial has expired (3 days from first course creation or account creation)
         if (existingCourses > 0) {
           const trialStart = user?.trialStartDate ? new Date(user.trialStartDate) : (user?.createdAt ? new Date(user.createdAt) : new Date());
           const now = new Date();
           const diffDays = (now.getTime() - trialStart.getTime()) / (1000 * 60 * 60 * 24);
-          if (diffDays >= 7) {
+          if (diffDays >= 3) {
             return NextResponse.json({ error: "TRIAL_EXPIRED", requiresSubscription: true }, { status: 403 });
           }
         }
 
-        if (existingCourses >= 3) {
+        if (existingCourses >= 15) {
           return NextResponse.json({ error: "TRIAL_LIMIT", requiresSubscription: true }, { status: 403 });
         }
       }

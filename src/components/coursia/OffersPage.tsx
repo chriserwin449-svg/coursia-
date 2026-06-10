@@ -53,8 +53,6 @@ export default function OffersPage() {
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const setView = useAppStore((s) => s.setView);
   const tx = t(lang);
-  const setHasNotification = useAppStore((s) => s.setHasNotification);
-  const setNotificationDismissed = useAppStore((s) => s.setNotificationDismissed);
 
   const [trialExpired, setTrialExpired] = useState(false);
   const [inTrial, setInTrial] = useState(false);
@@ -117,12 +115,6 @@ export default function OffersPage() {
             setRenewalDaysRemaining(data.renewalDaysRemaining || 0);
             setRenewalUrgency(data.renewalUrgency || "none");
             setTimeRemainingMs(data.timeRemainingMs);
-
-            // Set notification dot in store
-            setHasNotification(true);
-          } else {
-            // Subscribed but not ending — clear notification
-            setHasNotification(false);
           }
         }
 
@@ -138,11 +130,7 @@ export default function OffersPage() {
       }
     };
     checkStatus();
-
-    // When user views offers page, dismiss notification
-    setNotificationDismissed(true);
-    setHasNotification(false);
-  }, [userId, setHasNotification, setNotificationDismissed]);
+  }, [userId]);
 
   // Countdown timer for last 24 hours
   useEffect(() => {
@@ -275,14 +263,13 @@ export default function OffersPage() {
             setInGracePeriod(false);
             setGraceExpired(false);
             setShowRenewalReminder(false);
-            setHasNotification(false);
           }
         } catch { /* silent */ }
       };
       setTimeout(checkAfterCheckout, 2000);
       window.history.replaceState({}, "", "/");
     }
-  }, [userId, setHasNotification]);
+  }, [userId]);
 
   // Handle checkout — calls API then opens Chariow link in new tab
   const handleCheckout = useCallback(
@@ -365,7 +352,6 @@ export default function OffersPage() {
               setPaymentConfirmed(false);
               setShowPaymentSteps(false);
               setShowRenewalReminder(false);
-              setHasNotification(false);
             }
           } catch { /* keep polling */ }
         }, 10_000);
@@ -380,7 +366,7 @@ export default function OffersPage() {
     } finally {
       setConfirmingPayment(false);
     }
-  }, [userId, paymentRequestId, lang, setHasNotification]);
+  }, [userId, paymentRequestId, lang]);
 
   const suffix = (n: number) => (n > 1 ? (lang === "fr" ? "s" : "s") : "");
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { BookOpen, Library, Route, Tag } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -21,8 +21,6 @@ function MobileBottomNav() {
   const lang = useAppStore((s) => s.lang);
   const tx = t(lang);
   const hasNotification = useAppStore((s) => s.hasNotification);
-  const notificationDismissed = useAppStore((s) => s.notificationDismissed);
-  const setNotificationDismissed = useAppStore((s) => s.setNotificationDismissed);
 
   const NAV_ITEMS = [
     { view: "create" as const, label: tx.nav.create, icon: BookOpen },
@@ -31,21 +29,18 @@ function MobileBottomNav() {
     { view: "offers" as const, label: tx.nav.offers, icon: Tag },
   ];
 
-  const showDot = hasNotification && !notificationDismissed && view !== "offers";
+  // Show blinking dot when there's a notification and user is NOT on offers page
+  const showDot = hasNotification && view !== "offers";
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-night-light/95 backdrop-blur-lg border-t border-border">
       <div className="flex items-center justify-around py-1.5 px-1">
         {NAV_ITEMS.map((item) => {
           const isActive = view === item.view;
-          const isOffers = item.view === "offers";
           return (
             <button
               key={item.view}
-              onClick={() => {
-                if (isOffers) setNotificationDismissed(true);
-                setView(item.view);
-              }}
+              onClick={() => setView(item.view)}
               className={`flex flex-col items-center gap-0.5 py-1.5 px-2 sm:px-3 rounded-xl transition-all duration-200 cursor-pointer relative ${
                 isActive
                   ? "text-mauve-light"
@@ -71,6 +66,9 @@ export default function AppShell() {
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
   const user = useAppStore((s) => s.user);
   const setAuthToken = useAppStore((s) => s.setAuthToken);
+  const userId = useAppStore((s) => s.userId);
+  const setHasNotification = useAppStore((s) => s.setHasNotification);
+  const notificationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Restore session (validates token with server and restores user data)
   useSession();
@@ -85,7 +83,41 @@ export default function AppShell() {
     }
   }, [setAuthToken]);
 
-  // Handle payment success redirect from Creem checkout
+  // ── Periodic paywall-status check for notification dot ──
+  const checkPaywallStatus = useCallback(async () => {
+    const uid = useAppStore.getState().userId;
+    if (!uid) {
+      useAppStore.getState().setHasNotification(false);
+      return;
+    }
+    try {
+      const res = await fetch("/api/courses/paywall-status", {
+        headers: { Authorization: `Bearer ${uid}` },
+      });
+      const data = await res.json();
+      const hasRenewal = !!(data.showRenewalReminder && data.renewalUrgency && data.renewalUrgency !== "none");
+      useAppStore.getState().setHasNotification(hasRenewal);
+      // Also update store with fresh subscription data
+      useAppStore.getState().setHasSubscription(!!data.hasSubscription);
+      useAppStore.getState().setSubscriptionStatus(data.subscriptionStatus || "none");
+      useAppStore.getState().setInTrial(!!data.inTrial);
+      useAppStore.getState().setTrialDaysRemaining(data.trialDaysRemaining || 0);
+    } catch {
+      // silent
+    }
+  }, []);
+
+  useEffect(() => {
+    // Check immediately on mount
+    checkPaywallStatus();
+    // Then every 60 seconds
+    notificationIntervalRef.current = setInterval(checkPaywallStatus, 60_000);
+    return () => {
+      if (notificationIntervalRef.current) clearInterval(notificationIntervalRef.current);
+    };
+  }, [checkPaywallStatus]);
+
+  // Handle payment success/redirect
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);

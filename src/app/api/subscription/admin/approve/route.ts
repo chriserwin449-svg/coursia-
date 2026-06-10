@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
         subscriptionStartDate: startDate,
         subscriptionEndDate: endDate,
         creemSubscriptionId: requestId, // Reuse column: store payment request ID
-        creemCustomerId: "fondeka",
+        creemCustomerId: "chariow",
         updatedAt: new Date(),
       },
     });
