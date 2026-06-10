@@ -447,7 +447,7 @@ export async function POST(request: NextRequest) {
       } catch { /* skip */ }
     }
 
-    // ── Trial limit check: max 15 free courses, 3-day trial if no subscription ──
+    // ── Trial limit check: max 3 free courses, 3-day trial if no subscription ──
     if (userId) {
       const user = await db.user.findUnique({
         where: { id: userId },
@@ -467,7 +467,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        if (existingCourses >= 15) {
+        if (existingCourses >= 3) {
           return NextResponse.json({ error: "TRIAL_LIMIT", requiresSubscription: true }, { status: 403 });
         }
       }

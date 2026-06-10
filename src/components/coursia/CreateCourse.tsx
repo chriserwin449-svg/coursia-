@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   Sparkles,
   Plus,
@@ -19,6 +19,7 @@ import type { CourseData } from "@/lib/store";
 export default function CreateCourse() {
   const lang = useAppStore((s) => s.lang);
   const tx = t(lang);
+  const user = useAppStore((s) => s.user);
 
   const setView = useAppStore((s) => s.setView);
   const setSelectedCourseId = useAppStore((s) => s.setSelectedCourseId);
@@ -35,12 +36,12 @@ export default function CreateCourse() {
   const [showSuggested, setShowSuggested] = useState(false);
   const [suggestedTopic, setSuggestedTopic] = useState("");
   const [hasSubscription, setHasSubscription] = useState(false);
-  const [coursesRemaining, setCoursesRemaining] = useState(15);
+  const [coursesRemaining, setCoursesRemaining] = useState(3);
   const [inTrial, setInTrial] = useState(false);
   const [trialExpired, setTrialExpired] = useState(false);
   const [inGracePeriod, setInGracePeriod] = useState(false);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
-  const [trialCoursesMax, setTrialCoursesMax] = useState(15);
+  const [trialCoursesMax, setTrialCoursesMax] = useState(3);
   const [selectedLevel, setSelectedLevel] = useState(0);
   const [isRandomTopic, setIsRandomTopic] = useState(false);
 
@@ -65,6 +66,37 @@ export default function CreateCourse() {
       setStoreRandomTopic(null); // consume it
     }
   }, [storeRandomTopic, storeRandomCourseLang, setStoreRandomTopic]);
+
+  // ─── Personalized greeting (time-based) ──────────────────────────────
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    const firstName = user?.firstName || "";
+    const casualGreetings = tx.create.greetingCasual;
+    const messages = tx.create.greetingMessages;
+
+    // Pick a greeting based on time of day
+    let timeGreeting: string;
+    if (hour >= 5 && hour < 12) {
+      timeGreeting = tx.create.greetingMorning;
+    } else if (hour >= 12 && hour < 17) {
+      timeGreeting = tx.create.greetingAfternoon;
+    } else if (hour >= 17 && hour < 22) {
+      timeGreeting = tx.create.greetingEvening;
+    } else {
+      // Late night - use a random casual greeting
+      timeGreeting = casualGreetings[Math.floor(Math.random() * casualGreetings.length)];
+    }
+
+    // Pick a random encouraging message (seeded by day to avoid changing on every render)
+    const dayIndex = Math.floor(Date.now() / 86_400_000); // changes once per day
+    const message = messages[dayIndex % messages.length];
+
+    return {
+      greeting: timeGreeting,
+      name: firstName,
+      message,
+    };
+  }, [user?.firstName, tx.create]);
 
   // ─── Rotating placeholder with typing/fade effect ────────────────────
   const placeholders = tx.create.placeholders;
@@ -130,10 +162,10 @@ export default function CreateCourse() {
         setInGracePeriod(pw.inGracePeriod);
         if (pw.inTrial) {
           setTrialDaysRemaining(pw.trialDaysRemaining || 0);
-          setTrialCoursesMax(pw.trialCoursesMax || 15);
-          setCoursesRemaining(Math.max(0, (pw.trialCoursesMax || 15) - (pw.trialCoursesGenerated || 0)));
+          setTrialCoursesMax(pw.trialCoursesMax || 3);
+          setCoursesRemaining(Math.max(0, (pw.trialCoursesMax || 3) - (pw.trialCoursesGenerated || 0)));
         } else if (!pw.hasSubscription) {
-          setCoursesRemaining(Math.max(0, (pw.trialCoursesMax || 15) - (pw.trialCoursesGenerated || 0)));
+          setCoursesRemaining(Math.max(0, (pw.trialCoursesMax || 3) - (pw.trialCoursesGenerated || 0)));
         } else {
           setCoursesRemaining(999);
         }
@@ -224,6 +256,44 @@ export default function CreateCourse() {
     setView("viewer");
   };
 
+  // ─── Personalized trial counter text ────────────────────────────────
+  const trialCounterText = useMemo(() => {
+    const firstName = user?.firstName || "";
+
+    // Pre-trial (no courses yet, show simple welcome)
+    if (!inTrial && coursesRemaining === trialCoursesMax) {
+      if (firstName) {
+        return (tx.create.trialNoCourses as string).replace("{name}", firstName);
+      }
+      return lang === "fr"
+        ? `Tu as ${coursesRemaining} cours gratuit${coursesRemaining > 1 ? "s" : ""} sur Coursia !`
+        : `You have ${coursesRemaining} free course${coursesRemaining > 1 ? "s" : ""} on Coursia!`;
+    }
+
+    // Active trial — show detailed counter
+    if (inTrial) {
+      const dayWord = trialDaysRemaining > 1
+        ? (lang === "fr" ? tx.create.trialCounterDays : tx.create.trialCounterDays)
+        : (lang === "fr" ? tx.create.trialCounterDay : tx.create.trialCounterDay);
+      const courseSuffix = coursesRemaining > 1 ? "s" : "";
+      const daySuffix = trialDaysRemaining > 1 ? "s" : "";
+
+      if (firstName) {
+        return lang === "fr"
+          ? `${firstName}, il te reste ${coursesRemaining} cours gratuit${courseSuffix} sur ton temps d'essai · ${trialDaysRemaining} ${dayWord} restant${daySuffix}`
+          : `${firstName}, you have ${coursesRemaining} free course${courseSuffix} left on your trial · ${trialDaysRemaining} trial ${dayWord} remaining`;
+      }
+      return lang === "fr"
+        ? `Il te reste ${coursesRemaining} cours gratuit${courseSuffix} · ${trialDaysRemaining} ${dayWord} d'essai`
+        : `${coursesRemaining} free course${courseSuffix} · ${trialDaysRemaining} trial ${dayWord} remaining`;
+    }
+
+    // Post-trial, courses used up
+    return lang === "fr"
+      ? `${firstName ? firstName + ", " : ""}tu as utilisé tes ${trialCoursesMax} cours d'essai`
+      : `${firstName ? firstName + ", " : ""}you've used all ${trialCoursesMax} trial courses`;
+  }, [user?.firstName, lang, inTrial, coursesRemaining, trialDaysRemaining, trialCoursesMax, tx.create]);
+
   // ─── Helpers ──────────────────────────────────────────────────────────
   const courseLangLabels = tx.create.courseLangs;
 
@@ -238,15 +308,20 @@ export default function CreateCourse() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 md:px-10 pt-14 sm:pt-20 pb-8 md:pt-24 md:pb-16">
-      {/* Header */}
-      <div className="mb-6 sm:mb-8 text-center">
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-2">
-          <span className="gradient-text">{tx.create.title}</span>
-        </h1>
-        <p className="text-muted-foreground text-sm sm:text-base md:text-lg">
-          {tx.create.subtitle}
-        </p>
-      </div>
+      {/* ═══════════ Personalized Greeting ═══════════ */}
+      {user && (
+        <div className="mb-6 sm:mb-8">
+          <div className="glass rounded-2xl sm:rounded-3xl p-5 sm:p-6 md:p-8 text-center">
+            <div className="text-4xl sm:text-5xl mb-3 animate-bounce" role="img" aria-label="waving hand">👋</div>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-2">
+              <span className="gradient-text">{greeting.greeting} {greeting.name} !</span>
+            </h1>
+            <p className="text-muted-foreground text-sm sm:text-base md:text-lg">
+              {greeting.message}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ═══════════ Main creation card ═══════════ */}
       <div className="glass rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-10">
@@ -431,17 +506,11 @@ export default function CreateCourse() {
               </>
             ) : inTrial ? (
               <p className="text-sm font-semibold text-gold">
-                {tx.create.trialCounter
-                  .replace("{days}", String(trialDaysRemaining))
-                  .replace("{suffix}", trialDaysRemaining > 1 ? (lang === "fr" ? tx.create.trialCounterDays : tx.create.trialCounterDays) : (lang === "fr" ? tx.create.trialCounterDay : tx.create.trialCounterDay))
-                  .replace("{remaining}", String(coursesRemaining))
-                  .replace("{max}", String(trialCoursesMax))}
+                {trialCounterText}
               </p>
             ) : (
               <p className="text-sm font-semibold text-muted-foreground">
-                {lang === "fr"
-                  ? `${useAppStore.getState().user?.firstName || ""}, il te reste ${coursesRemaining} cours gratuit${coursesRemaining > 1 ? "s" : ""} sur Coursia !`
-                  : `${useAppStore.getState().user?.firstName || ""}, you have ${coursesRemaining} free course${coursesRemaining > 1 ? "s" : ""} remaining on Coursia!`}
+                {trialCounterText}
               </p>
             )}
           </div>

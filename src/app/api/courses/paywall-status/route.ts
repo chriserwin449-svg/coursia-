@@ -24,7 +24,7 @@ async function ensureAllColumns(): Promise<void> {
 }
 
 const TRIAL_DURATION_DAYS = 3;
-const TRIAL_MAX_COURSES = 15;
+const TRIAL_MAX_COURSES = 3;
 const GRACE_PERIOD_DAYS = 3;
 
 type RenewalUrgency = "1month" | "2weeks" | "1week" | "3days" | "24hours" | "last24hours" | "none";

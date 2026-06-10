@@ -1,51 +1,9 @@
 "use client";
 
-import { Check, Crown, Zap, HelpCircle, ChevronDown, Star, AlertTriangle, Loader2, Clock, ShieldAlert, Gift, ExternalLink, CreditCard, ArrowRight } from "lucide-react";
+import { Check, Crown, Zap, AlertTriangle, Loader2, Clock, ShieldAlert, Gift, CreditCard } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-
-function FAQItem({
-  question,
-  answer,
-}: {
-  question: string;
-  answer: string;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div className="glass rounded-2xl overflow-hidden transition-all duration-200">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-5 py-4 text-left cursor-pointer hover:bg-white/5 transition-colors duration-200"
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <HelpCircle className="w-4 h-4 text-mauve-light flex-shrink-0" />
-          <span className={`font-semibold text-sm text-foreground transition-all duration-200 ${open ? 'text-mauve-light' : ''}`}>
-            {question}
-          </span>
-        </div>
-        <ChevronDown
-          className={`w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform duration-200 ml-2 ${
-            open ? "rotate-180" : ""
-          }`}
-        />
-      </button>
-      <div
-        className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          open ? "max-h-40 opacity-100" : "max-h-0 opacity-0"
-        }`}
-      >
-        <div className="px-5 pb-4 pl-12">
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {answer}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function OffersPage() {
   const lang = useAppStore((s) => s.lang);
@@ -58,7 +16,7 @@ export default function OffersPage() {
   const [inTrial, setInTrial] = useState(false);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
   const [trialCoursesGenerated, setTrialCoursesGenerated] = useState(0);
-  const [trialCoursesMax] = useState(15);
+  const [trialCoursesMax] = useState(3);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscriptionPlan, setSubscriptionPlan] = useState<string>("");
   const [inGracePeriod, setInGracePeriod] = useState(false);
@@ -370,55 +328,6 @@ export default function OffersPage() {
 
   const suffix = (n: number) => (n > 1 ? (lang === "fr" ? "s" : "s") : "");
 
-  const faqs = useMemo(() => {
-    if (lang === "fr") {
-      return [
-        {
-          q: "Comment fonctionne le paiement sur Coursia ?",
-          a: "Clique sur le plan choisi, tu seras redirigé vers notre page de paiement sécurisée. Après le paiement, reviens sur Coursia et clique sur 'J'ai effectué le paiement' pour confirmer. Ton accès Pro est activé après vérification.",
-        },
-        {
-          q: "Puis-je annuler mon abonnement à tout moment ?",
-          a: "Oui, tu peux annuler ton abonnement à tout moment. Ton accès reste actif jusqu'à la fin de la période payée. Après la fin, tu as 3 jours de grâce pour relire tes cours.",
-        },
-        {
-          q: "Quelle différence entre le plan Mensuel et Annuel ?",
-          a: "Les deux plans offrent les mêmes fonctionnalités. Le plan Annuel te donne un accès complet pendant 1 an au prix de $42.99, soit un excellent rapport qualité-prix.",
-        },
-        {
-          q: "Comment fonctionne l'essai gratuit de 3 jours ?",
-          a: "Tu peux créer jusqu'à 15 cours pendant tes 3 jours d'essai. Après l'essai, tu dois souscrire un abonnement pour continuer à créer des cours. Si tu paies pendant l'essai, celui-ci s'arrête immédiatement.",
-        },
-        {
-          q: "Que se passe-t-il quand mon abonnement se termine ?",
-          a: "Tu disposes de 3 jours pour relire tes cours déjà créés (lecture seule). Après ces 3 jours, tu devras renouveler ton abonnement pour retrouver l'accès complet.",
-        },
-      ];
-    }
-    return [
-      {
-        q: "How does payment work on Coursia?",
-        a: "Click on your chosen plan, you'll be redirected to our secure payment page. After paying, come back to Coursia and click 'I've made the payment' to confirm. Your Pro access is activated after verification.",
-      },
-      {
-        q: "Can I cancel my subscription at any time?",
-        a: "Yes, you can cancel your subscription at any time. Your access remains active until the end of the paid period. After that, you have a 3-day grace period to review your courses.",
-      },
-      {
-        q: "What's the difference between Monthly and Annual?",
-        a: "Both plans offer the same features. The Annual plan gives you full access for 1 year at $42.99 — excellent value for money.",
-      },
-      {
-        q: "How does the 3-day free trial work?",
-        a: "You can create up to 15 courses during your 3-day trial. After the trial, you need to subscribe to keep creating courses. If you pay during the trial, it ends immediately.",
-      },
-      {
-        q: "What happens when my subscription ends?",
-        a: "You get 3 days to review your existing courses (read-only). After those 3 days, you'll need to renew your subscription to restore full access.",
-      },
-    ];
-  }, [lang]);
-
   // Personalized message when subscribed but not ending
   const cannotRenewMessage = useMemo(() => {
     if (isSubscribed && !showRenewalReminder) {
@@ -677,7 +586,6 @@ export default function OffersPage() {
                 ) : (
                   <>
                     {tx.landing.pricing.monthly.cta}
-                    <ExternalLink className="w-4 h-4" />
                   </>
                 )}
               </button>
@@ -738,7 +646,6 @@ export default function OffersPage() {
                 ) : (
                   <>
                     {tx.landing.pricing.annual.cta}
-                    <ExternalLink className="w-4 h-4" />
                   </>
                 )}
               </button>
@@ -746,25 +653,7 @@ export default function OffersPage() {
           </div>
         )}
 
-        {/* ===== FAQ SECTION ===== */}
-        <div className="max-w-3xl mx-auto mb-16">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl sm:text-4xl font-extrabold mb-3">
-              <span className="gradient-text">{tx.offers.faq}</span>
-            </h2>
-            <div className="flex items-center justify-center gap-1.5 text-gold">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} className="w-4 h-4 fill-gold text-gold" />
-              ))}
-            </div>
-          </div>
 
-          <div className="space-y-2">
-            {faqs.map((faq, idx) => (
-              <FAQItem key={idx} question={faq.q} answer={faq.a} />
-            ))}
-          </div>
-        </div>
 
         {/* ===== BOTTOM NOTE ===== */}
         <div className="text-center pb-10">

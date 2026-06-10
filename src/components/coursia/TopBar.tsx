@@ -38,8 +38,8 @@ export default function TopBar() {
           setTrialCoursesGenerated(data.trialCoursesGenerated || 0);
           setTrialInfo({
             days: data.trialDaysRemaining || 0,
-            remaining: (data.trialCoursesMax || 15) - (data.trialCoursesGenerated || 0),
-            max: data.trialCoursesMax || 15,
+            remaining: (data.trialCoursesMax || 3) - (data.trialCoursesGenerated || 0),
+            max: data.trialCoursesMax || 3,
           });
         } else {
           setInTrial(false);
