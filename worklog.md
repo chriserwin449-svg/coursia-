@@ -208,3 +208,33 @@ Stage Summary:
 - Production (Vercel) will use Supabase PostgreSQL via environment variables
 - Mobile bottom nav blinking notification dot now works correctly (`isOffers` → `item.view === "offers"`)
 - App fully verified with Agent Browser: landing page, registration, auth, create page, offers page, FR/EN toggle all working
+---
+Task ID: 3
+Agent: Main Agent
+Task: Personalized greeting, trial limits (3 courses), Chariow test link, remove FAQ
+
+Work Log:
+- Added Chariow test link to .env as CHARIOW_MONTHLY_LINK and CHARIOW_ANNUAL_LINK (both point to https://lotyqatl.mychariow.market/prd_5k1hnuvf?draft=true for testing)
+- Updated paywall-status API: TRIAL_MAX_COURSES 15→3
+- Updated generate API: course limit 15→3
+- Updated TopBar defaults: course limit 15→3
+- Updated OffersPage trialCoursesMax: 15→3
+- Updated i18n (FR + EN): "15 cours" → "3 cours" in all pricing/features text
+- Added i18n greeting strings: greetingMorning, greetingAfternoon, greetingEvening, greetingCasual[], greetingMessages[]
+- Added i18n trialNoCourses string for pre-trial state
+- Added personalized greeting to CreateCourse: waving hand emoji 👋, time-based greeting (Bonjour 5-12h, Bon après-midi 12-17h, Bonsoir 17-22h, casual at night), user firstName, rotating encouraging message
+- Updated personalized trial counter: "Erwin, il te reste X cours gratuits sur ton temps d'essai · Y jours restants"
+- Pre-trial message: "Erwin, tu n'as encore généré aucun cours. Profite de ton essai !"
+- Removed FAQ section entirely from OffersPage (FAQItem component, faqs useMemo, FAQ section HTML)
+- Removed ExternalLink icon from monthly and annual checkout buttons
+- Removed unused imports (HelpCircle, ChevronDown, Star, ExternalLink, ArrowRight)
+- Updated LandingPage FAQ: "15 cours" → "3 cours"
+- ESLint clean: 0 errors in src/
+- Pushed to GitHub (4e6c835)
+
+Stage Summary:
+- Trial limits: 3 courses, 3 days (was 15 courses, 3 days)
+- Personalized greeting with time-based messages and user name on create page
+- Chariow test link ready for testing payment flow
+- Offers page cleaned up: no FAQ, simplified buttons
+- All changes verified via Agent Browser
