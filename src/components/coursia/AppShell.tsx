@@ -50,7 +50,7 @@ function MobileBottomNav() {
               <item.icon className={`w-5 h-5 ${isActive ? "text-mauve-light" : ""}`} />
               <span className="text-[10px] font-semibold leading-tight">{item.label}</span>
               {/* Red blinking dot on Offers tab */}
-              {isOffers && showDot && (
+              {item.view === "offers" && showDot && (
                 <span className="notification-dot absolute top-1 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500" />
               )}
             </button>

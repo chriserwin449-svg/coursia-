@@ -185,3 +185,26 @@ Stage Summary:
 - Notification system now works correctly: dot shows on all pages when subscription is ending, hidden on Offers page, reappears when leaving
 - Chariow integration is code-ready (uses CHARIOW_MONTHLY_LINK and CHARIOW_ANNUAL_LINK env vars)
 - User needs to set CHARIOW_MONTHLY_LINK and CHARIOW_ANNUAL_LINK environment variables on Vercel
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix DATABASE_URL mismatch (PostgreSQL URL with SQLite provider) and isOffers bug
+
+Work Log:
+- Root cause: .env had Supabase PostgreSQL URL but Prisma schema declared provider = "sqlite"
+- Prisma validation rejected the URL since it doesn't start with "file:" (required by SQLite provider)
+- Fixed .env: Changed DATABASE_URL to "file:./db/custom.db" (local SQLite for sandbox)
+- Created .env.production.example with Supabase PostgreSQL URL and Chariow payment link placeholders
+- Ran `prisma db push` — schema synced successfully with existing custom.db
+- Fixed AppShell.tsx MobileBottomNav: `isOffers` was undefined, changed to `item.view === "offers"`
+- Verified dev server responds HTTP 200 on port 3000
+- ESLint clean: 0 errors in src/ (all errors in root utility scripts)
+
+Stage Summary:
+- DATABASE_URL fixed: local SQLite for sandbox development (absolute path `file:/home/z/my-project/db/custom.db`)
+- Root cause of path resolution issue: Prisma resolves relative paths from schema location (`prisma/`), but app resolves from project root — causing two different databases
+- Fix: Used absolute path in DATABASE_URL, deleted stale database in `prisma/db/`, force-reset database
+- Production (Vercel) will use Supabase PostgreSQL via environment variables
+- Mobile bottom nav blinking notification dot now works correctly (`isOffers` → `item.view === "offers"`)
+- App fully verified with Agent Browser: landing page, registration, auth, create page, offers page, FR/EN toggle all working
