@@ -14,6 +14,7 @@ import CourseViewer from "@/components/coursia/CourseViewer";
 import Journey from "@/components/coursia/Journey";
 import OffersPage from "@/components/coursia/OffersPage";
 import TopBar from "@/components/coursia/TopBar";
+import { PayPalProviderWrapper } from "@/components/coursia/PayPalProvider";
 
 function MobileBottomNav() {
   const view = useAppStore((s) => s.view);
@@ -167,7 +168,11 @@ export default function AppShell() {
             {view === "library" && <LibraryPage />}
             {view === "viewer" && <CourseViewer />}
             {view === "journey" && <Journey />}
-            {view === "offers" && <OffersPage />}
+            {view === "offers" && (
+              <PayPalProviderWrapper>
+                <OffersPage />
+              </PayPalProviderWrapper>
+            )}
           </main>
           <MobileBottomNav />
         </div>

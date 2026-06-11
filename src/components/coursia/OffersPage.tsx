@@ -1,9 +1,21 @@
 "use client";
 
-import { Check, Crown, Zap, AlertTriangle, Loader2, Clock, ShieldAlert, Gift, CreditCard } from "lucide-react";
+import {
+  Check,
+  Crown,
+  Zap,
+  AlertTriangle,
+  Loader2,
+  Clock,
+  ShieldAlert,
+  Gift,
+  CreditCard,
+  Lock,
+} from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { PayPalButtons } from "@paypal/react-paypal-js";
 
 export default function OffersPage() {
   const lang = useAppStore((s) => s.lang);
@@ -30,15 +42,19 @@ export default function OffersPage() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
-  // Fondeka/Chariow payment flow states
+  // PayPal payment flow states
   const [paymentRequestId, setPaymentRequestId] = useState<string | null>(null);
-  const [showPaymentSteps, setShowPaymentSteps] = useState(false);
-  const [confirmingPayment, setConfirmingPayment] = useState(false);
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [paypalOrderId, setPaypalOrderId] = useState<string | null>(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   // Countdown timer for last 24 hours
   const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Check if PayPal is configured
+  const paypalClientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
+  const isPaypalConfigured = paypalClientId && paypalClientId !== "YOUR_PAYPAL_SANDBOX_CLIENT_ID";
 
   // Check paywall & subscription status
   useEffect(() => {
@@ -50,10 +66,8 @@ export default function OffersPage() {
         const res = await fetch("/api/courses/paywall-status", { headers });
         const data = await res.json();
 
-        // First name
         if (data.firstName) setFirstName(data.firstName);
 
-        // Trial
         if (data.inTrial) {
           setInTrial(true);
           setTrialDaysRemaining(data.trialDaysRemaining || 0);
@@ -62,7 +76,6 @@ export default function OffersPage() {
           setTrialExpired(true);
         }
 
-        // Subscription
         if (data.hasSubscription && data.subscriptionStatus === "active") {
           setIsSubscribed(true);
           setSubscriptionPlan(data.subscriptionPlan || "monthly");
@@ -76,7 +89,6 @@ export default function OffersPage() {
           }
         }
 
-        // Grace period
         if (data.inGracePeriod) {
           setInGracePeriod(true);
           setGraceDaysRemaining(data.graceDaysRemaining || 0);
@@ -102,7 +114,6 @@ export default function OffersPage() {
 
     const updateCountdown = () => {
       const now = Date.now();
-      // Recalculate from subscription end date (stored initially)
       const remaining = Math.max(0, timeRemainingMs - (now - ((window as unknown as Record<string, number>).__countdownStart || now)));
 
       if (remaining <= 0) {
@@ -118,10 +129,8 @@ export default function OffersPage() {
       setCountdown({ hours, minutes, seconds });
     };
 
-    // Store the start time for calculations
     (window as unknown as Record<string, number>).__countdownStart = Date.now();
 
-    // Fetch fresh timeRemainingMs periodically to stay in sync
     const fetchFreshTime = async () => {
       try {
         const headers: Record<string, string> = {};
@@ -136,11 +145,7 @@ export default function OffersPage() {
     };
 
     updateCountdown();
-    countdownIntervalRef.current = setInterval(() => {
-      updateCountdown();
-    }, 1000);
-
-    // Refresh from server every 30 seconds to prevent drift
+    countdownIntervalRef.current = setInterval(updateCountdown, 1000);
     const refreshInterval = setInterval(fetchFreshTime, 30_000);
 
     return () => {
@@ -149,7 +154,7 @@ export default function OffersPage() {
     };
   }, [renewalUrgency, timeRemainingMs, userId]);
 
-  // Get the renewal reminder message based on urgency
+  // Get renewal reminder message
   const getRenewalMessage = useMemo(() => {
     const name = firstName || (lang === "fr" ? "Bonjour" : "Hey");
     const isAnnual = subscriptionPlan === "annual";
@@ -185,119 +190,33 @@ export default function OffersPage() {
     return null;
   }, [renewalUrgency, firstName, subscriptionPlan, lang, countdown, tx.offers]);
 
-  // Determine the urgency color
   const getUrgencyColor = () => {
     if (renewalUrgency === "last24hours" || renewalUrgency === "24hours" || renewalUrgency === "3days") {
       return "bg-red-500/10 border-red-500/30 text-red-200";
     }
-    if (renewalUrgency === "1week") {
-      return "bg-amber-500/10 border-amber-500/30 text-amber-200";
-    }
     return "bg-amber-500/10 border-amber-500/30 text-amber-200";
   };
 
-  // Check URL params for payment=pending (user returned from Chariow)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const paymentStatus = params.get("payment");
-    const requestId = params.get("request_id");
+  // Handle PayPal onApprove — capture payment on backend
+  const handleApprove = useCallback(async (plan: string, orderId: string) => {
+    setPaymentProcessing(true);
+    setPaypalOrderId(orderId);
+    setCheckoutError(null);
 
-    if (paymentStatus === "pending" && requestId) {
-      setPaymentRequestId(requestId);
-      setShowPaymentSteps(true);
-      // Clean URL
-      window.history.replaceState({}, "", "/");
-    } else if (paymentStatus === "success") {
-      // Also handle the old success flow
-      const checkAfterCheckout = async () => {
-        try {
-          const headers: Record<string, string> = {};
-          if (userId) headers["Authorization"] = `Bearer ${userId}`;
-          const res = await fetch("/api/courses/paywall-status", { headers });
-          const data = await res.json();
-          if (data.hasSubscription && data.subscriptionStatus === "active") {
-            setIsSubscribed(true);
-            setTrialExpired(false);
-            setInGracePeriod(false);
-            setGraceExpired(false);
-            setShowRenewalReminder(false);
-          }
-        } catch { /* silent */ }
-      };
-      setTimeout(checkAfterCheckout, 2000);
-      window.history.replaceState({}, "", "/");
-    }
-  }, [userId]);
-
-  // Handle checkout — calls API then opens Chariow link in new tab
-  const handleCheckout = useCallback(
-    async (plan: "monthly" | "annual") => {
-      if (!isAuthenticated || !userId) {
-        setView("auth");
-        return;
-      }
-
-      setLoadingPlan(plan);
-      setCheckoutError(null);
-
-      try {
-        const res = await fetch("/api/subscription/checkout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ plan, userId }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          setCheckoutError(
-            data.error || (lang === "fr" ? "Erreur lors de la création du paiement" : "Payment creation failed")
-          );
-          return;
-        }
-
-        // Store request ID for "I paid" flow
-        if (data.requestId) {
-          setPaymentRequestId(data.requestId);
-        }
-
-        // Open Chariow payment link in new tab
-        if (data.checkoutUrl) {
-          window.open(data.checkoutUrl, "_blank");
-          // Show payment steps after redirect
-          setShowPaymentSteps(true);
-        }
-      } catch {
-        setCheckoutError(
-          lang === "fr" ? "Erreur de connexion. Réessaie." : "Connection error. Please try again."
-        );
-      } finally {
-        setLoadingPlan(null);
-      }
-    },
-    [isAuthenticated, userId, lang, setView]
-  );
-
-  // Handle "I paid" confirmation
-  const handleConfirmPayment = useCallback(async () => {
-    if (!userId || !paymentRequestId) return;
-
-    setConfirmingPayment(true);
     try {
-      const res = await fetch("/api/subscription/confirm", {
+      const res = await fetch("/api/subscription/capture", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          requestId: paymentRequestId,
-        }),
+        body: JSON.stringify({ orderId, userId }),
       });
 
       const data = await res.json();
 
       if (data.success) {
-        setPaymentConfirmed(true);
-        // Poll subscription status every 10 seconds
+        setPaymentSuccess(true);
+        setPaymentProcessing(false);
+
+        // Poll subscription status to update UI
         const pollInterval = setInterval(async () => {
           try {
             const headers: Record<string, string> = {};
@@ -307,28 +226,98 @@ export default function OffersPage() {
             if (statusData.hasSubscription && statusData.subscriptionStatus === "active") {
               clearInterval(pollInterval);
               setIsSubscribed(true);
-              setPaymentConfirmed(false);
-              setShowPaymentSteps(false);
+              setSubscriptionPlan(plan);
+              setTrialExpired(false);
+              setInGracePeriod(false);
+              setGraceExpired(false);
               setShowRenewalReminder(false);
             }
           } catch { /* keep polling */ }
-        }, 10_000);
+        }, 5_000);
 
-        // Auto-stop polling after 5 minutes
-        setTimeout(() => clearInterval(pollInterval), 300_000);
+        setTimeout(() => clearInterval(pollInterval), 120_000);
       } else {
-        setCheckoutError(data.error || "Confirmation failed");
+        setCheckoutError(data.error || (lang === "fr" ? "Échec du paiement" : "Payment failed"));
+        setPaymentProcessing(false);
       }
     } catch {
       setCheckoutError(lang === "fr" ? "Erreur de connexion" : "Connection error");
-    } finally {
-      setConfirmingPayment(false);
+      setPaymentProcessing(false);
     }
-  }, [userId, paymentRequestId, lang]);
+  }, [userId, lang]);
+
+  // Create PayPal order on backend
+  const createOrder = useCallback(async (plan: string) => {
+    if (!isAuthenticated || !userId) {
+      setView("auth");
+      return "";
+    }
+
+    setLoadingPlan(plan);
+    setCheckoutError(null);
+
+    try {
+      const res = await fetch("/api/subscription/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan, userId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setCheckoutError(data.error || (lang === "fr" ? "Erreur lors du paiement" : "Payment failed"));
+        setLoadingPlan(null);
+        return "";
+      }
+
+      if (data.requestId) setPaymentRequestId(data.requestId);
+      setLoadingPlan(null);
+      return data.orderId; // Return PayPal order ID for the SDK
+    } catch {
+      setCheckoutError(lang === "fr" ? "Erreur de connexion. Réessaie." : "Connection error. Please try again.");
+      setLoadingPlan(null);
+      return "";
+    }
+  }, [isAuthenticated, userId, lang, setView]);
+
+  // Check URL params for payment success
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get("payment");
+    const planParam = params.get("plan");
+
+    if (paymentStatus === "success" && planParam) {
+      window.history.replaceState({}, "", "/");
+      // Refresh status to show subscription is active
+      const checkAfterCheckout = async () => {
+        try {
+          const headers: Record<string, string> = {};
+          if (userId) headers["Authorization"] = `Bearer ${userId}`;
+          const res = await fetch("/api/courses/paywall-status", { headers });
+          const data = await res.json();
+          if (data.hasSubscription && data.subscriptionStatus === "active") {
+            setIsSubscribed(true);
+            setSubscriptionPlan(planParam);
+            setTrialExpired(false);
+            setInGracePeriod(false);
+            setGraceExpired(false);
+            setShowRenewalReminder(false);
+          }
+        } catch { /* silent */ }
+      };
+      setTimeout(checkAfterCheckout, 2000);
+    } else if (paymentStatus === "cancelled") {
+      window.history.replaceState({}, "", "/");
+      // Use setTimeout to avoid calling setState directly in effect
+      setTimeout(() => {
+        setCheckoutError(lang === "fr" ? "Paiement annulé. Tu peux réessayer." : "Payment cancelled. You can try again.");
+      }, 0);
+    }
+  }, [userId, lang]);
 
   const suffix = (n: number) => (n > 1 ? (lang === "fr" ? "s" : "s") : "");
 
-  // Personalized message when subscribed but not ending
   const cannotRenewMessage = useMemo(() => {
     if (isSubscribed && !showRenewalReminder) {
       const name = firstName || "";
@@ -336,6 +325,21 @@ export default function OffersPage() {
     }
     return null;
   }, [isSubscribed, showRenewalReminder, firstName, lang, tx.offers]);
+
+  // Button disabled logic
+  const isButtonDisabled = (plan: string) =>
+    loadingPlan === plan ||
+    paymentProcessing ||
+    (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired);
+
+  // PayPal button styling
+  const paypalButtonStyle = {
+    layout: "vertical" as const,
+    color: "gold" as const,
+    shape: "pill" as const,
+    label: "pay" as const,
+    height: 45,
+  };
 
   return (
     <>
@@ -356,68 +360,40 @@ export default function OffersPage() {
           </p>
         </div>
 
-        {/* ===== PAYMENT STEPS (shown after redirect to Chariow) ===== */}
-        {showPaymentSteps && !isSubscribed && (
+        {/* ===== PAYMENT SUCCESS BANNER ===== */}
+        {paymentSuccess && (
           <div className="max-w-2xl mx-auto mb-8 space-y-3">
-            <div className="glass rounded-3xl p-5 sm:p-6 border border-mauve/30 animate-fade-in">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-mauve/20 flex items-center justify-center">
-                  <CreditCard className="w-5 h-5 text-mauve-light" />
-                </div>
-                <h3 className="text-lg font-bold">{tx.offers.paymentPendingTitle}</h3>
+            <div className="flex items-start gap-3 p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 animate-fade-in">
+              <Check className="w-6 h-6 text-emerald-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-base font-bold text-emerald-300">
+                  {lang === "fr" ? "Paiement réussi ! 🎉" : "Payment successful! 🎉"}
+                </p>
+                <p className="text-sm text-emerald-400/70 mt-1">
+                  {lang === "fr"
+                    ? "Ton abonnement est maintenant actif. Tu as accès à tous les cours."
+                    : "Your subscription is now active. You have access to all courses."}
+                </p>
               </div>
+            </div>
+          </div>
+        )}
 
-              {paymentConfirmed ? (
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-                    <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-semibold text-emerald-300">{tx.offers.paymentConfirmed}</p>
-                      <p className="text-xs text-emerald-400/70 mt-1">{tx.offers.paymentConfirmedDesc}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-center gap-2 py-2">
-                    <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
-                    <span className="text-xs text-muted-foreground">
-                      {lang === "fr" ? "Vérification en cours..." : "Verification in progress..."}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <p className="text-sm text-muted-foreground mb-4">{tx.offers.paymentPendingDesc}</p>
-                  <div className="space-y-2 mb-5">
-                    <p className="text-sm text-foreground/80">{tx.offers.paymentPendingStep1}</p>
-                    <p className="text-sm text-foreground/80">{tx.offers.paymentPendingStep2}</p>
-                    <p className="text-sm text-foreground/80">{tx.offers.paymentPendingStep3}</p>
-                    <p className="text-sm text-muted-foreground">{tx.offers.paymentPendingStep4}</p>
-                  </div>
-                  <button
-                    onClick={handleConfirmPayment}
-                    disabled={confirmingPayment}
-                    className="w-full py-3.5 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold hover:from-emerald-400 hover:to-emerald-500 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {confirmingPayment ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        {lang === "fr" ? "Envoi en cours..." : "Sending..."}
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-5 h-5" />
-                        {tx.offers.iPaid}
-                      </>
-                    )}
-                  </button>
-                </>
-              )}
+        {/* ===== PAYMENT PROCESSING BANNER ===== */}
+        {paymentProcessing && !paymentSuccess && (
+          <div className="max-w-2xl mx-auto mb-8">
+            <div className="flex items-center gap-3 p-5 rounded-2xl bg-mauve/10 border border-mauve/30 animate-fade-in">
+              <Loader2 className="w-5 h-5 text-mauve-light animate-spin" />
+              <p className="text-sm text-mauve-light font-medium">
+                {lang === "fr" ? "Confirmation du paiement en cours..." : "Confirming payment..."}
+              </p>
             </div>
           </div>
         )}
 
         {/* ===== STATUS BANNERS ===== */}
         <div className="max-w-2xl mx-auto mb-8 space-y-3">
-          {/* Personalized renewal reminder (subscribed, ending soon) */}
+          {/* Personalized renewal reminder */}
           {showRenewalReminder && getRenewalMessage && (
             <div className={`flex items-start gap-3 p-4 sm:p-5 rounded-2xl border animate-fade-in ${getUrgencyColor()}`}>
               <Clock className={`w-5 h-5 flex-shrink-0 mt-0.5 ${renewalUrgency === "last24hours" || renewalUrgency === "24hours" || renewalUrgency === "3days" ? "text-red-400" : "text-amber-400"}`} />
@@ -425,9 +401,7 @@ export default function OffersPage() {
                 <p className="text-xs font-bold uppercase tracking-wider mb-1 opacity-70">
                   {tx.offers.subscriptionEndingSoon}
                 </p>
-                <p className="text-sm sm:text-base font-medium">
-                  {getRenewalMessage}
-                </p>
+                <p className="text-sm sm:text-base font-medium">{getRenewalMessage}</p>
                 {renewalUrgency === "last24hours" && (
                   <p className="text-2xl sm:text-3xl font-extrabold mt-2 tabular-nums tracking-wide">
                     {String(countdown.hours).padStart(2, "0")}:{String(countdown.minutes).padStart(2, "0")}:{String(countdown.seconds).padStart(2, "0")}
@@ -437,7 +411,7 @@ export default function OffersPage() {
             </div>
           )}
 
-          {/* Subscription ended, in grace period */}
+          {/* Grace period */}
           {inGracePeriod && (
             <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 animate-fade-in">
               <Clock className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
@@ -450,17 +424,15 @@ export default function OffersPage() {
             </div>
           )}
 
-          {/* Grace period expired */}
+          {/* Grace expired */}
           {graceExpired && (
             <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-red-500/10 border border-red-500/30 animate-fade-in">
               <ShieldAlert className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="text-sm sm:text-base text-red-200 font-medium">
-                {tx.offers.gracePeriodExpired}
-              </p>
+              <p className="text-sm sm:text-base text-red-200 font-medium">{tx.offers.gracePeriodExpired}</p>
             </div>
           )}
 
-          {/* Trial active banner */}
+          {/* Trial active */}
           {inTrial && (
             <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-mauve/10 border border-mauve/30 animate-fade-in">
               <Gift className="w-5 h-5 text-mauve-light flex-shrink-0 mt-0.5" />
@@ -475,24 +447,20 @@ export default function OffersPage() {
             </div>
           )}
 
-          {/* Trial expired banner */}
+          {/* Trial expired */}
           {trialExpired && (
             <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 animate-fade-in">
               <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-              <p className="text-sm sm:text-base text-amber-200 font-medium">
-                {tx.offers.trialExpired}
-              </p>
+              <p className="text-sm sm:text-base text-amber-200 font-medium">{tx.offers.trialExpired}</p>
             </div>
           )}
 
-          {/* Already subscribed banner (not ending) — personalized */}
+          {/* Already subscribed (not ending) */}
           {isSubscribed && !showRenewalReminder && (
             <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 animate-fade-in">
               <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm sm:text-base text-emerald-200 font-medium">
-                  {tx.offers.subscribed}
-                </p>
+                <p className="text-sm sm:text-base text-emerald-200 font-medium">{tx.offers.subscribed}</p>
                 {cannotRenewMessage && (
                   <p className="text-xs text-emerald-300/70 mt-1">{cannotRenewMessage}</p>
                 )}
@@ -509,43 +477,64 @@ export default function OffersPage() {
           )}
         </div>
 
-        {/* ===== PRICING CARDS ===== */}
-        {!(showPaymentSteps && !isSubscribed) && (
-          <div className={`grid gap-6 lg:gap-8 items-start mb-20 ${
-            (trialExpired || graceExpired)
-              ? "grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto"
-              : "grid-cols-1 md:grid-cols-3"
-          }`}>
-            {/* FREE PLAN — hidden when trial expired or grace expired */}
-            {!trialExpired && !graceExpired && (
-            <div className="pricing-card-float glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
-              <div className="mb-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
-                    <Zap className="w-6 h-6 text-mauve-light" />
-                  </div>
-                  <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.free.name}</h3>
-                </div>
-                <p className="text-muted-foreground text-sm">{tx.landing.pricing.free.desc}</p>
+        {/* ===== PAYPAL NOT CONFIGURED NOTICE ===== */}
+        {!isPaypalConfigured && (
+          <div className="max-w-2xl mx-auto mb-8">
+            <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+              <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-amber-300">
+                  {lang === "fr" ? "Paiement en cours de configuration" : "Payment setup in progress"}
+                </p>
+                <p className="text-xs text-amber-400/70 mt-1">
+                  {lang === "fr"
+                    ? "Le paiement PayPal sera disponible très bientôt. Reviens plus tard."
+                    : "PayPal payment will be available soon. Please check back later."}
+                </p>
               </div>
-              <div className="mb-6">
-                <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.free.price}</span>
-                {lang === "fr" && (
-                  <p className="text-sm text-gold font-semibold mt-1">{tx.landing.pricing.free.note}</p>
-                )}
-              </div>
-              <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
-                {tx.landing.pricing.free.features.map((f) => (
-                  <li key={f} className="flex items-start gap-3">
-                    <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm text-muted-foreground">{f}</span>
-                  </li>
-                ))}
-              </ul>
-              <button className="w-full py-3.5 sm:py-4 rounded-full border border-muted-foreground/20 text-foreground font-bold hover:bg-muted-foreground/10 transition-all duration-300 cursor-pointer">
-                {tx.landing.pricing.free.cta}
-              </button>
             </div>
+          </div>
+        )}
+
+        {/* ===== PRICING CARDS ===== */}
+        {!paymentSuccess && (
+          <div
+            className={`grid gap-6 lg:gap-8 items-start mb-20 ${
+              trialExpired || graceExpired
+                ? "grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto"
+                : "grid-cols-1 md:grid-cols-3"
+            }`}
+          >
+            {/* FREE PLAN */}
+            {!trialExpired && !graceExpired && (
+              <div className="pricing-card-float glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
+                <div className="mb-6">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
+                      <Zap className="w-6 h-6 text-mauve-light" />
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.free.name}</h3>
+                  </div>
+                  <p className="text-muted-foreground text-sm">{tx.landing.pricing.free.desc}</p>
+                </div>
+                <div className="mb-6">
+                  <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.free.price}</span>
+                  {lang === "fr" && (
+                    <p className="text-sm text-gold font-semibold mt-1">{tx.landing.pricing.free.note}</p>
+                  )}
+                </div>
+                <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
+                  {tx.landing.pricing.free.features.map((f) => (
+                    <li key={f} className="flex items-start gap-3">
+                      <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                      <span className="text-sm text-muted-foreground">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+                <button className="w-full py-3.5 sm:py-4 rounded-full border border-muted-foreground/20 text-foreground font-bold hover:bg-muted-foreground/10 transition-all duration-300 cursor-pointer">
+                  {tx.landing.pricing.free.cta}
+                </button>
+              </div>
             )}
 
             {/* MONTHLY PLAN */}
@@ -571,24 +560,47 @@ export default function OffersPage() {
                   </li>
                 ))}
               </ul>
-              <button
-                onClick={() => handleCheckout("monthly")}
-                disabled={loadingPlan === "monthly" || (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired)}
-                className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {loadingPlan === "monthly" ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    {lang === "fr" ? "Redirection..." : "Redirecting..."}
-                  </>
-                ) : isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired ? (
-                  <>{lang === "fr" ? "Plan Actuel" : "Current Plan"}</>
-                ) : (
-                  <>
-                    {tx.landing.pricing.monthly.cta}
-                  </>
-                )}
-              </button>
+
+              {/* PayPal Button or Disabled State */}
+              {isPaypalConfigured ? (
+                <div className="paypal-button-wrapper">
+                  {isButtonDisabled("monthly") ? (
+                    <button
+                      disabled
+                      className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired
+                        ? lang === "fr" ? "Plan Actuel" : "Current Plan"
+                        : <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            {lang === "fr" ? "Chargement..." : "Loading..."}
+                          </>}
+                    </button>
+                  ) : (
+                    <PayPalButtons
+                      style={paypalButtonStyle}
+                      fundingSource={undefined}
+                      createOrder={() => createOrder("monthly")}
+                      onApprove={(data) => handleApprove("monthly", data.orderID)}
+                      onError={() => {
+                        setCheckoutError(lang === "fr" ? "Erreur PayPal. Réessaie." : "PayPal error. Please try again.");
+                        setLoadingPlan(null);
+                      }}
+                      onCancel={() => {
+                        setCheckoutError(lang === "fr" ? "Paiement annulé." : "Payment cancelled.");
+                        setLoadingPlan(null);
+                      }}
+                    />
+                  )}
+                </div>
+              ) : (
+                <button
+                  disabled
+                  className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {lang === "fr" ? "Bientôt disponible" : "Coming soon"}
+                </button>
+              )}
             </div>
 
             {/* ANNUAL PLAN — highlighted */}
@@ -601,7 +613,6 @@ export default function OffersPage() {
                 </span>
               </span>
 
-              {/* Save badge (now "1 an d'accès") */}
               {tx.landing.pricing.annual.save && (
                 <div className="flex justify-end mb-2">
                   <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold">
@@ -631,37 +642,69 @@ export default function OffersPage() {
                   </li>
                 ))}
               </ul>
-              <button
-                onClick={() => handleCheckout("annual")}
-                disabled={loadingPlan === "annual" || (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired)}
-                className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden flex items-center justify-center gap-2"
-              >
-                {loadingPlan === "annual" ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    {lang === "fr" ? "Redirection..." : "Redirecting..."}
-                  </>
-                ) : isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired ? (
-                  <>{lang === "fr" ? "Plan Actuel" : "Current Plan"}</>
-                ) : (
-                  <>
-                    {tx.landing.pricing.annual.cta}
-                  </>
-                )}
-              </button>
+
+              {/* PayPal Button or Disabled State */}
+              {isPaypalConfigured ? (
+                <div className="paypal-button-wrapper">
+                  {isButtonDisabled("annual") ? (
+                    <button
+                      disabled
+                      className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden"
+                    >
+                      {isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired
+                        ? lang === "fr" ? "Plan Actuel" : "Current Plan"
+                        : <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            {lang === "fr" ? "Chargement..." : "Loading..."}
+                          </>}
+                    </button>
+                  ) : (
+                    <PayPalButtons
+                      style={{
+                        ...paypalButtonStyle,
+                        color: "gold",
+                      }}
+                      fundingSource={undefined}
+                      createOrder={() => createOrder("annual")}
+                      onApprove={(data) => handleApprove("annual", data.orderID)}
+                      onError={() => {
+                        setCheckoutError(lang === "fr" ? "Erreur PayPal. Réessaie." : "PayPal error. Please try again.");
+                        setLoadingPlan(null);
+                      }}
+                      onCancel={() => {
+                        setCheckoutError(lang === "fr" ? "Paiement annulé." : "Payment cancelled.");
+                        setLoadingPlan(null);
+                      }}
+                    />
+                  )}
+                </div>
+              ) : (
+                <button
+                  disabled
+                  className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden"
+                >
+                  {lang === "fr" ? "Bientôt disponible" : "Coming soon"}
+                </button>
+              )}
             </div>
           </div>
         )}
 
-
-
         {/* ===== BOTTOM NOTE ===== */}
         <div className="text-center pb-10">
-          <p className="text-xs text-muted-foreground/50">
-            {lang === "fr"
-              ? "Paiement 100% sécurisé via Chariow"
-              : "100% secure payment via Chariow"}
-          </p>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Lock className="w-3.5 h-3.5 text-muted-foreground/40" />
+            <span className="text-xs text-muted-foreground/50">
+              {lang === "fr"
+                ? "Paiement 100% sécurisé via PayPal"
+                : "100% secure payment via PayPal"}
+            </span>
+          </div>
+          {isPaypalConfigured && (
+            <span className="text-[10px] text-muted-foreground/30">
+              {lang === "fr" ? "Mode Sandbox — Test" : "Sandbox Mode — Test"}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -728,13 +771,16 @@ export default function OffersPage() {
       }
       .animate-fade-in { animation: fade-in 0.4s ease-out; }
 
-      /* Notification dot pulse */
-      @keyframes notification-pulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.4; transform: scale(0.85); }
+      /* PayPal button container styling */
+      .paypal-button-wrapper {
+        min-height: 45px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
       }
-      .notification-dot {
-        animation: notification-pulse 2s ease-in-out infinite;
+      .paypal-button-wrapper iframe {
+        border-radius: 9999px !important;
+        min-height: 45px !important;
       }
     `}</style>
     </>
