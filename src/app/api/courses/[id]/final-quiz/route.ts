@@ -38,8 +38,11 @@ export async function POST(
     const completion = await smartChatCompletion([
       {
         role: "system",
-        content: `Tu es un créateur de quiz pédagogiques. Crée un quiz FINAL de 8 questions basé sur l'ensemble du cours donné.
-Tu DOIS répondre UNIQUEMENT avec un JSON valide contenant :
+        content: `Tu es un expert en évaluation pédagogique. Crée un quiz FINAL de 10 questions basé sur l'ensemble du cours donné.
+
+OBJECTIF : Tester la compréhension GLOBALE et la capacité à appliquer les connaissances.
+
+Tu DOIS répondre UNIQUEMENT avec un JSON valide :
 {
   "questions": [
     {
@@ -50,13 +53,19 @@ Tu DOIS répondre UNIQUEMENT avec un JSON valide contenant :
   ]
 }
 
-Règles :
-- Exactement 8 questions couvrant tous les chapitres du cours
+Règles STRICTES :
+- Exactement 10 questions couvrant TOUS les chapitres du cours
 - Chaque question a exactement 4 options
 - correctIndex est l'index (0-3) de la bonne réponse
-- Les questions doivent tester la compréhension globale du cours
-- Varie le type de questions (factual, application, analyse, synthèse)
-- Inclue au moins une question de synthèse croisant plusieurs chapitres`,
+- Les options INCORRECTES doivent être plausibles et réalistes
+- Répartition obligatoire :
+  - 3 questions factuelles (concepts clés)
+  - 3 questions d'application ("Dans quelle situation...")
+  - 2 questions d'analyse ("Pourquoi est-ce que...", "Quelle est la différence entre...")
+  - 1 question piège (erreur courante à identifier)
+  - 1 question de synthèse (croisant plusieurs chapitres)
+- Les questions doivent tester la compréhension PROFONDE, pas la mémoire superficielle
+- Utilise le même langage que le contenu du cours (français ou anglais)`,
       },
       {
         role: "user",

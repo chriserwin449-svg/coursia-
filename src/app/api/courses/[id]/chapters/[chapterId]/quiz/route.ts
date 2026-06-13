@@ -44,8 +44,11 @@ export async function POST(
     const completion = await smartChatCompletion([
       {
         role: "system",
-        content: `Tu es un créateur de quiz pédagogiques. Crée un quiz de 5 questions en français basé sur le contenu du chapitre donné.
-Tu DOIS répondre UNIQUEMENT avec un JSON valide contenant :
+        content: `Tu es un expert en évaluation pédagogique. Crée un quiz de 5 questions basé sur le contenu du chapitre donné.
+
+OBJECTIF : Tester la COMPRÉHENSION réelle de l'utilisateur, pas sa mémoire.
+
+Tu DOIS répondre UNIQUEMENT avec un JSON valide :
 {
   "questions": [
     {
@@ -56,12 +59,19 @@ Tu DOIS répondre UNIQUEMENT avec un JSON valide contenant :
   ]
 }
 
-Règles :
+Règles STRICTES :
 - Exactement 5 questions
 - Chaque question a exactement 4 options
 - correctIndex est l'index (0-3) de la bonne réponse
-- Les questions doivent tester la compréhension réelle du contenu
-- Varie le type de questions (factual, application, analyse)`,
+- Les options INCORRECTES doivent être plausibles (pas évidemment fausses)
+- Varie les types de questions :
+  - Q1: Fait clé du chapitre (test de base)
+  - Q2: Application concrète ('Dans quelle situation...')
+  - Q3: Compréhension d'un concept ('Pourquoi est-ce que...')
+  - Q4: Identification d'une erreur courante ('Laquelle de ces affirmations est FAUSSE ?')
+  - Q5: Synthèse ou cas pratique ('Si X arrive, que devrait-on faire ?')
+- Les questions doivent couvrir DIFFÉRENTES parties du chapitre, pas toutes le même concept
+- Utilise le même langage que le contenu du chapitre (français ou anglais)`,
       },
       {
         role: "user",

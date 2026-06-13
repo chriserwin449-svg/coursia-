@@ -22,11 +22,11 @@ export const FREE_CHAPTER_LIMIT = 1; // Only first chapter readable without subs
 export const MIN_CHAPTERS = 4;
 export const MAX_CHAPTERS = 6;
 export const MIN_SUBCHAPTERS = 2;
-export const MIN_WORDS_PER_CHAPTER = 250;
+export const MIN_WORDS_PER_CHAPTER = 400;
 export const MAX_SOURCE_LINKS = 3;
-export const SCRAPED_TEXT_MAX_LENGTH = 2000;
+export const SCRAPED_TEXT_MAX_LENGTH = 4000;
 export const SCRAPED_TEXT_MIN_LENGTH = 50;
-export const MAX_TOKENS = 8192;
+export const MAX_TOKENS = 16384;
 export const AI_RETRY_COUNT = 2;
 export const AI_RETRY_BACKOFF_MS = 2000;
 
