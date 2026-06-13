@@ -11,7 +11,6 @@ import {
   ChevronRight,
   Globe,
   Crown,
-  CreditCard,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -37,17 +36,9 @@ export default function CreateCourse() {
   const [showSuggested, setShowSuggested] = useState(false);
   const [suggestedTopic, setSuggestedTopic] = useState("");
   const [hasSubscription, setHasSubscription] = useState(false);
-  const [coursesRemaining, setCoursesRemaining] = useState(3);
-  const [inTrial, setInTrial] = useState(false);
-  const [trialExpired, setTrialExpired] = useState(false);
-  const [inGracePeriod, setInGracePeriod] = useState(false);
-  const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
-  const [trialCoursesMax, setTrialCoursesMax] = useState(3);
+  const [canCreateCourse, setCanCreateCourse] = useState(true);
   const [selectedLevel, setSelectedLevel] = useState(0);
   const [isRandomTopic, setIsRandomTopic] = useState(false);
-  const [requireCard, setRequireCard] = useState(false);
-  const [showCardModal, setShowCardModal] = useState(false);
-  const [cardVerifying, setCardVerifying] = useState(false);
 
   // ─── Store refs for random topic ────────────────────────────────────────
   const storeRandomTopic = useAppStore((s) => s.randomTopic);
@@ -161,21 +152,7 @@ export default function CreateCourse() {
       if (pwRes.ok) {
         const pw = await pwRes.json();
         setHasSubscription(pw.hasSubscription);
-        setInTrial(pw.inTrial);
-        setTrialExpired(pw.showPaywall && pw.paywallReason === "trial_expired");
-        setInGracePeriod(pw.inGracePeriod);
-        if (pw.inTrial) {
-          setTrialDaysRemaining(pw.trialDaysRemaining || 0);
-          setTrialCoursesMax(pw.trialCoursesMax || 3);
-          setCoursesRemaining(Math.max(0, (pw.trialCoursesMax || 3) - (pw.trialCoursesGenerated || 0)));
-          setRequireCard(!!pw.requireCard);
-        } else if (!pw.hasSubscription) {
-          setCoursesRemaining(Math.max(0, (pw.trialCoursesMax || 3) - (pw.trialCoursesGenerated || 0)));
-          setRequireCard(!!pw.requireCard);
-        } else {
-          setCoursesRemaining(999);
-          setRequireCard(false);
-        }
+        setCanCreateCourse(pw.canGenerate);
       }
     } catch {
       // silently ignore
@@ -213,14 +190,8 @@ export default function CreateCourse() {
   const generateCourse = async () => {
     if (!title.trim()) return;
 
-    // Show card modal if required
-    if (requireCard && !hasSubscription) {
-      setShowCardModal(true);
-      return;
-    }
-
-    // Trial limit check
-    if (!hasSubscription && coursesRemaining <= 0) {
+    // Free limit check
+    if (!hasSubscription && !canCreateCourse) {
       setView("offers");
       return;
     }
@@ -248,10 +219,6 @@ export default function CreateCourse() {
           setView("offers");
           return;
         }
-        if (data.error === "REQUIRE_CARD") {
-          setShowCardModal(true);
-          return;
-        }
         throw new Error(data.error || "Failed to generate");
       }
 
@@ -272,44 +239,6 @@ export default function CreateCourse() {
     setSelectedCourseId(id);
     setView("viewer");
   };
-
-  // ─── Personalized trial counter text ────────────────────────────────
-  const trialCounterText = useMemo(() => {
-    const firstName = user?.firstName || "";
-
-    // Pre-trial (no courses yet, show simple welcome)
-    if (!inTrial && coursesRemaining === trialCoursesMax) {
-      if (firstName) {
-        return (tx.create.trialNoCourses as string).replace("{name}", firstName);
-      }
-      return lang === "fr"
-        ? `Tu as ${coursesRemaining} cours gratuit${coursesRemaining > 1 ? "s" : ""} sur Coursia !`
-        : `You have ${coursesRemaining} free course${coursesRemaining > 1 ? "s" : ""} on Coursia!`;
-    }
-
-    // Active trial — show detailed counter
-    if (inTrial) {
-      const dayWord = trialDaysRemaining > 1
-        ? (lang === "fr" ? tx.create.trialCounterDays : tx.create.trialCounterDays)
-        : (lang === "fr" ? tx.create.trialCounterDay : tx.create.trialCounterDay);
-      const courseSuffix = coursesRemaining > 1 ? "s" : "";
-      const daySuffix = trialDaysRemaining > 1 ? "s" : "";
-
-      if (firstName) {
-        return lang === "fr"
-          ? `${firstName}, il te reste ${coursesRemaining} cours gratuit${courseSuffix} sur ton temps d'essai · ${trialDaysRemaining} ${dayWord} restant${daySuffix}`
-          : `${firstName}, you have ${coursesRemaining} free course${courseSuffix} left on your trial · ${trialDaysRemaining} trial ${dayWord} remaining`;
-      }
-      return lang === "fr"
-        ? `Il te reste ${coursesRemaining} cours gratuit${courseSuffix} · ${trialDaysRemaining} ${dayWord} d'essai`
-        : `${coursesRemaining} free course${courseSuffix} · ${trialDaysRemaining} trial ${dayWord} remaining`;
-    }
-
-    // Post-trial, courses used up
-    return lang === "fr"
-      ? `${firstName ? firstName + ", " : ""}tu as utilisé tes ${trialCoursesMax} cours d'essai`
-      : `${firstName ? firstName + ", " : ""}you've used all ${trialCoursesMax} trial courses`;
-  }, [user?.firstName, lang, inTrial, coursesRemaining, trialDaysRemaining, trialCoursesMax, tx.create]);
 
   // ─── Helpers ──────────────────────────────────────────────────────────
   const courseLangLabels = tx.create.courseLangs;
@@ -500,44 +429,16 @@ export default function CreateCourse() {
           </div>
         )}
 
-        {/* ─── Trial/Grace banner ─── */}
-        {!hasSubscription && !inGracePeriod && (
-          <div className={`mb-6 p-4 rounded-2xl border text-center transition-all duration-300 ${
-            trialExpired || coursesRemaining <= 0
-              ? "bg-destructive/10 border-destructive/30"
-              : "glass"
-          }`}>
-            {trialExpired || coursesRemaining <= 0 ? (
-              <>
-                <p className="text-sm font-bold text-destructive mb-2">
-                  {trialExpired
-                    ? (lang === "fr" ? "Essai terminé" : "Trial ended")
-                    : (lang === "fr" ? "Limite d'essai atteinte" : "Trial limit reached")}
-                </p>
-                <button
-                  onClick={() => setView("offers")}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-sm font-extrabold hover:from-amber-400 hover:to-gold transition-all duration-300 cursor-pointer"
-                >
-                  <Crown className="w-4 h-4" />
-                  {lang === "fr" ? "Voir les abonnements" : "See plans"}
-                </button>
-              </>
-            ) : inTrial ? (
-              <p className="text-sm font-semibold text-gold">
-                {trialCounterText}
-              </p>
-            ) : (
-              <p className="text-sm font-semibold text-muted-foreground">
-                {trialCounterText}
-              </p>
-            )}
-          </div>
-        )}
-        {inGracePeriod && (
-          <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center">
-            <p className="text-sm font-semibold text-amber-200">
-              {lang === "fr" ? "Lecture seule — Période de grâce" : "Read-only — Grace period"}
-            </p>
+        {/* ─── Limit reached: show offers button only ─── */}
+        {!hasSubscription && !canCreateCourse && (
+          <div className="mb-6 flex justify-center">
+            <button
+              onClick={() => setView("offers")}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-sm font-extrabold hover:from-amber-400 hover:to-gold transition-all duration-300 cursor-pointer"
+            >
+              <Crown className="w-4 h-4" />
+              {lang === "fr" ? "Voir les abonnements" : "See plans"}
+            </button>
           </div>
         )}
 
@@ -640,72 +541,6 @@ export default function CreateCourse() {
         )}
       </div>
     </div>
-
-    {/* ─── Card Requirement Modal ─── */}
-    {showCardModal && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => !cardVerifying && setShowCardModal(false)}>
-        <div className="glass rounded-3xl p-6 sm:p-8 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gold/15 mb-4">
-              <CreditCard className="w-8 h-8 text-gold" />
-            </div>
-            <h3 className="text-xl font-extrabold mb-2">
-              {lang === "fr" ? "Enregistre ta carte" : "Save your card"}
-            </h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {lang === "fr"
-                ? "Pour continuer à générer tes cours d'essai, vérifie ta carte de paiement. Une autorisation de $0.01 sera effectuée. Tu ne seras facturé qu'en choisissant un abonnement."
-                : "To keep generating trial courses, verify your payment card. A $0.01 authorization will be made. You'll only be charged when choosing a subscription."}
-            </p>
-          </div>
-          <div className="space-y-3">
-            <button
-              onClick={async () => {
-                const userId = useAppStore.getState().userId;
-                if (!userId) return;
-                setCardVerifying(true);
-                try {
-                  const res = await fetch("/api/subscription/verify-card", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ userId }),
-                  });
-                  const data = await res.json();
-                  if (res.ok && data.approveUrl) {
-                    setShowCardModal(false);
-                    window.location.href = data.approveUrl;
-                  } else {
-                    setError(data.error || (lang === "fr" ? "Erreur de vérification" : "Verification failed"));
-                    setCardVerifying(false);
-                  }
-                } catch {
-                  setError(lang === "fr" ? "Erreur de connexion" : "Connection error");
-                  setCardVerifying(false);
-                }
-              }}
-              disabled={cardVerifying}
-              className="w-full py-3.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:opacity-90 transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {cardVerifying ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <CreditCard className="w-4 h-4" />
-              )}
-              {cardVerifying
-                ? (lang === "fr" ? "Vérification..." : "Verifying...")
-                : (lang === "fr" ? "Vérifier avec PayPal ($0.01)" : "Verify with PayPal ($0.01)")}
-            </button>
-            <button
-              onClick={() => setShowCardModal(false)}
-              disabled={cardVerifying}
-              className="w-full py-3.5 rounded-full border border-muted-foreground/20 text-muted-foreground font-bold hover:bg-muted-foreground/10 transition-all duration-300 cursor-pointer disabled:opacity-50"
-            >
-              {lang === "fr" ? "Plus tard" : "Maybe later"}
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
     </>
   );
 }

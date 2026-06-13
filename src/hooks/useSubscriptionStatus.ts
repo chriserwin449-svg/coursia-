@@ -81,6 +81,7 @@ export function useSubscriptionStatus(): SubscriptionStatusResult {
 
       // Grace period (3 days after subscription ends)
       if (hasSub && data.subscriptionEndDate) {
+        const now = new Date();
         const end = new Date(data.subscriptionEndDate);
         const daysSinceEnd = Math.max(0, Math.floor((now.getTime() - end.getTime()) / 86_400_000));
         const inGrace = daysSinceEnd > 0 && daysSinceEnd <= GRACE_PERIOD_DAYS;

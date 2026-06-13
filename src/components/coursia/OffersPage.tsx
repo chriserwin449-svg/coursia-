@@ -427,44 +427,8 @@ export default function OffersPage() {
         {/* ===== PRICING CARDS ===== */}
         {!paymentSuccess && (
           <div
-            className={`grid gap-6 lg:gap-8 items-start mb-20 ${
-              trialExpired || graceExpired
-                ? "grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto"
-                : "grid-cols-1 md:grid-cols-3"
-            }`}
+            className={`grid gap-6 lg:gap-8 items-start mb-20 grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto`}
           >
-            {/* FREE PLAN */}
-            {!trialExpired && !graceExpired && (
-              <div className="pricing-card-float glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
-                <div className="mb-6">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
-                      <Zap className="w-6 h-6 text-mauve-light" />
-                    </div>
-                    <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.free.name}</h3>
-                  </div>
-                  <p className="text-muted-foreground text-sm">{tx.landing.pricing.free.desc}</p>
-                </div>
-                <div className="mb-6">
-                  <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.free.price}</span>
-                  {lang === "fr" && (
-                    <p className="text-sm text-gold font-semibold mt-1">{tx.landing.pricing.free.note}</p>
-                  )}
-                </div>
-                <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
-                  {tx.landing.pricing.free.features.map((f) => (
-                    <li key={f} className="flex items-start gap-3">
-                      <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                      <span className="text-sm text-muted-foreground">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <button className="w-full py-3.5 sm:py-4 rounded-full border border-muted-foreground/20 text-foreground font-bold hover:bg-muted-foreground/10 transition-all duration-300 cursor-pointer">
-                  {tx.landing.pricing.free.cta}
-                </button>
-              </div>
-            )}
-
             {/* MONTHLY PLAN */}
             <div className="pricing-card-float monthly-card-glow glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
               <div className="mb-6">

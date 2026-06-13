@@ -1,0 +1,712 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+     4→     4→import {
+     5→     5→  Sparkles,
+     6→     6→  Plus,
+     7→     7→  X,
+     8→     8→  Link as LinkIcon,
+     9→     9→  Loader2,
+    10→    10→  BookOpen,
+    11→    11→  ChevronRight,
+    12→    12→  Globe,
+    13→    13→  Crown,
+    14→    14→  CreditCard,
+    15→    15→} from "lucide-react";
+    16→    16→import { useAppStore } from "@/lib/store";
+    17→    17→import { t } from "@/lib/i18n";
+    18→    18→import type { CourseData } from "@/lib/store";
+    19→    19→
+    20→    20→export default function CreateCourse() {
+    21→    21→  const lang = useAppStore((s) => s.lang);
+    22→    22→  const tx = t(lang);
+    23→    23→  const user = useAppStore((s) => s.user);
+    24→    24→
+    25→    25→  const setView = useAppStore((s) => s.setView);
+    26→    26→  const setSelectedCourseId = useAppStore((s) => s.setSelectedCourseId);
+    27→    27→  const setIsGenerating = useAppStore((s) => s.setIsGenerating);
+    28→    28→
+    29→    29→  const [title, setTitle] = useState("");
+    30→    30→  const [links, setLinks] = useState<string[]>([]);
+    31→    31→  const [linkInput, setLinkInput] = useState("");
+    32→    32→  const [loading, setLoading] = useState(false);
+    33→    33→  const [error, setError] = useState("");
+    34→    34→  const [courseLang, setCourseLang] = useState("fr"); // "fr" or "en"
+    35→    35→  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+    36→    36→  const [courses, setCourses] = useState<CourseData[]>([]);
+    37→    37→  const [showSuggested, setShowSuggested] = useState(false);
+    38→    38→  const [suggestedTopic, setSuggestedTopic] = useState("");
+    39→    39→  const [hasSubscription, setHasSubscription] = useState(false);
+    40→    40→  const [coursesRemaining, setCoursesRemaining] = useState(3);
+    41→    41→  const [inTrial, setInTrial] = useState(false);
+    42→    42→  const [trialExpired, setTrialExpired] = useState(false);
+    43→    43→  const [inGracePeriod, setInGracePeriod] = useState(false);
+    44→    44→  const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
+    45→    45→  const [trialCoursesMax, setTrialCoursesMax] = useState(3);
+    46→    46→  const [selectedLevel, setSelectedLevel] = useState(0);
+    47→    47→  const [isRandomTopic, setIsRandomTopic] = useState(false);
+    48→    48→  const [requireCard, setRequireCard] = useState(false);
+    49→    49→  const [showCardModal, setShowCardModal] = useState(false);
+    50→    50→  const [cardVerifying, setCardVerifying] = useState(false);
+    51→    51→
+    52→    52→  // ─── Store refs for random topic ────────────────────────────────────────
+    53→    53→  const storeRandomTopic = useAppStore((s) => s.randomTopic);
+    54→    54→  const storeRandomCourseLang = useAppStore((s) => s.randomCourseLang);
+    55→    55→  const setStoreRandomTopic = useAppStore((s) => s.setRandomTopic);
+    56→    56→  const prevRandomRef = useRef<string | null>(null);
+    57→    57→
+    58→    58→  // ─── React to random topic changes from TopBar (instant, no reload) ───
+    59→    59→  useEffect(() => {
+    60→    60→    if (storeRandomTopic && storeRandomTopic !== prevRandomRef.current) {
+    61→    61→      setTitle(storeRandomTopic);
+    62→    62→      setSuggestedTopic(storeRandomTopic);
+    63→    63→      setShowSuggested(true);
+    64→    64→      setIsRandomTopic(true);
+    65→    65→      setSelectedLevel(0);
+    66→    66→      if (storeRandomCourseLang === "fr" || storeRandomCourseLang === "en") {
+    67→    67→        setCourseLang(storeRandomCourseLang);
+    68→    68→      }
+    69→    69→      prevRandomRef.current = storeRandomTopic;
+    70→    70→      setStoreRandomTopic(null); // consume it
+    71→    71→    }
+    72→    72→  }, [storeRandomTopic, storeRandomCourseLang, setStoreRandomTopic]);
+    73→    73→
+    74→    74→  // ─── Personalized greeting (time-based) ──────────────────────────────
+    75→    75→  const greeting = useMemo(() => {
+    76→    76→    const hour = new Date().getHours();
+    77→    77→    const firstName = user?.firstName || "";
+    78→    78→    const casualGreetings = tx.create.greetingCasual;
+    79→    79→    const messages = tx.create.greetingMessages;
+    80→    80→
+    81→    81→    // Pick a greeting based on time of day
+    82→    82→    let timeGreeting: string;
+    83→    83→    if (hour >= 5 && hour < 12) {
+    84→    84→      timeGreeting = tx.create.greetingMorning;
+    85→    85→    } else if (hour >= 12 && hour < 17) {
+    86→    86→      timeGreeting = tx.create.greetingAfternoon;
+    87→    87→    } else if (hour >= 17 && hour < 22) {
+    88→    88→      timeGreeting = tx.create.greetingEvening;
+    89→    89→    } else {
+    90→    90→      // Late night - use a random casual greeting
+    91→    91→      timeGreeting = casualGreetings[Math.floor(Math.random() * casualGreetings.length)];
+    92→    92→    }
+    93→    93→
+    94→    94→    // Pick a random encouraging message (seeded by day to avoid changing on every render)
+    95→    95→    const dayIndex = Math.floor(Date.now() / 86_400_000); // changes once per day
+    96→    96→    const message = messages[dayIndex % messages.length];
+    97→    97→
+    98→    98→    return {
+    99→    99→      greeting: timeGreeting,
+   100→   100→      name: firstName,
+   101→   101→      message,
+   102→   102→    };
+   103→   103→  }, [user?.firstName, tx.create]);
+   104→   104→
+   105→   105→  // ─── Rotating placeholder with typing/fade effect ────────────────────
+   106→   106→  const placeholders = tx.create.placeholders;
+   107→   107→  const [displayedPlaceholder, setDisplayedPlaceholder] = useState(placeholders[0]);
+   108→   108→  const [isTyping, setIsTyping] = useState(true);
+   109→   109→  const [charIndex, setCharIndex] = useState(0);
+   110→   110→  const [isFading, setIsFading] = useState(false);
+   111→   111→  const innerTimerRef = useRef<ReturnType<typeof setTimeout>>();
+   112→   112→
+   113→   113→  useEffect(() => {
+   114→   114→    // Skip typing animation while user has typed something
+   115→   115→    if (title.length > 0) {
+   116→   116→      setDisplayedPlaceholder("");
+   117→   117→      setIsTyping(false);
+   118→   118→      return;
+   119→   119→    }
+   120→   120→
+   121→   121→    const currentPlaceholder = placeholders[placeholderIndex];
+   122→   122→
+   123→   123→    if (isTyping) {
+   124→   124→      if (charIndex <= currentPlaceholder.length) {
+   125→   125→        const timeout = setTimeout(() => {
+   126→   126→          setDisplayedPlaceholder(currentPlaceholder.slice(0, charIndex));
+   127→   127→          setCharIndex(charIndex + 1);
+   128→   128→        }, 35);
+   129→   129→        return () => clearTimeout(timeout);
+   130→   130→      } else {
+   131→   131→        // Finished typing, wait then start fading
+   132→   132→        const timeout = setTimeout(() => {
+   133→   133→          setIsFading(true);
+   134→   134→          innerTimerRef.current = setTimeout(() => {
+   135→   135→            setPlaceholderIndex((placeholderIndex + 1) % placeholders.length);
+   136→   136→            setCharIndex(0);
+   137→   137→            setIsTyping(true);
+   138→   138→            setIsFading(false);
+   139→   139→          }, 500);
+   140→   140→        }, 2200);
+   141→   141→        return () => { clearTimeout(timeout); if (innerTimerRef.current) clearTimeout(innerTimerRef.current); };
+   142→   142→      }
+   143→   143→    }
+   144→   144→  }, [charIndex, isTyping, isFading, placeholderIndex, placeholders, title]);
+   145→   145→
+   146→   146→  // ─── Fetch courses & subscription status ───────────────────────────
+   147→   147→  const fetchCourses = useCallback(async () => {
+   148→   148→    try {
+   149→   149→      const res = await fetch(`/api/courses?userId=${useAppStore.getState().userId || ''}`);
+   150→   150→      if (res.ok) {
+   151→   151→        const data = await res.json();
+   152→   152→        const list = (data.courses as CourseData[]) || [];
+   153→   153→        setCourses(list);
+   154→   154→      }
+   155→   155→
+   156→   156→      // Check subscription & trial status via paywall-status API
+   157→   157→      const userId = useAppStore.getState().userId;
+   158→   158→      const headers: Record<string, string> = {};
+   159→   159→      if (userId) headers["Authorization"] = `Bearer ${userId}`;
+   160→   160→      const pwRes = await fetch("/api/courses/paywall-status", { headers });
+   161→   161→      if (pwRes.ok) {
+   162→   162→        const pw = await pwRes.json();
+   163→   163→        setHasSubscription(pw.hasSubscription);
+   164→   164→        setInTrial(pw.inTrial);
+   165→   165→        setTrialExpired(pw.showPaywall && pw.paywallReason === "trial_expired");
+   166→   166→        setInGracePeriod(pw.inGracePeriod);
+   167→   167→        if (pw.inTrial) {
+   168→   168→          setTrialDaysRemaining(pw.trialDaysRemaining || 0);
+   169→   169→          setTrialCoursesMax(pw.trialCoursesMax || 3);
+   170→   170→          setCoursesRemaining(Math.max(0, (pw.trialCoursesMax || 3) - (pw.trialCoursesGenerated || 0)));
+   171→   171→          setRequireCard(!!pw.requireCard);
+   172→   172→        } else if (!pw.hasSubscription) {
+   173→   173→          setCoursesRemaining(Math.max(0, (pw.trialCoursesMax || 3) - (pw.trialCoursesGenerated || 0)));
+   174→   174→          setRequireCard(!!pw.requireCard);
+   175→   175→        } else {
+   176→   176→          setCoursesRemaining(999);
+   177→   177→          setRequireCard(false);
+   178→   178→        }
+   179→   179→      }
+   180→   180→    } catch {
+   181→   181→      // silently ignore
+   182→   182→    }
+   183→   183→  }, []);
+   184→   184→
+   185→   185→  useEffect(() => {
+   186→   186→    fetchCourses();
+   187→   187→  }, [fetchCourses]);
+   188→   188→
+   189→   189→  // ─── Clear suggested topic when user modifies title manually ────────
+   190→   190→  const handleTitleChange = (newTitle: string) => {
+   191→   191→    setTitle(newTitle);
+   192→   192→    if (newTitle.trim() !== suggestedTopic.trim()) {
+   193→   193→      setShowSuggested(false);
+   194→   194→      setSuggestedTopic("");
+   195→   195→      setIsRandomTopic(false);
+   196→   196→    }
+   197→   197→  };
+   198→   198→
+   199→   199→  // ─── Link management ──────────────────────────────────────────────────
+   200→   200→  const addLink = () => {
+   201→   201→    const trimmed = linkInput.trim();
+   202→   202→    if (trimmed && !links.includes(trimmed)) {
+   203→   203→      setLinks([...links, trimmed]);
+   204→   204→      setLinkInput("");
+   205→   205→    }
+   206→   206→  };
+   207→   207→
+   208→   208→  const removeLink = (index: number) => {
+   209→   209→    setLinks(links.filter((_, i) => i !== index));
+   210→   210→  };
+   211→   211→
+   212→   212→  // ─── Generate course ──────────────────────────────────────────────────
+   213→   213→  const generateCourse = async () => {
+   214→   214→    if (!title.trim()) return;
+   215→   215→
+   216→   216→    // Show card modal if required
+   217→   217→    if (requireCard && !hasSubscription) {
+   218→   218→      setShowCardModal(true);
+   219→   219→      return;
+   220→   220→    }
+   221→   221→
+   222→   222→    // Trial limit check
+   223→   223→    if (!hasSubscription && coursesRemaining <= 0) {
+   224→   224→      setView("offers");
+   225→   225→      return;
+   226→   226→    }
+   227→   227→
+   228→   228→    setLoading(true);
+   229→   229→    setError("");
+   230→   230→    setIsGenerating(true);
+   231→   231→
+   232→   232→    try {
+   233→   233→      const res = await fetch("/api/courses/generate", {
+   234→   234→        method: "POST",
+   235→   235→        headers: { "Content-Type": "application/json" },
+   236→   236→        body: JSON.stringify({
+   237→   237→          title: title.trim(),
+   238→   238→          sourceLinks: links,
+   239→   239→          level: isRandomTopic ? 0 : selectedLevel,
+   240→   240→          courseLang,
+   241→   241→          userId: useAppStore.getState().userId,
+   242→   242→        }),
+   243→   243→      });
+   244→   244→
+   245→   245→      const data = await res.json();
+   246→   246→      if (!res.ok) {
+   247→   247→        if (data.error === "FREE_LIMIT" || data.error === "TRIAL_LIMIT" || data.error === "TRIAL_EXPIRED") {
+   248→   248→          setView("offers");
+   249→   249→          return;
+   250→   250→        }
+   251→   251→        if (data.error === "REQUIRE_CARD") {
+   252→   252→          setShowCardModal(true);
+   253→   253→          return;
+   254→   254→        }
+   255→   255→        throw new Error(data.error || "Failed to generate");
+   256→   256→      }
+   257→   257→
+   258→   258→      const course = data.course as CourseData;
+   259→   259→      setSelectedCourseId(course.id);
+   260→   260→      setView("viewer");
+   261→   261→    } catch (err: unknown) {
+   262→   262→      setError(err instanceof Error ? err.message : "Une erreur est survenue");
+   263→   263→    } finally {
+   264→   264→      setLoading(false);
+   265→   265→      setIsGenerating(false);
+   266→   266→      fetchCourses();
+   267→   267→    }
+   268→   268→  };
+   269→   269→
+   270→   270→  // ─── Open a course ────────────────────────────────────────────────────
+   271→   271→  const openCourse = (id: string) => {
+   272→   272→    setSelectedCourseId(id);
+   273→   273→    setView("viewer");
+   274→   274→  };
+   275→   275→
+   276→   276→  // ─── Personalized trial counter text ────────────────────────────────
+   277→   277→  const trialCounterText = useMemo(() => {
+   278→   278→    const firstName = user?.firstName || "";
+   279→   279→
+   280→   280→    // Pre-trial (no courses yet, show simple welcome)
+   281→   281→    if (!inTrial && coursesRemaining === trialCoursesMax) {
+   282→   282→      if (firstName) {
+   283→   283→        return (tx.create.trialNoCourses as string).replace("{name}", firstName);
+   284→   284→      }
+   285→   285→      return lang === "fr"
+   286→   286→        ? `Tu as ${coursesRemaining} cours gratuit${coursesRemaining > 1 ? "s" : ""} sur Coursia !`
+   287→   287→        : `You have ${coursesRemaining} free course${coursesRemaining > 1 ? "s" : ""} on Coursia!`;
+   288→   288→    }
+   289→   289→
+   290→   290→    // Active trial — show detailed counter
+   291→   291→    if (inTrial) {
+   292→   292→      const dayWord = trialDaysRemaining > 1
+   293→   293→        ? (lang === "fr" ? tx.create.trialCounterDays : tx.create.trialCounterDays)
+   294→   294→        : (lang === "fr" ? tx.create.trialCounterDay : tx.create.trialCounterDay);
+   295→   295→      const courseSuffix = coursesRemaining > 1 ? "s" : "";
+   296→   296→      const daySuffix = trialDaysRemaining > 1 ? "s" : "";
+   297→   297→
+   298→   298→      if (firstName) {
+   299→   299→        return lang === "fr"
+   300→   300→          ? `${firstName}, il te reste ${coursesRemaining} cours gratuit${courseSuffix} sur ton temps d'essai · ${trialDaysRemaining} ${dayWord} restant${daySuffix}`
+   301→   301→          : `${firstName}, you have ${coursesRemaining} free course${courseSuffix} left on your trial · ${trialDaysRemaining} trial ${dayWord} remaining`;
+   302→   302→      }
+   303→   303→      return lang === "fr"
+   304→   304→        ? `Il te reste ${coursesRemaining} cours gratuit${courseSuffix} · ${trialDaysRemaining} ${dayWord} d'essai`
+   305→   305→        : `${coursesRemaining} free course${courseSuffix} · ${trialDaysRemaining} trial ${dayWord} remaining`;
+   306→   306→    }
+   307→   307→
+   308→   308→    // Post-trial, courses used up
+   309→   309→    return lang === "fr"
+   310→   310→      ? `${firstName ? firstName + ", " : ""}tu as utilisé tes ${trialCoursesMax} cours d'essai`
+   311→   311→      : `${firstName ? firstName + ", " : ""}you've used all ${trialCoursesMax} trial courses`;
+   312→   312→  }, [user?.firstName, lang, inTrial, coursesRemaining, trialDaysRemaining, trialCoursesMax, tx.create]);
+   313→   313→
+   314→   314→  // ─── Helpers ──────────────────────────────────────────────────────────
+   315→   315→  const courseLangLabels = tx.create.courseLangs;
+   316→   316→
+   317→   317→  const formatDate = (dateStr: string) => {
+   318→   318→    const d = new Date(dateStr);
+   319→   319→    return d.toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", {
+   320→   320→      day: "numeric",
+   321→   321→      month: "short",
+   322→   322→      year: "numeric",
+   323→   323→    });
+   324→   324→  };
+   325→   325→
+   326→   326→  return (
+   327→   327→    <>
+   328→   328→    <div className="max-w-3xl mx-auto px-4 sm:px-6 md:px-10 pt-14 sm:pt-20 pb-8 md:pt-24 md:pb-16">
+   329→   329→      {/* ═══════════ Personalized Greeting ═══════════ */}
+   330→   330→      {user && (
+   331→   331→        <div className="mb-6 sm:mb-8">
+   332→   332→          <div className="glass rounded-2xl sm:rounded-3xl p-5 sm:p-6 md:p-8 text-center">
+   333→   333→            <div className="text-4xl sm:text-5xl mb-3 animate-bounce" role="img" aria-label="waving hand">👋</div>
+   334→   334→            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-2">
+   335→   335→              <span className="gradient-text">{greeting.greeting} {greeting.name} !</span>
+   336→   336→            </h1>
+   337→   337→            <p className="text-muted-foreground text-sm sm:text-base md:text-lg">
+   338→   338→              {greeting.message}
+   339→   339→            </p>
+   340→   340→          </div>
+   341→   341→        </div>
+   342→   342→      )}
+   343→   343→
+   344→   344→      {/* ═══════════ Main creation card ═══════════ */}
+   345→   345→      <div className="glass rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-10">
+   346→   346→        {/* ─── Title input ─── */}
+   347→   347→        <div className="mb-8">
+   348→   348→          <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
+   349→   349→            {tx.create.placeholder}
+   350→   350→          </label>
+   351→   351→          <div className="relative">
+   352→   352→            <input
+   353→   353→              type="text"
+   354→   354→              value={title}
+   355→   355→              onChange={(e) => handleTitleChange(e.target.value)}
+   356→   356→              placeholder=""
+   357→   357→              className="w-full px-6 py-5 rounded-2xl bg-night border border-border text-foreground text-lg font-bold placeholder:text-muted-foreground/50 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300"
+   358→   358→              onKeyDown={(e) => e.key === "Enter" && generateCourse()}
+   359→   359→              disabled={loading}
+   360→   360→            />
+   361→   361→            {/* Animated placeholder overlay */}
+   362→   362→            {!title && (
+   363→   363→              <div
+   364→   364→                className={`absolute left-6 top-1/2 -translate-y-1/2 pointer-events-none text-lg font-bold transition-opacity duration-500 ${
+   365→   365→                  isFading ? "opacity-0" : "opacity-100"
+   366→   366→                }`}
+   367→   367→                aria-hidden="true"
+   368→   368→              >
+   369→   369→                <span className="text-muted-foreground/40">
+   370→   370→                  {displayedPlaceholder}
+   371→   371→                </span>
+   372→   372→                <span className="inline-block w-0.5 h-5 bg-mauve/60 ml-0.5 align-middle animate-pulse" />
+   373→   373→              </div>
+   374→   374→            )}
+   375→   375→          </div>
+   376→   376→        </div>
+   377→   377→
+   378→   378→        {/* ─── Source links ─── */}
+   379→   379→        <div className="mb-8">
+   380→   380→          <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
+   381→   381→            <LinkIcon className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+   382→   382→            {tx.create.links}
+   383→   383→          </label>
+   384→   384→          <div className="flex gap-2">
+   385→   385→            <input
+   386→   386→              type="text"
+   387→   387→              value={linkInput}
+   388→   388→              onChange={(e) => setLinkInput(e.target.value)}
+   389→   389→              placeholder={tx.create.linkPlaceholder}
+   390→   390→              className="flex-1 px-5 py-3.5 rounded-2xl bg-night border border-border text-foreground font-semibold placeholder:text-muted-foreground/50 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300"
+   391→   391→              onKeyDown={(e) => {
+   392→   392→                if (e.key === "Enter") {
+   393→   393→                  e.preventDefault();
+   394→   394→                  addLink();
+   395→   395→                }
+   396→   396→              }}
+   397→   397→              disabled={loading}
+   398→   398→            />
+   399→   399→            <button
+   400→   400→              onClick={addLink}
+   401→   401→              disabled={!linkInput.trim() || loading}
+   402→   402→              className="px-5 py-3.5 rounded-2xl bg-mauve/20 text-mauve-light font-bold hover:bg-mauve/30 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+   403→   403→            >
+   404→   404→              <Plus className="w-5 h-5" />
+   405→   405→            </button>
+   406→   406→          </div>
+   407→   407→
+   408→   408→          {links.length > 0 && (
+   409→   409→            <div className="mt-3 space-y-2">
+   410→   410→              {links.map((link, i) => (
+   411→   411→                <div
+   412→   412→                  key={link}
+   413→   413→                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-night/50 border border-border text-sm transition-all duration-200"
+   414→   414→                >
+   415→   415→                  <LinkIcon className="w-3.5 h-3.5 text-mauve-light flex-shrink-0" />
+   416→   416→                  <span className="truncate flex-1 text-muted-foreground">
+   417→   417→                    {link}
+   418→   418→                  </span>
+   419→   419→                  <button
+   420→   420→                    onClick={() => removeLink(i)}
+   421→   421→                    className="p-1.5 hover:bg-white/10 rounded-lg transition-colors duration-200 cursor-pointer"
+   422→   422→                  >
+   423→   423→                    <X className="w-3.5 h-3.5 text-muted-foreground" />
+   424→   424→                  </button>
+   425→   425→                </div>
+   426→   426→              ))}
+   427→   427→            </div>
+   428→   428→          )}
+   429→   429→        </div>
+   430→   430→
+   431→   431→        {/* ─── Course language selector ─── */}
+   432→   432→        <div className="mb-8">
+   433→   433→          <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
+   434→   434→            <Globe className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+   435→   435→            {tx.create.courseLang}
+   436→   436→          </label>
+   437→   437→          <div className="grid grid-cols-2 gap-3">
+   438→   438→            {(["fr", "en"] as const).map((lng, i) => {
+   439→   439→              const isSelected = courseLang === lng;
+   440→   440→              return (
+   441→   441→                <button
+   442→   442→                  key={lng}
+   443→   443→                  onClick={() => setCourseLang(lng)}
+   444→   444→                  className={`relative px-4 py-4 rounded-2xl font-bold text-center cursor-pointer transition-all duration-300 ${
+   445→   445→                    isSelected
+   446→   446→                      ? "bg-mauve/20 border-2 border-mauve text-mauve-light shadow-lg shadow-mauve/10"
+   447→   447→                      : "glass border-2 border-transparent text-muted-foreground hover:text-foreground hover:bg-white/5"
+   448→   448→                  }`}
+   449→   449→                >
+   450→   450→                  <div className="flex items-center justify-center gap-2">
+   451→   451→                    <span className="text-xl">
+   452→   452→                      {lng === "fr" ? "🇫🇷" : "🇬🇧"}
+   453→   453→                    </span>
+   454→   454→                    <span className="text-sm md:text-base">{courseLangLabels[i]}</span>
+   455→   455→                  </div>
+   456→   456→                  {isSelected && (
+   457→   457→                    <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-mauve border-2 border-night" />
+   458→   458→                  )}
+   459→   459→                </button>
+   460→   460→              );
+   461→   461→            })}
+   462→   462→          </div>
+   463→   463→        </div>
+   464→   464→
+   465→   465→        {/* ─── Level selector ─── */}
+   466→   466→        {!isRandomTopic && (
+   467→   467→          <div className="mb-8">
+   468→   468→            <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
+   469→   469→              {tx.create.level}
+   470→   470→            </label>
+   471→   471→            <div className="grid grid-cols-3 gap-3">
+   472→   472→              {tx.create.levels.map((levelName, i) => {
+   473→   473→                const isSelected = selectedLevel === i;
+   474→   474→                return (
+   475→   475→                  <button
+   476→   476→                    key={i}
+   477→   477→                    onClick={() => setSelectedLevel(i)}
+   478→   478→                    className={`relative px-4 py-4 rounded-2xl font-bold text-center cursor-pointer transition-all duration-300 ${
+   479→   479→                      isSelected
+   480→   480→                        ? "bg-mauve/20 border-2 border-mauve text-mauve-light shadow-lg shadow-mauve/10"
+   481→   481→                        : "glass border-2 border-transparent text-muted-foreground hover:text-foreground hover:bg-white/5"
+   482→   482→                    }`}
+   483→   483→                  >
+   484→   484→                    <span className="text-sm md:text-base">{levelName}</span>
+   485→   485→                    {isSelected && (
+   486→   486→                      <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-mauve border-2 border-night" />
+   487→   487→                    )}
+   488→   488→                  </button>
+   489→   489→                );
+   490→   490→              })}
+   491→   491→            </div>
+   492→   492→          </div>
+   493→   493→        )}
+   494→   494→        {isRandomTopic && (
+   495→   495→          <div className="mb-8 flex items-center gap-2">
+   496→   496→            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{tx.create.level}</span>
+   497→   497→            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-mauve/15 border border-mauve/25 text-xs font-bold text-mauve-light">
+   498→   498→              {tx.create.levels[0]}
+   499→   499→            </span>
+   500→   500→          </div>
+   501→   501→        )}
+   502→   502→
+   503→   503→        {/* ─── Trial/Grace banner ─── */}
+   504→   504→        {!hasSubscription && !inGracePeriod && (
+   505→   505→          <div className={`mb-6 p-4 rounded-2xl border text-center transition-all duration-300 ${
+   506→   506→            trialExpired || coursesRemaining <= 0
+   507→   507→              ? "bg-destructive/10 border-destructive/30"
+   508→   508→              : "glass"
+   509→   509→          }`}>
+   510→   510→            {trialExpired || coursesRemaining <= 0 ? (
+   511→   511→              <>
+   512→   512→                <p className="text-sm font-bold text-destructive mb-2">
+   513→   513→                  {trialExpired
+   514→   514→                    ? (lang === "fr" ? "Essai terminé" : "Trial ended")
+   515→   515→                    : (lang === "fr" ? "Limite d'essai atteinte" : "Trial limit reached")}
+   516→   516→                </p>
+   517→   517→                <button
+   518→   518→                  onClick={() => setView("offers")}
+   519→   519→                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-sm font-extrabold hover:from-amber-400 hover:to-gold transition-all duration-300 cursor-pointer"
+   520→   520→                >
+   521→   521→                  <Crown className="w-4 h-4" />
+   522→   522→                  {lang === "fr" ? "Voir les abonnements" : "See plans"}
+   523→   523→                </button>
+   524→   524→              </>
+   525→   525→            ) : inTrial ? (
+   526→   526→              <p className="text-sm font-semibold text-gold">
+   527→   527→                {trialCounterText}
+   528→   528→              </p>
+   529→   529→            ) : (
+   530→   530→              <p className="text-sm font-semibold text-muted-foreground">
+   531→   531→                {trialCounterText}
+   532→   532→              </p>
+   533→   533→            )}
+   534→   534→          </div>
+   535→   535→        )}
+   536→   536→        {inGracePeriod && (
+   537→   537→          <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center">
+   538→   538→            <p className="text-sm font-semibold text-amber-200">
+   539→   539→              {lang === "fr" ? "Lecture seule — Période de grâce" : "Read-only — Grace period"}
+   540→   540→            </p>
+   541→   541→          </div>
+   542→   542→        )}
+   543→   543→
+   544→   544→        {/* ─── Error ─── */}
+   545→   545→        {error && (
+   546→   546→          <div className="mb-6 p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-sm font-semibold animate-[fadeIn_0.3s_ease-out]">
+   547→   547→            {error}
+   548→   548→          </div>
+   549→   549→        )}
+   550→   550→
+   551→   551→        {/* ─── Suggested topic banner ─── */}
+   552→   552→        {showSuggested && suggestedTopic && (
+   553→   553→          <div className="mb-6 p-4 rounded-2xl glass text-center transition-all duration-300">
+   554→   554→            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
+   555→   555→              ✨ {tx.create.suggested}
+   556→   556→            </p>
+   557→   557→            <p className="text-lg font-extrabold gradient-text">{suggestedTopic}</p>
+   558→   558→          </div>
+   559→   559→        )}
+   560→   560→
+   561→   561→        {/* ─── Generate button ─── */}
+   562→   562→        <div className="flex items-center justify-center">
+   563→   563→          <button
+   564→   564→            onClick={generateCourse}
+   565→   565→            disabled={!title.trim() || loading}
+   566→   566→            className="flex items-center justify-center gap-3 px-8 py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg font-extrabold hover:from-mauve-light hover:to-mauve transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-mauve/25 hover:shadow-mauve/40 hover:scale-[1.02] active:scale-[0.98]"
+   567→   567→          >
+   568→   568→            {loading ? (
+   569→   569→              <>
+   570→   570→                <Loader2 className="w-5 h-5 animate-spin" />
+   571→   571→                <span>{tx.create.generating}</span>
+   572→   572→              </>
+   573→   573→            ) : (
+   574→   574→              <>
+   575→   575→                <Sparkles className="w-5 h-5" />
+   576→   576→                <span>{tx.create.generate}</span>
+   577→   577→              </>
+   578→   578→            )}
+   579→   579→          </button>
+   580→   580→        </div>
+   581→   581→      </div>
+   582→   582→
+   583→   583→      {/* ═══════════ Recent courses ═══════════ */}
+   584→   584→      <div className="mt-10 md:mt-14">
+   585→   585→        <div className="flex items-center justify-between mb-6">
+   586→   586→          <h2 className="text-xl md:text-2xl font-extrabold flex items-center gap-3">
+   587→   587→            <BookOpen className="w-6 h-6 text-mauve-light" />
+   588→   588→            {tx.create.myCourses}
+   589→   589→          </h2>
+   590→   590→        </div>
+   591→   591→
+   592→   592→        {courses.length === 0 ? (
+   593→   593→          <div className="glass rounded-3xl p-10 text-center">
+   594→   594→            <div className="text-4xl mb-3 opacity-40">📚</div>
+   595→   595→            <p className="text-muted-foreground font-semibold text-lg">
+   596→   596→              {tx.create.noCourses}
+   597→   597→            </p>
+   598→   598→          </div>
+   599→   599→        ) : (
+   600→   600→          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+   601→   601→            {courses.slice(0, 6).map((course) => (
+   602→   602→              <button
+   603→   603→                key={course.id}
+   604→   604→                onClick={() => openCourse(course.id)}
+   605→   605→                className="group glass rounded-3xl p-5 text-left cursor-pointer transition-all duration-300 hover:bg-white/5 hover:shadow-lg hover:shadow-mauve/10 hover:scale-[1.02] active:scale-[0.98]"
+   606→   606→              >
+   607→   607→                {/* Course icon area */}
+   608→   608→                <div className="w-12 h-12 rounded-2xl bg-mauve/15 flex items-center justify-center mb-4 transition-all duration-300 group-hover:bg-mauve/25">
+   609→   609→                  <BookOpen className="w-5 h-5 text-mauve-light" />
+   610→   610→                </div>
+   611→   611→
+   612→   612→                {/* Title */}
+   613→   613→                <h3 className="text-base font-bold text-foreground mb-2 line-clamp-2 leading-snug transition-colors duration-200 group-hover:text-mauve-light">
+   614→   614→                  {course.title}
+   615→   615→                </h3>
+   616→   616→
+   617→   617→                {/* Description */}
+   618→   618→                <p className="text-xs text-muted-foreground line-clamp-2 mb-4 leading-relaxed">
+   619→   619→                  {course.description}
+   620→   620→                </p>
+   621→   621→
+   622→   622→                {/* Meta info */}
+   623→   623→                <div className="flex items-center justify-between mt-auto pt-3 border-t border-border/50">
+   624→   624→                  <span className="text-xs text-muted-foreground/70 font-medium">
+   625→   625→                    {formatDate(course.createdAt)}
+   626→   626→                  </span>
+   627→   627→                  <div className="flex items-center gap-1.5">
+   628→   628→                    {/* Progress pill */}
+   629→   629→                    {course.overallProgress > 0 && (
+   630→   630→                      <span className="text-xs font-bold text-mauve-light bg-mauve/15 px-2.5 py-1 rounded-full">
+   631→   631→                        {course.overallProgress}%
+   632→   632→                      </span>
+   633→   633→                    )}
+   634→   634→                    <ChevronRight className="w-4 h-4 text-muted-foreground/50 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-mauve-light" />
+   635→   635→                  </div>
+   636→   636→                </div>
+   637→   637→              </button>
+   638→   638→            ))}
+   639→   639→          </div>
+   640→   640→        )}
+   641→   641→      </div>
+   642→   642→    </div>
+   643→   643→
+   644→   644→    {/* ─── Card Requirement Modal ─── */}
+   645→   645→    {showCardModal && (
+   646→   646→      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => !cardVerifying && setShowCardModal(false)}>
+   647→   647→        <div className="glass rounded-3xl p-6 sm:p-8 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+   648→   648→          <div className="text-center mb-6">
+   649→   649→            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gold/15 mb-4">
+   650→   650→              <CreditCard className="w-8 h-8 text-gold" />
+   651→   651→            </div>
+   652→   652→            <h3 className="text-xl font-extrabold mb-2">
+   653→   653→              {lang === "fr" ? "Enregistre ta carte" : "Save your card"}
+   654→   654→            </h3>
+   655→   655→            <p className="text-sm text-muted-foreground leading-relaxed">
+   656→   656→              {lang === "fr"
+   657→   657→                ? "Pour continuer à générer tes cours d'essai, vérifie ta carte de paiement. Une autorisation de $0.01 sera effectuée. Tu ne seras facturé qu'en choisissant un abonnement."
+   658→   658→                : "To keep generating trial courses, verify your payment card. A $0.01 authorization will be made. You'll only be charged when choosing a subscription."}
+   659→   659→            </p>
+   660→   660→          </div>
+   661→   661→          <div className="space-y-3">
+   662→   662→            <button
+   663→   663→              onClick={async () => {
+   664→   664→                const userId = useAppStore.getState().userId;
+   665→   665→                if (!userId) return;
+   666→   666→                setCardVerifying(true);
+   667→   667→                try {
+   668→   668→                  const res = await fetch("/api/subscription/verify-card", {
+   669→   669→                    method: "POST",
+   670→   670→                    headers: { "Content-Type": "application/json" },
+   671→   671→                    body: JSON.stringify({ userId }),
+   672→   672→                  });
+   673→   673→                  const data = await res.json();
+   674→   674→                  if (res.ok && data.approveUrl) {
+   675→   675→                    setShowCardModal(false);
+   676→   676→                    window.location.href = data.approveUrl;
+   677→   677→                  } else {
+   678→   678→                    setError(data.error || (lang === "fr" ? "Erreur de vérification" : "Verification failed"));
+   679→   679→                    setCardVerifying(false);
+   680→   680→                  }
+   681→   681→                } catch {
+   682→   682→                  setError(lang === "fr" ? "Erreur de connexion" : "Connection error");
+   683→   683→                  setCardVerifying(false);
+   684→   684→                }
+   685→   685→              }}
+   686→   686→              disabled={cardVerifying}
+   687→   687→              className="w-full py-3.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:opacity-90 transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+   688→   688→            >
+   689→   689→              {cardVerifying ? (
+   690→   690→                <Loader2 className="w-4 h-4 animate-spin" />
+   691→   691→              ) : (
+   692→   692→                <CreditCard className="w-4 h-4" />
+   693→   693→              )}
+   694→   694→              {cardVerifying
+   695→   695→                ? (lang === "fr" ? "Vérification..." : "Verifying...")
+   696→   696→                : (lang === "fr" ? "Vérifier avec PayPal ($0.01)" : "Verify with PayPal ($0.01)")}
+   697→   697→            </button>
+   698→   698→            <button
+   699→   699→              onClick={() => setShowCardModal(false)}
+   700→   700→              disabled={cardVerifying}
+   701→   701→              className="w-full py-3.5 rounded-full border border-muted-foreground/20 text-muted-foreground font-bold hover:bg-muted-foreground/10 transition-all duration-300 cursor-pointer disabled:opacity-50"
+   702→   702→            >
+   703→   703→              {lang === "fr" ? "Plus tard" : "Maybe later"}
+   704→   704→            </button>
+   705→   705→          </div>
+   706→   706→        </div>
+   707→   707→      </div>
+   708→   708→    )}
+   709→   709→    </>
+   710→   710→  );
+   711→   711→}
+   712→   712→
