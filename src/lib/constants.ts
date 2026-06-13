@@ -31,8 +31,6 @@ export const AI_RETRY_COUNT = 2;
 export const AI_RETRY_BACKOFF_MS = 2000;
 
 // ─── Payment / PayPal ──────────────────────────────────────────────────
-export const PAYPAL_POLL_INTERVAL_MS = 5_000;
-export const PAYPAL_POLL_TIMEOUT_MS = 120_000;
 export const CHECKOUT_RATE_LIMIT = 3;
 export const CHECKOUT_RATE_WINDOW_MS = 60_000;
 export const CHECKOUT_RATE_CLEANUP_MS = 300_000;

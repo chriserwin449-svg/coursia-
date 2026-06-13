@@ -11,14 +11,24 @@ function securityHeaders(): HeadersInit {
   };
 }
 
-// ─── Activate subscription helper ─────────────────────────────────────────
+// ─── Activate subscription helper (idempotent) ─────────────────────────────
 async function activateSubscription(
   userId: string,
   plan: string,
   orderId: string
-): Promise<void> {
+): Promise<{ activated: boolean; wasAlreadyActive: boolean }> {
   // Card verification: just mark card on file, no subscription
   if (plan === "card_verify") {
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { hasCardOnFile: true },
+    });
+
+    if (user?.hasCardOnFile) {
+      console.log(`[capture] Card already on file for user ${userId.slice(0, 8)}... — skipping`);
+      return { activated: false, wasAlreadyActive: true };
+    }
+
     await db.user.update({
       where: { id: userId },
       data: { hasCardOnFile: true },
@@ -35,7 +45,22 @@ async function activateSubscription(
     });
 
     console.log(`[capture] Card verified for user ${userId.slice(0, 8)}...`);
-    return;
+    return { activated: true, wasAlreadyActive: false };
+  }
+
+  // Check if user already has an active subscription (idempotency)
+  const existingUser = await db.user.findUnique({
+    where: { id: userId },
+    select: {
+      subscriptionStatus: true,
+      subscriptionPlan: true,
+      creemSubscriptionId: true,
+    },
+  });
+
+  if (existingUser?.subscriptionStatus === "active") {
+    console.log(`[capture] User ${userId.slice(0, 8)}... already has active subscription (${existingUser.subscriptionPlan}) — skipping activation`);
+    return { activated: false, wasAlreadyActive: true };
   }
 
   // Regular subscription activation
@@ -52,7 +77,7 @@ async function activateSubscription(
       subscriptionStartDate: now,
       subscriptionEndDate: endDate,
       creemSubscriptionId: `paypal_${orderId}`,
-      hasCardOnFile: true, // Mark card on file for all paid subscriptions too
+      hasCardOnFile: true,
     },
   });
 
@@ -71,6 +96,7 @@ async function activateSubscription(
   });
 
   console.log(`[capture] Subscription activated for user ${userId.slice(0, 8)}... plan=${plan}, ends=${endDate.toISOString()}`);
+  return { activated: true, wasAlreadyActive: false };
 }
 
 // ─── POST handler: Capture a PayPal order ───────────────────────────────
@@ -125,16 +151,18 @@ export async function POST(request: NextRequest) {
 
     const targetUserId = result.customData?.userId || userId;
 
-    // Activate subscription
-    await activateSubscription(targetUserId, plan, orderId);
+    // Activate subscription (idempotent — won't double-activate)
+    const activationResult = await activateSubscription(targetUserId, plan, orderId);
 
-    console.log("[capture] PayPal order captured and subscription activated:", {
+    console.log("[capture] PayPal order captured:", {
       orderId: result.orderId,
       userId: targetUserId.slice(0, 8) + "...",
       plan,
       amount: result.amount,
       currency: result.currency,
       payerEmail: result.payerEmail,
+      activated: activationResult.activated,
+      wasAlreadyActive: activationResult.wasAlreadyActive,
     });
 
     return NextResponse.json(
@@ -143,6 +171,7 @@ export async function POST(request: NextRequest) {
         orderId: result.orderId,
         status: result.status,
         plan,
+        alreadyActive: activationResult.wasAlreadyActive,
       },
       { headers: securityHeaders() }
     );

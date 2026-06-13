@@ -10,16 +10,26 @@ function securityHeaders(): HeadersInit {
   };
 }
 
-// ─── Activate subscription helper ─────────────────────────────────────────
+// ─── Activate subscription helper (idempotent) ─────────────────────────────
 async function activateSubscription(
   userId: string,
   plan: string,
   orderId: string,
   payerEmail?: string
-): Promise<boolean> {
+): Promise<{ activated: boolean; wasAlreadyActive: boolean }> {
   try {
     // Card verification: just mark card on file, no subscription
     if (plan === "card_verify") {
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { hasCardOnFile: true },
+      });
+
+      if (user?.hasCardOnFile) {
+        console.log(`[webhook] Card already on file for user ${userId.slice(0, 8)}... — skipping`);
+        return { activated: false, wasAlreadyActive: true };
+      }
+
       await db.user.update({
         where: { id: userId },
         data: { hasCardOnFile: true },
@@ -35,7 +45,24 @@ async function activateSubscription(
       });
 
       console.log(`[webhook] Card verified via webhook for user ${userId.slice(0, 8)}...`);
-      return true;
+      return { activated: true, wasAlreadyActive: false };
+    }
+
+    // Check if user already has an active subscription (idempotency guard)
+    const existingUser = await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        subscriptionStatus: true,
+        subscriptionPlan: true,
+        creemSubscriptionId: true,
+      },
+    });
+
+    if (existingUser?.subscriptionStatus === "active") {
+      console.log(
+        `[webhook] User ${userId.slice(0, 8)}... already has active subscription (${existingUser.subscriptionPlan}) — skipping (idempotent)`
+      );
+      return { activated: false, wasAlreadyActive: true };
     }
 
     const now = new Date();
@@ -69,11 +96,11 @@ async function activateSubscription(
       },
     });
 
-    console.log(`[webhook] Subscription activated via webhook for user ${userId.slice(0, 8)}..., plan=${plan}`);
-    return true;
+    console.log(`[webhook] Subscription activated for user ${userId.slice(0, 8)}..., plan=${plan}, ends=${endDate.toISOString()}`);
+    return { activated: true, wasAlreadyActive: false };
   } catch (error) {
     console.error("[webhook] Failed to activate subscription:", error);
-    return false;
+    return { activated: false, wasAlreadyActive: false };
   }
 }
 
@@ -96,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     const isValid = await verifyWebhookSignature(body, headers);
     if (!isValid) {
-      console.warn("[webhook] Invalid signature — ignoring");
+      console.error("[webhook] ⚠️ INVALID SIGNATURE — rejecting webhook (this could be an attack in live mode)");
       return NextResponse.json(
         { error: "Invalid signature" },
         { status: 403, headers: securityHeaders() }
@@ -111,17 +138,16 @@ export async function POST(request: NextRequest) {
         status?: string;
         custom_id?: string;
         purchase_units?: Array<{ custom_id?: string; reference_id?: string }>;
+        amount?: { currency_code: string; value: string };
+        payer?: { email_address?: string };
       };
       id: string;
     };
 
-    console.log("[webhook] Received event:", event.event_type, "for order:", event.resource.id);
+    console.log("[webhook] ✅ Received verified event:", event.event_type, "for order:", event.resource.id);
 
     // 3. Handle CHECKOUT.ORDER.APPROVED
     if (event.event_type === "CHECKOUT.ORDER.APPROVED") {
-      // The order was approved by the buyer on PayPal.
-      // The capture should happen server-side via /api/subscription/capture
-      // or we can capture it directly here for redundancy.
       console.log("[webhook] Order approved, waiting for capture:", event.resource.id);
     }
 
@@ -148,13 +174,13 @@ export async function POST(request: NextRequest) {
           plan = parsed.plan;
         }
       } catch {
-        // ignore
+        // ignore parse errors
       }
 
       if (userId && plan) {
-        await activateSubscription(userId, plan, orderId);
+        const result = await activateSubscription(userId, plan, orderId);
         return NextResponse.json(
-          { received: true, action: "subscription_activated" },
+          { received: true, action: result.activated ? "subscription_activated" : "already_active" },
           { headers: securityHeaders() }
         );
       } else {
@@ -165,9 +191,9 @@ export async function POST(request: NextRequest) {
         });
 
         if (paymentReq) {
-          await activateSubscription(paymentReq.userId, paymentReq.plan, orderId);
+          const result = await activateSubscription(paymentReq.userId, paymentReq.plan, orderId);
           return NextResponse.json(
-            { received: true, action: "subscription_activated_via_lookup" },
+            { received: true, action: result.activated ? "subscription_activated_via_lookup" : "already_active" },
             { headers: securityHeaders() }
           );
         }
@@ -182,10 +208,22 @@ export async function POST(request: NextRequest) {
       event.event_type === "PAYMENT.CAPTURE.DECLINED"
     ) {
       console.warn("[webhook] Payment denied/declined for order:", event.resource.id);
-      // Optionally update payment request status
+
+      // Update the payment request status so we have a record
+      try {
+        await db.paymentRequest.updateMany({
+          where: { txRef: event.resource.id, status: "pending" },
+          data: {
+            status: "failed",
+            adminNote: `PayPal webhook: ${event.event_type}`,
+          },
+        });
+      } catch {
+        // ignore DB errors for status updates
+      }
     }
 
-    // Acknowledge receipt for other events
+    // Acknowledge receipt for all other events
     return NextResponse.json(
       { received: true },
       { headers: securityHeaders() }

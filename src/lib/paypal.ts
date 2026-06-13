@@ -9,20 +9,52 @@ export interface PayPalConfig {
   webhookId: string;
 }
 
+/** Placeholder values that indicate PayPal is not yet configured */
+const PLACEHOLDER_IDS = [
+  "YOUR_PAYPAL_SANDBOX_CLIENT_ID",
+  "YOUR_PAYPAL_LIVE_CLIENT_ID",
+  "YOUR_PAYPAL_CLIENT_ID",
+];
+const PLACEHOLDER_SECRETS = [
+  "YOUR_PAYPAL_SANDBOX_CLIENT_SECRET",
+  "YOUR_PAYPAL_LIVE_CLIENT_SECRET",
+  "YOUR_PAYPAL_CLIENT_SECRET",
+];
+const PLACEHOLDER_WEBHOOKS = [
+  "YOUR_PAYPAL_SANDBOX_WEBHOOK_ID",
+  "YOUR_PAYPAL_LIVE_WEBHOOK_ID",
+  "YOUR_PAYPAL_WEBHOOK_ID",
+];
+
+function isPlaceholder(value: string | undefined, placeholders: string[]): boolean {
+  if (!value) return true;
+  return placeholders.some((p) => value === p);
+}
+
 function getPayPalConfig(): PayPalConfig {
   const clientId = process.env.PAYPAL_CLIENT_ID;
   const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
   const mode = (process.env.PAYPAL_MODE || "sandbox") as "sandbox" | "live";
   const webhookId = process.env.PAYPAL_WEBHOOK_ID || "";
 
-  if (!clientId || clientId === "YOUR_PAYPAL_SANDBOX_CLIENT_ID") {
+  if (isPlaceholder(clientId, PLACEHOLDER_IDS)) {
     throw new Error("PAYPAL_CLIENT_ID is not configured");
   }
-  if (!clientSecret || clientSecret === "YOUR_PAYPAL_SANDBOX_CLIENT_SECRET") {
+  if (isPlaceholder(clientSecret, PLACEHOLDER_SECRETS)) {
     throw new Error("PAYPAL_CLIENT_SECRET is not configured");
   }
 
   return { clientId, clientSecret, mode, webhookId };
+}
+
+/** Returns true if PayPal is configured in LIVE mode */
+export function isPayPalLive(): boolean {
+  try {
+    const { mode } = getPayPalConfig();
+    return mode === "live";
+  } catch {
+    return false;
+  }
 }
 
 // ─── Base URLs ─────────────────────────────────────────────────────────────
@@ -269,10 +301,17 @@ export async function verifyWebhookSignature(
   headers: Record<string, string>
 ): Promise<boolean> {
   try {
-    const webhookId = process.env.PAYPAL_WEBHOOK_ID;
-    if (!webhookId || webhookId === "YOUR_PAYPAL_SANDBOX_WEBHOOK_ID") {
-      console.warn("[paypal] Webhook ID not configured — skipping signature verification");
-      return true; // Allow in sandbox without webhook ID
+    const { webhookId, mode } = getPayPalConfig();
+
+    // In live mode, webhook ID is MANDATORY — refuse unverified webhooks
+    if (!webhookId || isPlaceholder(webhookId, PLACEHOLDER_WEBHOOKS)) {
+      if (mode === "live") {
+        console.error("[paypal] LIVE MODE: Webhook ID is not configured — REJECTING webhook");
+        return false;
+      }
+      // Sandbox: allow without webhook ID for testing
+      console.warn("[paypal] Sandbox mode — skipping signature verification (no webhook ID)");
+      return true;
     }
 
     const token = await getAccessToken();
