@@ -14,7 +14,6 @@ import CourseViewer from "@/components/coursia/CourseViewer";
 import Journey from "@/components/coursia/Journey";
 import OffersPage from "@/components/coursia/OffersPage";
 import TopBar from "@/components/coursia/TopBar";
-import { PayPalProviderWrapper } from "@/components/coursia/PayPalProvider";
 
 function MobileBottomNav() {
   const view = useAppStore((s) => s.view);
@@ -145,6 +144,29 @@ export default function AppShell() {
         useAppStore.getState().setView("landing");
       }
     }
+
+    // Handle card verification success (user verified card via PayPal $0.01)
+    const cardVerified = params.get("card_verified");
+    if (cardVerified === "success") {
+      const lang = useAppStore.getState().lang;
+      const message = lang === "fr"
+        ? "Carte vérifiée avec succès ! Tu peux maintenant continuer à générer tes cours d'essai."
+        : "Card verified successfully! You can now continue generating your trial courses.";
+
+      useAppStore.getState().setShowCelebration(true);
+      useAppStore.getState().setCelebrationMessage(message);
+
+      // Clean URL
+      window.history.replaceState({}, "", window.location.pathname);
+
+      // Redirect to create page to continue with free trial courses
+      const isAuthenticated = useAppStore.getState().isAuthenticated;
+      if (isAuthenticated) {
+        useAppStore.getState().setView("create");
+      } else {
+        useAppStore.getState().setView("landing");
+      }
+    }
   }, []);
 
   return (
@@ -168,11 +190,7 @@ export default function AppShell() {
             {view === "library" && <LibraryPage />}
             {view === "viewer" && <CourseViewer />}
             {view === "journey" && <Journey />}
-            {view === "offers" && (
-              <PayPalProviderWrapper>
-                <OffersPage />
-              </PayPalProviderWrapper>
-            )}
+            {view === "offers" && <OffersPage />}
           </main>
           <MobileBottomNav />
         </div>

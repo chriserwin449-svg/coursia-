@@ -79,7 +79,7 @@ async function getAccessToken(): Promise<string> {
 // ─── Create Order (checkout) ───────────────────────────────────────────────
 
 export interface CreateOrderParams {
-  plan: "monthly" | "annual";
+  plan: "monthly" | "annual" | "card_verify";
   userId: string;
   userEmail?: string;
   requestId: string;
@@ -93,6 +93,7 @@ export interface CreateOrderResult {
 const PLAN_CONFIG = {
   monthly: { amount: "9.99", currency: "USD", description: "Coursia Monthly Plan" },
   annual: { amount: "42.99", currency: "USD", description: "Coursia Annual Plan" },
+  card_verify: { amount: "0.01", currency: "USD", description: "Coursia Card Verification" },
 } as const;
 
 export async function createPayPalOrder(params: CreateOrderParams): Promise<CreateOrderResult> {
@@ -146,7 +147,9 @@ export async function createPayPalOrder(params: CreateOrderParams): Promise<Crea
         brand_name: "Coursia",
         locale: "en-US",
         user_action: "PAY_NOW",
-        return_url: `${appUrl}/?payment=success&plan=${params.plan}&request_id=${encodeURIComponent(params.requestId)}`,
+        return_url: params.plan === "card_verify"
+          ? `${appUrl}/?card_verified=success&request_id=${encodeURIComponent(params.requestId)}`
+          : `${appUrl}/?payment=success&plan=${params.plan}&request_id=${encodeURIComponent(params.requestId)}`,
         cancel_url: `${appUrl}/?payment=cancelled&plan=${params.plan}`,
       },
     }),

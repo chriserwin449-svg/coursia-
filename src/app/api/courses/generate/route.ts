@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
-import { smartChatCompletion, getActiveProvider } from "@/lib/openai";
+import { smartChatCompletion } from "@/lib/openai";
+import { FREE_COURSE_LIMIT, MAX_SOURCE_LINKS, MAX_TOKENS } from "@/lib/constants";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -52,7 +53,7 @@ async function scrapeSourceLinks(
   sourceLinks: string[],
 ): Promise<ScrapedPage[]> {
   const results: ScrapedPage[] = [];
-  const maxLinks = Math.min(sourceLinks.length, 3);
+  const maxLinks = Math.min(sourceLinks.length, MAX_SOURCE_LINKS);
 
   for (let i = 0; i < maxLinks; i++) {
     const url = sourceLinks[i];
@@ -402,7 +403,7 @@ async function generateCourse(
       ].join("\n"),
     },
     { role: "user", content: `Crée un cours immersif, passionnant et complet sur : ${title}` },
-  ], { maxTokens: 8192 });
+  ], { maxTokens: MAX_TOKENS });
 
   const text = completion.content || "";
   console.log(`[generate] AI response length: ${text.length} chars, provider: ${completion.provider}`);
@@ -425,51 +426,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
 
-    // Auto-migrate schema if needed (PostgreSQL only)
-    // Ensure all User subscription columns exist
-    const dbUrl = process.env.DATABASE_URL;
-    if (dbUrl && !dbUrl.startsWith("file:")) {
-      try {
-        const cols = [
-          ["User", "subscriptionPlan", "TEXT NOT NULL DEFAULT 'free'"],
-          ["User", "subscriptionStatus", "TEXT NOT NULL DEFAULT 'none'"],
-          ["User", "subscriptionEndDate", "TIMESTAMP(3)"],
-          ["User", "trialStartDate", "TIMESTAMP(3)"],
-          ["Chapter", "level", "INTEGER NOT NULL DEFAULT 0"],
-          ["CourseProgress", "maxUnlockedLevel", "INTEGER NOT NULL DEFAULT 0"],
-          ["CourseProgress", "stoppedAtLevel", "INTEGER NOT NULL DEFAULT -1"],
-        ] as const;
-        for (const [tbl, col, def] of cols) {
-          try {
-            await db.$executeRawUnsafe(`DO $$ BEGIN ALTER TABLE "${tbl}" ADD COLUMN "${col}" ${def}; EXCEPTION WHEN duplicate_column THEN null; END $$;`);
-          } catch { /* skip */ }
-        }
-      } catch { /* skip */ }
-    }
-
-    // ── Trial limit check: max 3 free courses, 3-day trial if no subscription ──
+    // ── Free preview limit: 1 free course if no subscription ──
     if (userId) {
-      const user = await db.user.findUnique({
-        where: { id: userId },
-        select: { subscriptionStatus: true, trialStartDate: true, createdAt: true },
-      });
+      const [user, existingCourses] = await Promise.all([
+        db.user.findUnique({
+          where: { id: userId },
+          select: { subscriptionStatus: true },
+        }),
+        db.course.count({ where: { userId } }),
+      ]);
+
       const hasSubscription = user?.subscriptionStatus === "active";
-      if (!hasSubscription) {
-        const existingCourses = await db.course.count({ where: { userId } });
-
-        // Check if trial has expired (3 days from first course creation or account creation)
-        if (existingCourses > 0) {
-          const trialStart = user?.trialStartDate ? new Date(user.trialStartDate) : (user?.createdAt ? new Date(user.createdAt) : new Date());
-          const now = new Date();
-          const diffDays = (now.getTime() - trialStart.getTime()) / (1000 * 60 * 60 * 24);
-          if (diffDays >= 3) {
-            return NextResponse.json({ error: "TRIAL_EXPIRED", requiresSubscription: true }, { status: 403 });
-          }
-        }
-
-        if (existingCourses >= 3) {
-          return NextResponse.json({ error: "TRIAL_LIMIT", requiresSubscription: true }, { status: 403 });
-        }
+      if (!hasSubscription && existingCourses >= FREE_COURSE_LIMIT) {
+        return NextResponse.json({ error: "FREE_LIMIT", requiresSubscription: true }, { status: 403 });
       }
     }
 
@@ -528,25 +497,15 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Set trial start date on user when creating first course
-    if (userId) {
-      const existingCount = await db.course.count({ where: { userId } });
-      if (existingCount <= 1) {
-        await db.user.update({
-          where: { id: userId },
-          data: { trialStartDate: new Date() },
-        });
-      }
-    }
-
-    // Create CourseProgress so study sessions work immediately
-    await db.courseProgress.upsert({
-      where: { courseId: course.id },
-      create: {
-        courseId: course.id,
-      },
-      update: {},
-    });
+    // Create CourseProgress
+    const postSaveOps: Promise<unknown>[] = [
+      db.courseProgress.upsert({
+        where: { courseId: course.id },
+        create: { courseId: course.id },
+        update: {},
+      }),
+    ];
+    await Promise.all(postSaveOps);
 
     return NextResponse.json({
       success: true,

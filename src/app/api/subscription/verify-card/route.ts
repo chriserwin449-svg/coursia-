@@ -3,20 +3,20 @@ import { db } from "@/lib/db";
 import { createPayPalOrder } from "@/lib/paypal";
 
 // ─── Rate limiting (in-memory, per-user) ──────────────────────────────────
-const checkoutAttempts = new Map<string, { count: number; resetAt: number }>();
-const MAX_CHECKOUT_ATTEMPTS = 3;
-const CHECKOUT_WINDOW_MS = 60_000;
+const verifyAttempts = new Map<string, { count: number; resetAt: number }>();
+const MAX_VERIFY_ATTEMPTS = 3;
+const VERIFY_WINDOW_MS = 60_000;
 
 function checkRateLimit(userId: string): boolean {
   const now = Date.now();
-  const record = checkoutAttempts.get(userId);
+  const record = verifyAttempts.get(userId);
 
   if (!record || now > record.resetAt) {
-    checkoutAttempts.set(userId, { count: 1, resetAt: now + CHECKOUT_WINDOW_MS });
+    verifyAttempts.set(userId, { count: 1, resetAt: now + VERIFY_WINDOW_MS });
     return true;
   }
 
-  if (record.count >= MAX_CHECKOUT_ATTEMPTS) {
+  if (record.count >= MAX_VERIFY_ATTEMPTS) {
     return false;
   }
 
@@ -27,26 +27,13 @@ function checkRateLimit(userId: string): boolean {
 // Cleanup old entries every 5 minutes
 setInterval(() => {
   const now = Date.now();
-  for (const [key, val] of checkoutAttempts) {
-    if (now > val.resetAt) checkoutAttempts.delete(key);
+  for (const [key, val] of verifyAttempts) {
+    if (now > val.resetAt) verifyAttempts.delete(key);
   }
 }, 300_000);
 
-// ─── Price configuration (server-side, tamper-proof) ────────────────────
-const PLAN_CONFIG = {
-  monthly: { amount: 999, currency: "USD" },
-  annual: { amount: 4299, currency: "USD" },
-} as const;
-
-type PlanType = keyof typeof PLAN_CONFIG;
-
 // ─── Input validation ──────────────────────────────────────────────────────
-function isValidPlan(plan: string): plan is PlanType {
-  return plan === "monthly" || plan === "annual";
-}
-
 function isValidUserId(userId: string): boolean {
-  // Accept both cuid and standard UUID formats
   const cuidRegex = /^[a-z0-9]+$/;
   return userId.length > 5 && userId.length < 50 && cuidRegex.test(userId);
 }
@@ -60,10 +47,9 @@ function securityHeaders(): HeadersInit {
   };
 }
 
-// ─── Main handler ────────────────────────────────────────────────────────
+// ─── POST handler: Create PayPal card verification order ($0.01) ──────
 export async function POST(request: NextRequest) {
   try {
-    // 1. Parse and validate body
     let body: unknown;
     try {
       body = await request.json();
@@ -74,17 +60,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { plan, userId } = body as Record<string, unknown>;
+    const { userId } = body as Record<string, unknown>;
 
-    // 2. Validate plan
-    if (!plan || typeof plan !== "string" || !isValidPlan(plan)) {
-      return NextResponse.json(
-        { error: "Invalid plan" },
-        { status: 400, headers: securityHeaders() }
-      );
-    }
-
-    // 3. Validate userId
+    // Validate userId
     if (!userId || typeof userId !== "string" || !isValidUserId(userId)) {
       return NextResponse.json(
         { error: "User ID required" },
@@ -92,100 +70,82 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Rate limiting
+    // Rate limiting
     if (!checkRateLimit(userId)) {
-      console.warn(`[checkout] Rate limited for user: ${userId}`);
+      console.warn(`[verify-card] Rate limited for user: ${userId}`);
       return NextResponse.json(
         { error: "Too many requests. Please try again in a minute." },
         { status: 429, headers: securityHeaders() }
       );
     }
 
-    // 5. Check if user exists and doesn't already have an active subscription
+    // Check user exists
     const user = await db.user.findUnique({
       where: { id: userId },
-      select: {
-        email: true,
-        subscriptionStatus: true,
-        subscriptionPlan: true,
-      },
+      select: { email: true, hasCardOnFile: true, subscriptionStatus: true },
     });
 
     if (!user) {
       return NextResponse.json(
-        { error: "User not found. Please sign up first." },
+        { error: "User not found" },
         { status: 404, headers: securityHeaders() }
       );
     }
 
-    if (user?.subscriptionStatus === "active") {
+    // Already has card on file or is subscribed — no need to verify
+    if (user.hasCardOnFile || user.subscriptionStatus === "active") {
       return NextResponse.json(
-        { error: "Already subscribed" },
+        { error: "Card already on file" },
         { status: 400, headers: securityHeaders() }
       );
     }
 
-    // 6. Create payment request record in DB
-    const planConfig = PLAN_CONFIG[plan];
+    // Create payment request record
     const paymentRequest = await db.paymentRequest.create({
       data: {
         userId,
-        plan,
-        amount: planConfig.amount,
-        currency: planConfig.currency,
+        plan: "card_verify",
+        amount: 1, // $0.01 in cents
+        currency: "USD",
         status: "pending",
-        txRef: `paypal_init_${Date.now()}`,
+        txRef: `card_verify_${Date.now()}`,
       },
     });
 
-    console.log("[checkout] Payment request created:", {
-      plan,
-      amount: planConfig.amount,
-      userId: userId.slice(0, 8) + "...",
-      requestId: paymentRequest.id,
-    });
-
-    // 7. Create PayPal order
+    // Create PayPal order for $0.01
     const paypalResult = await createPayPalOrder({
-      plan,
+      plan: "card_verify",
       userId,
-      userEmail: user?.email || undefined,
+      userEmail: user.email || undefined,
       requestId: paymentRequest.id,
     });
 
-    // 8. Update payment request with PayPal order ID
+    // Update payment request with PayPal order ID
     await db.paymentRequest.update({
       where: { id: paymentRequest.id },
-      data: {
-        txRef: paypalResult.orderId, // Store PayPal order ID as txRef
-      },
+      data: { txRef: paypalResult.orderId },
     });
 
-    console.log("[checkout] PayPal order created:", {
+    console.log("[verify-card] PayPal order created:", {
       orderId: paypalResult.orderId,
       requestId: paymentRequest.id,
+      userId: userId.slice(0, 8) + "...",
     });
 
-    // 9. Return PayPal order details to frontend
     return NextResponse.json(
       {
         success: true,
         orderId: paypalResult.orderId,
         approveUrl: paypalResult.approveUrl,
         requestId: paymentRequest.id,
-        amount: planConfig.amount,
-        currency: planConfig.currency,
-        plan,
       },
       { headers: securityHeaders() }
     );
   } catch (error) {
-    console.error("[checkout] Unhandled error:", error);
-
-    // Return the actual error message for debugging
+    console.error("[verify-card] Unhandled error:", error);
     const errMsg = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { error: "Payment initialization failed", details: errMsg },
+      { error: "Card verification failed", details: errMsg },
       { status: 500, headers: securityHeaders() }
     );
   }

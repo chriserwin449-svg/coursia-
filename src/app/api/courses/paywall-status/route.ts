@@ -20,11 +20,12 @@ async function ensureAllColumns(): Promise<void> {
     await migrateColumn("User", "subscriptionStartDate", "TIMESTAMP(3)");
     await migrateColumn("User", "subscriptionEndDate", "TIMESTAMP(3)");
     await migrateColumn("User", "trialStartDate", "TIMESTAMP(3)");
+    await migrateColumn("User", "hasCardOnFile", "BOOLEAN NOT NULL DEFAULT false");
   } catch { /* non-critical */ }
 }
 
-const TRIAL_DURATION_DAYS = 3;
-const TRIAL_MAX_COURSES = 3;
+const FREE_COURSE_LIMIT = 1;
+const FREE_CHAPTER_LIMIT = 1;
 const GRACE_PERIOD_DAYS = 3;
 
 type RenewalUrgency = "1month" | "2weeks" | "1week" | "3days" | "24hours" | "last24hours" | "none";
@@ -78,6 +79,9 @@ interface PaywallStatus {
   showPaywall: boolean;
   paywallReason: string;
   firstName?: string;
+  hasCardOnFile: boolean;
+  requireCard: boolean;
+  freeChapterLimit: number;
 }
 
 export async function GET(request: NextRequest) {
@@ -103,14 +107,17 @@ export async function GET(request: NextRequest) {
         canProgress: true,
         inTrial: false,
         trialCoursesGenerated: 0,
-        trialCoursesMax: TRIAL_MAX_COURSES,
+        trialCoursesMax: FREE_COURSE_LIMIT,
         hasSubscription: false,
         inGracePeriod: false,
         showRenewalReminder: false,
         renewalUrgency: "none",
         isOfflineMode: false,
+        hasCardOnFile: false,
+        requireCard: false,
         showPaywall: false,
         paywallReason: "no_user",
+        freeChapterLimit: FREE_CHAPTER_LIMIT,
       });
     }
 
@@ -125,6 +132,7 @@ export async function GET(request: NextRequest) {
         createdAt: true,
         email: true,
         firstName: true,
+        hasCardOnFile: true,
       },
     });
 
@@ -152,7 +160,7 @@ export async function GET(request: NextRequest) {
         canProgress: true,
         inTrial: false,
         trialCoursesGenerated: 0,
-        trialCoursesMax: TRIAL_MAX_COURSES,
+        trialCoursesMax: FREE_COURSE_LIMIT,
         hasSubscription: true,
         subscriptionPlan: user.subscriptionPlan,
         subscriptionStatus: user.subscriptionStatus,
@@ -166,6 +174,9 @@ export async function GET(request: NextRequest) {
         showPaywall: false,
         paywallReason: "subscribed",
         firstName: user.firstName || undefined,
+        hasCardOnFile: true,
+        requireCard: false,
+        freeChapterLimit: FREE_CHAPTER_LIMIT,
       });
     }
 
@@ -184,7 +195,7 @@ export async function GET(request: NextRequest) {
           canProgress: true,     // Can continue studying
           inTrial: false,
           trialCoursesGenerated: 0,
-          trialCoursesMax: TRIAL_MAX_COURSES,
+          trialCoursesMax: FREE_COURSE_LIMIT,
           hasSubscription: false,
           subscriptionPlan: user.subscriptionPlan,
           subscriptionStatus: user.subscriptionStatus,
@@ -197,6 +208,9 @@ export async function GET(request: NextRequest) {
           showPaywall: false,
           paywallReason: "grace_period",
           firstName: user.firstName || undefined,
+          hasCardOnFile: !!user.hasCardOnFile,
+          requireCard: false,
+          freeChapterLimit: FREE_CHAPTER_LIMIT,
         });
       }
 
@@ -207,7 +221,7 @@ export async function GET(request: NextRequest) {
         canProgress: false,
         inTrial: false,
         trialCoursesGenerated: 0,
-        trialCoursesMax: TRIAL_MAX_COURSES,
+        trialCoursesMax: FREE_COURSE_LIMIT,
         hasSubscription: false,
         subscriptionPlan: user.subscriptionPlan,
         subscriptionStatus: user.subscriptionStatus,
@@ -219,24 +233,26 @@ export async function GET(request: NextRequest) {
         showPaywall: true,
         paywallReason: "grace_expired",
         firstName: user.firstName || undefined,
+        hasCardOnFile: !!user.hasCardOnFile,
+        requireCard: false,
+        freeChapterLimit: FREE_CHAPTER_LIMIT,
       });
     }
 
-    // ── 6. TRIAL CHECK (user exists but no active/expired subscription) ──
+    // ── 6. FREE PREVIEW CHECK (user exists but no active subscription) ──
     if (user) {
-      // Count user's courses
       const courseCount = userId ? await db.course.count({ where: { userId } }) : 0;
 
-      // No courses yet — free to start trial
+      // No courses yet — free to create first course
       if (courseCount === 0) {
         return NextResponse.json<PaywallStatus>({
           canStudy: true,
           canGenerate: true,
           canProgress: true,
           inTrial: false,
-          trialDaysRemaining: TRIAL_DURATION_DAYS,
+          trialDaysRemaining: 0,
           trialCoursesGenerated: 0,
-          trialCoursesMax: TRIAL_MAX_COURSES,
+          trialCoursesMax: FREE_COURSE_LIMIT,
           hasSubscription: false,
           inGracePeriod: false,
           showRenewalReminder: false,
@@ -245,55 +261,33 @@ export async function GET(request: NextRequest) {
           showPaywall: false,
           paywallReason: "no_courses",
           firstName: user.firstName || undefined,
+          hasCardOnFile: !!user.hasCardOnFile,
+          requireCard: false,
+          freeChapterLimit: FREE_CHAPTER_LIMIT,
         });
       }
 
-      // Calculate trial from trialStartDate (or account creation if not set)
-      const trialStart = user.trialStartDate ? new Date(user.trialStartDate) : (user.createdAt ? new Date(user.createdAt) : new Date());
-      const now = new Date();
-      const diffMs = now.getTime() - trialStart.getTime();
-      const diffDays = diffMs / (1000 * 60 * 60 * 24);
-      const daysRemaining = Math.max(0, Math.ceil(TRIAL_DURATION_DAYS - diffDays));
-
-      // Trial still active
-      if (diffDays < TRIAL_DURATION_DAYS) {
-        const canGenerate = courseCount < TRIAL_MAX_COURSES;
-
-        return NextResponse.json<PaywallStatus>({
-          canStudy: true,
-          canGenerate,
-          canProgress: true,
-          inTrial: true,
-          trialDaysRemaining: daysRemaining,
-          trialCoursesGenerated: courseCount,
-          trialCoursesMax: TRIAL_MAX_COURSES,
-          hasSubscription: false,
-          inGracePeriod: false,
-          showRenewalReminder: false,
-          renewalUrgency: "none",
-          isOfflineMode: false,
-          showPaywall: false,
-          paywallReason: canGenerate ? "trial_active" : "trial_course_limit",
-          firstName: user.firstName || undefined,
-        });
-      }
-
-      // Trial expired — fully blocked
+      // Already used free course — blocked from creating more
+      const canGenerate = courseCount < FREE_COURSE_LIMIT;
       return NextResponse.json<PaywallStatus>({
-        canStudy: false,
-        canGenerate: false,
+        canStudy: true, // can still read existing free course chapter 1
+        canGenerate,
         canProgress: false,
         inTrial: false,
+        trialDaysRemaining: 0,
         trialCoursesGenerated: courseCount,
-        trialCoursesMax: TRIAL_MAX_COURSES,
+        trialCoursesMax: FREE_COURSE_LIMIT,
         hasSubscription: false,
         inGracePeriod: false,
         showRenewalReminder: false,
         renewalUrgency: "none",
         isOfflineMode: false,
-        showPaywall: true,
-        paywallReason: "trial_expired",
+        showPaywall: !canGenerate,
+        paywallReason: canGenerate ? "free_active" : "free_limit",
         firstName: user.firstName || undefined,
+        hasCardOnFile: !!user.hasCardOnFile,
+        requireCard: false,
+        freeChapterLimit: FREE_CHAPTER_LIMIT,
       });
     }
 
@@ -304,7 +298,7 @@ export async function GET(request: NextRequest) {
       canProgress: true,
       inTrial: false,
       trialCoursesGenerated: 0,
-      trialCoursesMax: TRIAL_MAX_COURSES,
+      trialCoursesMax: FREE_COURSE_LIMIT,
       hasSubscription: false,
       inGracePeriod: false,
       showRenewalReminder: false,
@@ -312,6 +306,9 @@ export async function GET(request: NextRequest) {
       isOfflineMode: false,
       showPaywall: false,
       paywallReason: "no_user",
+      hasCardOnFile: false,
+      requireCard: false,
+      freeChapterLimit: FREE_CHAPTER_LIMIT,
     });
   } catch (error) {
     console.error("[paywall-status] Error:", error);
@@ -321,7 +318,7 @@ export async function GET(request: NextRequest) {
       canProgress: true,
       inTrial: false,
       trialCoursesGenerated: 0,
-      trialCoursesMax: TRIAL_MAX_COURSES,
+      trialCoursesMax: FREE_COURSE_LIMIT,
       hasSubscription: false,
       inGracePeriod: false,
       showRenewalReminder: false,
@@ -329,6 +326,9 @@ export async function GET(request: NextRequest) {
       isOfflineMode: false,
       showPaywall: false,
       paywallReason: "error",
+      hasCardOnFile: false,
+      requireCard: false,
+      freeChapterLimit: FREE_CHAPTER_LIMIT,
     });
   }
 }

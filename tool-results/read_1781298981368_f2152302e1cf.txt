@@ -1,0 +1,681 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+     4→import {
+     5→  Sparkles,
+     6→  Plus,
+     7→  X,
+     8→  Link as LinkIcon,
+     9→  Loader2,
+    10→  BookOpen,
+    11→  ChevronRight,
+    12→  Globe,
+    13→  Crown,
+    14→  CreditCard,
+    15→} from "lucide-react";
+    16→import { useAppStore } from "@/lib/store";
+    17→import { t } from "@/lib/i18n";
+    18→import type { CourseData } from "@/lib/store";
+    19→
+    20→export default function CreateCourse() {
+    21→  const lang = useAppStore((s) => s.lang);
+    22→  const tx = t(lang);
+    23→  const user = useAppStore((s) => s.user);
+    24→
+    25→  const setView = useAppStore((s) => s.setView);
+    26→  const setSelectedCourseId = useAppStore((s) => s.setSelectedCourseId);
+    27→  const setIsGenerating = useAppStore((s) => s.setIsGenerating);
+    28→
+    29→  const [title, setTitle] = useState("");
+    30→  const [links, setLinks] = useState<string[]>([]);
+    31→  const [linkInput, setLinkInput] = useState("");
+    32→  const [loading, setLoading] = useState(false);
+    33→  const [error, setError] = useState("");
+    34→  const [courseLang, setCourseLang] = useState("fr"); // "fr" or "en"
+    35→  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+    36→  const [courses, setCourses] = useState<CourseData[]>([]);
+    37→  const [showSuggested, setShowSuggested] = useState(false);
+    38→  const [suggestedTopic, setSuggestedTopic] = useState("");
+    39→  const [hasSubscription, setHasSubscription] = useState(false);
+    40→  const [coursesRemaining, setCoursesRemaining] = useState(3);
+    41→  const [inTrial, setInTrial] = useState(false);
+    42→  const [trialExpired, setTrialExpired] = useState(false);
+    43→  const [inGracePeriod, setInGracePeriod] = useState(false);
+    44→  const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
+    45→  const [trialCoursesMax, setTrialCoursesMax] = useState(3);
+    46→  const [selectedLevel, setSelectedLevel] = useState(0);
+    47→  const [isRandomTopic, setIsRandomTopic] = useState(false);
+    48→  const [requireCard, setRequireCard] = useState(false);
+    49→  const [showCardModal, setShowCardModal] = useState(false);
+    50→
+    51→  // ─── Store refs for random topic ────────────────────────────────────────
+    52→  const storeRandomTopic = useAppStore((s) => s.randomTopic);
+    53→  const storeRandomCourseLang = useAppStore((s) => s.randomCourseLang);
+    54→  const setStoreRandomTopic = useAppStore((s) => s.setRandomTopic);
+    55→  const prevRandomRef = useRef<string | null>(null);
+    56→
+    57→  // ─── React to random topic changes from TopBar (instant, no reload) ───
+    58→  useEffect(() => {
+    59→    if (storeRandomTopic && storeRandomTopic !== prevRandomRef.current) {
+    60→      setTitle(storeRandomTopic);
+    61→      setSuggestedTopic(storeRandomTopic);
+    62→      setShowSuggested(true);
+    63→      setIsRandomTopic(true);
+    64→      setSelectedLevel(0);
+    65→      if (storeRandomCourseLang === "fr" || storeRandomCourseLang === "en") {
+    66→        setCourseLang(storeRandomCourseLang);
+    67→      }
+    68→      prevRandomRef.current = storeRandomTopic;
+    69→      setStoreRandomTopic(null); // consume it
+    70→    }
+    71→  }, [storeRandomTopic, storeRandomCourseLang, setStoreRandomTopic]);
+    72→
+    73→  // ─── Personalized greeting (time-based) ──────────────────────────────
+    74→  const greeting = useMemo(() => {
+    75→    const hour = new Date().getHours();
+    76→    const firstName = user?.firstName || "";
+    77→    const casualGreetings = tx.create.greetingCasual;
+    78→    const messages = tx.create.greetingMessages;
+    79→
+    80→    // Pick a greeting based on time of day
+    81→    let timeGreeting: string;
+    82→    if (hour >= 5 && hour < 12) {
+    83→      timeGreeting = tx.create.greetingMorning;
+    84→    } else if (hour >= 12 && hour < 17) {
+    85→      timeGreeting = tx.create.greetingAfternoon;
+    86→    } else if (hour >= 17 && hour < 22) {
+    87→      timeGreeting = tx.create.greetingEvening;
+    88→    } else {
+    89→      // Late night - use a random casual greeting
+    90→      timeGreeting = casualGreetings[Math.floor(Math.random() * casualGreetings.length)];
+    91→    }
+    92→
+    93→    // Pick a random encouraging message (seeded by day to avoid changing on every render)
+    94→    const dayIndex = Math.floor(Date.now() / 86_400_000); // changes once per day
+    95→    const message = messages[dayIndex % messages.length];
+    96→
+    97→    return {
+    98→      greeting: timeGreeting,
+    99→      name: firstName,
+   100→      message,
+   101→    };
+   102→  }, [user?.firstName, tx.create]);
+   103→
+   104→  // ─── Rotating placeholder with typing/fade effect ────────────────────
+   105→  const placeholders = tx.create.placeholders;
+   106→  const [displayedPlaceholder, setDisplayedPlaceholder] = useState(placeholders[0]);
+   107→  const [isTyping, setIsTyping] = useState(true);
+   108→  const [charIndex, setCharIndex] = useState(0);
+   109→  const [isFading, setIsFading] = useState(false);
+   110→  const innerTimerRef = useRef<ReturnType<typeof setTimeout>>();
+   111→
+   112→  useEffect(() => {
+   113→    // Skip typing animation while user has typed something
+   114→    if (title.length > 0) {
+   115→      setDisplayedPlaceholder("");
+   116→      setIsTyping(false);
+   117→      return;
+   118→    }
+   119→
+   120→    const currentPlaceholder = placeholders[placeholderIndex];
+   121→
+   122→    if (isTyping) {
+   123→      if (charIndex <= currentPlaceholder.length) {
+   124→        const timeout = setTimeout(() => {
+   125→          setDisplayedPlaceholder(currentPlaceholder.slice(0, charIndex));
+   126→          setCharIndex(charIndex + 1);
+   127→        }, 35);
+   128→        return () => clearTimeout(timeout);
+   129→      } else {
+   130→        // Finished typing, wait then start fading
+   131→        const timeout = setTimeout(() => {
+   132→          setIsFading(true);
+   133→          innerTimerRef.current = setTimeout(() => {
+   134→            setPlaceholderIndex((placeholderIndex + 1) % placeholders.length);
+   135→            setCharIndex(0);
+   136→            setIsTyping(true);
+   137→            setIsFading(false);
+   138→          }, 500);
+   139→        }, 2200);
+   140→        return () => { clearTimeout(timeout); if (innerTimerRef.current) clearTimeout(innerTimerRef.current); };
+   141→      }
+   142→    }
+   143→  }, [charIndex, isTyping, isFading, placeholderIndex, placeholders, title]);
+   144→
+   145→  // ─── Fetch courses & subscription status ───────────────────────────
+   146→  const fetchCourses = useCallback(async () => {
+   147→    try {
+   148→      const res = await fetch(`/api/courses?userId=${useAppStore.getState().userId || ''}`);
+   149→      if (res.ok) {
+   150→        const data = await res.json();
+   151→        const list = (data.courses as CourseData[]) || [];
+   152→        setCourses(list);
+   153→      }
+   154→
+   155→      // Check subscription & trial status via paywall-status API
+   156→      const userId = useAppStore.getState().userId;
+   157→      const headers: Record<string, string> = {};
+   158→      if (userId) headers["Authorization"] = `Bearer ${userId}`;
+   159→      const pwRes = await fetch("/api/courses/paywall-status", { headers });
+   160→      if (pwRes.ok) {
+   161→        const pw = await pwRes.json();
+   162→        setHasSubscription(pw.hasSubscription);
+   163→        setInTrial(pw.inTrial);
+   164→        setTrialExpired(pw.showPaywall && pw.paywallReason === "trial_expired");
+   165→        setInGracePeriod(pw.inGracePeriod);
+   166→        if (pw.inTrial) {
+   167→          setTrialDaysRemaining(pw.trialDaysRemaining || 0);
+   168→          setTrialCoursesMax(pw.trialCoursesMax || 3);
+   169→          setCoursesRemaining(Math.max(0, (pw.trialCoursesMax || 3) - (pw.trialCoursesGenerated || 0)));
+   170→          setRequireCard(!!pw.requireCard);
+   171→        } else if (!pw.hasSubscription) {
+   172→          setCoursesRemaining(Math.max(0, (pw.trialCoursesMax || 3) - (pw.trialCoursesGenerated || 0)));
+   173→          setRequireCard(!!pw.requireCard);
+   174→        } else {
+   175→          setCoursesRemaining(999);
+   176→          setRequireCard(false);
+   177→        }
+   178→      }
+   179→    } catch {
+   180→      // silently ignore
+   181→    }
+   182→  }, []);
+   183→
+   184→  useEffect(() => {
+   185→    fetchCourses();
+   186→  }, [fetchCourses]);
+   187→
+   188→  // ─── Clear suggested topic when user modifies title manually ────────
+   189→  const handleTitleChange = (newTitle: string) => {
+   190→    setTitle(newTitle);
+   191→    if (newTitle.trim() !== suggestedTopic.trim()) {
+   192→      setShowSuggested(false);
+   193→      setSuggestedTopic("");
+   194→      setIsRandomTopic(false);
+   195→    }
+   196→  };
+   197→
+   198→  // ─── Link management ──────────────────────────────────────────────────
+   199→  const addLink = () => {
+   200→    const trimmed = linkInput.trim();
+   201→    if (trimmed && !links.includes(trimmed)) {
+   202→      setLinks([...links, trimmed]);
+   203→      setLinkInput("");
+   204→    }
+   205→  };
+   206→
+   207→  const removeLink = (index: number) => {
+   208→    setLinks(links.filter((_, i) => i !== index));
+   209→  };
+   210→
+   211→  // ─── Generate course ──────────────────────────────────────────────────
+   212→  const generateCourse = async () => {
+   213→    if (!title.trim()) return;
+   214→
+   215→    // Show card modal if required
+   216→    if (requireCard && !hasSubscription) {
+   217→      setShowCardModal(true);
+   218→      return;
+   219→    }
+   220→
+   221→    // Trial limit check
+   222→    if (!hasSubscription && coursesRemaining <= 0) {
+   223→      setView("offers");
+   224→      return;
+   225→    }
+   226→
+   227→    setLoading(true);
+   228→    setError("");
+   229→    setIsGenerating(true);
+   230→
+   231→    try {
+   232→      const res = await fetch("/api/courses/generate", {
+   233→        method: "POST",
+   234→        headers: { "Content-Type": "application/json" },
+   235→        body: JSON.stringify({
+   236→          title: title.trim(),
+   237→          sourceLinks: links,
+   238→          level: isRandomTopic ? 0 : selectedLevel,
+   239→          courseLang,
+   240→          userId: useAppStore.getState().userId,
+   241→        }),
+   242→      });
+   243→
+   244→      const data = await res.json();
+   245→      if (!res.ok) {
+   246→        if (data.error === "TRIAL_LIMIT" || data.error === "TRIAL_EXPIRED") {
+   247→          setView("offers");
+   248→          return;
+   249→        }
+   250→        if (data.error === "REQUIRE_CARD") {
+   251→          setShowCardModal(true);
+   252→          return;
+   253→        }
+   254→        throw new Error(data.error || "Failed to generate");
+   255→      }
+   256→
+   257→      const course = data.course as CourseData;
+   258→      setSelectedCourseId(course.id);
+   259→      setView("viewer");
+   260→    } catch (err: unknown) {
+   261→      setError(err instanceof Error ? err.message : "Une erreur est survenue");
+   262→    } finally {
+   263→      setLoading(false);
+   264→      setIsGenerating(false);
+   265→      fetchCourses();
+   266→    }
+   267→  };
+   268→
+   269→  // ─── Open a course ────────────────────────────────────────────────────
+   270→  const openCourse = (id: string) => {
+   271→    setSelectedCourseId(id);
+   272→    setView("viewer");
+   273→  };
+   274→
+   275→  // ─── Personalized trial counter text ────────────────────────────────
+   276→  const trialCounterText = useMemo(() => {
+   277→    const firstName = user?.firstName || "";
+   278→
+   279→    // Pre-trial (no courses yet, show simple welcome)
+   280→    if (!inTrial && coursesRemaining === trialCoursesMax) {
+   281→      if (firstName) {
+   282→        return (tx.create.trialNoCourses as string).replace("{name}", firstName);
+   283→      }
+   284→      return lang === "fr"
+   285→        ? `Tu as ${coursesRemaining} cours gratuit${coursesRemaining > 1 ? "s" : ""} sur Coursia !`
+   286→        : `You have ${coursesRemaining} free course${coursesRemaining > 1 ? "s" : ""} on Coursia!`;
+   287→    }
+   288→
+   289→    // Active trial — show detailed counter
+   290→    if (inTrial) {
+   291→      const dayWord = trialDaysRemaining > 1
+   292→        ? (lang === "fr" ? tx.create.trialCounterDays : tx.create.trialCounterDays)
+   293→        : (lang === "fr" ? tx.create.trialCounterDay : tx.create.trialCounterDay);
+   294→      const courseSuffix = coursesRemaining > 1 ? "s" : "";
+   295→      const daySuffix = trialDaysRemaining > 1 ? "s" : "";
+   296→
+   297→      if (firstName) {
+   298→        return lang === "fr"
+   299→          ? `${firstName}, il te reste ${coursesRemaining} cours gratuit${courseSuffix} sur ton temps d'essai · ${trialDaysRemaining} ${dayWord} restant${daySuffix}`
+   300→          : `${firstName}, you have ${coursesRemaining} free course${courseSuffix} left on your trial · ${trialDaysRemaining} trial ${dayWord} remaining`;
+   301→      }
+   302→      return lang === "fr"
+   303→        ? `Il te reste ${coursesRemaining} cours gratuit${courseSuffix} · ${trialDaysRemaining} ${dayWord} d'essai`
+   304→        : `${coursesRemaining} free course${courseSuffix} · ${trialDaysRemaining} trial ${dayWord} remaining`;
+   305→    }
+   306→
+   307→    // Post-trial, courses used up
+   308→    return lang === "fr"
+   309→      ? `${firstName ? firstName + ", " : ""}tu as utilisé tes ${trialCoursesMax} cours d'essai`
+   310→      : `${firstName ? firstName + ", " : ""}you've used all ${trialCoursesMax} trial courses`;
+   311→  }, [user?.firstName, lang, inTrial, coursesRemaining, trialDaysRemaining, trialCoursesMax, tx.create]);
+   312→
+   313→  // ─── Helpers ──────────────────────────────────────────────────────────
+   314→  const courseLangLabels = tx.create.courseLangs;
+   315→
+   316→  const formatDate = (dateStr: string) => {
+   317→    const d = new Date(dateStr);
+   318→    return d.toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", {
+   319→      day: "numeric",
+   320→      month: "short",
+   321→      year: "numeric",
+   322→    });
+   323→  };
+   324→
+   325→  return (
+   326→    <>
+   327→    <div className="max-w-3xl mx-auto px-4 sm:px-6 md:px-10 pt-14 sm:pt-20 pb-8 md:pt-24 md:pb-16">
+   328→      {/* ═══════════ Personalized Greeting ═══════════ */}
+   329→      {user && (
+   330→        <div className="mb-6 sm:mb-8">
+   331→          <div className="glass rounded-2xl sm:rounded-3xl p-5 sm:p-6 md:p-8 text-center">
+   332→            <div className="text-4xl sm:text-5xl mb-3 animate-bounce" role="img" aria-label="waving hand">👋</div>
+   333→            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-2">
+   334→              <span className="gradient-text">{greeting.greeting} {greeting.name} !</span>
+   335→            </h1>
+   336→            <p className="text-muted-foreground text-sm sm:text-base md:text-lg">
+   337→              {greeting.message}
+   338→            </p>
+   339→          </div>
+   340→        </div>
+   341→      )}
+   342→
+   343→      {/* ═══════════ Main creation card ═══════════ */}
+   344→      <div className="glass rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-10">
+   345→        {/* ─── Title input ─── */}
+   346→        <div className="mb-8">
+   347→          <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
+   348→            {tx.create.placeholder}
+   349→          </label>
+   350→          <div className="relative">
+   351→            <input
+   352→              type="text"
+   353→              value={title}
+   354→              onChange={(e) => handleTitleChange(e.target.value)}
+   355→              placeholder=""
+   356→              className="w-full px-6 py-5 rounded-2xl bg-night border border-border text-foreground text-lg font-bold placeholder:text-muted-foreground/50 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300"
+   357→              onKeyDown={(e) => e.key === "Enter" && generateCourse()}
+   358→              disabled={loading}
+   359→            />
+   360→            {/* Animated placeholder overlay */}
+   361→            {!title && (
+   362→              <div
+   363→                className={`absolute left-6 top-1/2 -translate-y-1/2 pointer-events-none text-lg font-bold transition-opacity duration-500 ${
+   364→                  isFading ? "opacity-0" : "opacity-100"
+   365→                }`}
+   366→                aria-hidden="true"
+   367→              >
+   368→                <span className="text-muted-foreground/40">
+   369→                  {displayedPlaceholder}
+   370→                </span>
+   371→                <span className="inline-block w-0.5 h-5 bg-mauve/60 ml-0.5 align-middle animate-pulse" />
+   372→              </div>
+   373→            )}
+   374→          </div>
+   375→        </div>
+   376→
+   377→        {/* ─── Source links ─── */}
+   378→        <div className="mb-8">
+   379→          <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
+   380→            <LinkIcon className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+   381→            {tx.create.links}
+   382→          </label>
+   383→          <div className="flex gap-2">
+   384→            <input
+   385→              type="text"
+   386→              value={linkInput}
+   387→              onChange={(e) => setLinkInput(e.target.value)}
+   388→              placeholder={tx.create.linkPlaceholder}
+   389→              className="flex-1 px-5 py-3.5 rounded-2xl bg-night border border-border text-foreground font-semibold placeholder:text-muted-foreground/50 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300"
+   390→              onKeyDown={(e) => {
+   391→                if (e.key === "Enter") {
+   392→                  e.preventDefault();
+   393→                  addLink();
+   394→                }
+   395→              }}
+   396→              disabled={loading}
+   397→            />
+   398→            <button
+   399→              onClick={addLink}
+   400→              disabled={!linkInput.trim() || loading}
+   401→              className="px-5 py-3.5 rounded-2xl bg-mauve/20 text-mauve-light font-bold hover:bg-mauve/30 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+   402→            >
+   403→              <Plus className="w-5 h-5" />
+   404→            </button>
+   405→          </div>
+   406→
+   407→          {links.length > 0 && (
+   408→            <div className="mt-3 space-y-2">
+   409→              {links.map((link, i) => (
+   410→                <div
+   411→                  key={link}
+   412→                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-night/50 border border-border text-sm transition-all duration-200"
+   413→                >
+   414→                  <LinkIcon className="w-3.5 h-3.5 text-mauve-light flex-shrink-0" />
+   415→                  <span className="truncate flex-1 text-muted-foreground">
+   416→                    {link}
+   417→                  </span>
+   418→                  <button
+   419→                    onClick={() => removeLink(i)}
+   420→                    className="p-1.5 hover:bg-white/10 rounded-lg transition-colors duration-200 cursor-pointer"
+   421→                  >
+   422→                    <X className="w-3.5 h-3.5 text-muted-foreground" />
+   423→                  </button>
+   424→                </div>
+   425→              ))}
+   426→            </div>
+   427→          )}
+   428→        </div>
+   429→
+   430→        {/* ─── Course language selector ─── */}
+   431→        <div className="mb-8">
+   432→          <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
+   433→            <Globe className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+   434→            {tx.create.courseLang}
+   435→          </label>
+   436→          <div className="grid grid-cols-2 gap-3">
+   437→            {(["fr", "en"] as const).map((lng, i) => {
+   438→              const isSelected = courseLang === lng;
+   439→              return (
+   440→                <button
+   441→                  key={lng}
+   442→                  onClick={() => setCourseLang(lng)}
+   443→                  className={`relative px-4 py-4 rounded-2xl font-bold text-center cursor-pointer transition-all duration-300 ${
+   444→                    isSelected
+   445→                      ? "bg-mauve/20 border-2 border-mauve text-mauve-light shadow-lg shadow-mauve/10"
+   446→                      : "glass border-2 border-transparent text-muted-foreground hover:text-foreground hover:bg-white/5"
+   447→                  }`}
+   448→                >
+   449→                  <div className="flex items-center justify-center gap-2">
+   450→                    <span className="text-xl">
+   451→                      {lng === "fr" ? "🇫🇷" : "🇬🇧"}
+   452→                    </span>
+   453→                    <span className="text-sm md:text-base">{courseLangLabels[i]}</span>
+   454→                  </div>
+   455→                  {isSelected && (
+   456→                    <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-mauve border-2 border-night" />
+   457→                  )}
+   458→                </button>
+   459→              );
+   460→            })}
+   461→          </div>
+   462→        </div>
+   463→
+   464→        {/* ─── Level selector ─── */}
+   465→        {!isRandomTopic && (
+   466→          <div className="mb-8">
+   467→            <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
+   468→              {tx.create.level}
+   469→            </label>
+   470→            <div className="grid grid-cols-3 gap-3">
+   471→              {tx.create.levels.map((levelName, i) => {
+   472→                const isSelected = selectedLevel === i;
+   473→                return (
+   474→                  <button
+   475→                    key={i}
+   476→                    onClick={() => setSelectedLevel(i)}
+   477→                    className={`relative px-4 py-4 rounded-2xl font-bold text-center cursor-pointer transition-all duration-300 ${
+   478→                      isSelected
+   479→                        ? "bg-mauve/20 border-2 border-mauve text-mauve-light shadow-lg shadow-mauve/10"
+   480→                        : "glass border-2 border-transparent text-muted-foreground hover:text-foreground hover:bg-white/5"
+   481→                    }`}
+   482→                  >
+   483→                    <span className="text-sm md:text-base">{levelName}</span>
+   484→                    {isSelected && (
+   485→                      <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-mauve border-2 border-night" />
+   486→                    )}
+   487→                  </button>
+   488→                );
+   489→              })}
+   490→            </div>
+   491→          </div>
+   492→        )}
+   493→        {isRandomTopic && (
+   494→          <div className="mb-8 flex items-center gap-2">
+   495→            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{tx.create.level}</span>
+   496→            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-mauve/15 border border-mauve/25 text-xs font-bold text-mauve-light">
+   497→              {tx.create.levels[0]}
+   498→            </span>
+   499→          </div>
+   500→        )}
+   501→
+   502→        {/* ─── Trial/Grace banner ─── */}
+   503→        {!hasSubscription && !inGracePeriod && (
+   504→          <div className={`mb-6 p-4 rounded-2xl border text-center transition-all duration-300 ${
+   505→            trialExpired || coursesRemaining <= 0
+   506→              ? "bg-destructive/10 border-destructive/30"
+   507→              : "glass"
+   508→          }`}>
+   509→            {trialExpired || coursesRemaining <= 0 ? (
+   510→              <>
+   511→                <p className="text-sm font-bold text-destructive mb-2">
+   512→                  {trialExpired
+   513→                    ? (lang === "fr" ? "Essai terminé" : "Trial ended")
+   514→                    : (lang === "fr" ? "Limite d'essai atteinte" : "Trial limit reached")}
+   515→                </p>
+   516→                <button
+   517→                  onClick={() => setView("offers")}
+   518→                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-sm font-extrabold hover:from-amber-400 hover:to-gold transition-all duration-300 cursor-pointer"
+   519→                >
+   520→                  <Crown className="w-4 h-4" />
+   521→                  {lang === "fr" ? "Voir les abonnements" : "See plans"}
+   522→                </button>
+   523→              </>
+   524→            ) : inTrial ? (
+   525→              <p className="text-sm font-semibold text-gold">
+   526→                {trialCounterText}
+   527→              </p>
+   528→            ) : (
+   529→              <p className="text-sm font-semibold text-muted-foreground">
+   530→                {trialCounterText}
+   531→              </p>
+   532→            )}
+   533→          </div>
+   534→        )}
+   535→        {inGracePeriod && (
+   536→          <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center">
+   537→            <p className="text-sm font-semibold text-amber-200">
+   538→              {lang === "fr" ? "Lecture seule — Période de grâce" : "Read-only — Grace period"}
+   539→            </p>
+   540→          </div>
+   541→        )}
+   542→
+   543→        {/* ─── Error ─── */}
+   544→        {error && (
+   545→          <div className="mb-6 p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-sm font-semibold animate-[fadeIn_0.3s_ease-out]">
+   546→            {error}
+   547→          </div>
+   548→        )}
+   549→
+   550→        {/* ─── Suggested topic banner ─── */}
+   551→        {showSuggested && suggestedTopic && (
+   552→          <div className="mb-6 p-4 rounded-2xl glass text-center transition-all duration-300">
+   553→            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
+   554→              ✨ {tx.create.suggested}
+   555→            </p>
+   556→            <p className="text-lg font-extrabold gradient-text">{suggestedTopic}</p>
+   557→          </div>
+   558→        )}
+   559→
+   560→        {/* ─── Generate button ─── */}
+   561→        <div className="flex items-center justify-center">
+   562→          <button
+   563→            onClick={generateCourse}
+   564→            disabled={!title.trim() || loading}
+   565→            className="flex items-center justify-center gap-3 px-8 py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg font-extrabold hover:from-mauve-light hover:to-mauve transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-mauve/25 hover:shadow-mauve/40 hover:scale-[1.02] active:scale-[0.98]"
+   566→          >
+   567→            {loading ? (
+   568→              <>
+   569→                <Loader2 className="w-5 h-5 animate-spin" />
+   570→                <span>{tx.create.generating}</span>
+   571→              </>
+   572→            ) : (
+   573→              <>
+   574→                <Sparkles className="w-5 h-5" />
+   575→                <span>{tx.create.generate}</span>
+   576→              </>
+   577→            )}
+   578→          </button>
+   579→        </div>
+   580→      </div>
+   581→
+   582→      {/* ═══════════ Recent courses ═══════════ */}
+   583→      <div className="mt-10 md:mt-14">
+   584→        <div className="flex items-center justify-between mb-6">
+   585→          <h2 className="text-xl md:text-2xl font-extrabold flex items-center gap-3">
+   586→            <BookOpen className="w-6 h-6 text-mauve-light" />
+   587→            {tx.create.myCourses}
+   588→          </h2>
+   589→        </div>
+   590→
+   591→        {courses.length === 0 ? (
+   592→          <div className="glass rounded-3xl p-10 text-center">
+   593→            <div className="text-4xl mb-3 opacity-40">📚</div>
+   594→            <p className="text-muted-foreground font-semibold text-lg">
+   595→              {tx.create.noCourses}
+   596→            </p>
+   597→          </div>
+   598→        ) : (
+   599→          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+   600→            {courses.slice(0, 6).map((course) => (
+   601→              <button
+   602→                key={course.id}
+   603→                onClick={() => openCourse(course.id)}
+   604→                className="group glass rounded-3xl p-5 text-left cursor-pointer transition-all duration-300 hover:bg-white/5 hover:shadow-lg hover:shadow-mauve/10 hover:scale-[1.02] active:scale-[0.98]"
+   605→              >
+   606→                {/* Course icon area */}
+   607→                <div className="w-12 h-12 rounded-2xl bg-mauve/15 flex items-center justify-center mb-4 transition-all duration-300 group-hover:bg-mauve/25">
+   608→                  <BookOpen className="w-5 h-5 text-mauve-light" />
+   609→                </div>
+   610→
+   611→                {/* Title */}
+   612→                <h3 className="text-base font-bold text-foreground mb-2 line-clamp-2 leading-snug transition-colors duration-200 group-hover:text-mauve-light">
+   613→                  {course.title}
+   614→                </h3>
+   615→
+   616→                {/* Description */}
+   617→                <p className="text-xs text-muted-foreground line-clamp-2 mb-4 leading-relaxed">
+   618→                  {course.description}
+   619→                </p>
+   620→
+   621→                {/* Meta info */}
+   622→                <div className="flex items-center justify-between mt-auto pt-3 border-t border-border/50">
+   623→                  <span className="text-xs text-muted-foreground/70 font-medium">
+   624→                    {formatDate(course.createdAt)}
+   625→                  </span>
+   626→                  <div className="flex items-center gap-1.5">
+   627→                    {/* Progress pill */}
+   628→                    {course.overallProgress > 0 && (
+   629→                      <span className="text-xs font-bold text-mauve-light bg-mauve/15 px-2.5 py-1 rounded-full">
+   630→                        {course.overallProgress}%
+   631→                      </span>
+   632→                    )}
+   633→                    <ChevronRight className="w-4 h-4 text-muted-foreground/50 transition-all duration-200 group-hover:translate-x-0.5 group-hover:text-mauve-light" />
+   634→                  </div>
+   635→                </div>
+   636→              </button>
+   637→            ))}
+   638→          </div>
+   639→        )}
+   640→      </div>
+   641→    </div>
+   642→
+   643→    {/* ─── Card Requirement Modal ─── */}
+   644→    {showCardModal && (
+   645→      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => setShowCardModal(false)}>
+   646→        <div className="glass rounded-3xl p-6 sm:p-8 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+   647→          <div className="text-center mb-6">
+   648→            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gold/15 mb-4">
+   649→              <CreditCard className="w-8 h-8 text-gold" />
+   650→            </div>
+   651→            <h3 className="text-xl font-extrabold mb-2">
+   652→              {lang === "fr" ? "Enregistre ta carte" : "Save your card"}
+   653→            </h3>
+   654→            <p className="text-sm text-muted-foreground leading-relaxed">
+   655→              {lang === "fr"
+   656→                ? `Pour continuer à générer tes cours d'essai, enregistre une carte de paiement. Tu ne seras facturé qu'en choisissant un abonnement.`
+   657→                : `To keep generating trial courses, save a payment card. You'll only be charged when choosing a subscription.`}
+   658→            </p>
+   659→          </div>
+   660→          <div className="space-y-3">
+   661→            <button
+   662→              onClick={() => { setShowCardModal(false); setView("offers"); }}
+   663→              className="w-full py-3.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:opacity-90 transition-all duration-300 cursor-pointer flex items-center justify-center gap-2"
+   664→            >
+   665→              <CreditCard className="w-4 h-4" />
+   666→              {lang === "fr" ? "Enregistrer ma carte" : "Save my card"}
+   667→            </button>
+   668→            <button
+   669→              onClick={() => setShowCardModal(false)}
+   670→              className="w-full py-3.5 rounded-full border border-muted-foreground/20 text-muted-foreground font-bold hover:bg-muted-foreground/10 transition-all duration-300 cursor-pointer"
+   671→            >
+   672→              {lang === "fr" ? "Plus tard" : "Maybe later"}
+   673→            </button>
+   674→          </div>
+   675→        </div>
+   676→      </div>
+   677→    )}
+   678→    </>
+   679→  );
+   680→}
+   681→

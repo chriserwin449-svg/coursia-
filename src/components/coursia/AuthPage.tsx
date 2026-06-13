@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Mail,
   Lock,
@@ -10,10 +10,29 @@ import {
   EyeOff,
   Loader2,
   Sparkles,
+  ShieldCheck,
+  ShieldAlert,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import CoursiaLogo from "@/components/coursia/CoursiaLogo";
+
+function getPasswordStrength(password: string): { score: number; label: string; color: string } {
+  if (!password) return { score: 0, label: "", color: "" };
+
+  let score = 0;
+  if (password.length >= 6) score++;
+  if (password.length >= 8) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+
+  if (score <= 1) return { score: 1, label: "Faible", color: "bg-red-500" };
+  if (score <= 2) return { score: 2, label: "Moyen", color: "bg-orange-500" };
+  if (score <= 3) return { score: 3, label: "Bon", color: "bg-yellow-500" };
+  if (score <= 4) return { score: 4, label: "Fort", color: "bg-emerald-400" };
+  return { score: 5, label: "Excellent", color: "bg-emerald-500" };
+}
 
 export default function AuthPage() {
   const lang = useAppStore((s) => s.lang);
@@ -32,6 +51,7 @@ export default function AuthPage() {
   const [error, setError] = useState("");
 
   const isFr = lang === "fr";
+  const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,6 +234,45 @@ export default function AuthPage() {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                {/* Password strength indicator (register only) */}
+                {!isLogin && password.length > 0 && (
+                  <div className="mt-3 animate-fade-in">
+                    <div className="flex gap-1.5 mb-1.5">
+                      {[1, 2, 3, 4, 5].map((level) => (
+                        <div
+                          key={level}
+                          className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                            level <= passwordStrength.score
+                              ? passwordStrength.color
+                              : "bg-muted-foreground/15"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className={`text-xs font-semibold transition-colors duration-300 ${
+                        passwordStrength.score <= 1 ? "text-red-400" :
+                        passwordStrength.score <= 2 ? "text-orange-400" :
+                        passwordStrength.score <= 3 ? "text-yellow-400" :
+                        "text-emerald-400"
+                      }`}>
+                        {isFr ? passwordStrength.label : (
+                          passwordStrength.score <= 1 ? "Weak" :
+                          passwordStrength.score <= 2 ? "Fair" :
+                          passwordStrength.score <= 3 ? "Good" :
+                          passwordStrength.score <= 4 ? "Strong" : "Excellent"
+                        )}
+                      </p>
+                      <div className="flex items-center gap-1">
+                        {passwordStrength.score >= 4 ? (
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : passwordStrength.score <= 1 && password.length > 0 ? (
+                          <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Error */}

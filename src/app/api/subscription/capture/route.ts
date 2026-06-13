@@ -17,6 +17,28 @@ async function activateSubscription(
   plan: string,
   orderId: string
 ): Promise<void> {
+  // Card verification: just mark card on file, no subscription
+  if (plan === "card_verify") {
+    await db.user.update({
+      where: { id: userId },
+      data: { hasCardOnFile: true },
+    });
+
+    // Mark payment request as approved
+    await db.paymentRequest.updateMany({
+      where: { userId, plan: "card_verify", status: "pending" },
+      data: {
+        status: "approved",
+        adminNote: `Card verified via PayPal: ${orderId}`,
+        txRef: orderId,
+      },
+    });
+
+    console.log(`[capture] Card verified for user ${userId.slice(0, 8)}...`);
+    return;
+  }
+
+  // Regular subscription activation
   const now = new Date();
   const duration = plan === "annual" ? 365 : 30;
   const endDate = new Date(now);
@@ -30,6 +52,7 @@ async function activateSubscription(
       subscriptionStartDate: now,
       subscriptionEndDate: endDate,
       creemSubscriptionId: `paypal_${orderId}`,
+      hasCardOnFile: true, // Mark card on file for all paid subscriptions too
     },
   });
 

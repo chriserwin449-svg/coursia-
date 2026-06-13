@@ -9,13 +9,12 @@ import {
   Clock,
   ShieldAlert,
   Gift,
-  CreditCard,
   Lock,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { PayPalButtons } from "@paypal/react-paypal-js";
+// PayPal buttons removed — using custom CTA buttons with redirect flow
 
 export default function OffersPage() {
   const lang = useAppStore((s) => s.lang);
@@ -52,9 +51,50 @@ export default function OffersPage() {
   const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Check if PayPal is configured
-  const paypalClientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
-  const isPaypalConfigured = paypalClientId && paypalClientId !== "YOUR_PAYPAL_SANDBOX_CLIENT_ID";
+  // PayPal is always assumed configured — the checkout API will handle errors if not
+  const isPaypalConfigured = true;
+
+  // Handle checkout — create order and redirect to PayPal
+  const handleCheckout = useCallback(async (plan: string) => {
+    if (!isAuthenticated || !userId) {
+      setView("auth");
+      return;
+    }
+    if (loadingPlan) return;
+
+    setLoadingPlan(plan);
+    setCheckoutError(null);
+
+    try {
+      const res = await fetch("/api/subscription/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan, userId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setCheckoutError(data.error || (lang === "fr" ? "Erreur lors du paiement" : "Payment failed"));
+        setLoadingPlan(null);
+        return;
+      }
+
+      if (data.requestId) setPaymentRequestId(data.requestId);
+      setPaypalOrderId(data.orderId);
+
+      // Redirect to PayPal for approval
+      if (data.approveUrl) {
+        window.location.href = data.approveUrl;
+      } else {
+        setCheckoutError(lang === "fr" ? "Lien PayPal indisponible." : "PayPal link unavailable.");
+        setLoadingPlan(null);
+      }
+    } catch {
+      setCheckoutError(lang === "fr" ? "Erreur de connexion. Réessaie." : "Connection error. Please try again.");
+      setLoadingPlan(null);
+    }
+  }, [isAuthenticated, userId, lang, setView, loadingPlan]);
 
   // Check paywall & subscription status
   useEffect(() => {
@@ -197,90 +237,6 @@ export default function OffersPage() {
     return "bg-amber-500/10 border-amber-500/30 text-amber-200";
   };
 
-  // Handle PayPal onApprove — capture payment on backend
-  const handleApprove = useCallback(async (plan: string, orderId: string) => {
-    setPaymentProcessing(true);
-    setPaypalOrderId(orderId);
-    setCheckoutError(null);
-
-    try {
-      const res = await fetch("/api/subscription/capture", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, userId }),
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        setPaymentSuccess(true);
-        setPaymentProcessing(false);
-
-        // Poll subscription status to update UI
-        const pollInterval = setInterval(async () => {
-          try {
-            const headers: Record<string, string> = {};
-            if (userId) headers["Authorization"] = `Bearer ${userId}`;
-            const statusRes = await fetch("/api/courses/paywall-status", { headers });
-            const statusData = await statusRes.json();
-            if (statusData.hasSubscription && statusData.subscriptionStatus === "active") {
-              clearInterval(pollInterval);
-              setIsSubscribed(true);
-              setSubscriptionPlan(plan);
-              setTrialExpired(false);
-              setInGracePeriod(false);
-              setGraceExpired(false);
-              setShowRenewalReminder(false);
-            }
-          } catch { /* keep polling */ }
-        }, 5_000);
-
-        setTimeout(() => clearInterval(pollInterval), 120_000);
-      } else {
-        setCheckoutError(data.error || (lang === "fr" ? "Échec du paiement" : "Payment failed"));
-        setPaymentProcessing(false);
-      }
-    } catch {
-      setCheckoutError(lang === "fr" ? "Erreur de connexion" : "Connection error");
-      setPaymentProcessing(false);
-    }
-  }, [userId, lang]);
-
-  // Create PayPal order on backend
-  const createOrder = useCallback(async (plan: string) => {
-    if (!isAuthenticated || !userId) {
-      setView("auth");
-      return "";
-    }
-
-    setLoadingPlan(plan);
-    setCheckoutError(null);
-
-    try {
-      const res = await fetch("/api/subscription/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, userId }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setCheckoutError(data.error || (lang === "fr" ? "Erreur lors du paiement" : "Payment failed"));
-        setLoadingPlan(null);
-        return "";
-      }
-
-      if (data.requestId) setPaymentRequestId(data.requestId);
-      setLoadingPlan(null);
-      return data.orderId; // Return PayPal order ID for the SDK
-    } catch {
-      setCheckoutError(lang === "fr" ? "Erreur de connexion. Réessaie." : "Connection error. Please try again.");
-      setLoadingPlan(null);
-      return "";
-    }
-  }, [isAuthenticated, userId, lang, setView]);
-
   // Check URL params for payment success
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -331,15 +287,6 @@ export default function OffersPage() {
     loadingPlan === plan ||
     paymentProcessing ||
     (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired);
-
-  // PayPal button styling
-  const paypalButtonStyle = {
-    layout: "vertical" as const,
-    color: "gold" as const,
-    shape: "pill" as const,
-    label: "pay" as const,
-    height: 45,
-  };
 
   return (
     <>
@@ -477,25 +424,6 @@ export default function OffersPage() {
           )}
         </div>
 
-        {/* ===== PAYPAL NOT CONFIGURED NOTICE ===== */}
-        {!isPaypalConfigured && (
-          <div className="max-w-2xl mx-auto mb-8">
-            <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30">
-              <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-bold text-amber-300">
-                  {lang === "fr" ? "Paiement en cours de configuration" : "Payment setup in progress"}
-                </p>
-                <p className="text-xs text-amber-400/70 mt-1">
-                  {lang === "fr"
-                    ? "Le paiement PayPal sera disponible très bientôt. Reviens plus tard."
-                    : "PayPal payment will be available soon. Please check back later."}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* ===== PRICING CARDS ===== */}
         {!paymentSuccess && (
           <div
@@ -561,44 +489,29 @@ export default function OffersPage() {
                 ))}
               </ul>
 
-              {/* PayPal Button or Disabled State */}
-              {isPaypalConfigured ? (
-                <div className="paypal-button-wrapper">
-                  {isButtonDisabled("monthly") ? (
-                    <button
-                      disabled
-                      className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      {isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired
-                        ? lang === "fr" ? "Plan Actuel" : "Current Plan"
-                        : <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            {lang === "fr" ? "Chargement..." : "Loading..."}
-                          </>}
-                    </button>
-                  ) : (
-                    <PayPalButtons
-                      style={paypalButtonStyle}
-                      fundingSource={undefined}
-                      createOrder={() => createOrder("monthly")}
-                      onApprove={(data) => handleApprove("monthly", data.orderID)}
-                      onError={() => {
-                        setCheckoutError(lang === "fr" ? "Erreur PayPal. Réessaie." : "PayPal error. Please try again.");
-                        setLoadingPlan(null);
-                      }}
-                      onCancel={() => {
-                        setCheckoutError(lang === "fr" ? "Paiement annulé." : "Payment cancelled.");
-                        setLoadingPlan(null);
-                      }}
-                    />
-                  )}
-                </div>
-              ) : (
+              {/* CTA Button */}
+              {isButtonDisabled("monthly") ? (
                 <button
                   disabled
                   className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {lang === "fr" ? "Bientôt disponible" : "Coming soon"}
+                  {isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired
+                    ? lang === "fr" ? "Plan Actuel" : "Current Plan"
+                    : <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        {lang === "fr" ? "Chargement..." : "Loading..."}
+                      </>}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleCheckout("monthly")}
+                  disabled={loadingPlan === "monthly"}
+                  className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {loadingPlan === "monthly" ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : null}
+                  {lang === "fr" ? "Choisir Mensuel" : "Choose Monthly"}
                 </button>
               )}
             </div>
@@ -643,47 +556,29 @@ export default function OffersPage() {
                 ))}
               </ul>
 
-              {/* PayPal Button or Disabled State */}
-              {isPaypalConfigured ? (
-                <div className="paypal-button-wrapper">
-                  {isButtonDisabled("annual") ? (
-                    <button
-                      disabled
-                      className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden"
-                    >
-                      {isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired
-                        ? lang === "fr" ? "Plan Actuel" : "Current Plan"
-                        : <>
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            {lang === "fr" ? "Chargement..." : "Loading..."}
-                          </>}
-                    </button>
-                  ) : (
-                    <PayPalButtons
-                      style={{
-                        ...paypalButtonStyle,
-                        color: "gold",
-                      }}
-                      fundingSource={undefined}
-                      createOrder={() => createOrder("annual")}
-                      onApprove={(data) => handleApprove("annual", data.orderID)}
-                      onError={() => {
-                        setCheckoutError(lang === "fr" ? "Erreur PayPal. Réessaie." : "PayPal error. Please try again.");
-                        setLoadingPlan(null);
-                      }}
-                      onCancel={() => {
-                        setCheckoutError(lang === "fr" ? "Paiement annulé." : "Payment cancelled.");
-                        setLoadingPlan(null);
-                      }}
-                    />
-                  )}
-                </div>
-              ) : (
+              {/* CTA Button */}
+              {isButtonDisabled("annual") ? (
                 <button
                   disabled
                   className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden"
                 >
-                  {lang === "fr" ? "Bientôt disponible" : "Coming soon"}
+                  {isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired
+                    ? lang === "fr" ? "Plan Actuel" : "Current Plan"
+                    : <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        {lang === "fr" ? "Chargement..." : "Loading..."}
+                      </>}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleCheckout("annual")}
+                  disabled={loadingPlan === "annual"}
+                  className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden cursor-pointer"
+                >
+                  {loadingPlan === "annual" ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : null}
+                  {lang === "fr" ? "Choisir Annuel" : "Choose Annual"}
                 </button>
               )}
             </div>
@@ -700,11 +595,7 @@ export default function OffersPage() {
                 : "100% secure payment via PayPal"}
             </span>
           </div>
-          {isPaypalConfigured && (
-            <span className="text-[10px] text-muted-foreground/30">
-              {lang === "fr" ? "Mode Sandbox — Test" : "Sandbox Mode — Test"}
-            </span>
-          )}
+
         </div>
       </div>
     </div>
@@ -771,17 +662,6 @@ export default function OffersPage() {
       }
       .animate-fade-in { animation: fade-in 0.4s ease-out; }
 
-      /* PayPal button container styling */
-      .paypal-button-wrapper {
-        min-height: 45px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-      }
-      .paypal-button-wrapper iframe {
-        border-radius: 9999px !important;
-        min-height: 45px !important;
-      }
     `}</style>
     </>
   );

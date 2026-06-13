@@ -371,7 +371,7 @@ export default function LandingPage() {
         </div>
 
         <div
-          className="relative z-10 max-w-6xl mx-auto transition-all duration-1000 ease-out"
+          className="relative z-10 max-w-5xl mx-auto transition-all duration-1000 ease-out"
           style={{
             opacity: pricingVisible ? 1 : 0,
             transform: pricingVisible ? "translateY(0)" : "translateY(40px)",
@@ -386,40 +386,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-start">
-            {/* FREE PLAN */}
-            <div className="landing-pricing-float glass rounded-3xl p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
-              <div className="mb-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-xl bg-mauve/10 flex items-center justify-center">
-                    <BookOpen className="w-5 h-5 text-mauve-light" />
-                  </div>
-                  <h3 className="text-xl font-bold">{tx.landing.pricing.free.name}</h3>
-                </div>
-                <p className="text-muted-foreground text-sm">{tx.landing.pricing.free.desc}</p>
-              </div>
-              <div className="mb-6">
-                <span className="text-4xl font-extrabold">{tx.landing.pricing.free.price}</span>
-                {lang === "fr" && (
-                  <p className="text-sm text-gold font-semibold mt-1">{tx.landing.pricing.free.note}</p>
-                )}
-              </div>
-              <ul className="flex-1 space-y-3 mb-8">
-                {tx.landing.pricing.free.features.map((f) => (
-                  <li key={f} className="flex items-start gap-3">
-                    <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm text-muted-foreground">{f}</span>
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => user ? setView("create") : setView("auth")}
-                className="w-full py-4 rounded-full border border-muted-foreground/20 text-foreground font-bold hover:bg-muted-foreground/10 transition-all duration-300 cursor-pointer"
-              >
-                {tx.landing.pricing.free.cta}
-              </button>
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 items-start max-w-4xl mx-auto">
             {/* MONTHLY PLAN */}
             <div className="landing-pricing-float landing-monthly-shimmer glass rounded-3xl p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
               <div className="mb-6">
@@ -501,8 +468,8 @@ export default function LandingPage() {
           {/* Payment provider note */}
           <p className="text-center text-xs text-muted-foreground/40 mt-10">
             {lang === "fr"
-              ? "Paiement 100% sécurisé"
-              : "100% secure payment"}
+              ? "Paiement 100% sécurisé via PayPal"
+              : "100% secure payment via PayPal"}
           </p>
         </div>
       </section>
@@ -539,7 +506,7 @@ export default function LandingPage() {
                     { q: "Comment fonctionne la progression par niveaux ?", a: "Chaque cours comporte 3 niveaux de difficulté : Débutant, Intermédiaire et Avancé. Tu commences toujours par le niveau Débutant. Après avoir terminé un niveau, une animation célèbre ta réussite et tu peux choisir de passer au suivant. Un récapitulatif IA t'aide à réviser les points clés avant de continuer." },
                     { q: "Les cours sont-ils personnalisés selon mon niveau ?", a: "Oui ! Tu peux choisir entre trois niveaux : Débutant, Intermédiaire et Avancé. L'IA adapte la complexité du contenu, les exemples et les quiz en fonction de ton niveau." },
                     { q: "Puis-je progresser d'un niveau à l'autre ?", a: "Absolument ! Après avoir terminé un cours à un niveau, Coursia te propose de passer au niveau supérieur avec un récapitulatif IA pour t'aider à progresser. Termine les 3 niveaux pour gagner un maximum de flammes !" },
-                    { q: "Combien de cours puis-je créer ?", a: "Avec le plan Découverte, tu peux créer 3 cours gratuitement pendant 3 jours. Les plans payants offrent des cours illimités pour apprendre sans limites." },
+                    { q: "Puis-je créer un cours gratuitement ?", a: "Oui ! Tu peux créer ton premier cours gratuitement et lire le premier chapitre. Pour accéder à tous les chapitres et créer des cours illimités, choisis un abonnement." },
                     { q: "Comment fonctionne le système de flammes ?", a: "Les flammes sont ta monnaie d'apprentissage ! Tu en gagnes en réussissant des quiz et en terminant des cours. Utilise-les pour créer de nouveaux cours ou débloque des badges en accumulant des points." },
                     { q: "Puis-je accéder à mes cours depuis n'importe quel appareil ?", a: "Oui, Coursia est accessible depuis n'importe quel navigateur web. Tes cours et ta progression sont sauvegardés dans ton compte." },
                   ]
@@ -547,7 +514,7 @@ export default function LandingPage() {
                     { q: "How does level progression work?", a: "Each course has 3 difficulty levels: Beginner, Intermediate and Advanced. You always start at Beginner. After completing a level, a celebration animation plays and you can choose to advance. An AI recap helps you review key points before continuing." },
                     { q: "Are courses personalized to my level?", a: "Yes! You can choose between three levels: Beginner, Intermediate and Advanced. The AI adapts the content complexity, examples and quizzes based on your level." },
                     { q: "Can I progress from one level to another?", a: "Absolutely! After completing a course at one level, Coursia offers to move you to the next level with an AI recap to help you progress. Complete all 3 levels to earn maximum flames!" },
-                    { q: "How many courses can I create?", a: "With the Discovery plan, you can create 3 free courses for 3 days. Paid plans offer unlimited courses to learn without limits." },
+                    { q: "Can I create a course for free?", a: "Yes! You can create your first course for free and read the first chapter. To access all chapters and create unlimited courses, choose a subscription." },
                     { q: "How does the flame system work?", a: "Flames are your learning currency! You earn them by passing quizzes and completing courses. Use them to create new courses or unlock badges by accumulating points." },
                     { q: "Can I access my courses from any device?", a: "Yes, Coursia is accessible from any web browser. Your courses and progress are saved in your account." },
                   ]

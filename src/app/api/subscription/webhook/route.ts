@@ -18,6 +18,26 @@ async function activateSubscription(
   payerEmail?: string
 ): Promise<boolean> {
   try {
+    // Card verification: just mark card on file, no subscription
+    if (plan === "card_verify") {
+      await db.user.update({
+        where: { id: userId },
+        data: { hasCardOnFile: true },
+      });
+
+      await db.paymentRequest.updateMany({
+        where: { userId, plan: "card_verify", status: "pending" },
+        data: {
+          status: "approved",
+          adminNote: `Card verified via PayPal webhook: ${orderId}${payerEmail ? ` | payer: ${payerEmail}` : ""}`,
+          txRef: orderId,
+        },
+      });
+
+      console.log(`[webhook] Card verified via webhook for user ${userId.slice(0, 8)}...`);
+      return true;
+    }
+
     const now = new Date();
     const duration = plan === "annual" ? 365 : 30;
     const endDate = new Date(now);
@@ -31,6 +51,7 @@ async function activateSubscription(
         subscriptionStartDate: now,
         subscriptionEndDate: endDate,
         creemSubscriptionId: `paypal_${orderId}`,
+        hasCardOnFile: true,
       },
     });
 

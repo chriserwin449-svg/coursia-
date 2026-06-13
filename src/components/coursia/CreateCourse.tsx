@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Globe,
   Crown,
+  CreditCard,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -44,6 +45,9 @@ export default function CreateCourse() {
   const [trialCoursesMax, setTrialCoursesMax] = useState(3);
   const [selectedLevel, setSelectedLevel] = useState(0);
   const [isRandomTopic, setIsRandomTopic] = useState(false);
+  const [requireCard, setRequireCard] = useState(false);
+  const [showCardModal, setShowCardModal] = useState(false);
+  const [cardVerifying, setCardVerifying] = useState(false);
 
   // ─── Store refs for random topic ────────────────────────────────────────
   const storeRandomTopic = useAppStore((s) => s.randomTopic);
@@ -164,10 +168,13 @@ export default function CreateCourse() {
           setTrialDaysRemaining(pw.trialDaysRemaining || 0);
           setTrialCoursesMax(pw.trialCoursesMax || 3);
           setCoursesRemaining(Math.max(0, (pw.trialCoursesMax || 3) - (pw.trialCoursesGenerated || 0)));
+          setRequireCard(!!pw.requireCard);
         } else if (!pw.hasSubscription) {
           setCoursesRemaining(Math.max(0, (pw.trialCoursesMax || 3) - (pw.trialCoursesGenerated || 0)));
+          setRequireCard(!!pw.requireCard);
         } else {
           setCoursesRemaining(999);
+          setRequireCard(false);
         }
       }
     } catch {
@@ -206,6 +213,12 @@ export default function CreateCourse() {
   const generateCourse = async () => {
     if (!title.trim()) return;
 
+    // Show card modal if required
+    if (requireCard && !hasSubscription) {
+      setShowCardModal(true);
+      return;
+    }
+
     // Trial limit check
     if (!hasSubscription && coursesRemaining <= 0) {
       setView("offers");
@@ -231,8 +244,12 @@ export default function CreateCourse() {
 
       const data = await res.json();
       if (!res.ok) {
-        if (data.error === "TRIAL_LIMIT" || data.error === "TRIAL_EXPIRED") {
+        if (data.error === "FREE_LIMIT" || data.error === "TRIAL_LIMIT" || data.error === "TRIAL_EXPIRED") {
           setView("offers");
+          return;
+        }
+        if (data.error === "REQUIRE_CARD") {
+          setShowCardModal(true);
           return;
         }
         throw new Error(data.error || "Failed to generate");
@@ -307,6 +324,7 @@ export default function CreateCourse() {
   };
 
   return (
+    <>
     <div className="max-w-3xl mx-auto px-4 sm:px-6 md:px-10 pt-14 sm:pt-20 pb-8 md:pt-24 md:pb-16">
       {/* ═══════════ Personalized Greeting ═══════════ */}
       {user && (
@@ -622,5 +640,72 @@ export default function CreateCourse() {
         )}
       </div>
     </div>
+
+    {/* ─── Card Requirement Modal ─── */}
+    {showCardModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => !cardVerifying && setShowCardModal(false)}>
+        <div className="glass rounded-3xl p-6 sm:p-8 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gold/15 mb-4">
+              <CreditCard className="w-8 h-8 text-gold" />
+            </div>
+            <h3 className="text-xl font-extrabold mb-2">
+              {lang === "fr" ? "Enregistre ta carte" : "Save your card"}
+            </h3>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {lang === "fr"
+                ? "Pour continuer à générer tes cours d'essai, vérifie ta carte de paiement. Une autorisation de $0.01 sera effectuée. Tu ne seras facturé qu'en choisissant un abonnement."
+                : "To keep generating trial courses, verify your payment card. A $0.01 authorization will be made. You'll only be charged when choosing a subscription."}
+            </p>
+          </div>
+          <div className="space-y-3">
+            <button
+              onClick={async () => {
+                const userId = useAppStore.getState().userId;
+                if (!userId) return;
+                setCardVerifying(true);
+                try {
+                  const res = await fetch("/api/subscription/verify-card", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ userId }),
+                  });
+                  const data = await res.json();
+                  if (res.ok && data.approveUrl) {
+                    setShowCardModal(false);
+                    window.location.href = data.approveUrl;
+                  } else {
+                    setError(data.error || (lang === "fr" ? "Erreur de vérification" : "Verification failed"));
+                    setCardVerifying(false);
+                  }
+                } catch {
+                  setError(lang === "fr" ? "Erreur de connexion" : "Connection error");
+                  setCardVerifying(false);
+                }
+              }}
+              disabled={cardVerifying}
+              className="w-full py-3.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:opacity-90 transition-all duration-300 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {cardVerifying ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <CreditCard className="w-4 h-4" />
+              )}
+              {cardVerifying
+                ? (lang === "fr" ? "Vérification..." : "Verifying...")
+                : (lang === "fr" ? "Vérifier avec PayPal ($0.01)" : "Verify with PayPal ($0.01)")}
+            </button>
+            <button
+              onClick={() => setShowCardModal(false)}
+              disabled={cardVerifying}
+              className="w-full py-3.5 rounded-full border border-muted-foreground/20 text-muted-foreground font-bold hover:bg-muted-foreground/10 transition-all duration-300 cursor-pointer disabled:opacity-50"
+            >
+              {lang === "fr" ? "Plus tard" : "Maybe later"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

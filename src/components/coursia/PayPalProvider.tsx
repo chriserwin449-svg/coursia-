@@ -1,22 +1,37 @@
 "use client";
 
 import { PayPalScriptProvider } from "@paypal/react-paypal-js";
+import { useEffect, useState } from "react";
+
+interface PayPalConfig {
+  configured: boolean;
+  clientId: string;
+  mode: "sandbox" | "live";
+}
 
 export function PayPalProviderWrapper({ children }: { children: React.ReactNode }) {
-  const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID || "";
+  const [config, setConfig] = useState<PayPalConfig | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (!clientId || clientId === "YOUR_PAYPAL_SANDBOX_CLIENT_ID") {
-    // PayPal not configured — render children without PayPal (buttons won't work)
+  useEffect(() => {
+    fetch("/api/paypal/config")
+      .then((res) => res.json())
+      .then((data: PayPalConfig) => setConfig(data))
+      .catch(() => setConfig({ configured: false, clientId: "", mode: "sandbox" }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading || !config || !config.configured) {
+    // PayPal not configured or still loading — render children without PayPal
     return <>{children}</>;
   }
 
   return (
     <PayPalScriptProvider
       options={{
-        clientId,
+        clientId: config.clientId,
         currency: "USD",
         intent: "capture",
-        "data-client-token": "", // optional
       }}
     >
       {children}

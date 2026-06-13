@@ -17,6 +17,7 @@ model User {
   subscriptionStatus      String   @default("none") // "none" | "active" | "canceled" | "past_due" | "expired"
   creemSubscriptionId     String?  // Creem subscription ID (sub_xxx)
   creemCustomerId         String?  // Creem customer ID (cust_xxx)
+  hasCardOnFile          Boolean  @default(false) // true after user registers card via PayPal
   subscriptionStartDate  DateTime?
   subscriptionEndDate    DateTime?
   trialStartDate         DateTime?  // Starts when user creates first course

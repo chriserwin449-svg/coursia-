@@ -40,6 +40,10 @@ export default function CourseViewer() {
   const [isCompleting, setIsCompleting] = useState(false);
   const [mobileChapterOpen, setMobileChapterOpen] = useState(false);
 
+  // Subscription state for free chapter limit
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [freeChapterLimit, setFreeChapterLimit] = useState(1);
+
   // Level system states
   const [isGeneratingLevel, setIsGeneratingLevel] = useState(false);
   const [showReviewScreen, setShowReviewScreen] = useState(false);
@@ -143,6 +147,8 @@ export default function CourseViewer() {
 
   const isChapterUnlocked = (index: number) => {
     if (isChapterLevelLocked(index)) return false;
+    // Free preview: lock chapters beyond freeChapterLimit for non-subscribers
+    if (!isSubscribed && index >= freeChapterLimit) return false;
     if (index === 0) return true;
     return course?.chapters[index - 1]?.progress?.completed === true;
   };
@@ -208,9 +214,25 @@ export default function CourseViewer() {
     setLoading(true);
     setFetchError(false);
     try {
-      const res = await fetch(`/api/courses/${selectedCourseId}`);
-      const data = await res.json();
-      if (res.ok && data.chapters?.length > 0) {
+      // Fetch subscription status in parallel with course data
+      const userId = useAppStore.getState().userId;
+      const authHeaders: Record<string, string> = {};
+      if (userId) authHeaders["Authorization"] = `Bearer ${userId}`;
+
+      const [courseRes, statusRes] = await Promise.all([
+        fetch(`/api/courses/${selectedCourseId}`),
+        userId ? fetch("/api/courses/paywall-status", { headers: authHeaders }) : Promise.resolve(null),
+      ]);
+
+      const data = await courseRes.json();
+      // Parse subscription status
+      if (statusRes && statusRes.ok) {
+        const pw = await statusRes.json();
+        setIsSubscribed(!!pw.hasSubscription && pw.subscriptionStatus === "active");
+        setFreeChapterLimit(pw.freeChapterLimit || 1);
+      }
+
+      if (courseRes.ok && data.chapters?.length > 0) {
         setCourse(data);
         if (data.courseCompleted) setCourseCompleted(true);
         const savedChapterKey = `coursia-last-chapter-${selectedCourseId}`;
@@ -301,6 +323,12 @@ export default function CourseViewer() {
     if (currentChapterIndex >= course.chapters.length - 1) return;
     if (isChapterLevelLocked(currentChapterIndex + 1)) return;
 
+    // Free preview: block chapter 2+ for non-subscribers
+    if (!isSubscribed && currentChapterIndex + 1 >= freeChapterLimit) {
+      setView("offers");
+      return;
+    }
+
     setIsCompleting(true);
     const wasJustCompleted = !currentChapter?.progress?.completed;
     if (wasJustCompleted) {
@@ -318,7 +346,7 @@ export default function CourseViewer() {
     setCurrentChapterIndex(nextIdx);
     startStudySession(course.id, course.chapters[nextIdx]?.id);
     setIsCompleting(false);
-  }, [course, isCompleting, currentChapter?.progress?.completed, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, startStudySession, setCurrentChapterIndex]);
+  }, [course, isCompleting, currentChapter?.progress?.completed, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, startStudySession, setCurrentChapterIndex, isSubscribed, freeChapterLimit, setView]);
 
   const goToPrev = useCallback(() => {
     if (currentChapterIndex === 0 || !course) return;
