@@ -15,7 +15,6 @@ import {
   FileText,
   AlertTriangle,
   Rocket,
-  Crown,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useAppStore, type CourseData, type CourseChapter, type QuizQuestion } from "@/lib/store";
@@ -763,7 +762,7 @@ export default function CourseViewer() {
                 </div>
               </div>
               <button onClick={goToPrev} disabled={currentChapterIndex === 0 || isCompleting} className="p-2 rounded-xl hover:bg-white/10 transition-all disabled:opacity-30 cursor-pointer"><ChevronLeft className="w-5 h-5" /></button>
-              <button onClick={goToNext} disabled={currentChapterIndex === course.chapters.length - 1 || isCompleting || isChapterLevelLocked(currentChapterIndex + 1) && !isPaywallRedirect} className="p-2 rounded-xl hover:bg-white/10 transition-all disabled:opacity-30 cursor-pointer"><ChevronRight className="w-5 h-5" /></button>
+              <button onClick={goToNext} disabled={currentChapterIndex === course.chapters.length - 1 || isCompleting} className="p-2 rounded-xl hover:bg-white/10 transition-all disabled:opacity-30 cursor-pointer"><ChevronRight className="w-5 h-5" /></button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -1049,8 +1048,8 @@ export default function CourseViewer() {
                   <span className="hidden sm:inline">{tx.viewer.previous}</span>
                 </button>
                 {currentChapterIndex < course.chapters.length - 1 ? (
-                  <button onClick={goToNext} disabled={isCompleting || (isChapterLevelLocked(currentChapterIndex + 1) && !isPaywallRedirect)} className={"flex items-center gap-2 px-6 py-3 rounded-full text-white text-sm font-bold hover:from-mauve-light hover:to-mauve transition-all cursor-pointer " + (isPaywallRedirect ? "bg-gradient-to-r from-gold to-amber-500 text-night" : "bg-gradient-to-r from-mauve to-mauve-dark disabled:opacity-50")}>
-                    {isCompleting ? <Loader2 className="w-4 h-4 animate-spin" /> : isPaywallRedirect ? <><Crown className="w-4 h-4" />{lang === "fr" ? "Débloquer le cours" : "Unlock course"}<ChevronRight className="w-4 h-4" /></> : <>{tx.viewer.next}<ChevronRight className="w-4 h-4" /></>}
+                  <button onClick={goToNext} disabled={isCompleting} className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold hover:from-mauve-light hover:to-mauve transition-all disabled:opacity-50 cursor-pointer">
+                    {isCompleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <>{tx.viewer.next}<ChevronRight className="w-4 h-4" /></>}
                   </button>
                 ) : allChaptersCompleted ? (
                   <button onClick={() => setShowFinalQuiz(true)} className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-gold to-gold-dark text-night text-sm font-bold hover:from-gold-light hover:to-gold transition-all cursor-pointer">

@@ -153,9 +153,9 @@ export default function LandingPage() {
           {/* Right: CTA button */}
           <button
             onClick={() => user ? setView("create") : setView("auth")}
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full glass font-semibold text-foreground hover:bg-white/10 hover:border-mauve/30 transition-all duration-300 cursor-pointer"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2.5 rounded-full glass font-semibold text-xs sm:text-sm text-foreground hover:bg-white/10 hover:border-mauve/30 transition-all duration-300 cursor-pointer"
           >
-            <Sparkles className="w-4 h-4 text-mauve-light" />
+            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-mauve-light" />
             {tx.landing.cta}
           </button>
         </div>
