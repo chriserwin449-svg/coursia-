@@ -27,8 +27,8 @@ const fr = {
     logoutNo: "Annuler",
   },
   landing: {
-    hero: "Deviens expert en n'importe quoi. En un clic.",
-    subtitle: "Donne un sujet, et l'IA génère instantanément un cours complet adapté à ton niveau. Chapitres, quiz, badges — tout est prêt pour que tu progresses plus vite que jamais.",
+    hero: "Tu n'as pas besoin de plus de contenu. Tu as besoin d'un cours qui s'adapte à toi.",
+    subtitle: "Coursia crée des leçons dynamiques, claires et engageantes pour t'aider à progresser sans te perdre.",
     cta: "Essayer Gratuitement",
     features: {
       ai: { title: "Des cours sur mesure en secondes", desc: "Plus besoin de chercher. Donne ton sujet, choisis ton niveau, et l'IA te crée un cours structuré et personnalisé — comme si un professeur privé l'avait préparé pour toi." },
@@ -321,8 +321,8 @@ const en = {
     logoutNo: "Cancel",
   },
   landing: {
-    hero: "Become an expert in anything. With one click.",
-    subtitle: "Give a topic, and AI instantly generates a complete course tailored to your level. Chapters, quizzes, badges — everything is ready so you can progress faster than ever.",
+    hero: "You don't need more content. You need a course that adapts to you.",
+    subtitle: "Coursia creates dynamic, clear, and engaging lessons to help you progress without getting lost.",
     cta: "Try it Free",
     features: {
       ai: { title: "Custom courses in seconds", desc: "No more searching. Give your topic, pick your level, and AI creates a structured, personalized course — as if a private tutor prepared it just for you." },
