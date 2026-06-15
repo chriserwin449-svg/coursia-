@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
+import { trackEvent } from "@/lib/analytics";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 // PayPal buttons removed — using custom CTA buttons with redirect flow
 
@@ -85,6 +86,7 @@ export default function OffersPage() {
 
       // Redirect to PayPal for approval
       if (data.approveUrl) {
+        trackEvent({ name: "payment_init", properties: { plan } });
         window.location.href = data.approveUrl;
       } else {
         setCheckoutError(lang === "fr" ? "Lien PayPal indisponible." : "PayPal link unavailable.");
@@ -98,6 +100,9 @@ export default function OffersPage() {
 
   // Check paywall & subscription status
   useEffect(() => {
+    // Track when user views the pricing page
+    trackEvent({ name: "pricing_viewed" });
+
     const checkStatus = async () => {
       try {
         const headers: Record<string, string> = {};

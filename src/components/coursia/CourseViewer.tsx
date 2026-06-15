@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { trackEvent } from "@/lib/analytics";
 import {
   ChevronRight,
   ChevronLeft,
@@ -333,6 +334,7 @@ export default function CourseViewer() {
 
     // Free preview: block chapter 2+ for non-subscribers
     if (!isSubscribed && currentChapterIndex + 1 >= freeChapterLimit) {
+      trackEvent({ name: "paywall_hit" });
       setView("offers");
       return;
     }

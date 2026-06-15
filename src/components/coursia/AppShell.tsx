@@ -3,6 +3,7 @@
 import { useEffect, useCallback, useRef } from "react";
 import { BookOpen, Library, Route, Tag } from "lucide-react";
 import { useAppStore } from "@/lib/store";
+import { trackEvent } from "@/lib/analytics";
 import { t } from "@/lib/i18n";
 import { useSession } from "@/hooks/useSession";
 import Sidebar from "@/components/coursia/Sidebar";
@@ -132,6 +133,9 @@ export default function AppShell() {
 
       useAppStore.getState().setShowCelebration(true);
       useAppStore.getState().setCelebrationMessage(message);
+
+      // Track payment success conversion
+      trackEvent({ name: "payment_success" });
 
       // Clean URL (remove query params without page reload)
       window.history.replaceState({}, "", window.location.pathname);

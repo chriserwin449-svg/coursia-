@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { trackEvent } from "@/lib/analytics";
 import {
   Sparkles,
   Plus,
@@ -225,6 +226,7 @@ export default function CreateCourse() {
       const course = data.course as CourseData;
       setSelectedCourseId(course.id);
       setView("viewer");
+      trackEvent({ name: "course_created", properties: { plan: String(data.plan || level) } });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Une erreur est survenue");
     } finally {

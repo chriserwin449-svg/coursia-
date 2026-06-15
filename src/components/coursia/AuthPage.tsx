@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { trackEvent } from "@/lib/analytics";
 import {
   Mail,
   Lock,
@@ -104,6 +105,9 @@ export default function AuthPage() {
 
       // Navigate to create page
       setView("create");
+
+      // Track conversion event
+      trackEvent({ name: isLogin ? "login" : "signup" });
     } catch {
       setError(isFr ? "Erreur de connexion" : "Connection error");
     } finally {
