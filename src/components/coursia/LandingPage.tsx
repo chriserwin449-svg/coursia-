@@ -237,21 +237,18 @@ export default function LandingPage() {
             </button>
           </div>
 
-          {/* Stats row */}
-          <div className="mt-16 flex flex-wrap items-center justify-center gap-8 sm:gap-12">
-            {useMemo(() => [
-              { icon: BookOpen, value: "10K+", label: lang === "fr" ? "Cours créés" : "Courses created", key: "courses" },
-              { icon: Trophy, value: "50K+", label: lang === "fr" ? "Quiz complétés" : "Quizzes completed", key: "quizzes" },
-              { icon: Globe, value: "98%", label: lang === "fr" ? "Satisfaction" : "Satisfaction", key: "sat" },
-            ], [lang]).map((stat) => (
-              <div key={stat.label} className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-mauve/10 flex items-center justify-center">
-                  <stat.icon className="w-5 h-5 text-mauve-light" />
+          {/* Trust signals */}
+          <div className="mt-16 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
+            {[
+              lang === "fr" ? "Génération adaptée" : "Adaptive generation",
+              lang === "fr" ? "Progression personnalisée" : "Personalized progression",
+              lang === "fr" ? "IA qui s'ajuste à ton niveau" : "AI that adapts to your level",
+            ].map((text) => (
+              <div key={text} className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="w-5 h-5 rounded-full bg-mauve/20 flex items-center justify-center flex-shrink-0">
+                  <Check className="w-3 h-3 text-mauve-light" />
                 </div>
-                <div className="text-left">
-                  <div className="text-xl font-extrabold text-foreground">{stat.value}</div>
-                  <div className="text-xs text-muted-foreground">{stat.label}</div>
-                </div>
+                <span>{text}</span>
               </div>
             ))}
           </div>
