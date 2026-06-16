@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { trackEvent } from "@/lib/analytics";
 import {
   Mail,
@@ -13,27 +13,73 @@ import {
   Sparkles,
   ShieldCheck,
   ShieldAlert,
+  Lightbulb,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 
-function getPasswordStrength(password: string): { score: number; label: string; color: string } {
-  if (!password) return { score: 0, label: "", color: "" };
+type PasswordTipKey = "mixCase" | "addDigit" | "addSpecial" | "longer";
 
+function getPasswordStrength(password: string, isFr: boolean): { score: number; label: string; labelEn: string; color: string; tips: PasswordTipKey[] } {
+  if (!password) return { score: 0, label: "", labelEn: "", color: "", tips: [] };
+
+  // Length is the PRIMARY factor — a long password is inherently strong
   let score = 0;
-  if (password.length >= 6) score++;
-  if (password.length >= 8) score++;
-  if (/[A-Z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
+  if (password.length >= 6) score += 1;
+  if (password.length >= 8) score += 2;  // 8+ chars = already "Fort"
+  if (password.length >= 10) score += 1;
+  if (password.length >= 14) score += 1;
 
-  if (score <= 1) return { score: 1, label: "Faible", color: "bg-red-500" };
-  if (score <= 2) return { score: 2, label: "Moyen", color: "bg-orange-500" };
-  if (score <= 3) return { score: 3, label: "Bon", color: "bg-yellow-500" };
-  if (score <= 4) return { score: 4, label: "Fort", color: "bg-emerald-400" };
-  return { score: 5, label: "Excellent", color: "bg-emerald-500" };
+  // Diversity bonuses (secondary)
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasDigit = /[0-9]/.test(password);
+  const hasSpecial = /[^A-Za-z0-9]/.test(password);
+
+  if (hasUpper && hasLower) score += 1;
+  if (hasDigit) score += 1;
+  if (hasSpecial) score += 1;
+
+  score = Math.min(5, score);
+
+  // Build tips for what's missing
+  const tips: PasswordTipKey[] = [];
+  if (password.length < 8) tips.push("longer");
+  if (!hasUpper || !hasLower) tips.push("mixCase");
+  if (!hasDigit) tips.push("addDigit");
+  if (!hasSpecial) tips.push("addSpecial");
+
+  let label: string;
+  let labelEn: string;
+  let color: string;
+  if (score <= 1) { label = "Faible"; labelEn = "Weak"; color = "bg-red-500"; }
+  else if (score <= 2) { label = "Moyen"; labelEn = "Fair"; color = "bg-orange-500"; }
+  else if (score <= 3) { label = "Fort"; labelEn = "Strong"; color = "bg-emerald-400"; }
+  else if (score <= 4) { label = "Très fort"; labelEn = "Very strong"; color = "bg-emerald-500"; }
+  else { label = "Excellent"; labelEn = "Excellent"; color = "bg-emerald-500"; }
+
+  return { score, label, labelEn, color, tips };
 }
+
+const tipMessages: Record<PasswordTipKey, { fr: string; en: string }> = {
+  longer: {
+    fr: "Utilise au moins 8 caractères pour un mot de passe solide",
+    en: "Use at least 8 characters for a strong password",
+  },
+  mixCase: {
+    fr: "Mélange des majuscules et minuscules (ex: Abc)",
+    en: "Mix uppercase and lowercase letters (ex: Abc)",
+  },
+  addDigit: {
+    fr: "Ajoute des chiffres pour renforcer la sécurité",
+    en: "Add numbers to strengthen your password",
+  },
+  addSpecial: {
+    fr: "Ajoute des caractères spéciaux (!@#$%...)",
+    en: "Add special characters (!@#$%...)",
+  },
+};
 
 export default function AuthPage() {
   const lang = useAppStore((s) => s.lang);
@@ -52,7 +98,34 @@ export default function AuthPage() {
   const [error, setError] = useState("");
 
   const isFr = lang === "fr";
-  const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
+  const passwordStrength = useMemo(() => getPasswordStrength(password, isFr), [password, isFr]);
+
+  // Animated cycling tips
+  const [currentTipIdx, setCurrentTipIdx] = useState(0);
+  const [tipVisible, setTipVisible] = useState(true);
+
+  const tips = passwordStrength.tips;
+  const showTips = !isLogin && password.length > 0 && tips.length > 0 && passwordStrength.score < 5;
+
+  const advanceTip = useCallback(() => {
+    setTipVisible(false);
+    setTimeout(() => {
+      setCurrentTipIdx((prev) => (prev + 1) % tips.length);
+      setTipVisible(true);
+    }, 350);
+  }, [tips.length]);
+
+  useEffect(() => {
+    if (!showTips) { setTipVisible(false); return; }
+    setCurrentTipIdx(0);
+    setTipVisible(true);
+  }, [showTips]);
+
+  useEffect(() => {
+    if (!showTips) return;
+    const interval = setInterval(advanceTip, 3500);
+    return () => clearInterval(interval);
+  }, [showTips, advanceTip]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -245,7 +318,7 @@ export default function AuthPage() {
                       {[1, 2, 3, 4, 5].map((level) => (
                         <div
                           key={level}
-                          className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
+                          className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
                             level <= passwordStrength.score
                               ? passwordStrength.color
                               : "bg-muted-foreground/15"
@@ -257,24 +330,33 @@ export default function AuthPage() {
                       <p className={`text-xs font-semibold transition-colors duration-300 ${
                         passwordStrength.score <= 1 ? "text-red-400" :
                         passwordStrength.score <= 2 ? "text-orange-400" :
-                        passwordStrength.score <= 3 ? "text-yellow-400" :
                         "text-emerald-400"
                       }`}>
-                        {isFr ? passwordStrength.label : (
-                          passwordStrength.score <= 1 ? "Weak" :
-                          passwordStrength.score <= 2 ? "Fair" :
-                          passwordStrength.score <= 3 ? "Good" :
-                          passwordStrength.score <= 4 ? "Strong" : "Excellent"
-                        )}
+                        {isFr ? passwordStrength.label : passwordStrength.labelEn}
                       </p>
                       <div className="flex items-center gap-1">
-                        {passwordStrength.score >= 4 ? (
+                        {passwordStrength.score >= 3 ? (
                           <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                        ) : passwordStrength.score <= 1 && password.length > 0 ? (
+                        ) : passwordStrength.score <= 1 ? (
                           <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
                         ) : null}
                       </div>
                     </div>
+                    {/* Animated cycling tips */}
+                    {showTips && tips[currentTipIdx] && (
+                      <div
+                        className={`mt-2 flex items-start gap-2 transition-all duration-350 ease-in-out ${
+                          tipVisible
+                            ? "opacity-100 translate-y-0"
+                            : "opacity-0 -translate-y-1"
+                        }`}
+                      >
+                        <Lightbulb className="w-3.5 h-3.5 text-mauve-light flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {tipMessages[tips[currentTipIdx]][isFr ? "fr" : "en"]}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

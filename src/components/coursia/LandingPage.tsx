@@ -13,6 +13,7 @@ import {
   Zap,
   Globe,
   ChevronDown,
+  LogIn,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -112,6 +113,7 @@ function TestimonialCard({
 export default function LandingPage() {
   const setView = useAppStore((s) => s.setView);
   const lang = useAppStore((s) => s.lang);
+  const setLang = useAppStore((s) => s.setLang);
   const tx = t(lang);
   const user = useAppStore((s) => s.user);
   const heroRef = useRef<HTMLDivElement>(null);
@@ -150,14 +152,35 @@ export default function LandingPage() {
             <CoursiaLogo size={36} className="rounded-xl" />
             <span className="text-lg font-bold text-foreground">{tx.app.name}</span>
           </div>
-          {/* Right: CTA button */}
-          <button
-            onClick={() => user ? setView("create") : setView("auth")}
-            className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2.5 rounded-full glass font-semibold text-xs sm:text-sm text-foreground hover:bg-white/10 hover:border-mauve/30 transition-all duration-300 cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-mauve-light" />
-            {tx.landing.cta}
-          </button>
+          {/* Right: Language toggle + Login + CTA */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => setLang(lang === "fr" ? "en" : "fr")}
+              className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 cursor-pointer"
+              aria-label={lang === "fr" ? "Switch to English" : "Passer en Français"}
+            >
+              <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline text-xs font-medium">
+                {lang === "fr" ? "EN" : "FR"}
+              </span>
+            </button>
+            <button
+              onClick={() => setView("auth")}
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 cursor-pointer"
+            >
+              <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline text-xs sm:text-sm font-medium">
+                {lang === "fr" ? "Se connecter" : "Sign In"}
+              </span>
+            </button>
+            <button
+              onClick={() => user ? setView("create") : setView("auth")}
+              className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2.5 rounded-full glass font-semibold text-xs sm:text-sm text-foreground hover:bg-white/10 hover:border-mauve/30 transition-all duration-300 cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-mauve-light" />
+              <span className="hidden sm:inline">{tx.landing.cta}</span>
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -216,7 +239,14 @@ export default function LandingPage() {
           </p>
 
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+            <button
+              onClick={() => setView("auth")}
+              className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-full glass text-foreground font-semibold hover:border-mauve/30 transition-all duration-300 cursor-pointer text-sm sm:text-lg"
+            >
+              <LogIn className="w-4 h-4 sm:w-5 sm:h-5" />
+              {lang === "fr" ? "Se connecter" : "Sign In"}
+            </button>
             <button
               onClick={() => user ? setView("create") : setView("auth")}
               className="inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg sm:text-xl font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve hover:shadow-[0_0_40px_rgba(124,92,191,0.5)] cursor-pointer"
@@ -230,7 +260,7 @@ export default function LandingPage() {
                 const el = document.getElementById("pricing-section");
                 if (el) el.scrollIntoView({ behavior: "smooth" });
               }}
-              className="inline-flex items-center gap-2 px-8 py-4 rounded-full glass text-foreground font-semibold hover:border-mauve/30 transition-all duration-300 cursor-pointer text-base sm:text-lg"
+              className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-full glass text-foreground font-semibold hover:border-mauve/30 transition-all duration-300 cursor-pointer text-sm sm:text-lg"
             >
               {tx.landing.pricing.title}
               <ArrowRight className="w-4 h-4" />
@@ -581,16 +611,6 @@ export default function LandingPage() {
             <span className="font-bold text-sm text-foreground">{tx.app.name}</span>
           </div>
           <p className="text-sm text-muted-foreground/50">{tx.app.footer}</p>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => {
-                useAppStore.getState().setLang(lang === "fr" ? "en" : "fr");
-              }}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer px-3 py-1.5 rounded-full glass"
-            >
-              {lang === "fr" ? "🇬🇧 English" : "🇫🇷 Français"}
-            </button>
-          </div>
         </div>
       </footer>
 
