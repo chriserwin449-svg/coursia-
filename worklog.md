@@ -1,4 +1,22 @@
 ---
+Task ID: 3
+Agent: Main Agent
+Task: Create comprehensive social media posts (FR + EN) for $0 budget user acquisition
+
+Work Log:
+- Created `/home/z/my-project/social-media-posts.md` with 27 ready-to-use posts
+- Covered 10 platforms: Reddit, Facebook Groups, Twitter/X, TikTok/Reels/Shorts, LinkedIn, Discord, Quora, Product Hunt, Indie Hackers, Medium/Dev.to
+- All posts drive traffic to Coursia without being blatant ads (sell the destination, not the product)
+- User's age (16) strategically placed in ~40% of posts for authenticity and curiosity
+- French versions target Canadian/French students, English versions target US audience
+- Included: posting schedule, anti-spam rules, content recycling guide, best posting times
+- Each post has hook + body + strategic CTA with Coursia link
+
+Stage Summary:
+- File: `/home/z/my-project/social-media-posts.md` (27 posts, 10 platforms, FR + EN)
+- Recommended posting order: Reddit + Facebook first, then Twitter + TikTok, then LinkedIn + Discord + Quora, then Product Hunt + Indie Hackers
+- Key strategy: mention age for engagement boost, end with questions for comments, vary platforms weekly
+---
 Task ID: 2
 Agent: Main Agent
 Task: Switch PayPal from sandbox to live mode
