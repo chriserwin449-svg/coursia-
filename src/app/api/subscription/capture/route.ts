@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { capturePayPalOrder } from "@/lib/paypal";
+import { capturePayPalOrder, getPayPalConfig } from "@/lib/paypal";
 
 // ─── Security headers ────────────────────────────────────────────────────
 function securityHeaders(): HeadersInit {
@@ -102,6 +102,16 @@ async function activateSubscription(
 // ─── POST handler: Capture a PayPal order ───────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    // 0. Check PayPal configuration
+    try {
+      getPayPalConfig();
+    } catch {
+      return NextResponse.json(
+        { error: "PayPal is not configured yet. Payment capture is unavailable.", code: "PAYPAL_NOT_CONFIGURED" },
+        { status: 503, headers: securityHeaders() }
+      );
+    }
+
     let body: unknown;
     try {
       body = await request.json();

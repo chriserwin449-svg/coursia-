@@ -24,7 +24,7 @@ async function ensureAllColumns(): Promise<void> {
   } catch { /* non-critical */ }
 }
 
-const FREE_COURSE_LIMIT = 1;
+const FREE_COURSE_LIMIT = 3;
 const FREE_CHAPTER_LIMIT = 1;
 const GRACE_PERIOD_DAYS = 3;
 
