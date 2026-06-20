@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
       const msg = dbTestError instanceof Error ? dbTestError.message : String(dbTestError);
       console.error("[register] DB connection failed:", msg);
       return NextResponse.json(
-        { error: "Base de données indisponible. Réessaie dans quelques instants.", debug: msg },
+        { error: "Base de données indisponible. Réessaie dans quelques instants." },
         { status: 503 },
       );
     }
@@ -265,7 +265,7 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.error("[register] User lookup error:", err);
       return NextResponse.json(
-        { error: "Erreur lors de la vérification de l'email", debug: String(err) },
+        { error: "Erreur lors de la vérification de l'email" },
         { status: 500 },
       );
     }
@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.error("[register] User INSERT error:", err);
       return NextResponse.json(
-        { error: "Erreur lors de la création du compte", debug: String(err) },
+        { error: "Erreur lors de la création du compte" },
         { status: 500 },
       );
     }
@@ -333,7 +333,7 @@ export async function POST(request: NextRequest) {
     console.error("[register] Unhandled error:", error);
     const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: "Erreur lors de l'inscription", debug: msg },
+      { error: "Erreur lors de l'inscription" },
       { status: 500 },
     );
   }

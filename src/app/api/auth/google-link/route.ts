@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { db } from "@/lib/db";
 
 // Simple hash function for token (same as login/register)
@@ -21,19 +21,20 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user) {
-      // Auto-create account
+      // Auto-create account with cryptographically random password (impossible to guess)
+      const randomPassword = randomBytes(32).toString("hex");
       user = await db.user.create({
         data: {
           email,
-          password: `google_${Date.now()}`,
+          password: randomPassword,
           firstName: firstName || "",
           lastName: lastName || "",
         },
       });
     }
 
-    // Generate auth token (compatible with existing system)
-    const token = hashToken(user.id + "-" + Date.now());
+    // Generate auth token with cryptographic randomness
+    const token = hashToken(user.id + "-" + randomBytes(16).toString("hex"));
 
     return NextResponse.json({
       success: true,

@@ -116,16 +116,27 @@ export async function POST(
       return NextResponse.json({ error: "Level already unlocked" }, { status: 400 });
     }
 
-    // Get course language from first chapter content
-    const courseLang = course.chapters[0]?.content?.includes("##") ? "fr" : "fr";
+    // Detect course language from content (French-specific markers)
+    const firstContent = course.chapters[0]?.content || "";
+    const frenchMarkers = ["\\bTu\\b", "\\bles\\b", "\\bdes\\b", "\\bune\\b", "\\bdans\\b", "\\bpour\\b", "\\bavec\\b", "\\best\\b", "\\bque\\b", "\\bqui\\b"];
+    const isFrench = frenchMarkers.some((m) => new RegExp(m, "i").test(firstContent));
+    const courseLang = isFrench ? "fr" : "en";
 
     const levelLabels = [
-      "Débutant (complet, accessible, exemples simples, bases fondamentales)",
-      "Intermédiaire (approfondi, exemples pratiques, exercices de réflexion, cas d'usage réels)",
-      "Avancé (expert, cas complexes, analyses critiques, liens entre concepts, maîtrise totale)"
+      courseLang === "fr"
+        ? "Débutant (complet, accessible, exemples simples, bases fondamentales)"
+        : "Beginner (complete, accessible, simple examples, fundamental basics)",
+      courseLang === "fr"
+        ? "Intermédiaire (approfondi, exemples pratiques, exercices de réflexion, cas d'usage réels)"
+        : "Intermediate (in-depth, practical examples, thinking exercises, real use cases)",
+      courseLang === "fr"
+        ? "Avancé (expert, cas complexes, analyses critiques, liens entre concepts, maîtrise totale)"
+        : "Advanced (expert, complex cases, critical analysis, cross-concept connections, full mastery)"
     ];
 
-    const langNote = "Tu DOIS rédiger l'intégralité du cours en français. Tous les titres, contenus, résumés — tout en français.";
+    const langNote = courseLang === "fr"
+      ? "Tu DOIS rédiger l'intégralité du cours en français. Tous les titres, contenus, résumés — tout en français."
+      : "You MUST write the entire course in English. All titles, content, summaries — everything in English.";
 
     const existingSummaries = course.chapters
       .filter((ch) => ch.level < nextLevel)
@@ -133,27 +144,34 @@ export async function POST(
       .join("\n");
 
     const previousLevelContext = existingSummaries
-      ? `\n\nCONTEXTE DU COURS — Niveaux précédents déjà étudiés:\n${existingSummaries}\n\nIMPORTANT: Le nouveau niveau doit BUILD sur ces connaissances. Ne pas répéter le contenu précédent. Approfondir et complexifier.`
+      ? courseLang === "fr"
+        ? `\n\nCONTEXTE DU COURS — Niveaux précédents déjà étudiés:\n${existingSummaries}\n\nIMPORTANT: Le nouveau niveau doit BUILD sur ces connaissances. Ne pas répéter le contenu précédent. Approfondir et complexifier.`
+        : `\n\nCOURSE CONTEXT — Previously studied levels:\n${existingSummaries}\n\nIMPORTANT: The new level must BUILD on these foundations. Do NOT repeat previous content. Go deeper and more complex.`
       : "";
 
     const completion = await smartChatCompletion([
       {
         role: "system",
         content: [
-          "Tu es Coursia AI, un professeur IA exceptionnel.",
+          courseLang === "fr"
+            ? "Tu es Coursia AI, un professeur IA exceptionnel."
+            : "You are Coursia AI, an exceptional AI teacher.",
           "",
-          "MISSION : Génère 4-6 chapitres pour le niveau " + nextLevel + " du cours : " + course.title,
+          courseLang === "fr"
+            ? `MISSION : Génère 4-6 chapitres pour le niveau ${nextLevel} du cours : ${course.title}`
+            : `MISSION: Generate 4-6 chapters for level ${nextLevel} of the course: ${course.title}`,
           "",
-          "STYLE : Dynamique, humain, captivant, jamais robotique.",
+          courseLang === "fr"
+            ? "STYLE : Dynamique, humain, captivant, jamais robotique."
+            : "STYLE: Dynamic, human, engaging, never robotic.",
           "",
           `Level: ${levelLabels[nextLevel]}`,
-          `Language: français`,
+          `Language: ${courseLang === "fr" ? "français" : "English"}`,
           `- ${langNote}`,
           "",
-          "STRUCTURE:",
-          "- Chaque chapitre: minimum 250 mots, au moins 2 sous-chapitres (## en Markdown)",
-          "- Utilise: ## sous-chapitres, - listes, ** gras, > citations",
-          "- Ne JAMAIS utiliser de guillemets doubles dans les valeurs JSON",
+          courseLang === "fr"
+            ? "STRUCTURE:\n- Chaque chapitre: minimum 250 mots, au moins 2 sous-chapitres (## en Markdown)\n- Utilise: ## sous-chapitres, - listes, ** gras, > citations\n- Ne JAMAIS utiliser de guillemets doubles dans les valeurs JSON"
+            : "STRUCTURE:\n- Each chapter: minimum 250 words, at least 2 sub-chapters (## in Markdown)\n- Use: ## sub-chapters, - lists, ** bold, > quotes\n- NEVER use double quotes inside JSON values",
           "",
           previousLevelContext,
           "",
@@ -161,7 +179,12 @@ export async function POST(
           '{"description":"Description","chapters":[{"title":"Title","content":"## Sub1\\nContent\\n\\n## Sub2\\nContent","summary":"Summary"}]}',
         ].join("\n"),
       },
-      { role: "user", content: `Génère les chapitres du niveau ${nextLevel} pour le cours : ${course.title}` },
+      {
+        role: "user",
+        content: courseLang === "fr"
+          ? `Génère les chapitres du niveau ${nextLevel} pour le cours : ${course.title}`
+          : `Generate the chapters for level ${nextLevel} of the course: ${course.title}`,
+      },
     ], { maxTokens: 8192 });
 
     const text = completion.content || "";

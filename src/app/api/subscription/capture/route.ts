@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
       const paymentReq = await db.paymentRequest.findFirst({
         where: { txRef: orderId },
       });
-      plan = paymentReq?.plan || "annual";
+      plan = paymentReq?.plan || "monthly";
     }
 
     // Prefer custom data userId, fallback to resolved userId

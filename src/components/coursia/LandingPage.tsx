@@ -241,19 +241,13 @@ export default function LandingPage() {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
             <button
-              onClick={() => setView("auth")}
-              className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-full glass text-foreground font-semibold hover:border-mauve/30 transition-all duration-300 cursor-pointer text-sm sm:text-lg"
-            >
-              <LogIn className="w-4 h-4 sm:w-5 sm:h-5" />
-              {lang === "fr" ? "Se connecter" : "Sign In"}
-            </button>
-            <button
               onClick={() => user ? setView("create") : setView("auth")}
-              className="inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg sm:text-xl font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve hover:shadow-[0_0_40px_rgba(124,92,191,0.5)] cursor-pointer"
+              className="hero-cta-btn group inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg sm:text-xl font-bold transition-all duration-300 glow-mauve hover:shadow-[0_0_50px_rgba(124,92,191,0.6)] cursor-pointer"
             >
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
-              {tx.landing.cta}
+              <span className="relative z-10">{tx.landing.cta}</span>
               <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
+              <span className="absolute inset-0 rounded-full bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </button>
             <button
               onClick={() => {
@@ -593,10 +587,10 @@ export default function LandingPage() {
             </p>
             <button
               onClick={() => user ? setView("create") : setView("auth")}
-              className="inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg sm:text-xl font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 glow-mauve hover:shadow-[0_0_40px_rgba(124,92,191,0.5)] cursor-pointer"
+              className="hero-cta-btn group inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg sm:text-xl font-bold transition-all duration-300 glow-mauve hover:shadow-[0_0_50px_rgba(124,92,191,0.6)] cursor-pointer"
             >
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
-              {tx.landing.cta}
+              <span className="relative z-10">{tx.landing.cta}</span>
               <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
           </div>
@@ -773,6 +767,55 @@ export default function LandingPage() {
             #f59e0b 100%
           );
           animation: landing-annual-btn-shimmer 2.5s linear infinite;
+        }
+
+        /* ── Hero CTA Button: breathing glow + shimmer ── */
+        @keyframes hero-cta-glow-pulse {
+          0%, 100% {
+            box-shadow: 0 0 15px rgba(124, 92, 191, 0.35),
+                        0 0 30px rgba(124, 92, 191, 0.15),
+                        0 4px 15px rgba(0, 0, 0, 0.3);
+          }
+          50% {
+            box-shadow: 0 0 25px rgba(124, 92, 191, 0.55),
+                        0 0 50px rgba(124, 92, 191, 0.25),
+                        0 0 80px rgba(124, 92, 191, 0.1),
+                        0 4px 15px rgba(0, 0, 0, 0.3);
+          }
+        }
+        @keyframes hero-cta-shimmer {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        .hero-cta-btn {
+          position: relative;
+          overflow: hidden;
+          background-size: 200% auto;
+          background-image: linear-gradient(
+            90deg,
+            #7c5cbf 0%,
+            #9b7fd4 20%,
+            #c4b5fd 35%,
+            #a78bfa 50%,
+            #9b7fd4 65%,
+            #7c5cbf 80%,
+            #5a3d8f 100%
+          );
+          animation:
+            hero-cta-shimmer 3s linear infinite,
+            hero-cta-glow-pulse 2.5s ease-in-out infinite;
+          transform: scale(1);
+          transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                      box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .hero-cta-btn:hover {
+          transform: scale(1.05);
+          animation:
+            hero-cta-shimmer 3s linear infinite,
+            hero-cta-glow-pulse 1.5s ease-in-out infinite;
+        }
+        .hero-cta-btn:active {
+          transform: scale(0.97);
         }
       `}</style>
     </div>

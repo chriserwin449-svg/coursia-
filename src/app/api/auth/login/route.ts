@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       const msg = dbTestError instanceof Error ? dbTestError.message : String(dbTestError);
       console.error("[login] DB connection failed:", msg);
       return NextResponse.json(
-        { error: "Base de données indisponible. Réessaie dans quelques instants.", debug: msg },
+        { error: "Base de données indisponible. Réessaie dans quelques instants." },
         { status: 503 },
       );
     }
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.error("[login] User lookup failed:", err);
       return NextResponse.json(
-        { error: "Erreur lors de la connexion", debug: String(err) },
+        { error: "Erreur lors de la connexion" },
         { status: 500 },
       );
     }
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[login] Unhandled error:", error);
     return NextResponse.json(
-      { error: "Erreur lors de la connexion", debug: String(error) },
+      { error: "Erreur lors de la connexion" },
       { status: 500 },
     );
   }
