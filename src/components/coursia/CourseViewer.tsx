@@ -16,6 +16,7 @@ import {
   FileText,
   AlertTriangle,
   Rocket,
+  Crown,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { useAppStore, type CourseData, type CourseChapter, type QuizQuestion } from "@/lib/store";
@@ -44,6 +45,11 @@ export default function CourseViewer() {
   // Subscription state for free chapter limit
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [freeChapterLimit, setFreeChapterLimit] = useState(1);
+  // Paywall state for grace period / locked access
+  const [canStudy, setCanStudy] = useState(true);
+  const [inGracePeriod, setInGracePeriod] = useState(false);
+  const [graceDaysRemaining, setGraceDaysRemaining] = useState(0);
+  const [graceExpired, setGraceExpired] = useState(false);
 
   // Level system states
   const [isGeneratingLevel, setIsGeneratingLevel] = useState(false);
@@ -231,6 +237,10 @@ export default function CourseViewer() {
         const pw = await statusRes.json();
         setIsSubscribed(!!pw.hasSubscription && pw.subscriptionStatus === "active");
         setFreeChapterLimit(pw.freeChapterLimit || 1);
+        setCanStudy(pw.canStudy !== false);
+        setInGracePeriod(!!pw.inGracePeriod);
+        setGraceDaysRemaining(pw.graceDaysRemaining || 0);
+        setGraceExpired(pw.showPaywall && pw.paywallReason === "grace_expired");
       }
 
       if (courseRes.ok && data.chapters?.length > 0) {
@@ -470,6 +480,41 @@ export default function CourseViewer() {
 
   // ── Level names helper ──
   const getLevelName = (level: number) => lang === "fr" ? LEVEL_NAMES_FR[level] : LEVEL_NAMES_EN[level];
+
+  // ══════════════════════════════════════════════════════════════════
+  // LOCKED — grace period expired, subscription fully blocked
+  // ══════════════════════════════════════════════════════════════════
+  if (!loading && graceExpired) {
+    return (
+      <div className="flex items-center justify-center min-h-screen animate-fade-in px-4">
+        <div className="max-w-md w-full text-center">
+          <div className="w-20 h-20 rounded-3xl bg-red-500/10 flex items-center justify-center mx-auto mb-6">
+            <Lock className="w-10 h-10 text-red-400" />
+          </div>
+          <h2 className="text-2xl font-extrabold mb-3 gradient-text">
+            {lang === "fr" ? "Cours verrouillé" : "Course locked"}
+          </h2>
+          <p className="text-muted-foreground mb-2">
+            {lang === "fr"
+              ? "Ta période de grâce de 3 jours est terminée."
+              : "Your 3-day grace period has ended."}
+          </p>
+          <p className="text-sm text-muted-foreground mb-8">
+            {lang === "fr"
+              ? "Renouvelle ton abonnement pour retrouver l'accès à tous tes cours."
+              : "Renew your subscription to regain access to all your courses."}
+          </p>
+          <button
+            onClick={() => setView("offers")}
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-base font-extrabold hover:from-amber-400 hover:to-gold transition-all duration-300 cursor-pointer shadow-lg shadow-gold/25"
+          >
+            <Crown className="w-5 h-5" />
+            {lang === "fr" ? "Voir les abonnements" : "See plans"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // ══════════════════════════════════════════════════════════════════
   // Loading / error state
@@ -802,7 +847,24 @@ export default function CourseViewer() {
   // ══════════════════════════════════════════════════════════════════
   return (
     <>
-      <div className="flex h-screen overflow-hidden pb-14 md:pb-0">
+      {/* ─── Grace period banner ─── */}
+      {inGracePeriod && !graceExpired && (
+        <div className="fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 py-2.5 bg-amber-500/10 border-b border-amber-500/30 backdrop-blur-sm">
+          <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+          <p className="text-xs sm:text-sm text-amber-200 font-medium flex-1">
+            {lang === "fr"
+              ? `Ton abonnement est terminé. Tu peux encore lire tes cours pendant ${graceDaysRemaining} jour${graceDaysRemaining > 1 ? "s" : ""}. Renouvelle maintenant !`
+              : `Your subscription has ended. You can still read your courses for ${graceDaysRemaining} day${graceDaysRemaining > 1 ? "s" : ""}. Renew now!`}
+          </p>
+          <button
+            onClick={() => setView("offers")}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/20 text-amber-200 text-xs font-bold hover:bg-amber-500/30 transition-all cursor-pointer flex-shrink-0"
+          >
+            {lang === "fr" ? "Renouveler" : "Renew"}
+          </button>
+        </div>
+      )}
+      <div className={`flex h-screen overflow-hidden pb-14 md:pb-0 ${inGracePeriod && !graceExpired ? "pt-10" : ""}`}>
         {/* ─── Sidebar: Chapter navigation (hidden on mobile) ─── */}
         <div className="hidden md:flex w-64 border-r border-border bg-night-light flex-col flex-shrink-0">
           <div className="p-4 border-b border-border">

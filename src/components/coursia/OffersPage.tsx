@@ -28,7 +28,7 @@ export default function OffersPage() {
   const [inTrial, setInTrial] = useState(false);
   const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
   const [trialCoursesGenerated, setTrialCoursesGenerated] = useState(0);
-  const [trialCoursesMax] = useState(3);
+  const [trialCoursesMax] = useState(1);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscriptionPlan, setSubscriptionPlan] = useState<string>("");
   const [inGracePeriod, setInGracePeriod] = useState(false);
@@ -108,6 +108,10 @@ export default function OffersPage() {
   useEffect(() => {
     // Track when user views the pricing page
     trackEvent({ name: "pricing_viewed" });
+
+    // Dismiss notification dot when viewing offers page
+    useAppStore.getState().setHasNotification(false);
+    useAppStore.getState().setNotificationDismissed(true);
 
     const checkStatus = async () => {
       try {

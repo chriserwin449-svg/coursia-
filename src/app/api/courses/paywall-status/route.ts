@@ -24,9 +24,10 @@ async function ensureAllColumns(): Promise<void> {
   } catch { /* non-critical */ }
 }
 
-const FREE_COURSE_LIMIT = 3;
+const FREE_COURSE_LIMIT = 1;
 const FREE_CHAPTER_LIMIT = 1;
 const GRACE_PERIOD_DAYS = 3;
+const RENEWAL_NOTIFY_DAYS = 3; // Start showing notifications 3 days before expiry
 
 type RenewalUrgency = "1month" | "2weeks" | "1week" | "3days" | "24hours" | "last24hours" | "none";
 
@@ -75,6 +76,7 @@ interface PaywallStatus {
   renewalDaysRemaining?: number;
   renewalUrgency: RenewalUrgency;
   timeRemainingMs?: number;
+  daysUntilExpiry?: number;
   isOfflineMode: boolean;
   showPaywall: boolean;
   paywallReason: string;
@@ -141,43 +143,61 @@ export async function GET(request: NextRequest) {
       const endDate = user.subscriptionEndDate ? new Date(user.subscriptionEndDate) : null;
       const now = new Date();
 
-      let showRenewalReminder = false;
-      let renewalDaysRemaining = 0;
-      let renewalUrgency: RenewalUrgency = "none";
-      let timeRemainingMs: number | undefined;
+      // ── 4a. Check if subscription has expired (end date passed) ──
+      if (endDate && endDate <= now) {
+        // Auto-expire the subscription in the database
+        try {
+          await db.user.update({
+            where: { id: userId },
+            data: { subscriptionStatus: "expired" },
+          });
+        } catch {
+          // If update fails, continue with grace period logic using in-memory status
+        }
+        // Fall through to grace period check below
+      } else {
+        // ── 4b. Subscription is truly active ──
+        let showRenewalReminder = false;
+        let renewalDaysRemaining = 0;
+        let renewalUrgency: RenewalUrgency = "none";
+        let timeRemainingMs: number | undefined;
+        let daysUntilExpiry: number | undefined;
 
-      if (endDate && endDate > now) {
-        const { urgency, showReminder, timeRemainingMs: trm } = computeRenewalUrgency(endDate, user.subscriptionPlan || "monthly");
-        showRenewalReminder = showReminder;
-        renewalUrgency = urgency;
-        renewalDaysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        timeRemainingMs = trm;
+        if (endDate) {
+          const { urgency, showReminder, timeRemainingMs: trm } = computeRenewalUrgency(endDate, user.subscriptionPlan || "monthly");
+          showRenewalReminder = showReminder;
+          renewalUrgency = urgency;
+          renewalDaysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          timeRemainingMs = trm;
+          daysUntilExpiry = Math.max(0, renewalDaysRemaining);
+        }
+
+        return NextResponse.json<PaywallStatus>({
+          canStudy: true,
+          canGenerate: true,
+          canProgress: true,
+          inTrial: false,
+          trialCoursesGenerated: 0,
+          trialCoursesMax: FREE_COURSE_LIMIT,
+          hasSubscription: true,
+          subscriptionPlan: user.subscriptionPlan,
+          subscriptionStatus: user.subscriptionStatus,
+          subscriptionEndDate: user.subscriptionEndDate?.toISOString(),
+          inGracePeriod: false,
+          showRenewalReminder,
+          renewalDaysRemaining,
+          renewalUrgency,
+          timeRemainingMs,
+          daysUntilExpiry,
+          isOfflineMode: false,
+          showPaywall: false,
+          paywallReason: "subscribed",
+          firstName: user.firstName || undefined,
+          hasCardOnFile: true,
+          requireCard: false,
+          freeChapterLimit: FREE_CHAPTER_LIMIT,
+        });
       }
-
-      return NextResponse.json<PaywallStatus>({
-        canStudy: true,
-        canGenerate: true,
-        canProgress: true,
-        inTrial: false,
-        trialCoursesGenerated: 0,
-        trialCoursesMax: FREE_COURSE_LIMIT,
-        hasSubscription: true,
-        subscriptionPlan: user.subscriptionPlan,
-        subscriptionStatus: user.subscriptionStatus,
-        subscriptionEndDate: user.subscriptionEndDate?.toISOString(),
-        inGracePeriod: false,
-        showRenewalReminder,
-        renewalDaysRemaining,
-        renewalUrgency,
-        timeRemainingMs,
-        isOfflineMode: false,
-        showPaywall: false,
-        paywallReason: "subscribed",
-        firstName: user.firstName || undefined,
-        hasCardOnFile: true,
-        requireCard: false,
-        freeChapterLimit: FREE_CHAPTER_LIMIT,
-      });
     }
 
     // ── 5. GRACE PERIOD (subscription expired/canceled but within GRACE_PERIOD_DAYS) ──
@@ -190,7 +210,7 @@ export async function GET(request: NextRequest) {
 
       if (daysSinceEnd < GRACE_PERIOD_DAYS) {
         return NextResponse.json<PaywallStatus>({
-          canStudy: true,       // Can read existing courses
+          canStudy: true,       // Can read existing courses during grace period
           canGenerate: false,    // Cannot create new courses
           canProgress: true,     // Can continue studying
           inTrial: false,
@@ -227,6 +247,7 @@ export async function GET(request: NextRequest) {
         subscriptionStatus: user.subscriptionStatus,
         subscriptionEndDate: user.subscriptionEndDate?.toISOString(),
         inGracePeriod: false,
+        graceDaysRemaining: 0,
         showRenewalReminder: false,
         renewalUrgency: "none",
         isOfflineMode: false,

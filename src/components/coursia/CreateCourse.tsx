@@ -38,6 +38,7 @@ export default function CreateCourse() {
   const [suggestedTopic, setSuggestedTopic] = useState("");
   const [hasSubscription, setHasSubscription] = useState(false);
   const [canCreateCourse, setCanCreateCourse] = useState(true);
+  const [inGracePeriod, setInGracePeriod] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState(0);
   const [isRandomTopic, setIsRandomTopic] = useState(false);
 
@@ -154,6 +155,7 @@ export default function CreateCourse() {
         const pw = await pwRes.json();
         setHasSubscription(pw.hasSubscription);
         setCanCreateCourse(pw.canGenerate);
+        setInGracePeriod(!!pw.inGracePeriod);
       }
     } catch {
       // silently ignore
@@ -432,8 +434,29 @@ export default function CreateCourse() {
         )}
 
         {/* ─── Limit reached: show offers button only ─── */}
-        {!hasSubscription && !canCreateCourse && (
-          <div className="mb-6 flex justify-center">
+        {(!hasSubscription && !canCreateCourse) || inGracePeriod ? (
+          <div className="mb-6 p-5 rounded-2xl glass text-center animate-fade-in">
+            <div className="w-14 h-14 rounded-2xl bg-gold/10 flex items-center justify-center mx-auto mb-3">
+              <Crown className="w-7 h-7 text-gold" />
+            </div>
+            <p className="text-sm font-bold text-foreground mb-1">
+              {inGracePeriod
+                ? (lang === "fr"
+                  ? "Abonnement terminé"
+                  : "Subscription ended")
+                : (lang === "fr"
+                  ? "Cours gratuit utilisé !"
+                  : "Free course used!")}
+            </p>
+            <p className="text-xs text-muted-foreground mb-4">
+              {inGracePeriod
+                ? (lang === "fr"
+                  ? "Renouvelle ton abonnement pour continuer à créer des cours."
+                  : "Renew your subscription to keep creating courses.")
+                : (lang === "fr"
+                  ? "Passe à un abonnement pour créer des cours illimités."
+                  : "Upgrade to a subscription for unlimited courses.")}
+            </p>
             <button
               onClick={() => setView("offers")}
               className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-sm font-extrabold hover:from-amber-400 hover:to-gold transition-all duration-300 cursor-pointer"
@@ -442,7 +465,7 @@ export default function CreateCourse() {
               {lang === "fr" ? "Voir les abonnements" : "See plans"}
             </button>
           </div>
-        )}
+        ) : null}
 
         {/* ─── Error ─── */}
         {error && (

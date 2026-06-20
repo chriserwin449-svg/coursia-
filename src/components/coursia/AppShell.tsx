@@ -86,6 +86,9 @@ export default function AppShell() {
 
   // ── Periodic paywall-status check for notification dot ──
   const checkPaywallStatus = useCallback(async () => {
+    // Don't re-check if notification was already dismissed this session
+    if (useAppStore.getState().notificationDismissed) return;
+
     const uid = useAppStore.getState().userId;
     if (!uid) {
       useAppStore.getState().setHasNotification(false);
@@ -96,17 +99,29 @@ export default function AppShell() {
         headers: { Authorization: `Bearer ${uid}` },
       });
       const data = await res.json();
+      // Show notification dot when subscription is ending soon (within RENEWAL_NOTIFY_DAYS) or in grace period
       const hasRenewal = !!(data.showRenewalReminder && data.renewalUrgency && data.renewalUrgency !== "none");
-      useAppStore.getState().setHasNotification(hasRenewal);
+      const hasGracePeriod = !!data.inGracePeriod;
+      useAppStore.getState().setHasNotification(hasRenewal || hasGracePeriod);
       // Also update store with fresh subscription data
       useAppStore.getState().setHasSubscription(!!data.hasSubscription);
       useAppStore.getState().setSubscriptionStatus(data.subscriptionStatus || "none");
       useAppStore.getState().setInTrial(!!data.inTrial);
       useAppStore.getState().setTrialDaysRemaining(data.trialDaysRemaining || 0);
+      useAppStore.getState().setShowRenewalReminder(hasRenewal);
+      useAppStore.getState().setRenewalDaysRemaining(data.renewalDaysRemaining || 0);
     } catch {
       // silent
     }
   }, []);
+
+  // ── Dismiss notification when user navigates to offers page ──
+  useEffect(() => {
+    if (view === "offers" && useAppStore.getState().hasNotification) {
+      useAppStore.getState().setHasNotification(false);
+      useAppStore.getState().setNotificationDismissed(true);
+    }
+  }, [view]);
 
   useEffect(() => {
     // Check immediately on mount

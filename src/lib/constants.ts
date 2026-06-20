@@ -15,7 +15,7 @@ export const PLAN_DURATIONS = {
 } as const;
 
 // ─── Free Preview Limits ──────────────────────────────────────────────
-export const FREE_COURSE_LIMIT = 3; // Max free courses without subscription
+export const FREE_COURSE_LIMIT = 1; // Max free courses without subscription
 export const FREE_CHAPTER_LIMIT = 1; // Only first chapter readable without subscription
 
 // ─── Course Generation ───────────────────────────────────────────────────
