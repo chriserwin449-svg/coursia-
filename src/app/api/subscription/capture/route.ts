@@ -122,16 +122,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { orderId, userId } = body as Record<string, unknown>;
+    const { orderId, userId, requestId } = body as Record<string, unknown>;
 
-    if (!orderId || typeof orderId !== "string") {
+    // Support two modes:
+    // 1. Direct orderId — used by webhook/advanced flows
+    // 2. requestId — used by redirect flow (looks up payment request to get PayPal orderId)
+    let paypalOrderId = orderId as string | undefined;
+    let targetUserId = userId as string | undefined;
+
+    if (requestId && typeof requestId === "string") {
+      // Look up the payment request to get the PayPal order ID
+      const paymentReq = await db.paymentRequest.findUnique({
+        where: { id: requestId },
+      });
+      if (!paymentReq) {
+        return NextResponse.json(
+          { error: "Payment request not found" },
+          { status: 404, headers: securityHeaders() }
+        );
+      }
+      paypalOrderId = paymentReq.txRef;
+      targetUserId = paymentReq.userId;
+
+      if (!paypalOrderId) {
+        console.error("[capture] Payment request has no PayPal order ID (txRef)");
+        return NextResponse.json(
+          { error: "Payment not yet associated with PayPal order" },
+          { status: 400, headers: securityHeaders() }
+        );
+      }
+
+      console.log("[capture] Resolved from requestId:", { requestId, paypalOrderId: paypalOrderId.slice(0, 12) + "...", userId: targetUserId?.slice(0, 8) + "..." });
+    }
+
+    if (!paypalOrderId || typeof paypalOrderId !== "string") {
       return NextResponse.json(
         { error: "Order ID required" },
         { status: 400, headers: securityHeaders() }
       );
     }
 
-    if (!userId || typeof userId !== "string") {
+    if (!targetUserId || typeof targetUserId !== "string") {
       return NextResponse.json(
         { error: "User ID required" },
         { status: 400, headers: securityHeaders() }
@@ -139,7 +170,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Capture the PayPal order
-    const result = await capturePayPalOrder(orderId);
+    const result = await capturePayPalOrder(paypalOrderId);
 
     if (result.status !== "COMPLETED") {
       console.warn("[capture] Order not completed:", result.status);
@@ -159,10 +190,11 @@ export async function POST(request: NextRequest) {
       plan = paymentReq?.plan || "annual";
     }
 
-    const targetUserId = result.customData?.userId || userId;
+    // Prefer custom data userId, fallback to resolved userId
+    const finalUserId = result.customData?.userId || targetUserId;
 
     // Activate subscription (idempotent — won't double-activate)
-    const activationResult = await activateSubscription(targetUserId, plan, orderId);
+    const activationResult = await activateSubscription(finalUserId, plan, paypalOrderId);
 
     console.log("[capture] PayPal order captured:", {
       orderId: result.orderId,

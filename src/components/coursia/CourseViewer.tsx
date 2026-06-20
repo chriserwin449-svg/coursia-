@@ -1112,8 +1112,22 @@ export default function CourseViewer() {
                   <span className="hidden sm:inline">{tx.viewer.previous}</span>
                 </button>
                 {currentChapterIndex < course.chapters.length - 1 ? (
-                  <button onClick={goToNext} disabled={isCompleting} className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold hover:from-mauve-light hover:to-mauve transition-all disabled:opacity-50 cursor-pointer">
-                    {isCompleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <>{tx.viewer.next}<ChevronRight className="w-4 h-4" /></>}
+                  <button onClick={goToNext} disabled={isCompleting} className={`flex items-center gap-2 px-6 py-3 rounded-full text-sm font-bold transition-all disabled:opacity-50 cursor-pointer ${
+                    isPaywallRedirect
+                      ? "bg-gradient-to-r from-gold to-amber-500 text-night hover:from-amber-400 hover:to-gold shadow-lg shadow-gold/20"
+                      : "bg-gradient-to-r from-mauve to-mauve-dark text-white hover:from-mauve-light hover:to-mauve"
+                  }`}>
+                    {isPaywallRedirect ? (
+                      <>
+                        <Crown className="w-4 h-4" />
+                        {lang === "fr" ? "Débloquer" : "Unlock"}
+                        <ChevronRight className="w-4 h-4" />
+                      </>
+                    ) : isCompleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <>{tx.viewer.next}<ChevronRight className="w-4 h-4" /></>
+                    )}
                   </button>
                 ) : allChaptersCompleted ? (
                   <button onClick={() => setShowFinalQuiz(true)} className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-gold to-gold-dark text-night text-sm font-bold hover:from-gold-light hover:to-gold transition-all cursor-pointer">

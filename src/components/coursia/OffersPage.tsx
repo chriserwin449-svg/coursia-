@@ -252,17 +252,34 @@ export default function OffersPage() {
     return "bg-amber-500/10 border-amber-500/30 text-amber-200";
   };
 
-  // Check URL params for payment success
+  // Check URL params for payment success — capture PayPal order
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get("payment");
     const planParam = params.get("plan");
+    const requestId = params.get("request_id");
 
     if (paymentStatus === "success" && planParam) {
       window.history.replaceState({}, "", "/");
-      // Refresh status to show subscription is active
-      const checkAfterCheckout = async () => {
+
+      // Capture the PayPal order to activate subscription
+      const captureAndRefresh = async () => {
         try {
+          if (requestId) {
+            const captureRes = await fetch("/api/subscription/capture", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ requestId }),
+            });
+            const captureData = await captureRes.json();
+            if (captureRes.ok && captureData.success) {
+              console.log("[offers] Payment captured successfully:", captureData.plan);
+            } else {
+              console.warn("[offers] Capture attempt returned:", captureData.error || captureRes.status);
+            }
+          }
+
+          // Refresh status to show subscription is active (after capture)
           const headers: Record<string, string> = {};
           if (userId) headers["Authorization"] = `Bearer ${userId}`;
           const res = await fetch("/api/courses/paywall-status", { headers });
@@ -277,10 +294,9 @@ export default function OffersPage() {
           }
         } catch { /* silent */ }
       };
-      setTimeout(checkAfterCheckout, 2000);
+      setTimeout(captureAndRefresh, 1000);
     } else if (paymentStatus === "cancelled") {
       window.history.replaceState({}, "", "/");
-      // Use setTimeout to avoid calling setState directly in effect
       setTimeout(() => {
         setCheckoutError(lang === "fr" ? "Paiement annulé. Tu peux réessayer." : "Payment cancelled. You can try again.");
       }, 0);

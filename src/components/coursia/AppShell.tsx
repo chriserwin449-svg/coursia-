@@ -133,27 +133,68 @@ export default function AppShell() {
     };
   }, [checkPaywallStatus]);
 
-  // Handle payment success/redirect
+  // Handle payment success/redirect — capture PayPal order and activate subscription
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get("payment");
+    const requestId = params.get("request_id");
 
     if (paymentStatus === "success") {
       const lang = useAppStore.getState().lang;
-      // Show success message via confetti/celebration
-      const message = lang === "fr"
-        ? "Paiement réussi ! Ton abonnement est maintenant actif."
-        : "Payment successful! Your subscription is now active.";
 
-      useAppStore.getState().setShowCelebration(true);
-      useAppStore.getState().setCelebrationMessage(message);
-
-      // Track payment success conversion
-      trackEvent({ name: "payment_success" });
-
-      // Clean URL (remove query params without page reload)
+      // Clean URL immediately (remove query params without page reload)
       window.history.replaceState({}, "", window.location.pathname);
+
+      // Attempt to capture the PayPal order via our API
+      const capturePayment = async () => {
+        try {
+          if (requestId) {
+            const res = await fetch("/api/subscription/capture", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ requestId }),
+            });
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+              // Payment captured and subscription activated
+              const message = lang === "fr"
+                ? "Paiement réussi ! Ton abonnement est maintenant actif."
+                : "Payment successful! Your subscription is now active.";
+              useAppStore.getState().setShowCelebration(true);
+              useAppStore.getState().setCelebrationMessage(message);
+              trackEvent({ name: "payment_success" });
+              console.log("[payment] Capture successful, plan:", data.plan);
+            } else {
+              // Capture failed — show error
+              console.error("[payment] Capture failed:", data.error);
+              const errorMsg = lang === "fr"
+                ? "Le paiement n'a pas pu être finalisé. Contacte le support si le problème persiste."
+                : "Payment could not be finalized. Contact support if the issue persists.";
+              useAppStore.getState().setShowCelebration(true);
+              useAppStore.getState().setCelebrationMessage(errorMsg);
+            }
+          } else {
+            // No requestId — just show success (webhook might handle it)
+            const message = lang === "fr"
+              ? "Paiement réussi ! Ton abonnement est maintenant actif."
+              : "Payment successful! Your subscription is now active.";
+            useAppStore.getState().setShowCelebration(true);
+            useAppStore.getState().setCelebrationMessage(message);
+            trackEvent({ name: "payment_success" });
+          }
+        } catch (err) {
+          console.error("[payment] Capture error:", err);
+          const message = lang === "fr"
+            ? "Erreur de connexion. Vérifie ta connexion internet."
+            : "Connection error. Check your internet connection.";
+          useAppStore.getState().setShowCelebration(true);
+          useAppStore.getState().setCelebrationMessage(message);
+        }
+      };
+
+      capturePayment();
 
       // Redirect to offers page to show active subscription status
       const isAuthenticated = useAppStore.getState().isAuthenticated;
@@ -162,6 +203,9 @@ export default function AppShell() {
       } else {
         useAppStore.getState().setView("landing");
       }
+    } else if (paymentStatus === "cancelled") {
+      // Payment cancelled by user
+      window.history.replaceState({}, "", window.location.pathname);
     }
 
     // Handle card verification success (user verified card via PayPal $0.01)
