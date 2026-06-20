@@ -1,0 +1,652 @@
+     1→"use client";
+     2→
+     3→import {
+     4→  Check,
+     5→  Crown,
+     6→  Zap,
+     7→  AlertTriangle,
+     8→  Loader2,
+     9→  Clock,
+    10→  ShieldAlert,
+    11→  Gift,
+    12→  Lock,
+    13→} from "lucide-react";
+    14→import { useAppStore } from "@/lib/store";
+    15→import { t } from "@/lib/i18n";
+    16→import { trackEvent } from "@/lib/analytics";
+    17→import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+    18→// PayPal buttons removed — using custom CTA buttons with redirect flow
+    19→
+    20→export default function OffersPage() {
+    21→  const lang = useAppStore((s) => s.lang);
+    22→  const userId = useAppStore((s) => s.userId);
+    23→  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+    24→  const setView = useAppStore((s) => s.setView);
+    25→  const tx = t(lang);
+    26→
+    27→  const [trialExpired, setTrialExpired] = useState(false);
+    28→  const [inTrial, setInTrial] = useState(false);
+    29→  const [trialDaysRemaining, setTrialDaysRemaining] = useState(0);
+    30→  const [trialCoursesGenerated, setTrialCoursesGenerated] = useState(0);
+    31→  const [trialCoursesMax] = useState(3);
+    32→  const [isSubscribed, setIsSubscribed] = useState(false);
+    33→  const [subscriptionPlan, setSubscriptionPlan] = useState<string>("");
+    34→  const [inGracePeriod, setInGracePeriod] = useState(false);
+    35→  const [graceDaysRemaining, setGraceDaysRemaining] = useState(0);
+    36→  const [graceExpired, setGraceExpired] = useState(false);
+    37→  const [showRenewalReminder, setShowRenewalReminder] = useState(false);
+    38→  const [renewalDaysRemaining, setRenewalDaysRemaining] = useState(0);
+    39→  const [renewalUrgency, setRenewalUrgency] = useState<string>("none");
+    40→  const [timeRemainingMs, setTimeRemainingMs] = useState<number | undefined>();
+    41→  const [firstName, setFirstName] = useState<string>("");
+    42→  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+    43→  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+    44→
+    45→  // PayPal payment flow states
+    46→  const [paymentRequestId, setPaymentRequestId] = useState<string | null>(null);
+    47→  const [paypalOrderId, setPaypalOrderId] = useState<string | null>(null);
+    48→  const [paymentSuccess, setPaymentSuccess] = useState(false);
+    49→  const [paymentProcessing, setPaymentProcessing] = useState(false);
+    50→
+    51→  // Countdown timer for last 24 hours
+    52→  const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
+    53→  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    54→
+    55→  // PayPal is always assumed configured — the checkout API will handle errors if not
+    56→  const isPaypalConfigured = true;
+    57→  const [paypalNotConfigured, setPaypalNotConfigured] = useState(false);
+    58→
+    59→  // Handle checkout — create order and redirect to PayPal
+    60→  const handleCheckout = useCallback(async (plan: string) => {
+    61→    if (!isAuthenticated || !userId) {
+    62→      setView("auth");
+    63→      return;
+    64→    }
+    65→    if (loadingPlan) return;
+    66→
+    67→    setLoadingPlan(plan);
+    68→    setCheckoutError(null);
+    69→    setPaypalNotConfigured(false);
+    70→
+    71→    try {
+    72→      const res = await fetch("/api/subscription/checkout", {
+    73→        method: "POST",
+    74→        headers: { "Content-Type": "application/json" },
+    75→        body: JSON.stringify({ plan, userId }),
+    76→      });
+    77→
+    78→      const data = await res.json();
+    79→
+    80→      if (!res.ok) {
+    81→        if (data.code === "PAYPAL_NOT_CONFIGURED") {
+    82→          setPaypalNotConfigured(true);
+    83→        } else {
+    84→          setCheckoutError(data.error || (lang === "fr" ? "Erreur lors du paiement" : "Payment failed"));
+    85→        }
+    86→        setLoadingPlan(null);
+    87→        return;
+    88→      }
+    89→
+    90→      if (data.requestId) setPaymentRequestId(data.requestId);
+    91→      setPaypalOrderId(data.orderId);
+    92→
+    93→      // Redirect to PayPal for approval
+    94→      if (data.approveUrl) {
+    95→        trackEvent({ name: "payment_init", properties: { plan } });
+    96→        window.location.href = data.approveUrl;
+    97→      } else {
+    98→        setCheckoutError(lang === "fr" ? "Lien PayPal indisponible." : "PayPal link unavailable.");
+    99→        setLoadingPlan(null);
+   100→      }
+   101→    } catch {
+   102→      setCheckoutError(lang === "fr" ? "Erreur de connexion. Réessaie." : "Connection error. Please try again.");
+   103→      setLoadingPlan(null);
+   104→    }
+   105→  }, [isAuthenticated, userId, lang, setView, loadingPlan]);
+   106→
+   107→  // Check paywall & subscription status
+   108→  useEffect(() => {
+   109→    // Track when user views the pricing page
+   110→    trackEvent({ name: "pricing_viewed" });
+   111→
+   112→    const checkStatus = async () => {
+   113→      try {
+   114→        const headers: Record<string, string> = {};
+   115→        if (userId) headers["Authorization"] = `Bearer ${userId}`;
+   116→
+   117→        const res = await fetch("/api/courses/paywall-status", { headers });
+   118→        const data = await res.json();
+   119→
+   120→        if (data.firstName) setFirstName(data.firstName);
+   121→
+   122→        if (data.inTrial) {
+   123→          setInTrial(true);
+   124→          setTrialDaysRemaining(data.trialDaysRemaining || 0);
+   125→          setTrialCoursesGenerated(data.trialCoursesGenerated || 0);
+   126→        } else if (data.showPaywall && data.paywallReason === "trial_expired") {
+   127→          setTrialExpired(true);
+   128→        }
+   129→
+   130→        if (data.hasSubscription && data.subscriptionStatus === "active") {
+   131→          setIsSubscribed(true);
+   132→          setSubscriptionPlan(data.subscriptionPlan || "monthly");
+   133→          setTrialExpired(false);
+   134→
+   135→          if (data.showRenewalReminder) {
+   136→            setShowRenewalReminder(true);
+   137→            setRenewalDaysRemaining(data.renewalDaysRemaining || 0);
+   138→            setRenewalUrgency(data.renewalUrgency || "none");
+   139→            setTimeRemainingMs(data.timeRemainingMs);
+   140→          }
+   141→        }
+   142→
+   143→        if (data.inGracePeriod) {
+   144→          setInGracePeriod(true);
+   145→          setGraceDaysRemaining(data.graceDaysRemaining || 0);
+   146→        } else if (data.showPaywall && data.paywallReason === "grace_expired") {
+   147→          setGraceExpired(true);
+   148→        }
+   149→      } catch {
+   150→        // silently fail
+   151→      }
+   152→    };
+   153→    checkStatus();
+   154→  }, [userId]);
+   155→
+   156→  // Countdown timer for last 24 hours
+   157→  useEffect(() => {
+   158→    if (renewalUrgency !== "last24hours" || !timeRemainingMs) {
+   159→      if (countdownIntervalRef.current) {
+   160→        clearInterval(countdownIntervalRef.current);
+   161→        countdownIntervalRef.current = null;
+   162→      }
+   163→      return;
+   164→    }
+   165→
+   166→    const updateCountdown = () => {
+   167→      const now = Date.now();
+   168→      const remaining = Math.max(0, timeRemainingMs - (now - ((window as unknown as Record<string, number>).__countdownStart || now)));
+   169→
+   170→      if (remaining <= 0) {
+   171→        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+   172→        setCountdown({ hours: 0, minutes: 0, seconds: 0 });
+   173→        return;
+   174→      }
+   175→
+   176→      const totalSeconds = Math.floor(remaining / 1000);
+   177→      const hours = Math.floor(totalSeconds / 3600);
+   178→      const minutes = Math.floor((totalSeconds % 3600) / 60);
+   179→      const seconds = totalSeconds % 60;
+   180→      setCountdown({ hours, minutes, seconds });
+   181→    };
+   182→
+   183→    (window as unknown as Record<string, number>).__countdownStart = Date.now();
+   184→
+   185→    const fetchFreshTime = async () => {
+   186→      try {
+   187→        const headers: Record<string, string> = {};
+   188→        if (userId) headers["Authorization"] = `Bearer ${userId}`;
+   189→        const res = await fetch("/api/courses/paywall-status", { headers });
+   190→        const data = await res.json();
+   191→        if (data.timeRemainingMs) {
+   192→          setTimeRemainingMs(data.timeRemainingMs);
+   193→          (window as unknown as Record<string, number>).__countdownStart = Date.now();
+   194→        }
+   195→      } catch { /* ignore */ }
+   196→    };
+   197→
+   198→    updateCountdown();
+   199→    countdownIntervalRef.current = setInterval(updateCountdown, 1000);
+   200→    const refreshInterval = setInterval(fetchFreshTime, 30_000);
+   201→
+   202→    return () => {
+   203→      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+   204→      clearInterval(refreshInterval);
+   205→    };
+   206→  }, [renewalUrgency, timeRemainingMs, userId]);
+   207→
+   208→  // Get renewal reminder message
+   209→  const getRenewalMessage = useMemo(() => {
+   210→    const name = firstName || (lang === "fr" ? "Bonjour" : "Hey");
+   211→    const isAnnual = subscriptionPlan === "annual";
+   212→
+   213→    if (renewalUrgency === "last24hours") {
+   214→      const key = isAnnual ? "renewalAnnual24hCountdown" : "renewalMonthly24hCountdown";
+   215→      return tx.offers[key]
+   216→        .replace("{name}", name)
+   217→        .replace("{hours}", String(countdown.hours))
+   218→        .replace("{minutes}", String(countdown.minutes).padStart(2, "0"))
+   219→        .replace("{seconds}", String(countdown.seconds).padStart(2, "0"));
+   220→    }
+   221→
+   222→    const keyMap: Record<string, string> = isAnnual
+   223→      ? {
+   224→          "1month": "renewalAnnual1Month",
+   225→          "2weeks": "renewalAnnual2Weeks",
+   226→          "1week": "renewalAnnual1Week",
+   227→          "3days": "renewalAnnual3Days",
+   228→          "24hours": "renewalAnnual24Hours",
+   229→        }
+   230→      : {
+   231→          "1week": "renewalMonthly1Week",
+   232→          "3days": "renewalMonthly3Days",
+   233→          "24hours": "renewalMonthly24Hours",
+   234→        };
+   235→
+   236→    const key = keyMap[renewalUrgency];
+   237→    if (key && (tx.offers as Record<string, string>)[key]) {
+   238→      return (tx.offers as Record<string, string>)[key].replace("{name}", name);
+   239→    }
+   240→
+   241→    return null;
+   242→  }, [renewalUrgency, firstName, subscriptionPlan, lang, countdown, tx.offers]);
+   243→
+   244→  const getUrgencyColor = () => {
+   245→    if (renewalUrgency === "last24hours" || renewalUrgency === "24hours" || renewalUrgency === "3days") {
+   246→      return "bg-red-500/10 border-red-500/30 text-red-200";
+   247→    }
+   248→    return "bg-amber-500/10 border-amber-500/30 text-amber-200";
+   249→  };
+   250→
+   251→  // Check URL params for payment success
+   252→  useEffect(() => {
+   253→    const params = new URLSearchParams(window.location.search);
+   254→    const paymentStatus = params.get("payment");
+   255→    const planParam = params.get("plan");
+   256→
+   257→    if (paymentStatus === "success" && planParam) {
+   258→      window.history.replaceState({}, "", "/");
+   259→      // Refresh status to show subscription is active
+   260→      const checkAfterCheckout = async () => {
+   261→        try {
+   262→          const headers: Record<string, string> = {};
+   263→          if (userId) headers["Authorization"] = `Bearer ${userId}`;
+   264→          const res = await fetch("/api/courses/paywall-status", { headers });
+   265→          const data = await res.json();
+   266→          if (data.hasSubscription && data.subscriptionStatus === "active") {
+   267→            setIsSubscribed(true);
+   268→            setSubscriptionPlan(planParam);
+   269→            setTrialExpired(false);
+   270→            setInGracePeriod(false);
+   271→            setGraceExpired(false);
+   272→            setShowRenewalReminder(false);
+   273→          }
+   274→        } catch { /* silent */ }
+   275→      };
+   276→      setTimeout(checkAfterCheckout, 2000);
+   277→    } else if (paymentStatus === "cancelled") {
+   278→      window.history.replaceState({}, "", "/");
+   279→      // Use setTimeout to avoid calling setState directly in effect
+   280→      setTimeout(() => {
+   281→        setCheckoutError(lang === "fr" ? "Paiement annulé. Tu peux réessayer." : "Payment cancelled. You can try again.");
+   282→      }, 0);
+   283→    }
+   284→  }, [userId, lang]);
+   285→
+   286→  const suffix = (n: number) => (n > 1 ? (lang === "fr" ? "s" : "s") : "");
+   287→
+   288→  const cannotRenewMessage = useMemo(() => {
+   289→    if (isSubscribed && !showRenewalReminder) {
+   290→      const name = firstName || "";
+   291→      return tx.offers.cannotRenewEarly.replace("{name}", name || (lang === "fr" ? "Bonjour" : "Hey"));
+   292→    }
+   293→    return null;
+   294→  }, [isSubscribed, showRenewalReminder, firstName, lang, tx.offers]);
+   295→
+   296→  // Button disabled logic
+   297→  const isButtonDisabled = (plan: string) =>
+   298→    loadingPlan === plan ||
+   299→    paymentProcessing ||
+   300→    (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired);
+   301→
+   302→  return (
+   303→    <>
+   304→    <div className="min-h-screen bg-night px-4 sm:px-6 md:px-10 pt-14 sm:pt-20 pb-4 sm:pb-6 md:pb-10 lg:pb-14 md:pt-24">
+   305→      {/* Background glow */}
+   306→      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+   307→        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-mauve/5 rounded-full blur-[150px]" />
+   308→      </div>
+   309→
+   310→      <div className="relative z-10 max-w-6xl mx-auto">
+   311→        {/* ===== HEADER ===== */}
+   312→        <div className="text-center mb-12">
+   313→          <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold mb-4">
+   314→            <span className="gradient-text">{tx.offers.title}</span>
+   315→          </h1>
+   316→          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto">
+   317→            {tx.offers.subtitle}
+   318→          </p>
+   319→        </div>
+   320→
+   321→        {/* ===== PAYMENT SUCCESS BANNER ===== */}
+   322→        {paymentSuccess && (
+   323→          <div className="max-w-2xl mx-auto mb-8 space-y-3">
+   324→            <div className="flex items-start gap-3 p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 animate-fade-in">
+   325→              <Check className="w-6 h-6 text-emerald-400 flex-shrink-0 mt-0.5" />
+   326→              <div>
+   327→                <p className="text-base font-bold text-emerald-300">
+   328→                  {lang === "fr" ? "Paiement réussi ! 🎉" : "Payment successful! 🎉"}
+   329→                </p>
+   330→                <p className="text-sm text-emerald-400/70 mt-1">
+   331→                  {lang === "fr"
+   332→                    ? "Ton abonnement est maintenant actif. Tu as accès à tous les cours."
+   333→                    : "Your subscription is now active. You have access to all courses."}
+   334→                </p>
+   335→              </div>
+   336→            </div>
+   337→          </div>
+   338→        )}
+   339→
+   340→        {/* ===== PAYMENT PROCESSING BANNER ===== */}
+   341→        {paymentProcessing && !paymentSuccess && (
+   342→          <div className="max-w-2xl mx-auto mb-8">
+   343→            <div className="flex items-center gap-3 p-5 rounded-2xl bg-mauve/10 border border-mauve/30 animate-fade-in">
+   344→              <Loader2 className="w-5 h-5 text-mauve-light animate-spin" />
+   345→              <p className="text-sm text-mauve-light font-medium">
+   346→                {lang === "fr" ? "Confirmation du paiement en cours..." : "Confirming payment..."}
+   347→              </p>
+   348→            </div>
+   349→          </div>
+   350→        )}
+   351→
+   352→        {/* ===== STATUS BANNERS ===== */}
+   353→        <div className="max-w-2xl mx-auto mb-8 space-y-3">
+   354→          {/* Personalized renewal reminder */}
+   355→          {showRenewalReminder && getRenewalMessage && (
+   356→            <div className={`flex items-start gap-3 p-4 sm:p-5 rounded-2xl border animate-fade-in ${getUrgencyColor()}`}>
+   357→              <Clock className={`w-5 h-5 flex-shrink-0 mt-0.5 ${renewalUrgency === "last24hours" || renewalUrgency === "24hours" || renewalUrgency === "3days" ? "text-red-400" : "text-amber-400"}`} />
+   358→              <div>
+   359→                <p className="text-xs font-bold uppercase tracking-wider mb-1 opacity-70">
+   360→                  {tx.offers.subscriptionEndingSoon}
+   361→                </p>
+   362→                <p className="text-sm sm:text-base font-medium">{getRenewalMessage}</p>
+   363→                {renewalUrgency === "last24hours" && (
+   364→                  <p className="text-2xl sm:text-3xl font-extrabold mt-2 tabular-nums tracking-wide">
+   365→                    {String(countdown.hours).padStart(2, "0")}:{String(countdown.minutes).padStart(2, "0")}:{String(countdown.seconds).padStart(2, "0")}
+   366→                  </p>
+   367→                )}
+   368→              </div>
+   369→            </div>
+   370→          )}
+   371→
+   372→          {/* Grace period */}
+   373→          {inGracePeriod && (
+   374→            <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 animate-fade-in">
+   375→              <Clock className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+   376→              <div>
+   377→                <p className="text-sm sm:text-base text-amber-200 font-medium">
+   378→                  {tx.offers.gracePeriod.replace("{days}", String(graceDaysRemaining)).replace("{suffix}", suffix(graceDaysRemaining))}
+   379→                </p>
+   380→                <p className="text-xs text-amber-300/70 mt-1">{tx.offers.graceReadonly}</p>
+   381→              </div>
+   382→            </div>
+   383→          )}
+   384→
+   385→          {/* Grace expired */}
+   386→          {graceExpired && (
+   387→            <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-red-500/10 border border-red-500/30 animate-fade-in">
+   388→              <ShieldAlert className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+   389→              <p className="text-sm sm:text-base text-red-200 font-medium">{tx.offers.gracePeriodExpired}</p>
+   390→            </div>
+   391→          )}
+   392→
+   393→          {/* Trial active */}
+   394→          {inTrial && (
+   395→            <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-mauve/10 border border-mauve/30 animate-fade-in">
+   396→              <Gift className="w-5 h-5 text-mauve-light flex-shrink-0 mt-0.5" />
+   397→              <div>
+   398→                <p className="text-sm sm:text-base text-mauve-light font-medium">
+   399→                  {tx.offers.daysRemaining.replace("{days}", String(trialDaysRemaining)).replace("{suffix}", suffix(trialDaysRemaining))}
+   400→                </p>
+   401→                <p className="text-xs text-mauve-light/70 mt-1">
+   402→                  {tx.offers.coursesRemaining.replace("{count}", String(trialCoursesMax - trialCoursesGenerated)).replace("{suffix}", suffix(trialCoursesMax - trialCoursesGenerated))}
+   403→                </p>
+   404→              </div>
+   405→            </div>
+   406→          )}
+   407→
+   408→          {/* Trial expired */}
+   409→          {trialExpired && (
+   410→            <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 animate-fade-in">
+   411→              <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+   412→              <p className="text-sm sm:text-base text-amber-200 font-medium">{tx.offers.trialExpired}</p>
+   413→            </div>
+   414→          )}
+   415→
+   416→          {/* Already subscribed (not ending) */}
+   417→          {isSubscribed && !showRenewalReminder && (
+   418→            <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 animate-fade-in">
+   419→              <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+   420→              <div>
+   421→                <p className="text-sm sm:text-base text-emerald-200 font-medium">{tx.offers.subscribed}</p>
+   422→                {cannotRenewMessage && (
+   423→                  <p className="text-xs text-emerald-300/70 mt-1">{cannotRenewMessage}</p>
+   424→                )}
+   425→              </div>
+   426→            </div>
+   427→          )}
+   428→
+   429→          {/* Checkout error */}
+   430→          {checkoutError && (
+   431→            <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-red-500/10 border border-red-500/30 animate-fade-in">
+   432→              <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+   433→              <p className="text-sm sm:text-base text-red-200 font-medium">{checkoutError}</p>
+   434→            </div>
+   435→          )}
+   436→        </div>
+   437→
+   438→        {/* ===== PRICING CARDS ===== */}
+   439→        {!paymentSuccess && (
+   440→          <div
+   441→            className={`grid gap-6 lg:gap-8 items-start mb-20 grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto`}
+   442→          >
+   443→            {/* MONTHLY PLAN */}
+   444→            <div className="pricing-card-float monthly-card-glow glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
+   445→              <div className="mb-6">
+   446→                <div className="flex items-center gap-3 mb-2">
+   447→                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
+   448→                    <Zap className="w-6 h-6 text-mauve-light" />
+   449→                  </div>
+   450→                  <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.monthly.name}</h3>
+   451→                </div>
+   452→                <p className="text-muted-foreground text-sm">{tx.landing.pricing.monthly.desc}</p>
+   453→              </div>
+   454→              <div className="mb-6">
+   455→                <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.monthly.price}</span>
+   456→                <span className="text-lg text-muted-foreground">{tx.landing.pricing.monthly.period}</span>
+   457→              </div>
+   458→              <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
+   459→                {tx.landing.pricing.monthly.features.map((f) => (
+   460→                  <li key={f} className="flex items-start gap-3">
+   461→                    <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+   462→                    <span className="text-sm text-muted-foreground">{f}</span>
+   463→                  </li>
+   464→                ))}
+   465→              </ul>
+   466→
+   467→              {/* CTA Button */}
+   468→              {isButtonDisabled("monthly") ? (
+   469→                <button
+   470→                  disabled
+   471→                  className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2"
+   472→                >
+   473→                  {isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired
+   474→                    ? lang === "fr" ? "Plan Actuel" : "Current Plan"
+   475→                    : <>
+   476→                        <Loader2 className="w-5 h-5 animate-spin" />
+   477→                        {lang === "fr" ? "Chargement..." : "Loading..."}
+   478→                      </>}
+   479→                </button>
+   480→              ) : (
+   481→                <button
+   482→                  onClick={() => handleCheckout("monthly")}
+   483→                  disabled={loadingPlan === "monthly"}
+   484→                  className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
+   485→                >
+   486→                  {loadingPlan === "monthly" ? (
+   487→                    <Loader2 className="w-5 h-5 animate-spin" />
+   488→                  ) : null}
+   489→                  {lang === "fr" ? "Choisir Mensuel" : "Choose Monthly"}
+   490→                </button>
+   491→              )}
+   492→            </div>
+   493→
+   494→            {/* ANNUAL PLAN — highlighted */}
+   495→            <div className="pricing-card-float annual-card-shimmer relative glass rounded-3xl p-5 sm:p-8 flex flex-col border-2 border-gold/50 hover:border-gold/70 transition-all duration-300 shadow-[0_0_40px_rgba(234,179,8,0.1)]">
+   496→              {/* Popular badge */}
+   497→              <span className="annual-badge-pulse absolute -top-4 left-1/2 -translate-x-1/2 px-5 py-1.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-xs font-extrabold uppercase tracking-wider z-10">
+   498→                <span className="flex items-center gap-1.5">
+   499→                  <Crown className="w-3.5 h-3.5" />
+   500→                  {tx.landing.pricing.annual.badge}
+   501→                </span>
+   502→              </span>
+   503→
+   504→              {tx.landing.pricing.annual.save && (
+   505→                <div className="flex justify-end mb-2">
+   506→                  <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold">
+   507→                    {tx.landing.pricing.annual.save}
+   508→                  </span>
+   509→                </div>
+   510→              )}
+   511→
+   512→              <div className="mb-6">
+   513→                <div className="flex items-center gap-3 mb-2">
+   514→                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gold/10 flex items-center justify-center">
+   515→                    <Crown className="w-6 h-6 text-gold" />
+   516→                  </div>
+   517→                  <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.annual.name}</h3>
+   518→                </div>
+   519→                <p className="text-muted-foreground text-sm">{tx.landing.pricing.annual.desc}</p>
+   520→              </div>
+   521→              <div className="mb-6">
+   522→                <span className="text-3xl sm:text-4xl font-extrabold text-gold">{tx.landing.pricing.annual.price}</span>
+   523→                <span className="text-lg text-muted-foreground">{tx.landing.pricing.annual.period}</span>
+   524→              </div>
+   525→              <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
+   526→                {tx.landing.pricing.annual.features.map((f) => (
+   527→                  <li key={f} className="flex items-start gap-3">
+   528→                    <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+   529→                    <span className="text-sm text-muted-foreground">{f}</span>
+   530→                  </li>
+   531→                ))}
+   532→              </ul>
+   533→
+   534→              {/* CTA Button */}
+   535→              {isButtonDisabled("annual") ? (
+   536→                <button
+   537→                  disabled
+   538→                  className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden"
+   539→                >
+   540→                  {isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired
+   541→                    ? lang === "fr" ? "Plan Actuel" : "Current Plan"
+   542→                    : <>
+   543→                        <Loader2 className="w-5 h-5 animate-spin" />
+   544→                        {lang === "fr" ? "Chargement..." : "Loading..."}
+   545→                      </>}
+   546→                </button>
+   547→              ) : (
+   548→                <button
+   549→                  onClick={() => handleCheckout("annual")}
+   550→                  disabled={loadingPlan === "annual"}
+   551→                  className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden cursor-pointer"
+   552→                >
+   553→                  {loadingPlan === "annual" ? (
+   554→                    <Loader2 className="w-5 h-5 animate-spin" />
+   555→                  ) : null}
+   556→                  {lang === "fr" ? "Choisir Annuel" : "Choose Annual"}
+   557→                </button>
+   558→              )}
+   559→            </div>
+   560→          </div>
+   561→        )}
+   562→
+   563→        {/* ===== BOTTOM NOTE ===== */}
+   564→        <div className="text-center pb-10">
+   565→          {/* PayPal not configured notice */}
+   566→          {paypalNotConfigured && (
+   567→            <div className="mb-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm font-semibold animate-[fadeIn_0.3s_ease-out]">
+   568→              ⚙️ {lang === "fr"
+   569→                ? "Les paiements PayPal seront bientôt disponibles. Reviens vérifier prochainement !"
+   570→                : "PayPal payments will be available soon. Check back later!"}
+   571→            </div>
+   572→          )}
+   573→          <div className="flex items-center justify-center gap-2 mb-2">
+   574→            <Lock className="w-3.5 h-3.5 text-muted-foreground/40" />
+   575→            <span className="text-xs text-muted-foreground/50">
+   576→              {lang === "fr"
+   577→                ? "Paiement 100% sécurisé via PayPal"
+   578→                : "100% secure payment via PayPal"}
+   579→            </span>
+   580→          </div>
+   581→
+   582→        </div>
+   583→      </div>
+   584→    </div>
+   585→
+   586→    {/* ===== ANIMATIONS ===== */}
+   587→    <style jsx global>{`
+   588→      @keyframes shimmer-sweep {
+   589→        0% { transform: translateX(-100%) skewX(-15deg); opacity: 0; }
+   590→        20% { opacity: 1; }
+   591→        80% { opacity: 1; }
+   592→        100% { transform: translateX(200%) skewX(-15deg); opacity: 0; }
+   593→      }
+   594→      .annual-card-shimmer { position: relative; overflow: hidden; }
+   595→      .annual-card-shimmer::before {
+   596→        content: '';
+   597→        position: absolute; top: 0; left: 0;
+   598→        width: 60%; height: 100%;
+   599→        background: linear-gradient(90deg, transparent 0%, rgba(234,179,8,0.06) 20%, rgba(255,255,255,0.12) 40%, rgba(234,179,8,0.06) 60%, transparent 100%);
+   600→        z-index: 1; pointer-events: none; border-radius: inherit;
+   601→        animation: shimmer-sweep 3s ease-in-out infinite;
+   602→      }
+   603→      .annual-card-shimmer > * { position: relative; z-index: 2; }
+   604→
+   605→      @keyframes float-card {
+   606→        0%, 100% { transform: translateY(0); }
+   607→        50% { transform: translateY(-8px); }
+   608→      }
+   609→      .pricing-card-float {
+   610→        transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+   611→      }
+   612→      .pricing-card-float:hover {
+   613→        animation: float-card 1.8s ease-in-out infinite;
+   614→        box-shadow: 0 25px 60px -12px rgba(0,0,0,0.4), 0 0 30px rgba(168,85,247,0.08);
+   615→      }
+   616→
+   617→      @keyframes pulse-glow-gold {
+   618→        0%, 100% { box-shadow: 0 0 8px rgba(234,179,8,0.3), 0 0 16px rgba(234,179,8,0.15); }
+   619→        50% { box-shadow: 0 0 16px rgba(234,179,8,0.5), 0 0 32px rgba(234,179,8,0.25), 0 0 48px rgba(234,179,8,0.1); }
+   620→      }
+   621→      .annual-badge-pulse { animation: pulse-glow-gold 2.5s ease-in-out infinite; }
+   622→
+   623→      @keyframes btn-shimmer {
+   624→        0% { background-position: -200% center; }
+   625→        100% { background-position: 200% center; }
+   626→      }
+   627→      .annual-btn-shimmer {
+   628→        background-size: 200% auto;
+   629→        background-image: linear-gradient(90deg, #eab308 0%, #f59e0b 25%, #fde68a 40%, #f59e0b 55%, #eab308 75%, #f59e0b 100%);
+   630→        animation: btn-shimmer 2.5s linear infinite;
+   631→      }
+   632→
+   633→      @keyframes monthly-glow {
+   634→        0%, 100% { box-shadow: 0 0 10px rgba(168,85,247,0.1), 0 0 20px rgba(168,85,247,0.05); }
+   635→        50% { box-shadow: 0 0 20px rgba(168,85,247,0.25), 0 0 40px rgba(168,85,247,0.12), 0 0 60px rgba(168,85,247,0.06); }
+   636→      }
+   637→      .monthly-card-glow:hover {
+   638→        border-color: rgba(168,85,247,0.45) !important;
+   639→        animation: monthly-glow 2s ease-in-out infinite;
+   640→      }
+   641→
+   642→      @keyframes fade-in {
+   643→        from { opacity: 0; transform: translateY(-8px); }
+   644→        to { opacity: 1; transform: translateY(0); }
+   645→      }
+   646→      .animate-fade-in { animation: fade-in 0.4s ease-out; }
+   647→
+   648→    `}</style>
+   649→    </>
+   650→  );
+   651→}
+   652→

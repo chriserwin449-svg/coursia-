@@ -108,3 +108,31 @@ Stage Summary:
 - Animated tips guide users to create stronger passwords
 - Landing page now has quick-access login and language controls in the nav
 - All changes are mobile-responsive
+---
+Task ID: 6
+Agent: Main Agent
+Task: Complete subscription system — 1 free course, grace period, lock after expiry, notifications
+
+Work Log:
+- Changed FREE_COURSE_LIMIT from 3 to 1 in constants.ts and paywall-status/route.ts
+- Fixed critical bug: subscriptionStatus stayed "active" even after endDate passed
+  - Added auto-expire logic in paywall-status API: when endDate <= now, updates DB status to "expired"
+  - Now correctly falls through to grace period logic when subscription is past end date
+- Added grace period enforcement:
+  - CourseViewer: locked overlay when grace expired (3 days after subscription end)
+  - CourseViewer: amber grace period banner at top during grace with renew button
+  - CreateCourse: blocks course generation during grace period
+- Implemented notification system:
+  - Blinking red dot on sidebar/mobile nav when subscription ending within 3 days
+  - Notification dismisses when user views offers page (per session)
+  - Reset on page reload so user sees next reminder
+- Updated OffersPage: trialCoursesMax changed to 1, dismisses notification on mount
+- Updated CreateCourse: enhanced "limit reached" UI with icon, message, and CTA button
+- All changes verified: lint clean (0 src/ errors), browser tested, API tested
+- Pushed to GitHub: commit 7132e19
+
+Stage Summary:
+- Complete subscription lifecycle: 1 free course → payment → unlimited generation → expiry → 3-day grace → lock → renew
+- Auto-expiring subscriptions fix a silent data bug where users got indefinite access
+- Grace period gives users 3 days to read existing courses before lockout
+- Notification dot reminds users to renew starting 3 days before expiry
