@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { createPayPalOrder } from "@/lib/paypal";
+import { createPayPalOrder, getPayPalConfig } from "@/lib/paypal";
 
 // ─── Rate limiting (in-memory, per-user) ──────────────────────────────────
 const checkoutAttempts = new Map<string, { count: number; resetAt: number }>();
@@ -63,6 +63,16 @@ function securityHeaders(): HeadersInit {
 // ─── Main handler ────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    // 0. Check PayPal configuration
+    try {
+      getPayPalConfig();
+    } catch {
+      return NextResponse.json(
+        { error: "PayPal is not configured yet. Please configure PayPal credentials to enable payments.", code: "PAYPAL_NOT_CONFIGURED" },
+        { status: 503, headers: securityHeaders() }
+      );
+    }
+
     // 1. Parse and validate body
     let body: unknown;
     try {

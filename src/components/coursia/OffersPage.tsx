@@ -54,6 +54,7 @@ export default function OffersPage() {
 
   // PayPal is always assumed configured — the checkout API will handle errors if not
   const isPaypalConfigured = true;
+  const [paypalNotConfigured, setPaypalNotConfigured] = useState(false);
 
   // Handle checkout — create order and redirect to PayPal
   const handleCheckout = useCallback(async (plan: string) => {
@@ -65,6 +66,7 @@ export default function OffersPage() {
 
     setLoadingPlan(plan);
     setCheckoutError(null);
+    setPaypalNotConfigured(false);
 
     try {
       const res = await fetch("/api/subscription/checkout", {
@@ -76,7 +78,11 @@ export default function OffersPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setCheckoutError(data.error || (lang === "fr" ? "Erreur lors du paiement" : "Payment failed"));
+        if (data.code === "PAYPAL_NOT_CONFIGURED") {
+          setPaypalNotConfigured(true);
+        } else {
+          setCheckoutError(data.error || (lang === "fr" ? "Erreur lors du paiement" : "Payment failed"));
+        }
         setLoadingPlan(null);
         return;
       }
@@ -556,6 +562,14 @@ export default function OffersPage() {
 
         {/* ===== BOTTOM NOTE ===== */}
         <div className="text-center pb-10">
+          {/* PayPal not configured notice */}
+          {paypalNotConfigured && (
+            <div className="mb-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm font-semibold animate-[fadeIn_0.3s_ease-out]">
+              ⚙️ {lang === "fr"
+                ? "Les paiements PayPal seront bientôt disponibles. Reviens vérifier prochainement !"
+                : "PayPal payments will be available soon. Check back later!"}
+            </div>
+          )}
           <div className="flex items-center justify-center gap-2 mb-2">
             <Lock className="w-3.5 h-3.5 text-muted-foreground/40" />
             <span className="text-xs text-muted-foreground/50">

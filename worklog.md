@@ -1,4 +1,23 @@
 ---
+Task ID: 4
+Agent: Main Agent
+Task: Fix course generation + subscription plan click bugs
+
+Work Log:
+- Diagnosed course generation: vercel.json had NO function timeout → Vercel Hobby plan default = 10s, but generation takes 30-60s → always times out on production
+- Added `functions.maxDuration: 60` to vercel.json for generate, generate-level, and final-quiz routes
+- Diagnosed subscription plans: PayPal not configured in .env → checkout API crashed with unhandled error
+- Exported `getPayPalConfig` from paypal.ts (was private, caused import crash)
+- Added PayPal config check at start of checkout API handler → returns 503 with `PAYPAL_NOT_CONFIGURED` code when not configured
+- Added `paypalNotConfigured` state in OffersPage → shows amber "coming soon" banner instead of error
+- Both fixes verified via browser testing
+
+Stage Summary:
+- Modified files: `vercel.json`, `src/lib/paypal.ts`, `src/app/api/subscription/checkout/route.ts`, `src/components/coursia/OffersPage.tsx`
+- Course generation now has 60s timeout on Vercel (up from 10s default)
+- Subscription plans show "PayPal payments coming soon" banner when PayPal not configured
+- Both fixes tested and confirmed working
+---
 Task ID: 3
 Agent: Main Agent
 Task: Create comprehensive social media posts (FR + EN) for $0 budget user acquisition

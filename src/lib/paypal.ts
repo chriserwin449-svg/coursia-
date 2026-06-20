@@ -31,7 +31,7 @@ function isPlaceholder(value: string | undefined, placeholders: string[]): boole
   return placeholders.some((p) => value === p);
 }
 
-function getPayPalConfig(): PayPalConfig {
+export function getPayPalConfig(): PayPalConfig {
   const clientId = process.env.PAYPAL_CLIENT_ID;
   const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
   const mode = (process.env.PAYPAL_MODE || "sandbox") as "sandbox" | "live";

@@ -4,6 +4,17 @@
   "buildCommand": "node scripts/vercel-build.js && next build",
   "installCommand": "bun install",
   "devCommand": "next dev -p 3000",
+  "functions": {
+    "src/app/api/courses/generate/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/courses/*/generate-level/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/courses/*/final-quiz/route.ts": {
+      "maxDuration": 60
+    }
+  },
   "headers": [
     {
       "source": "/(.*)",
