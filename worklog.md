@@ -1,4 +1,20 @@
 ---
+Task ID: 5
+Agent: Main Agent
+Task: Fix remaining bugs (free limit + PayPal) and push to GitHub
+
+Work Log:
+- FREE_COURSE_LIMIT was 1 — user's dad hit limit after 1 course, couldn't create more
+- Increased FREE_COURSE_LIMIT from 1 to 3 in both constants.ts and paywall-status/route.ts
+- Added PayPal config guard in capture route (prevents "ID not registered" PayPal error)
+- Pushed all fixes to GitHub (force-with-lease)
+
+Stage Summary:
+- Modified files: src/lib/constants.ts, src/app/api/courses/paywall-status/route.ts, src/app/api/subscription/capture/route.ts
+- Users can now create 3 free courses (was 1)
+- PayPal-related routes all return clean 503 when not configured (no crash)
+- All changes pushed to GitHub: commit 842be06
+---
 Task ID: 4
 Agent: Main Agent
 Task: Fix course generation + subscription plan click bugs
