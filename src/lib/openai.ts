@@ -193,10 +193,16 @@ export async function smartChatCompletion(messages: Array<{ role: string; conten
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              contents: messages.filter((m) => m.role !== "system").map((m) => ({
-                role: m.role === "assistant" ? "model" : "user",
-                parts: [{ text: m.content }],
-              })),
+              contents: (() => {
+                // Gemini doesn't support system role — merge system prompt into first user message
+                const systemMsg = messages.find((m) => m.role === "system");
+                const nonSystem = messages.filter((m) => m.role !== "system");
+                const merged = nonSystem.map((m, i) => ({
+                  role: m.role === "assistant" ? "model" : "user",
+                  parts: [{ text: (i === 0 && systemMsg ? `[INSTRUCTIONS]\n${systemMsg.content}\n\n[/INSTRUCTIONS]\n\n` : "") + m.content }],
+                }));
+                return merged.length > 0 ? merged : [{ role: "user" as const, parts: [{ text: "Hello" }] }];
+              })(),
               generationConfig: { temperature: options?.temperature ?? 0.7, maxOutputTokens: options?.maxTokens ?? 8192 },
             }),
             timeoutMs: EXTERNAL_API_TIMEOUT,

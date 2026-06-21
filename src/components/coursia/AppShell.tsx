@@ -216,6 +216,16 @@ export default function AppShell() {
         ? "Carte vérifiée avec succès ! Tu peux maintenant continuer à générer tes cours d'essai."
         : "Card verified successfully! You can now continue generating your trial courses.";
 
+      // Capture the $0.01 verification payment
+      const requestId = params.get("request_id");
+      if (requestId) {
+        fetch("/api/subscription/capture", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requestId, plan: "monthly" }),
+        }).catch(() => {});
+      }
+
       useAppStore.getState().setShowCelebration(true);
       useAppStore.getState().setCelebrationMessage(message);
 

@@ -48,7 +48,8 @@ Tu DOIS répondre UNIQUEMENT avec un JSON valide :
     {
       "question": "Question text",
       "options": ["Option A", "Option B", "Option C", "Option D"],
-      "correctIndex": 0
+      "correctIndex": 0,
+      "explanation": "Explication pédagogique : pourquoi la bonne réponse est correcte et pourquoi les autres sont fausses. 2-3 phrases claires et utiles."
     }
   ]
 }
@@ -57,6 +58,8 @@ Règles STRICTES :
 - Exactement 10 questions couvrant TOUS les chapitres du cours
 - Chaque question a exactement 4 options
 - correctIndex est l'index (0-3) de la bonne réponse
+- Chaque question DOIT avoir un champ "explanation" avec une explication pédagogique claire
+- L'explication doit expliquer pourquoi la bonne réponse est correcte ET pourquoi les autres options sont incorrectes
 - Les options INCORRECTES doivent être plausibles et réalistes
 - Répartition obligatoire :
   - 3 questions factuelles (concepts clés)

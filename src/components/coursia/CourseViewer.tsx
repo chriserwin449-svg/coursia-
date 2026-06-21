@@ -9,6 +9,8 @@ import {
   Maximize2,
   Minimize2,
   CheckCircle2,
+  Check,
+  X,
   Lock,
   Loader2,
   BookOpen,
@@ -1258,32 +1260,52 @@ function QuizPanel({
 
   return (
     <div className="space-y-6">
-      {questions.map((q, qIdx) => (
-        <div key={qIdx} className="p-5 rounded-2xl glass">
-          <p className="font-bold text-sm mb-4">
-            <span className="text-mauve-light">{qIdx + 1}.</span> {q.question}
-          </p>
-          <div className="space-y-2">
-            {q.options.map((opt, oIdx) => {
-              const isSelected = answers[qIdx] === oIdx;
-              const isCorrect = result === null ? false : false; // Don't show until submitted
-              return (
-                <button
-                  key={oIdx}
-                  onClick={() => { if (result === null) setAnswers({ ...answers, [qIdx]: oIdx }); }}
-                  disabled={result !== null}
-                  className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-all duration-200 cursor-pointer ${
-                    isSelected ? "bg-mauve/20 border border-mauve/40 text-mauve-light font-semibold"
-                      : "border border-border hover:bg-white/5 text-muted-foreground"
-                  }`}
-                >
-                  {opt}
-                </button>
-              );
-            })}
+      {questions.map((q, qIdx) => {
+        const userAnswer = answers[qIdx];
+        const isCorrect = userAnswer === q.correctIndex;
+        return (
+          <div key={qIdx} className={`p-5 rounded-2xl glass ${result ? (isCorrect ? "border-emerald-500/30" : "border-destructive/30") : ""}`}>
+            <p className="font-bold text-sm mb-4">
+              <span className="text-mauve-light">{qIdx + 1}.</span> {q.question}
+            </p>
+            <div className="space-y-2">
+              {q.options.map((opt, oIdx) => {
+                const isSelected = answers[qIdx] === oIdx;
+                const showCorrect = result !== null;
+                return (
+                  <button
+                    key={oIdx}
+                    onClick={() => { if (result === null) setAnswers({ ...answers, [qIdx]: oIdx }); }}
+                    disabled={result !== null}
+                    className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-all duration-200 cursor-pointer ${
+                      showCorrect && oIdx === q.correctIndex
+                        ? "bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 font-semibold"
+                        : showCorrect && isSelected && !isCorrect
+                          ? "bg-destructive/15 border border-destructive/30 text-destructive font-semibold"
+                          : isSelected && !showCorrect
+                            ? "bg-mauve/20 border border-mauve/40 text-mauve-light font-semibold"
+                            : "border border-border hover:bg-white/5 text-muted-foreground"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      {showCorrect && oIdx === q.correctIndex && <Check className="w-4 h-4" />}
+                      {showCorrect && isSelected && !isCorrect && <X className="w-4 h-4" />}
+                      {opt}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Show explanation after quiz is submitted */}
+            {result && q.explanation && (
+              <div className="mt-3 p-3 rounded-xl bg-mauve/10 border border-mauve/20">
+                <p className="text-xs font-bold text-mauve-light mb-1">💡 Explication</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">{q.explanation}</p>
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
       <div className="text-center">
         <button
           onClick={submitQuiz}

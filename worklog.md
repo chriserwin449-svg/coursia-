@@ -188,3 +188,23 @@ Stage Summary:
 - src/app/api/auth/register/route.ts: Updated min length validation from 6→4
 - LandingPage.tsx: Logo slightly smaller, title and subtitle text enlarged
 - All changes verified via agent-browser snapshot and VLM visual analysis
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Hero proportions fine-tuning, course quality improvements, payment fixes
+
+Work Log:
+- Rebalanced hero section: title reduced one tier (5xl→6xl range), hero text enlarged (up to 5xl on lg), subtitle enlarged (up to 3xl on md)
+- Fixed Gemini system prompt stripping: now merges [INSTRUCTIONS] tags into first user message instead of dropping system role entirely
+- Added explanation field to quiz generation prompts (both chapter quiz and final quiz)
+- Updated QuizQuestion interface in store.ts to include optional explanation
+- Enhanced QuizPanel UI: correct answers show green with Check icon, wrong answers show red with X icon, explanations appear after submission
+- Fixed card verification return in AppShell: now calls capture API with requestId when card_verified=success
+- VLM verification confirmed visual harmony between logo, title, and subtitles
+
+Stage Summary:
+- LandingPage.tsx: Final visual balance achieved
+- src/lib/openai.ts: Gemini system prompt fix (was silently dropping all instructions)
+- Quiz routes + CourseViewer.tsx: Explanations added for pedagogical value
+- AppShell.tsx: Card verification capture fix
