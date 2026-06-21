@@ -54,3 +54,29 @@ Stage Summary:
 - All API error messages are now in English (app default language)
 - Course generation and payment flows verified working
 - Project pushed to GitHub: coursia- (main branch, commit 405a411)
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix 3 critical bugs — course generation, paywall UX, offers page crash
+
+Work Log:
+- Fixed course generation failing on first attempt:
+  - Expanded `withRetry` in generate/route.ts to handle timeout/ECONNRESET/ETIMEDOUT errors (not just 429)
+  - Added warm-up call after ZAI.create() to prime SDK connection before heavy work
+  - Added retry pattern for outline generation (first attempt with context, second without)
+- Fixed paywall UX — removed aggressive paywall redirect:
+  - Replaced `isPaywallRedirect` with `isCurrentChapterLocked` (checks current chapter, not next)
+  - Next button always shows "Next" text (removed Crown/Unlock icon conditional)
+  - goToNext now allows normal navigation even to locked chapters
+  - Added paywall overlay div that appears on locked chapter content with "See Plans" CTA
+- Fixed OffersPage client-side crash:
+  - Added null-safe access to tx.offers translation keys (getRenewalMessage, cannotRenewMessage)
+  - Added typeof window guards for SSR safety in countdown timer
+  - Wrapped countdown window access in try-catch
+- All changes pushed to GitHub: commit 5bf2f16
+
+Stage Summary:
+- Course generation now reliably works on first attempt via warm-up + expanded retry logic
+- Paywall no longer blocks navigation — users see Next button and can browse, paywall appears as overlay on locked content
+- OffersPage no longer crashes — all translation accesses are null-safe and SSR-safe
+- Project pushed to GitHub: coursia- (main branch, commit 5bf2f16)
