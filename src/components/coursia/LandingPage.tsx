@@ -1,204 +1,233 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
-import Image from "next/image";
+import { useState, useEffect, useRef } from "react";
 import {
   Sparkles,
   BookOpen,
-  Trophy,
   ArrowRight,
-  Star,
   Check,
   Crown,
   Zap,
-  Globe,
   ChevronDown,
   LogIn,
+  GraduationCap,
+  Briefcase,
+  Lightbulb,
+  BarChart3,
+  Star,
+  Settings,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 
-const testimonials = [
-  {
-    text: "Coursia m\u2019a permis d\u2019apprendre Python en une semaine ! Les chapitres sont super bien structur\u00e9s.",
-    author: "Marie L.",
-    avatar: "/avatars/marie.jpg",
-    roleFr: "\u00c9tudiante en informatique",
-    roleEn: "CS Student",
-  },
-  {
-    text: "Les quiz m\u2019aident vraiment \u00e0 retenir. J\u2019adore le syst\u00e8me de badges !",
-    author: "Thomas R.",
-    avatar: "/avatars/thomas.jpg",
-    roleFr: "D\u00e9veloppeur web",
-    roleEn: "Web Developer",
-  },
-  {
-    text: "L\u2019IA g\u00e9n\u00e8re des cours incroyablement complets. Je recommande \u00e0 100%.",
-    author: "Sarah K.",
-    avatar: "/avatars/sarah.jpg",
-    roleFr: "Designer UX",
-    roleEn: "UX Designer",
-  },
-  {
-    text: "Parfait pour r\u00e9viser avant les examens. J\u2019ai am\u00e9lior\u00e9 mes notes gr\u00e2ce \u00e0 Coursia.",
-    author: "Lucas M.",
-    avatar: "/avatars/lucas.jpg",
-    roleFr: "\u00c9tudiant en m\u00e9decine",
-    roleEn: "Medical Student",
-  },
-  {
-    text: "L\u2019interface est magnifique et intuitive. Mieux que n\u2019importe quelle autre plateforme.",
-    author: "Emma D.",
-    avatar: "/avatars/emma.jpg",
-    roleFr: "Data analyst",
-    roleEn: "Data Analyst",
-  },
-  {
-    text: "J\u2019utilise Coursia tous les jours pour apprendre de nouvelles comp\u00e9tences.",
-    author: "Nicolas B.",
-    avatar: "/avatars/nicolas.jpg",
-    roleFr: "Entrepreneur",
-    roleEn: "Entrepreneur",
-  },
-];
-
-function TestimonialCard({
-  text,
-  author,
-  roleFr,
-  roleEn,
-  avatar,
-}: {
-  text: string;
-  author: string;
-  roleFr: string;
-  roleEn: string;
-  avatar: string;
-}) {
-  const lang = useAppStore((s) => s.lang);
-  return (
-    <div className="glass rounded-3xl p-6 min-w-[280px] sm:min-w-[320px] max-w-[380px] mx-3 flex-shrink-0 hover:border-mauve/30 transition-all duration-300">
-      <div className="flex items-center gap-1 mb-3">
-        {[...Array(5)].map((_, i) => (
-          <Star
-            key={i}
-            className="w-4 h-4 fill-gold text-gold"
-          />
-        ))}
-      </div>
-      <p className="text-sm text-muted-foreground leading-relaxed mb-4">
-        &ldquo;{text}&rdquo;
-      </p>
-      <div className="flex items-center gap-3">
-        <div className="w-11 h-11 rounded-full ring-2 ring-mauve/30 overflow-hidden flex-shrink-0">
-          <Image
-            src={avatar}
-            alt={author}
-            width={44}
-            height={44}
-            className="w-full h-full object-cover"
-          />
-        </div>
-        <div className="min-w-0">
-          <span className="font-semibold text-sm text-foreground block">{author}</span>
-          <span className="text-xs text-muted-foreground block">{lang === "fr" ? roleFr : roleEn}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function LandingPage() {
-  const setView = useAppStore((s) => s.setView);
   const lang = useAppStore((s) => s.lang);
-  const setLang = useAppStore((s) => s.setLang);
   const tx = t(lang);
+  const setView = useAppStore((s) => s.setView);
   const user = useAppStore((s) => s.user);
-  const heroRef = useRef<HTMLDivElement>(null);
 
-  const [visible, setVisible] = useState(true);
+  // Scroll-triggered visibility
+  const heroRef = useRef<HTMLDivElement>(null);
+  const [heroVisible, setHeroVisible] = useState(false);
+  const featuresRef = useRef<HTMLDivElement>(null);
   const [featuresVisible, setFeaturesVisible] = useState(false);
-  const [testimonialsVisible, setTestimonialsVisible] = useState(false);
+  const audienceRef = useRef<HTMLDivElement>(null);
+  const [audienceVisible, setAudienceVisible] = useState(false);
+  const pricingRef = useRef<HTMLDivElement>(null);
   const [pricingVisible, setPricingVisible] = useState(false);
-  const [faqVisible, setFaqVisible] = useState(false);
+  const ctaRef = useRef<HTMLDivElement>(null);
+  const [ctaVisible, setCtaVisible] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   useEffect(() => {
-    const onScroll = () => {
-      const scrollY = window.scrollY || window.pageYOffset;
-      const h = window.innerHeight;
-
-      if (scrollY < h * 0.5) setVisible((v) => v || true);
-      if (scrollY > h * 0.2) setFeaturesVisible((v) => v || true);
-      if (scrollY > h * 0.55) setTestimonialsVisible((v) => v || true);
-      if (scrollY > h * 0.9) setPricingVisible((v) => v || true);
-      if (scrollY > h * 1.3) setFaqVisible((v) => v || true);
-    };
-
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const id = entry.target.id;
+            if (id === "hero") setHeroVisible(true);
+            if (id === "features") setFeaturesVisible(true);
+            if (id === "audience") setAudienceVisible(true);
+            if (id === "pricing") setPricingVisible(true);
+            if (id === "final-cta") setCtaVisible(true);
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+    ["hero", "features", "audience", "pricing", "final-cta"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
   }, []);
+
+  const scrollTo = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const isFr = lang === "fr";
+
+  // Feature cards for "Pourquoi choisir" section
+  const featureCards = [
+    {
+      icon: BookOpen,
+      title: isFr ? "Leçons dynamiques" : "Dynamic lessons",
+      desc: isFr
+        ? "Des cours clairs, structurés et générés automatiquement pour retenir l'essentiel."
+        : "Clear, structured courses automatically generated to retain the essentials.",
+      gradient: "from-mauve to-mauve-dark",
+    },
+    {
+      icon: Settings,
+      title: isFr ? "100% personnalisé" : "100% personalized",
+      desc: isFr
+        ? "Le contenu s'adapte à ton niveau, ton rythme et tes objectifs."
+        : "The content adapts to your level, pace and objectives.",
+      gradient: "from-pink-500 to-rose-600",
+    },
+    {
+      icon: BarChart3,
+      title: isFr ? "Suivi intelligent" : "Intelligent tracking",
+      desc: isFr
+        ? "Suis ta progression et reçois des recommandations intelligentes."
+        : "Track your progress and receive intelligent recommendations.",
+      gradient: "from-orange-500 to-amber-600",
+    },
+    {
+      icon: Star,
+      title: isFr ? "Apprends plus vite" : "Learn faster",
+      desc: isFr
+        ? "Des méthodes prouvées pour maximiser ta compréhension et ta rétention."
+        : "Proven methods to maximize your understanding and retention.",
+      gradient: "from-mauve-light to-mauve",
+    },
+  ];
+
+  // Audience cards
+  const audienceCards = [
+    {
+      icon: GraduationCap,
+      title: isFr ? "Étudiants" : "Students",
+      desc: isFr
+        ? "Réussis tes examens et comprends mieux."
+        : "Pass your exams and understand better.",
+      gradient: "from-mauve to-purple-600",
+    },
+    {
+      icon: Briefcase,
+      title: isFr ? "Professionnels" : "Professionals",
+      desc: isFr
+        ? "Développe tes compétences et progresse dans ta carrière."
+        : "Develop your skills and progress in your career.",
+      gradient: "from-orange-500 to-amber-600",
+    },
+    {
+      icon: Lightbulb,
+      title: isFr ? "Curieux" : "Curious",
+      desc: isFr
+        ? "Explore de nouveaux sujets quand tu veux."
+        : "Explore new topics whenever you want.",
+      gradient: "from-mauve-light to-mauve",
+    },
+  ];
+
+  // Hero badges
+  const heroBadges = [
+    {
+      icon: Sparkles,
+      label: isFr ? "Généré par IA" : "AI Generated",
+      sub: isFr ? "Contenu sur-mesure" : "Custom content",
+    },
+    {
+      icon: Settings,
+      label: isFr ? "Adaptatif" : "Adaptive",
+      sub: isFr ? "Selon ton niveau et ton rythme" : "Based on your level and pace",
+    },
+    {
+      icon: Check,
+      label: isFr ? "Simple & Efficace" : "Simple & Effective",
+      sub: isFr ? "Apprends sans distraction" : "Learn without distractions",
+    },
+  ];
+
+  // FAQ items
+  const faqs = isFr
+    ? [
+        { q: "Comment fonctionne la progression par niveaux ?", a: "Chaque cours comporte 3 niveaux de difficulté : Débutant, Intermédiaire et Avancé. Tu commences toujours par le niveau Débutant. Après avoir terminé un niveau, tu peux choisir de passer au suivant." },
+        { q: "Les cours sont-ils personnalisés selon mon niveau ?", a: "Oui ! L'IA adapte la complexité du contenu, les exemples et les quiz en fonction de ton niveau." },
+        { q: "Puis-je créer un cours gratuitement ?", a: "Oui ! Tu peux créer ton premier cours gratuitement et lire le premier chapitre." },
+        { q: "Comment fonctionne le système de flammes ?", a: "Les flammes sont ta monnaie d'apprentissage ! Tu en gagnes en réussissant des quiz et en terminant des cours." },
+        { q: "Puis-je accéder à mes cours depuis n'importe quel appareil ?", a: "Oui, Coursia est accessible depuis n'importe quel navigateur web." },
+      ]
+    : [
+        { q: "How does level progression work?", a: "Each course has 3 difficulty levels: Beginner, Intermediate and Advanced." },
+        { q: "Are courses personalized to my level?", a: "Yes! The AI adapts the content complexity, examples and quizzes based on your level." },
+        { q: "Can I create a course for free?", a: "Yes! You can create your first course for free and read the first chapter." },
+        { q: "How does the flame system work?", a: "Flames are your learning currency! You earn them by passing quizzes and completing courses." },
+        { q: "Can I access my courses from any device?", a: "Yes, Coursia is accessible from any web browser." },
+      ];
 
   return (
     <div className="min-h-screen bg-night flex flex-col">
-      {/* ===== STICKY TOP NAVIGATION BAR ===== */}
-      <nav className="fixed top-0 w-full z-50 bg-night/80 backdrop-blur-lg border-b border-border/50">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
-          {/* Left: Logo + brand name */}
-          <div className="flex items-center gap-2.5">
-            <CoursiaLogo size={36} className="rounded-xl" />
-            <span className="text-lg font-bold text-foreground">{tx.app.name}</span>
+      {/* ===== NAVBAR ===== */}
+      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-night/80 border-b border-muted-foreground/10">
+        <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 py-3">
+          {/* Logo */}
+          <div className="flex items-center gap-2">
+            <CoursiaLogo size={32} className="rounded-lg" />
+            <span className="font-extrabold text-foreground text-lg">{tx.app.name}</span>
           </div>
-          {/* Right: Language toggle + Login + CTA */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={() => setLang(lang === "fr" ? "en" : "fr")}
-              className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 cursor-pointer"
-              aria-label={lang === "fr" ? "Switch to English" : "Passer en Français"}
-            >
-              <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline text-xs font-medium">
-                {lang === "fr" ? "EN" : "FR"}
-              </span>
+
+          {/* Nav links (desktop) */}
+          <div className="hidden md:flex items-center gap-6">
+            <button onClick={() => scrollTo("hero")} className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+              {isFr ? "Accueil" : "Home"}
             </button>
+            <button onClick={() => scrollTo("features")} className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+              {isFr ? "Fonctionnalités" : "Features"}
+            </button>
+            <button onClick={() => scrollTo("audience")} className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+              {isFr ? "À propos" : "About"}
+            </button>
+            <button onClick={() => scrollTo("pricing")} className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+              {isFr ? "Tarifs" : "Pricing"}
+            </button>
+          </div>
+
+          {/* CTA buttons */}
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => setView("auth")}
-              className="inline-flex items-center gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-300 cursor-pointer"
+              onClick={() => user ? setView("create") : setView("auth")}
+              className="hidden sm:inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
-              <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline text-xs sm:text-sm font-medium">
-                {lang === "fr" ? "Se connecter" : "Sign In"}
-              </span>
+              <LogIn className="w-4 h-4" />
+              <span>{isFr ? "Connexion" : "Login"}</span>
             </button>
             <button
               onClick={() => user ? setView("create") : setView("auth")}
-              className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-1.5 sm:py-2.5 rounded-full glass font-semibold text-xs sm:text-sm text-foreground hover:bg-white/10 hover:border-mauve/30 transition-all duration-300 cursor-pointer"
+              className="hero-cta-btn group inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold transition-all duration-300 glow-mauve cursor-pointer"
             >
-              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-mauve-light" />
-              <span className="hidden sm:inline">{tx.landing.cta}</span>
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{tx.landing.cta}</span>
             </button>
           </div>
         </div>
       </nav>
 
       {/* ===== HERO SECTION ===== */}
-      <section className="relative overflow-hidden flex items-start justify-center min-h-screen px-4 pt-28 pb-12">
+      <section id="hero" className="relative overflow-hidden flex items-start justify-center min-h-screen px-4 pt-28 pb-12">
         {/* Background orbs */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-mauve/8 rounded-full blur-[120px]" />
-          <div
-            className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-mauve-dark/10 rounded-full blur-[120px]"
-          />
+          <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-mauve-dark/10 rounded-full blur-[120px]" />
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gold/5 rounded-full blur-[120px]" />
-          {/* Grid pattern overlay */}
           <div
             className="absolute inset-0 opacity-[0.03]"
             style={{
-              backgroundImage:
-                "linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)",
+              backgroundImage: "linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)",
               backgroundSize: "60px 60px",
             }}
           />
@@ -208,14 +237,14 @@ export default function LandingPage() {
           ref={heroRef}
           className="relative z-10 text-center max-w-5xl mx-auto transition-all duration-1000 ease-out"
           style={{
-            opacity: visible ? 1 : 0,
-            transform: visible ? "translateY(0)" : "translateY(40px)",
+            opacity: heroVisible ? 1 : 0,
+            transform: heroVisible ? "translateY(0)" : "translateY(40px)",
           }}
         >
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass text-sm text-mauve-light font-semibold mb-8">
             <Sparkles className="w-4 h-4" />
-            <span>{lang === "fr" ? "Propulsé par l'Intelligence Artificielle" : "Powered by Artificial Intelligence"}</span>
+            <span>{isFr ? "Propulsé par l'Intelligence Artificielle" : "Powered by Artificial Intelligence"}</span>
           </div>
 
           {/* Logo */}
@@ -225,17 +254,18 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Title */}
-          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold mb-8 leading-tight">
-            <span className="gradient-text">{tx.app.name}</span>
+          {/* Hero heading */}
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-6 leading-tight max-w-4xl mx-auto">
+            <span className="text-foreground">{isFr ? "Tu n'as pas besoin de plus de contenu. Tu as besoin d'un" : "You don't need more content. You need a"}</span>{" "}
+            <span className="gradient-text">{isFr ? "cours qui s'adapte à toi" : "course that adapts to you"}</span>
+            <span className="text-foreground">.</span>
           </h1>
 
-          {/* Hero text */}
-          <p className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-foreground font-bold mb-6 max-w-3xl mx-auto">
-            {tx.landing.hero}
-          </p>
-          <p className="text-xl sm:text-2xl md:text-3xl text-muted-foreground mb-14 max-w-2xl mx-auto leading-relaxed">
-            {tx.landing.subtitle}
+          {/* Subheading */}
+          <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
+            {isFr
+              ? "Coursia crée des leçons dynamiques, claires et personnalisées pour t'aider à apprendre plus vite et mieux retenir."
+              : "Coursia creates dynamic, clear and personalized lessons to help you learn faster and remember better."}
           </p>
 
           {/* CTA Buttons */}
@@ -245,15 +275,12 @@ export default function LandingPage() {
               className="hero-cta-btn group inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg sm:text-xl font-bold transition-all duration-300 glow-mauve hover:shadow-[0_0_50px_rgba(124,92,191,0.6)] cursor-pointer"
             >
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
-              <span className="relative z-10">{tx.landing.cta}</span>
+              <span className="relative z-10">{isFr ? "Commencer gratuitement" : "Start for free"}</span>
               <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
               <span className="absolute inset-0 rounded-full bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </button>
             <button
-              onClick={() => {
-                const el = document.getElementById("pricing-section");
-                if (el) el.scrollIntoView({ behavior: "smooth" });
-              }}
+              onClick={() => scrollTo("pricing")}
               className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-full glass text-foreground font-semibold hover:border-mauve/30 transition-all duration-300 cursor-pointer text-sm sm:text-lg"
             >
               {tx.landing.pricing.title}
@@ -261,18 +288,17 @@ export default function LandingPage() {
             </button>
           </div>
 
-          {/* Trust signals */}
-          <div className="mt-16 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8">
-            {[
-              lang === "fr" ? "Génération adaptée" : "Adaptive generation",
-              lang === "fr" ? "Progression personnalisée" : "Personalized progression",
-              lang === "fr" ? "IA qui s'ajuste à ton niveau" : "AI that adapts to your level",
-            ].map((text) => (
-              <div key={text} className="flex items-center gap-2 text-sm text-muted-foreground">
+          {/* Hero feature badges */}
+          <div className="mt-16 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
+            {heroBadges.map((badge) => (
+              <div key={badge.label} className="flex items-center gap-2 text-sm text-muted-foreground">
                 <div className="w-5 h-5 rounded-full bg-mauve/20 flex items-center justify-center flex-shrink-0">
-                  <Check className="w-3 h-3 text-mauve-light" />
+                  <badge.icon className="w-3 h-3 text-mauve-light" />
                 </div>
-                <span>{text}</span>
+                <div className="text-left">
+                  <p className="text-foreground font-semibold text-xs">{badge.label}</p>
+                  <p className="text-muted-foreground/60 text-xs">{badge.sub}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -286,10 +312,14 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ===== FEATURES SECTION ===== */}
-      <section className="relative py-24 px-4">
+      {/* ===== WHY CHOOSE SECTION ===== */}
+      <section id="features" className="relative py-24 px-4">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/2 left-1/3 w-[500px] h-[500px] bg-mauve/5 rounded-full blur-[120px]" />
+        </div>
         <div
-          className="max-w-6xl mx-auto transition-all duration-1000 ease-out delay-200"
+          ref={featuresRef}
+          className="relative z-10 max-w-6xl mx-auto transition-all duration-1000 ease-out"
           style={{
             opacity: featuresVisible ? 1 : 0,
             transform: featuresVisible ? "translateY(0)" : "translateY(40px)",
@@ -297,101 +327,88 @@ export default function LandingPage() {
         >
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
-              {lang === "fr"
-                ? "Pourquoi choisir"
-                : "Why choose"}{" "}
-              <span className="gradient-text">{tx.app.name}</span>{" "}
-              ?
+              {isFr ? "Apprendre n'a jamais été aussi" : "Learning has never been so"}{" "}
+              <span className="gradient-text">{isFr ? "simple" : "simple"}</span>
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              {lang === "fr"
-                ? "Une plateforme d'apprentissage nouvelle génération, conçue pour toi."
-                : "A next-generation learning platform, designed for you."}
+              {isFr
+                ? "Coursia transforme n'importe quel sujet en une expérience d'apprentissage interactive et personnalisée."
+                : "Coursia transforms any subject into an interactive and personalized learning experience."}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {useMemo(() => [
-              {
-                icon: Sparkles,
-                title: tx.landing.features.ai.title,
-                desc: tx.landing.features.ai.desc,
-                gradient: "from-mauve to-mauve-dark",
-                glow: "glow-mauve",
-              },
-              {
-                icon: Trophy,
-                title: tx.landing.features.badges.title,
-                desc: tx.landing.features.badges.desc,
-                gradient: "from-gold to-amber-600",
-                glow: "",
-              },
-              {
-                icon: BookOpen,
-                title: tx.landing.features.quiz.title,
-                desc: tx.landing.features.quiz.desc,
-                gradient: "from-emerald-500 to-emerald-700",
-                glow: "",
-              },
-            ], [tx.landing.features]).map((feature) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {featureCards.map((card) => (
               <div
-                key={feature.title}
-                className="glass rounded-3xl p-8 text-left hover:border-mauve/30 transition-all duration-300 group hover:-translate-y-1"
+                key={card.title}
+                className="glass rounded-3xl p-6 text-left hover:border-mauve/30 transition-all duration-300 group hover:-translate-y-1"
               >
                 <div
-                  className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-6 ${feature.glow} group-hover:scale-110 transition-transform duration-300`}
+                  className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${card.gradient} flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300`}
                 >
-                  <feature.icon className="w-7 h-7 text-white" />
+                  <card.icon className="w-6 h-6 text-white" />
                 </div>
-                <h3 className="text-xl font-bold mb-3 text-foreground">{feature.title}</h3>
-                <p className="text-muted-foreground leading-relaxed">{feature.desc}</p>
+                <h3 className="text-lg font-bold mb-2 text-foreground">{card.title}</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">{card.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ===== TESTIMONIALS SECTION ===== */}
-      <section className="relative py-24 overflow-hidden">
+      {/* ===== AUDIENCE SECTION ===== */}
+      <section id="audience" className="relative py-24 px-4">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/2 right-1/3 w-[400px] h-[400px] bg-gold/5 rounded-full blur-[120px]" />
+        </div>
         <div
-          className="text-center mb-14 px-4 transition-all duration-1000 ease-out"
+          ref={audienceRef}
+          className="relative z-10 max-w-5xl mx-auto transition-all duration-1000 ease-out"
           style={{
-            opacity: testimonialsVisible ? 1 : 0,
-            transform: testimonialsVisible ? "translateY(0)" : "translateY(40px)",
+            opacity: audienceVisible ? 1 : 0,
+            transform: audienceVisible ? "translateY(0)" : "translateY(40px)",
           }}
         >
-          <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
-            <span className="gradient-text">{tx.landing.testimonials.title}</span>
-          </h2>
-        </div>
-
-        {/* Row 1 — left to right */}
-        <div className="overflow-hidden mb-6">
-          <div className="marquee-track">
-            {[...testimonials, ...testimonials].map((t, i) => (
-              <TestimonialCard key={`r1-${i}`} text={t.text} author={t.author} roleFr={t.roleFr} roleEn={t.roleEn} avatar={t.avatar} />
-            ))}
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
+              {isFr ? "Pour qui est" : "Who is"}{" "}
+              <span className="gradient-text">{tx.app.name}</span>{" "}
+              {isFr ? "?" : "for?"}
+            </h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              {isFr
+                ? "Que tu sois étudiant, professionnel ou simplement curieux, Coursia t'aide à atteindre tes objectifs."
+                : "Whether you're a student, professional or simply curious, Coursia helps you achieve your goals."}
+            </p>
           </div>
-        </div>
 
-        {/* Row 2 — right to left */}
-        <div className="overflow-hidden">
-          <div className="marquee-track-reverse">
-            {[...testimonials.slice().reverse(), ...testimonials.slice().reverse()].map((t, i) => (
-              <TestimonialCard key={`r2-${i}`} text={t.text} author={t.author} roleFr={t.roleFr} roleEn={t.roleEn} avatar={t.avatar} />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {audienceCards.map((card) => (
+              <div
+                key={card.title}
+                className="glass rounded-3xl p-8 text-center hover:border-mauve/30 transition-all duration-300 group hover:-translate-y-1"
+              >
+                <div
+                  className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${card.gradient} flex items-center justify-center mb-6 mx-auto group-hover:scale-110 transition-transform duration-300`}
+                >
+                  <card.icon className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-xl font-bold mb-3 text-foreground">{card.title}</h3>
+                <p className="text-muted-foreground leading-relaxed">{card.desc}</p>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ===== PRICING SECTION ===== */}
-      <section id="pricing-section" className="relative py-24 px-4">
-        {/* Background glow */}
+      {/* ===== PRICING SECTION (KEPT FROM ORIGINAL) ===== */}
+      <section id="pricing" className="relative py-24 px-4">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-mauve/5 rounded-full blur-[150px]" />
         </div>
 
         <div
+          ref={pricingRef}
           className="relative z-10 max-w-5xl mx-auto transition-all duration-1000 ease-out"
           style={{
             opacity: pricingVisible ? 1 : 0,
@@ -441,21 +458,17 @@ export default function LandingPage() {
 
             {/* ANNUAL PLAN — highlighted */}
             <div className="landing-pricing-float landing-annual-shimmer relative glass rounded-3xl p-8 flex flex-col border-2 border-gold/50 hover:border-gold/70 transition-all duration-300 shadow-[0_0_40px_rgba(234,179,8,0.1)]">
-              {/* Popular badge */}
               <span className="landing-annual-badge-pulse absolute -top-4 left-1/2 -translate-x-1/2 px-5 py-1.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-xs font-extrabold uppercase tracking-wider z-10">
                 <span className="flex items-center gap-1.5">
                   <Crown className="w-3.5 h-3.5" />
                   {tx.landing.pricing.annual.badge}
                 </span>
               </span>
-
-              {/* Save badge */}
               <div className="flex justify-end mb-2">
                 <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold">
                   {tx.landing.pricing.annual.save}
                 </span>
               </div>
-
               <div className="mb-6">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="w-10 h-10 rounded-xl bg-gold/10 flex items-center justify-center">
@@ -486,11 +499,8 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Payment provider note */}
           <p className="text-center text-xs text-muted-foreground/40 mt-10">
-            {lang === "fr"
-              ? "Paiement 100% sécurisé via PayPal"
-              : "100% secure payment via PayPal"}
+            {isFr ? "Paiement 100% sécurisé via PayPal" : "100% secure payment via PayPal"}
           </p>
         </div>
       </section>
@@ -500,69 +510,27 @@ export default function LandingPage() {
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-mauve/5 rounded-full blur-[120px]" />
         </div>
-        <div
-          className="relative z-10 max-w-3xl mx-auto transition-all duration-1000 ease-out"
-          style={{
-            opacity: faqVisible ? 1 : 0,
-            transform: faqVisible ? "translateY(0)" : "translateY(40px)",
-          }}
-        >
+        <div className="relative z-10 max-w-3xl mx-auto">
           <div className="text-center mb-14">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
-              <span className="gradient-text">
-                {lang === "fr" ? "Questions Fréquentes" : "Frequently Asked Questions"}
-              </span>
+              <span className="gradient-text">{isFr ? "Questions Fréquentes" : "Frequently Asked Questions"}</span>
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              {lang === "fr"
-                ? "Tout ce que tu dois savoir sur Coursia."
-                : "Everything you need to know about Coursia."}
+              {isFr ? "Tout ce que tu dois savoir sur Coursia." : "Everything you need to know about Coursia."}
             </p>
           </div>
-
           <div className="space-y-4">
-            {(
-              lang === "fr"
-                ? [
-                    { q: "Comment fonctionne la progression par niveaux ?", a: "Chaque cours comporte 3 niveaux de difficulté : Débutant, Intermédiaire et Avancé. Tu commences toujours par le niveau Débutant. Après avoir terminé un niveau, une animation célèbre ta réussite et tu peux choisir de passer au suivant. Un récapitulatif IA t'aide à réviser les points clés avant de continuer." },
-                    { q: "Les cours sont-ils personnalisés selon mon niveau ?", a: "Oui ! Tu peux choisir entre trois niveaux : Débutant, Intermédiaire et Avancé. L'IA adapte la complexité du contenu, les exemples et les quiz en fonction de ton niveau." },
-                    { q: "Puis-je progresser d'un niveau à l'autre ?", a: "Absolument ! Après avoir terminé un cours à un niveau, Coursia te propose de passer au niveau supérieur avec un récapitulatif IA pour t'aider à progresser. Termine les 3 niveaux pour gagner un maximum de flammes !" },
-                    { q: "Puis-je créer un cours gratuitement ?", a: "Oui ! Tu peux créer ton premier cours gratuitement et lire le premier chapitre. Pour accéder à tous les chapitres et créer des cours illimités, choisis un abonnement." },
-                    { q: "Comment fonctionne le système de flammes ?", a: "Les flammes sont ta monnaie d'apprentissage ! Tu en gagnes en réussissant des quiz et en terminant des cours. Utilise-les pour créer de nouveaux cours ou débloque des badges en accumulant des points." },
-                    { q: "Puis-je accéder à mes cours depuis n'importe quel appareil ?", a: "Oui, Coursia est accessible depuis n'importe quel navigateur web. Tes cours et ta progression sont sauvegardés dans ton compte." },
-                  ]
-                : [
-                    { q: "How does level progression work?", a: "Each course has 3 difficulty levels: Beginner, Intermediate and Advanced. You always start at Beginner. After completing a level, a celebration animation plays and you can choose to advance. An AI recap helps you review key points before continuing." },
-                    { q: "Are courses personalized to my level?", a: "Yes! You can choose between three levels: Beginner, Intermediate and Advanced. The AI adapts the content complexity, examples and quizzes based on your level." },
-                    { q: "Can I progress from one level to another?", a: "Absolutely! After completing a course at one level, Coursia offers to move you to the next level with an AI recap to help you progress. Complete all 3 levels to earn maximum flames!" },
-                    { q: "Can I create a course for free?", a: "Yes! You can create your first course for free and read the first chapter. To access all chapters and create unlimited courses, choose a subscription." },
-                    { q: "How does the flame system work?", a: "Flames are your learning currency! You earn them by passing quizzes and completing courses. Use them to create new courses or unlock badges by accumulating points." },
-                    { q: "Can I access my courses from any device?", a: "Yes, Coursia is accessible from any web browser. Your courses and progress are saved in your account." },
-                  ]
-            ).map((faq, i) => (
-              <div
-                key={i}
-                className="glass rounded-2xl overflow-hidden transition-all duration-300 hover:border-mauve/30"
-              >
+            {faqs.map((faq, i) => (
+              <div key={i} className="glass rounded-2xl overflow-hidden transition-all duration-300 hover:border-mauve/30">
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                   className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left cursor-pointer"
                 >
                   <span className="font-semibold text-foreground text-sm sm:text-base">{faq.q}</span>
-                  <ChevronDown
-                    className={`w-5 h-5 text-muted-foreground flex-shrink-0 transition-transform duration-300 ${
-                      openFaq === i ? "rotate-180" : ""
-                    }`}
-                  />
+                  <ChevronDown className={`w-5 h-5 text-muted-foreground flex-shrink-0 transition-transform duration-300 ${openFaq === i ? "rotate-180" : ""}`} />
                 </button>
-                <div
-                  className={`overflow-hidden transition-all duration-300 ${
-                    openFaq === i ? "max-h-96 pb-5" : "max-h-0"
-                  }`}
-                >
-                  <p className="px-6 text-sm sm:text-base text-muted-foreground leading-relaxed">
-                    {faq.a}
-                  </p>
+                <div className={`overflow-hidden transition-all duration-300 ${openFaq === i ? "max-h-96 pb-5" : "max-h-0"}`}>
+                  <p className="px-6 text-sm sm:text-base text-muted-foreground leading-relaxed">{faq.a}</p>
                 </div>
               </div>
             ))}
@@ -570,27 +538,35 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ===== CTA BANNER ===== */}
-      <section className="py-20 px-4">
-        <div className="max-w-4xl mx-auto text-center glass rounded-3xl p-12 md:p-16 relative overflow-hidden">
+      {/* ===== FINAL CTA SECTION ===== */}
+      <section id="final-cta" className="py-20 px-4">
+        <div
+          ref={ctaRef}
+          className="max-w-4xl mx-auto text-center glass rounded-3xl p-12 md:p-16 relative overflow-hidden transition-all duration-1000 ease-out"
+          style={{
+            opacity: ctaVisible ? 1 : 0,
+            transform: ctaVisible ? "translateY(0)" : "translateY(40px)",
+          }}
+        >
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[400px] h-[400px] bg-mauve/10 rounded-full blur-[100px]" />
           </div>
           <div className="relative z-10">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
-              {lang === "fr"
-                ? "Prêt à commencer ?"
-                : "Ready to start?"}
+              {isFr ? "Prêt à révolutionner ta façon d'apprendre" : "Ready to revolutionize your way of learning"}
+              <span className="gradient-text"> ?</span>
             </h2>
             <p className="text-muted-foreground text-lg mb-8 max-w-xl mx-auto">
-              {tx.app.tagline}
+              {isFr
+                ? "Rejoins des milliers d'apprenants qui utilisent déjà Coursia."
+                : "Join thousands of learners already using Coursia."}
             </p>
             <button
               onClick={() => user ? setView("create") : setView("auth")}
               className="hero-cta-btn group inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg sm:text-xl font-bold transition-all duration-300 glow-mauve hover:shadow-[0_0_50px_rgba(124,92,191,0.6)] cursor-pointer"
             >
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
-              <span className="relative z-10">{tx.landing.cta}</span>
+              <span className="relative z-10">{isFr ? "Commencer gratuitement" : "Start for free"}</span>
               <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
           </div>
@@ -610,213 +586,103 @@ export default function LandingPage() {
 
       {/* ===== GLOBAL STYLES ===== */}
       <style jsx global>{`
-        @keyframes marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        @keyframes marquee-reverse {
-          0% { transform: translateX(-50%); }
-          100% { transform: translateX(0); }
-        }
-        .marquee-track {
-          display: flex;
-          animation: marquee 30s linear infinite;
-          width: max-content;
-        }
-        .marquee-track-reverse {
-          display: flex;
-          animation: marquee-reverse 30s linear infinite;
-          width: max-content;
-        }
-        .marquee-track:hover,
-        .marquee-track-reverse:hover {
-          animation-play-state: paused;
-        }
-
         /* ── Landing Pricing Card Effects ── */
-
-        /* Float animation on hover for all pricing cards */
         @keyframes landing-float-card {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-8px); }
         }
         .landing-pricing-float {
-          transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-                      box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .landing-pricing-float:hover {
           animation: landing-float-card 1.8s ease-in-out infinite;
-          box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.4),
-                      0 0 30px rgba(168, 85, 247, 0.08);
+          box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.4), 0 0 30px rgba(168, 85, 247, 0.08);
         }
 
-        /* ── Monthly card: mauve shimmer sweep ── */
+        /* Monthly card: mauve shimmer sweep */
         @keyframes landing-monthly-shimmer-sweep {
           0% { transform: translateX(-100%) skewX(-15deg); opacity: 0; }
           20% { opacity: 1; }
           80% { opacity: 1; }
           100% { transform: translateX(200%) skewX(-15deg); opacity: 0; }
         }
-        .landing-monthly-shimmer {
-          position: relative;
-          overflow: hidden;
-        }
+        .landing-monthly-shimmer { position: relative; overflow: hidden; }
         .landing-monthly-shimmer::before {
           content: '';
           position: absolute;
           top: 0; left: 0;
           width: 60%; height: 100%;
-          background: linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(124, 92, 191, 0.06) 20%,
-            rgba(255, 255, 255, 0.1) 40%,
-            rgba(124, 92, 191, 0.06) 60%,
-            transparent 100%
-          );
-          z-index: 1;
-          pointer-events: none;
-          border-radius: inherit;
+          background: linear-gradient(90deg, transparent 0%, rgba(124, 92, 191, 0.06) 20%, rgba(255, 255, 255, 0.1) 40%, rgba(124, 92, 191, 0.06) 60%, transparent 100%);
+          z-index: 1; pointer-events: none; border-radius: inherit;
           animation: landing-monthly-shimmer-sweep 3.5s ease-in-out infinite;
         }
         .landing-monthly-shimmer > * { position: relative; z-index: 2; }
         .landing-monthly-shimmer:hover {
           border-color: rgba(168, 85, 247, 0.45) !important;
-          box-shadow: 0 0 20px rgba(168, 85, 247, 0.2),
-                      0 0 40px rgba(168, 85, 247, 0.1),
-                      0 0 60px rgba(168, 85, 247, 0.05);
+          box-shadow: 0 0 20px rgba(168, 85, 247, 0.2), 0 0 40px rgba(168, 85, 247, 0.1), 0 0 60px rgba(168, 85, 247, 0.05);
         }
 
         /* Monthly CTA button shimmer */
-        @keyframes landing-monthly-btn-shimmer {
-          0% { background-position: -200% center; }
-          100% { background-position: 200% center; }
-        }
+        @keyframes landing-monthly-btn-shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
         .landing-monthly-btn-shimmer {
           background-size: 200% auto;
-          background-image: linear-gradient(
-            90deg,
-            #7c5cbf 0%,
-            #9b7fd4 25%,
-            #c4b5fd 40%,
-            #9b7fd4 55%,
-            #7c5cbf 75%,
-            #5a3d8f 100%
-          );
+          background-image: linear-gradient(90deg, #7c5cbf 0%, #9b7fd4 25%, #c4b5fd 40%, #9b7fd4 55%, #7c5cbf 75%, #5a3d8f 100%);
           animation: landing-monthly-btn-shimmer 2.5s linear infinite;
         }
 
-        /* ── Annual card: gold shimmer sweep ── */
+        /* Annual card: gold shimmer sweep */
         @keyframes landing-annual-shimmer-sweep {
           0% { transform: translateX(-100%) skewX(-15deg); opacity: 0; }
           20% { opacity: 1; }
           80% { opacity: 1; }
           100% { transform: translateX(200%) skewX(-15deg); opacity: 0; }
         }
-        .landing-annual-shimmer {
-          position: relative;
-          overflow: hidden;
-        }
+        .landing-annual-shimmer { position: relative; overflow: hidden; }
         .landing-annual-shimmer::before {
           content: '';
           position: absolute;
           top: 0; left: 0;
           width: 60%; height: 100%;
-          background: linear-gradient(
-            90deg,
-            transparent 0%,
-            rgba(234, 179, 8, 0.06) 20%,
-            rgba(255, 255, 255, 0.12) 40%,
-            rgba(234, 179, 8, 0.06) 60%,
-            transparent 100%
-          );
-          z-index: 1;
-          pointer-events: none;
-          border-radius: inherit;
+          background: linear-gradient(90deg, transparent 0%, rgba(234, 179, 8, 0.06) 20%, rgba(255, 255, 255, 0.12) 40%, rgba(234, 179, 8, 0.06) 60%, transparent 100%);
+          z-index: 1; pointer-events: none; border-radius: inherit;
           animation: landing-annual-shimmer-sweep 3s ease-in-out infinite;
         }
         .landing-annual-shimmer > * { position: relative; z-index: 2; }
 
         /* Annual badge glow pulse */
         @keyframes landing-annual-badge-glow {
-          0%, 100% {
-            box-shadow: 0 0 8px rgba(234, 179, 8, 0.3), 0 0 16px rgba(234, 179, 8, 0.15);
-          }
-          50% {
-            box-shadow: 0 0 16px rgba(234, 179, 8, 0.5), 0 0 32px rgba(234, 179, 8, 0.25), 0 0 48px rgba(234, 179, 8, 0.1);
-          }
+          0%, 100% { box-shadow: 0 0 8px rgba(234, 179, 8, 0.3), 0 0 16px rgba(234, 179, 8, 0.15); }
+          50% { box-shadow: 0 0 16px rgba(234, 179, 8, 0.5), 0 0 32px rgba(234, 179, 8, 0.25), 0 0 48px rgba(234, 179, 8, 0.1); }
         }
-        .landing-annual-badge-pulse {
-          animation: landing-annual-badge-glow 2.5s ease-in-out infinite;
-        }
+        .landing-annual-badge-pulse { animation: landing-annual-badge-glow 2.5s ease-in-out infinite; }
 
         /* Annual CTA button shimmer */
-        @keyframes landing-annual-btn-shimmer {
-          0% { background-position: -200% center; }
-          100% { background-position: 200% center; }
-        }
+        @keyframes landing-annual-btn-shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
         .landing-annual-btn-shimmer {
           background-size: 200% auto;
-          background-image: linear-gradient(
-            90deg,
-            #eab308 0%,
-            #f59e0b 25%,
-            #fde68a 40%,
-            #f59e0b 55%,
-            #eab308 75%,
-            #f59e0b 100%
-          );
+          background-image: linear-gradient(90deg, #eab308 0%, #f59e0b 25%, #fde68a 40%, #f59e0b 55%, #eab308 75%, #f59e0b 100%);
           animation: landing-annual-btn-shimmer 2.5s linear infinite;
         }
 
-        /* ── Hero CTA Button: breathing glow + shimmer ── */
+        /* Hero CTA Button: breathing glow + shimmer */
         @keyframes hero-cta-glow-pulse {
-          0%, 100% {
-            box-shadow: 0 0 15px rgba(124, 92, 191, 0.35),
-                        0 0 30px rgba(124, 92, 191, 0.15),
-                        0 4px 15px rgba(0, 0, 0, 0.3);
-          }
-          50% {
-            box-shadow: 0 0 25px rgba(124, 92, 191, 0.55),
-                        0 0 50px rgba(124, 92, 191, 0.25),
-                        0 0 80px rgba(124, 92, 191, 0.1),
-                        0 4px 15px rgba(0, 0, 0, 0.3);
-          }
+          0%, 100% { box-shadow: 0 0 15px rgba(124, 92, 191, 0.35), 0 0 30px rgba(124, 92, 191, 0.15), 0 4px 15px rgba(0, 0, 0, 0.3); }
+          50% { box-shadow: 0 0 25px rgba(124, 92, 191, 0.55), 0 0 50px rgba(124, 92, 191, 0.25), 0 0 80px rgba(124, 92, 191, 0.1), 0 4px 15px rgba(0, 0, 0, 0.3); }
         }
-        @keyframes hero-cta-shimmer {
-          0% { background-position: -200% center; }
-          100% { background-position: 200% center; }
-        }
+        @keyframes hero-cta-shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
         .hero-cta-btn {
-          position: relative;
-          overflow: hidden;
+          position: relative; overflow: hidden;
           background-size: 200% auto;
-          background-image: linear-gradient(
-            90deg,
-            #7c5cbf 0%,
-            #9b7fd4 20%,
-            #c4b5fd 35%,
-            #a78bfa 50%,
-            #9b7fd4 65%,
-            #7c5cbf 80%,
-            #5a3d8f 100%
-          );
-          animation:
-            hero-cta-shimmer 3s linear infinite,
-            hero-cta-glow-pulse 2.5s ease-in-out infinite;
+          background-image: linear-gradient(90deg, #7c5cbf 0%, #9b7fd4 20%, #c4b5fd 35%, #a78bfa 50%, #9b7fd4 65%, #7c5cbf 80%, #5a3d8f 100%);
+          animation: hero-cta-shimmer 3s linear infinite, hero-cta-glow-pulse 2.5s ease-in-out infinite;
           transform: scale(1);
-          transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
-                      box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .hero-cta-btn:hover {
           transform: scale(1.05);
-          animation:
-            hero-cta-shimmer 3s linear infinite,
-            hero-cta-glow-pulse 1.5s ease-in-out infinite;
+          animation: hero-cta-shimmer 3s linear infinite, hero-cta-glow-pulse 1.5s ease-in-out infinite;
         }
-        .hero-cta-btn:active {
-          transform: scale(0.97);
-        }
+        .hero-cta-btn:active { transform: scale(0.97); }
       `}</style>
     </div>
   );
