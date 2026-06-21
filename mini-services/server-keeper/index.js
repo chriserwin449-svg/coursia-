@@ -1,5 +1,4 @@
 const { spawn } = require('child_process');
-const http = require('http');
 const fs = require('fs');
 
 const LOG = '/home/z/my-project/dev.log';
@@ -24,25 +23,19 @@ function startServer() {
   
   serverProcess.stdout.on('data', (d) => {
     process.stdout.write(d);
+    try { fs.appendFileSync(LOG, d.toString()); } catch {}
   });
   serverProcess.stderr.on('data', (d) => {
     process.stderr.write(d);
+    try { fs.appendFileSync(LOG, d.toString()); } catch {}
   });
   
-  serverProcess.on('exit', () => {
-    log('Next.js exited, restarting in 3s...');
+  serverProcess.on('exit', (code) => {
+    log(`Next.js exited (code: ${code}), restarting in 3s...`);
     serverProcess = null;
     setTimeout(startServer, 3000);
   });
 }
 
 startServer();
-
-// Keepalive ping every 10s
-setInterval(() => {
-  const req = http.get('http://127.0.0.1:3000', () => {});
-  req.on('error', () => {});
-  req.setTimeout(3000, () => { req.destroy(); });
-}, 10000);
-
 log('Server keeper started');

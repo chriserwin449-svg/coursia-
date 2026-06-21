@@ -223,9 +223,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email invalide" }, { status: 400 });
     }
 
-    if (password.length < 6) {
+    if (password.length < 4) {
       return NextResponse.json(
-        { error: "Mot de passe trop court (min 6 caractères)" },
+        { error: "Code trop court (min 4 caractères)" },
         { status: 400 },
       );
     }

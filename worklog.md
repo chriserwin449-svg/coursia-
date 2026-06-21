@@ -164,3 +164,27 @@ Stage Summary:
 - Auto-expiring subscriptions fix a silent data bug where users got indefinite access
 - Grace period gives users 3 days to read existing courses before lockout
 - Notification dot reminds users to renew starting 3 days before expiry
+---
+Task ID: 1
+Agent: Main Agent
+Task: Replace password system with code confirmation system on AuthPage + Landing page visual adjustments
+
+Work Log:
+- Removed entire password strength system from AuthPage.tsx: getPasswordStrength function, tipMessages, 5-segment strength bar, strength label, shield icons, animated cycling tips
+- Replaced "Mot de passe" with "Code d'accès" (Access Code) label
+- Added confirmPassword state and confirmation input field (only appears after code reaches 4+ chars)
+- Changed min length from 6 to 4 characters
+- Added real-time validation: green border + "Code valide" for valid code, red border + "Minimum 4 caractères requis (X/4)" for short code
+- Added confirm code matching validation: green "Les codes correspondent" / red "Les codes ne correspondent pas"
+- Submit button disabled until code >= 4 chars AND confirm code matches
+- Removed unused imports: ShieldCheck, ShieldAlert, Lightbulb, useMemo, useEffect, useCallback
+- Updated register API: changed min password length from 6 to 4 with updated French error message
+- Landing page adjustments: logo size 80→56, title classes bumped up one tier, hero text and subtitle classes increased
+- Verified via VLM analysis that title/subtitle now draw more attention than logo
+- Verified via agent-browser that all auth flow states work correctly
+
+Stage Summary:
+- AuthPage.tsx: Complete rewrite of code entry system with confirm field and 4-char minimum
+- src/app/api/auth/register/route.ts: Updated min length validation from 6→4
+- LandingPage.tsx: Logo slightly smaller, title and subtitle text enlarged
+- All changes verified via agent-browser snapshot and VLM visual analysis

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { trackEvent } from "@/lib/analytics";
 import {
   Mail,
@@ -11,75 +11,12 @@ import {
   EyeOff,
   Loader2,
   Sparkles,
-  ShieldCheck,
-  ShieldAlert,
-  Lightbulb,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import CoursiaLogo from "@/components/coursia/CoursiaLogo";
-
-type PasswordTipKey = "mixCase" | "addDigit" | "addSpecial" | "longer";
-
-function getPasswordStrength(password: string, isFr: boolean): { score: number; label: string; labelEn: string; color: string; tips: PasswordTipKey[] } {
-  if (!password) return { score: 0, label: "", labelEn: "", color: "", tips: [] };
-
-  // Length is the PRIMARY factor — a long password is inherently strong
-  let score = 0;
-  if (password.length >= 6) score += 1;
-  if (password.length >= 8) score += 2;  // 8+ chars = already "Fort"
-  if (password.length >= 10) score += 1;
-  if (password.length >= 14) score += 1;
-
-  // Diversity bonuses (secondary)
-  const hasUpper = /[A-Z]/.test(password);
-  const hasLower = /[a-z]/.test(password);
-  const hasDigit = /[0-9]/.test(password);
-  const hasSpecial = /[^A-Za-z0-9]/.test(password);
-
-  if (hasUpper && hasLower) score += 1;
-  if (hasDigit) score += 1;
-  if (hasSpecial) score += 1;
-
-  score = Math.min(5, score);
-
-  // Build tips for what's missing
-  const tips: PasswordTipKey[] = [];
-  if (password.length < 8) tips.push("longer");
-  if (!hasUpper || !hasLower) tips.push("mixCase");
-  if (!hasDigit) tips.push("addDigit");
-  if (!hasSpecial) tips.push("addSpecial");
-
-  let label: string;
-  let labelEn: string;
-  let color: string;
-  if (score <= 1) { label = "Faible"; labelEn = "Weak"; color = "bg-red-500"; }
-  else if (score <= 2) { label = "Moyen"; labelEn = "Fair"; color = "bg-orange-500"; }
-  else if (score <= 3) { label = "Fort"; labelEn = "Strong"; color = "bg-emerald-400"; }
-  else if (score <= 4) { label = "Très fort"; labelEn = "Very strong"; color = "bg-emerald-500"; }
-  else { label = "Excellent"; labelEn = "Excellent"; color = "bg-emerald-500"; }
-
-  return { score, label, labelEn, color, tips };
-}
-
-const tipMessages: Record<PasswordTipKey, { fr: string; en: string }> = {
-  longer: {
-    fr: "Utilise au moins 8 caractères pour un mot de passe solide",
-    en: "Use at least 8 characters for a strong password",
-  },
-  mixCase: {
-    fr: "Mélange des majuscules et minuscules (ex: Abc)",
-    en: "Mix uppercase and lowercase letters (ex: Abc)",
-  },
-  addDigit: {
-    fr: "Ajoute des chiffres pour renforcer la sécurité",
-    en: "Add numbers to strengthen your password",
-  },
-  addSpecial: {
-    fr: "Ajoute des caractères spéciaux (!@#$%...)",
-    en: "Add special characters (!@#$%...)",
-  },
-};
 
 export default function AuthPage() {
   const lang = useAppStore((s) => s.lang);
@@ -90,42 +27,20 @@ export default function AuthPage() {
 
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [confirmCode, setConfirmCode] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const [showCode, setShowCode] = useState(false);
+  const [showConfirmCode, setShowConfirmCode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const isFr = lang === "fr";
-  const passwordStrength = useMemo(() => getPasswordStrength(password, isFr), [password, isFr]);
 
-  // Animated cycling tips
-  const [currentTipIdx, setCurrentTipIdx] = useState(0);
-  const [tipVisible, setTipVisible] = useState(true);
-
-  const tips = passwordStrength.tips;
-  const showTips = !isLogin && password.length > 0 && tips.length > 0 && passwordStrength.score < 5;
-
-  const advanceTip = useCallback(() => {
-    setTipVisible(false);
-    setTimeout(() => {
-      setCurrentTipIdx((prev) => (prev + 1) % tips.length);
-      setTipVisible(true);
-    }, 350);
-  }, [tips.length]);
-
-  useEffect(() => {
-    if (!showTips) { setTipVisible(false); return; }
-    setCurrentTipIdx(0);
-    setTipVisible(true);
-  }, [showTips]);
-
-  useEffect(() => {
-    if (!showTips) return;
-    const interval = setInterval(advanceTip, 3500);
-    return () => clearInterval(interval);
-  }, [showTips, advanceTip]);
+  // Code validation helpers
+  const isCodeLongEnough = code.length >= 4;
+  const doCodesMatch = code.length > 0 && confirmCode.length > 0 && code === confirmCode;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,10 +48,22 @@ export default function AuthPage() {
     setLoading(true);
 
     try {
+      // Frontend validation for registration
+      if (!isLogin) {
+        if (code.length < 4) {
+          setError(isFr ? "Le code doit contenir au moins 4 caractères" : "Code must be at least 4 characters");
+          return;
+        }
+        if (code !== confirmCode) {
+          setError(isFr ? "Les codes ne correspondent pas" : "Codes do not match");
+          return;
+        }
+      }
+
       const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register";
       const body = isLogin
-        ? { email, password }
-        : { email, password, firstName, lastName };
+        ? { email, password: code }
+        : { email, password: code, firstName, lastName };
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -150,14 +77,12 @@ export default function AuthPage() {
         if (data.error === "user_not_found") {
           setError("user_not_found");
         } else if (data.error === "wrong_password") {
-          setError(isFr ? "Mot de passe incorrect" : "Wrong password");
+          setError(isFr ? "Code incorrect" : "Wrong code");
         } else if (data.error === "email_not_confirmed") {
           setError(isFr ? "Vérifie ton email pour confirmer ton compte" : "Check your email to confirm your account");
         } else {
-          // Show error + debug info if available
           const debugInfo = data.debug ? `\n\n[${data.debug}]` : "";
           setError(data.error + debugInfo || (isFr ? "Une erreur est survenue" : "An error occurred"));
-          // Log debug info to console for developer
           if (data.debug) {
             console.error("[AuthPage] Server debug:", data.debug);
           }
@@ -191,6 +116,7 @@ export default function AuthPage() {
   const toggleMode = () => {
     setIsLogin(!isLogin);
     setError("");
+    setConfirmCode("");
   };
 
   return (
@@ -287,79 +213,101 @@ export default function AuthPage() {
                 </div>
               </div>
 
-              {/* Password */}
+              {/* Code (password) */}
               <div>
                 <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                  {isFr ? "Mot de passe" : "Password"}
+                  {isFr ? "Code d'accès" : "Access Code"}
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
                   <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder={isFr ? "Au moins 6 caractères" : "At least 6 characters"}
+                    type={showCode ? "text" : "password"}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    placeholder={isFr ? "Au moins 4 caractères" : "At least 4 characters"}
                     required
-                    minLength={6}
-                    className="w-full pl-11 pr-12 py-3.5 rounded-2xl bg-night border border-border text-foreground font-semibold placeholder:text-muted-foreground/40 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300 text-sm"
+                    minLength={4}
+                    className={`w-full pl-11 pr-12 py-3.5 rounded-2xl bg-night border text-foreground font-semibold placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300 text-sm ${
+                      code.length > 0 && !isLogin
+                        ? isCodeLongEnough
+                          ? "border-emerald-500/50 focus:border-emerald-500 focus:ring-emerald-500/20"
+                          : "border-red-400/50 focus:border-red-400 focus:ring-red-400/20"
+                        : "border-border focus:border-mauve focus:ring-mauve/20"
+                    }`}
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowCode(!showCode)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground transition-colors cursor-pointer"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                {/* Password strength indicator (register only) */}
-                {!isLogin && password.length > 0 && (
-                  <div className="mt-3 animate-fade-in">
-                    <div className="flex gap-1.5 mb-1.5">
-                      {[1, 2, 3, 4, 5].map((level) => (
-                        <div
-                          key={level}
-                          className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
-                            level <= passwordStrength.score
-                              ? passwordStrength.color
-                              : "bg-muted-foreground/15"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <p className={`text-xs font-semibold transition-colors duration-300 ${
-                        passwordStrength.score <= 1 ? "text-red-400" :
-                        passwordStrength.score <= 2 ? "text-orange-400" :
-                        "text-emerald-400"
-                      }`}>
-                        {isFr ? passwordStrength.label : passwordStrength.labelEn}
-                      </p>
-                      <div className="flex items-center gap-1">
-                        {passwordStrength.score >= 3 ? (
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                        ) : passwordStrength.score <= 1 ? (
-                          <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
-                        ) : null}
-                      </div>
-                    </div>
-                    {/* Animated cycling tips */}
-                    {showTips && tips[currentTipIdx] && (
-                      <div
-                        className={`mt-2 flex items-start gap-2 transition-all duration-350 ease-in-out ${
-                          tipVisible
-                            ? "opacity-100 translate-y-0"
-                            : "opacity-0 -translate-y-1"
-                        }`}
-                      >
-                        <Lightbulb className="w-3.5 h-3.5 text-mauve-light flex-shrink-0 mt-0.5" />
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                          {tipMessages[tips[currentTipIdx]][isFr ? "fr" : "en"]}
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                {/* Minimum length hint */}
+                {!isLogin && code.length > 0 && !isCodeLongEnough && (
+                  <p className="mt-1.5 text-xs text-red-400 animate-fade-in">
+                    {isFr ? "Minimum 4 caractères requis" : "Minimum 4 characters required"} ({code.length}/4)
+                  </p>
+                )}
+                {!isLogin && code.length > 0 && isCodeLongEnough && (
+                  <p className="mt-1.5 text-xs text-emerald-400 flex items-center gap-1.5 animate-fade-in">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    {isFr ? "Code valide" : "Code valid"}
+                  </p>
                 )}
               </div>
+
+              {/* Confirm Code (register only) */}
+              {!isLogin && code.length >= 4 && (
+                <div className="animate-fade-in">
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                    {isFr ? "Confirmer le code" : "Confirm Code"}
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                    <input
+                      type={showConfirmCode ? "text" : "password"}
+                      value={confirmCode}
+                      onChange={(e) => setConfirmCode(e.target.value)}
+                      placeholder={isFr ? "Retape ton code" : "Re-enter your code"}
+                      required
+                      minLength={4}
+                      className={`w-full pl-11 pr-12 py-3.5 rounded-2xl bg-night border text-foreground font-semibold placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300 text-sm ${
+                        confirmCode.length > 0
+                          ? doCodesMatch
+                            ? "border-emerald-500/50 focus:border-emerald-500 focus:ring-emerald-500/20"
+                            : "border-red-400/50 focus:border-red-400 focus:ring-red-400/20"
+                          : "border-border focus:border-mauve focus:ring-mauve/20"
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmCode(!showConfirmCode)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground transition-colors cursor-pointer"
+                    >
+                      {showConfirmCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {/* Match indicator */}
+                  {confirmCode.length > 0 && (
+                    <p className={`mt-1.5 text-xs flex items-center gap-1.5 animate-fade-in ${
+                      doCodesMatch ? "text-emerald-400" : "text-red-400"
+                    }`}>
+                      {doCodesMatch ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          {isFr ? "Les codes correspondent" : "Codes match"}
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="w-3.5 h-3.5" />
+                          {isFr ? "Les codes ne correspondent pas" : "Codes do not match"}
+                        </>
+                      )}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Error */}
               {error && error === "user_not_found" && (
@@ -398,7 +346,7 @@ export default function AuthPage() {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (!isLogin && (code.length < 4 || !doCodesMatch))}
                 className="w-full flex items-center justify-center gap-3 py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-mauve/25 hover:shadow-mauve/40 hover:scale-[1.01] active:scale-[0.99]"
               >
                 {loading ? (

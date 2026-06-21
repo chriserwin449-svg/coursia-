@@ -219,22 +219,22 @@ export default function LandingPage() {
           </div>
 
           {/* Logo */}
-          <div className="flex justify-center mb-8">
+          <div className="flex justify-center mb-6">
             <div className="glow-mauve rounded-2xl overflow-hidden">
-              <CoursiaLogo size={80} variant="wide" />
+              <CoursiaLogo size={56} variant="wide" />
             </div>
           </div>
 
           {/* Title */}
-          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold mb-6 leading-tight">
+          <h1 className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-extrabold mb-8 leading-tight">
             <span className="gradient-text">{tx.app.name}</span>
           </h1>
 
           {/* Hero text */}
-          <p className="text-xl sm:text-2xl md:text-3xl text-foreground font-bold mb-4 max-w-3xl mx-auto">
+          <p className="text-2xl sm:text-3xl md:text-4xl text-foreground font-bold mb-6 max-w-3xl mx-auto">
             {tx.landing.hero}
           </p>
-          <p className="text-base sm:text-lg text-muted-foreground mb-12 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-14 max-w-2xl mx-auto leading-relaxed">
             {tx.landing.subtitle}
           </p>
 
