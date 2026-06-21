@@ -208,3 +208,31 @@ Stage Summary:
 - src/lib/openai.ts: Gemini system prompt fix (was silently dropping all instructions)
 - Quiz routes + CourseViewer.tsx: Explanations added for pedagogical value
 - AppShell.tsx: Card verification capture fix
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Complete landing page redesign matching user reference image
+
+Work Log:
+- Analyzed reference image via VLM to extract exact layout, text, and sections
+- Completely rewrote LandingPage.tsx from 824 lines to cleaner 511 lines
+- New navbar: Accueil, Fonctionnalités, À propos, Tarifs, Connexion + Essayer gratuitement button
+- New hero: "Tu n'as pas besoin de plus de contenu. Tu as besoin d'un cours qui s'adapte à toi." with two CTA buttons
+- Added hero feature badges row: Généré par IA, Adaptatif, Simple & Efficace
+- New "Why choose" section: "Apprendre n'a jamais été aussi simple" with 4 gradient icon cards
+- New audience section: "Pour qui est Coursia ?" with 3 cards (Étudiants, Professionnels, Curieux)
+- Kept original pricing section (monthly/annual plans with shimmer effects)
+- Kept FAQ section (simplified to 5 questions)
+- New final CTA: "Prêt à révolutionner ta façon d'apprendre ?"
+- Kept all global CSS animations (shimmer, glow, float)
+- "Investis dans ton apprentissage" button kept next to "Commencer gratuitement"
+- Removed testimonials section (marquee cards)
+- Verified all sections via agent-browser snapshot
+- Pushed to GitHub (commit f4d31eb)
+
+Stage Summary:
+- LandingPage.tsx completely rewritten to match reference design
+- All existing pricing/offers functionality preserved
+- Nav now has smooth scroll to sections
+- Cleaner code structure, removed unused imports and data
