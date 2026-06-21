@@ -331,24 +331,19 @@ export default function CourseViewer() {
     } catch { return false; }
   }, [currentChapter, selectedCourseId]);
 
-  // ── Paywall redirect: will clicking "next" send user to offers? ──
-  const isPaywallRedirect = useMemo(() => {
+  // ── Is current chapter locked for free users? ──
+  const isCurrentChapterLocked = useMemo(() => {
     if (isSubscribed) return false;
-    if (!course) return false;
-    const nextIdx = currentChapterIndex + 1;
-    if (nextIdx >= course.chapters.length) return false;
-    return nextIdx >= freeChapterLimit;
-  }, [isSubscribed, course, currentChapterIndex, freeChapterLimit]);
+    return currentChapterIndex >= freeChapterLimit;
+  }, [isSubscribed, currentChapterIndex, freeChapterLimit]);
 
   const goToNext = useCallback(async () => {
     if (!course || isCompleting) return;
     if (currentChapterIndex >= course.chapters.length - 1) return;
 
-    // Free preview: block chapter 2+ for non-subscribers
+    // Free preview: allow navigation but track paywall hit
     if (!isSubscribed && currentChapterIndex + 1 >= freeChapterLimit) {
       trackEvent({ name: "paywall_hit" });
-      setView("offers");
-      return;
     }
 
     if (isChapterLevelLocked(currentChapterIndex + 1)) return;
@@ -370,7 +365,7 @@ export default function CourseViewer() {
     setCurrentChapterIndex(nextIdx);
     startStudySession(course.id, course.chapters[nextIdx]?.id);
     setIsCompleting(false);
-  }, [course, isCompleting, currentChapter?.progress?.completed, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, startStudySession, setCurrentChapterIndex, isSubscribed, freeChapterLimit, setView]);
+  }, [course, isCompleting, currentChapter?.progress?.completed, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, startStudySession, setCurrentChapterIndex, isSubscribed, freeChapterLimit, trackEvent]);
 
   const goToPrev = useCallback(() => {
     if (currentChapterIndex === 0 || !course) return;
@@ -1107,6 +1102,31 @@ export default function CourseViewer() {
                 <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
               </div>
 
+              {/* Paywall overlay on locked chapters */}
+              {isCurrentChapterLocked && (
+                <div className="mt-6 p-6 sm:p-8 rounded-2xl bg-night/80 backdrop-blur-sm border border-gold/20 animate-fade-in text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-gold/10 flex items-center justify-center mx-auto mb-4">
+                    <Crown className="w-8 h-8 text-gold" />
+                  </div>
+                  <h3 className="text-xl font-extrabold gradient-text mb-2">
+                    {lang === "fr" ? "Contenu réservé aux abonnés" : "Subscriber-only content"}
+                  </h3>
+                  <p className="text-muted-foreground text-sm mb-6 max-w-sm mx-auto">
+                    {lang === "fr"
+                      ? "Ce chapitre fait partie du contenu premium. Abonne-toi pour débloquer tous les chapitres et continuer ton apprentissage."
+                      : "This chapter is part of the premium content. Subscribe to unlock all chapters and continue learning."}
+                  </p>
+                  <button
+                    onClick={() => setView("offers")}
+                    className="inline-flex items-center gap-2 px-8 py-3.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold text-sm hover:from-amber-400 hover:to-gold transition-all cursor-pointer shadow-lg shadow-gold/20"
+                  >
+                    <Crown className="w-4 h-4" />
+                    {lang === "fr" ? "Voir les Offres" : "See Plans"}
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               {/* Navigation footer */}
               <div className="flex items-center justify-between mt-8 sm:mt-12 pt-4 sm:pt-6 border-t border-border">
                 <button onClick={goToPrev} disabled={currentChapterIndex === 0 || isCompleting} className="flex items-center gap-2 px-4 md:px-6 py-3 rounded-full glass text-sm font-bold hover:bg-white/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">
@@ -1114,18 +1134,8 @@ export default function CourseViewer() {
                   <span className="hidden sm:inline">{tx.viewer.previous}</span>
                 </button>
                 {currentChapterIndex < course.chapters.length - 1 ? (
-                  <button onClick={goToNext} disabled={isCompleting} className={`flex items-center gap-2 px-6 py-3 rounded-full text-sm font-bold transition-all disabled:opacity-50 cursor-pointer ${
-                    isPaywallRedirect
-                      ? "bg-gradient-to-r from-gold to-amber-500 text-night hover:from-amber-400 hover:to-gold shadow-lg shadow-gold/20"
-                      : "bg-gradient-to-r from-mauve to-mauve-dark text-white hover:from-mauve-light hover:to-mauve"
-                  }`}>
-                    {isPaywallRedirect ? (
-                      <>
-                        <Crown className="w-4 h-4" />
-                        {lang === "fr" ? "Débloquer" : "Unlock"}
-                        <ChevronRight className="w-4 h-4" />
-                      </>
-                    ) : isCompleting ? (
+                  <button onClick={goToNext} disabled={isCompleting} className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold hover:from-mauve-light hover:to-mauve transition-all disabled:opacity-50 cursor-pointer">
+                    {isCompleting ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <>{tx.viewer.next}<ChevronRight className="w-4 h-4" /></>

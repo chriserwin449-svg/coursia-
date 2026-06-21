@@ -168,23 +168,34 @@ export default function OffersPage() {
     }
 
     const updateCountdown = () => {
-      const now = Date.now();
-      const remaining = Math.max(0, timeRemainingMs - (now - ((window as unknown as Record<string, number>).__countdownStart || now)));
+      try {
+        const now = Date.now();
+        const countdownStart = (typeof window !== "undefined")
+          ? (window as unknown as Record<string, number>).__countdownStart || now
+          : now;
+        const remaining = Math.max(0, timeRemainingMs - (now - countdownStart));
 
-      if (remaining <= 0) {
-        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+        if (remaining <= 0) {
+          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+          setCountdown({ hours: 0, minutes: 0, seconds: 0 });
+          return;
+        }
+
+        const totalSeconds = Math.floor(remaining / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        setCountdown({ hours, minutes, seconds });
+      } catch {
         setCountdown({ hours: 0, minutes: 0, seconds: 0 });
-        return;
       }
-
-      const totalSeconds = Math.floor(remaining / 1000);
-      const hours = Math.floor(totalSeconds / 3600);
-      const minutes = Math.floor((totalSeconds % 3600) / 60);
-      const seconds = totalSeconds % 60;
-      setCountdown({ hours, minutes, seconds });
     };
 
-    (window as unknown as Record<string, number>).__countdownStart = Date.now();
+    try {
+      if (typeof window !== "undefined") {
+        (window as unknown as Record<string, number>).__countdownStart = Date.now();
+      }
+    } catch { /* ignore */ }
 
     const fetchFreshTime = async () => {
       try {
@@ -194,7 +205,11 @@ export default function OffersPage() {
         const data = await res.json();
         if (data.timeRemainingMs) {
           setTimeRemainingMs(data.timeRemainingMs);
-          (window as unknown as Record<string, number>).__countdownStart = Date.now();
+          try {
+            if (typeof window !== "undefined") {
+              (window as unknown as Record<string, number>).__countdownStart = Date.now();
+            }
+          } catch { /* ignore */ }
         }
       } catch { /* ignore */ }
     };
@@ -216,7 +231,9 @@ export default function OffersPage() {
 
     if (renewalUrgency === "last24hours") {
       const key = isAnnual ? "renewalAnnual24hCountdown" : "renewalMonthly24hCountdown";
-      return tx.offers[key]
+      const template = (tx.offers as Record<string, string>)[key];
+      if (!template) return null;
+      return template
         .replace("{name}", name)
         .replace("{hours}", String(countdown.hours))
         .replace("{minutes}", String(countdown.minutes).padStart(2, "0"))
@@ -308,7 +325,9 @@ export default function OffersPage() {
   const cannotRenewMessage = useMemo(() => {
     if (isSubscribed && !showRenewalReminder) {
       const name = firstName || "";
-      return tx.offers.cannotRenewEarly.replace("{name}", name || (lang === "fr" ? "Bonjour" : "Hey"));
+      const template = (tx.offers as Record<string, string>).cannotRenewEarly;
+      if (!template) return null;
+      return template.replace("{name}", name || (lang === "fr" ? "Bonjour" : "Hey"));
     }
     return null;
   }, [isSubscribed, showRenewalReminder, firstName, lang, tx.offers]);

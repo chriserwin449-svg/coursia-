@@ -10,7 +10,11 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try { return await fn(); } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      if (msg.includes("429") && attempt < retries) { await sleep(2000 * (attempt + 1)); continue; }
+      if (attempt < retries && (msg.includes("429") || msg.includes("timeout") || msg.includes("ECONNRESET") || msg.includes("ETIMEDOUT") || msg.includes("socket") || msg.includes("fetch failed"))) {
+        console.log(`[retry] Attempt ${attempt + 1} failed (${msg.slice(0, 100)}), retrying in ${2000 * (attempt + 1)}ms...`);
+        await sleep(2000 * (attempt + 1));
+        continue;
+      }
       throw error;
     }
   }
@@ -605,6 +609,16 @@ export async function POST(request: NextRequest) {
 
     try {
       zaiInstance = await ZAI.create();
+
+      // Warm-up call to prime the SDK connection (prevents cold-start failures)
+      try {
+        console.log("[generate] Warming up SDK connection...");
+        await zaiInstance.functions.invoke("web_search", { query: "warmup", num: 1 });
+        console.log("[generate] SDK warm-up successful");
+      } catch {
+        console.log("[generate] SDK warm-up failed (non-critical)");
+      }
+
       const [searchResults, scraped] = await Promise.all([
         deepSearch(zaiInstance, title, courseLang, level),
         sourceLinks.length > 0 ? scrapeSourceLinks(zaiInstance, sourceLinks) : Promise.resolve([]),
@@ -618,8 +632,19 @@ export async function POST(request: NextRequest) {
     const sourceContext = buildSourceContext(scrapedPages);
     console.log(`[generate] Starting generation for "${title}" level=${level} (web: ${webContext.length > 0 ? "yes" : "no"}, sources: ${scrapedPages.length})`);
 
-    // ── Step 1: Generate outline ──
-    let outline = await generateOutline(title, courseLang, level, webContext, sourceContext);
+    // ── Step 1: Generate outline (with retry for cold-start failures) ──
+    let outline: OutlineResult | null = null;
+    try {
+      outline = await withRetry(() => generateOutline(title, courseLang, level, webContext, sourceContext), 1);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.log(`[generate] Outline first attempt failed (${msg.slice(0, 120)}), retrying without research context...`);
+      try {
+        outline = await generateOutline(title, courseLang, level, "", "");
+      } catch {
+        console.log("[generate] Outline retry also failed");
+      }
+    }
 
     if (!outline || outline.chapters.length < 3) {
       console.log("[generate] Outline failed, trying single-call fallback...");
