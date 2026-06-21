@@ -495,8 +495,28 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ===== AURORA ARC ===== */}
+      <div className="relative w-full h-64 sm:h-80 lg:h-96 -mt-20 overflow-hidden">
+        {/* Aurora gradient arc - curved upward */}
+        <div className="absolute bottom-0 left-0 right-0 h-[200%] rounded-t-[50%] aurora-arc" />
+
+        {/* Animated aurora color layers */}
+        <div className="absolute inset-0 aurora-layer-1" />
+        <div className="absolute inset-0 aurora-layer-2" />
+        <div className="absolute inset-0 aurora-layer-3" />
+
+        {/* Floating particles */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="aurora-particle aurora-particle-1" />
+          <div className="aurora-particle aurora-particle-2" />
+          <div className="aurora-particle aurora-particle-3" />
+          <div className="aurora-particle aurora-particle-4" />
+          <div className="aurora-particle aurora-particle-5" />
+        </div>
+      </div>
+
       {/* ===== FOOTER ===== */}
-      <footer className="mt-auto border-t border-muted-foreground/10 py-10 px-4">
+      <footer className="relative z-10 border-t border-muted-foreground/10 py-10 px-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <CoursiaLogo size={32} className="rounded-xl" />
@@ -605,6 +625,133 @@ export default function LandingPage() {
           animation: hero-cta-shimmer 3s linear infinite, hero-cta-glow-pulse 1.5s ease-in-out infinite;
         }
         .hero-cta-btn:active { transform: scale(0.97); }
+
+        /* ── Aurora Arc (Bottom Gradient) ── */
+        .aurora-arc {
+          background: radial-gradient(ellipse 120% 60% at 50% 120%, 
+            rgba(124, 92, 191, 0.35) 0%, 
+            rgba(139, 92, 246, 0.2) 25%,
+            rgba(168, 85, 247, 0.15) 45%, 
+            rgba(99, 102, 241, 0.1) 65%, 
+            transparent 100%
+          );
+          filter: blur(2px);
+        }
+
+        @keyframes aurora-shift-1 {
+          0%   { transform: translate(-5%, 0) scale(1); opacity: 0.6; }
+          25%  { transform: translate(3%, -3%) scale(1.1); opacity: 0.8; }
+          50%  { transform: translate(-2%, 2%) scale(0.95); opacity: 0.5; }
+          75%  { transform: translate(4%, -1%) scale(1.05); opacity: 0.9; }
+          100% { transform: translate(-5%, 0) scale(1); opacity: 0.6; }
+        }
+
+        @keyframes aurora-shift-2 {
+          0%   { transform: translate(5%, 0) scale(1.05); opacity: 0.5; }
+          30%  { transform: translate(-4%, -2%) scale(0.95); opacity: 0.7; }
+          60%  { transform: translate(3%, 3%) scale(1.1); opacity: 0.6; }
+          100% { transform: translate(5%, 0) scale(1.05); opacity: 0.5; }
+        }
+
+        @keyframes aurora-shift-3 {
+          0%   { transform: translate(0, 2%) scale(1); opacity: 0.4; }
+          40%  { transform: translate(-3%, -4%) scale(1.08); opacity: 0.7; }
+          70%  { transform: translate(5%, -1%) scale(0.98); opacity: 0.5; }
+          100% { transform: translate(0, 2%) scale(1); opacity: 0.4; }
+        }
+
+        .aurora-layer-1 {
+          background: radial-gradient(ellipse 80% 50% at 30% 90%, 
+            rgba(168, 85, 247, 0.25) 0%, 
+            rgba(236, 72, 153, 0.12) 40%, 
+            transparent 70%
+          );
+          animation: aurora-shift-1 8s ease-in-out infinite;
+          pointer-events: none;
+        }
+
+        .aurora-layer-2 {
+          background: radial-gradient(ellipse 70% 45% at 70% 85%, 
+            rgba(99, 102, 241, 0.2) 0%, 
+            rgba(168, 85, 247, 0.15) 35%,
+            rgba(234, 179, 8, 0.06) 60%,
+            transparent 85%
+          );
+          animation: aurora-shift-2 11s ease-in-out infinite;
+          pointer-events: none;
+        }
+
+        .aurora-layer-3 {
+          background: radial-gradient(ellipse 90% 55% at 50% 95%, 
+            rgba(124, 92, 191, 0.18) 0%, 
+            rgba(99, 102, 241, 0.1) 30%,
+            rgba(168, 85, 247, 0.12) 50%,
+            transparent 80%
+          );
+          animation: aurora-shift-3 14s ease-in-out infinite;
+          pointer-events: none;
+        }
+
+        /* Floating particles in the aurora */
+        @keyframes aurora-float-1 {
+          0%   { transform: translate(0, 0) scale(0); opacity: 0; }
+          20%  { opacity: 0.8; }
+          80%  { opacity: 0.6; }
+          100% { transform: translate(80px, -120px) scale(1.5); opacity: 0; }
+        }
+        @keyframes aurora-float-2 {
+          0%   { transform: translate(0, 0) scale(0); opacity: 0; }
+          25%  { opacity: 0.7; }
+          75%  { opacity: 0.4; }
+          100% { transform: translate(-60px, -100px) scale(1.2); opacity: 0; }
+        }
+        @keyframes aurora-float-3 {
+          0%   { transform: translate(0, 0) scale(0); opacity: 0; }
+          15%  { opacity: 0.9; }
+          85%  { opacity: 0.5; }
+          100% { transform: translate(50px, -80px) scale(0.8); opacity: 0; }
+        }
+
+        .aurora-particle {
+          position: absolute;
+          border-radius: 50%;
+          pointer-events: none;
+        }
+        .aurora-particle-1 {
+          width: 6px; height: 6px;
+          background: rgba(168, 85, 247, 0.7);
+          left: 20%; bottom: 30%;
+          animation: aurora-float-1 6s ease-in-out infinite;
+          box-shadow: 0 0 12px rgba(168, 85, 247, 0.5), 0 0 24px rgba(168, 85, 247, 0.2);
+        }
+        .aurora-particle-2 {
+          width: 4px; height: 4px;
+          background: rgba(99, 102, 241, 0.6);
+          left: 55%; bottom: 25%;
+          animation: aurora-float-2 8s ease-in-out infinite 1s;
+          box-shadow: 0 0 10px rgba(99, 102, 241, 0.4), 0 0 20px rgba(99, 102, 241, 0.15);
+        }
+        .aurora-particle-3 {
+          width: 5px; height: 5px;
+          background: rgba(236, 72, 153, 0.5);
+          left: 75%; bottom: 35%;
+          animation: aurora-float-3 7s ease-in-out infinite 2s;
+          box-shadow: 0 0 10px rgba(236, 72, 153, 0.4), 0 0 20px rgba(236, 72, 153, 0.15);
+        }
+        .aurora-particle-4 {
+          width: 3px; height: 3px;
+          background: rgba(234, 179, 8, 0.5);
+          left: 35%; bottom: 40%;
+          animation: aurora-float-1 9s ease-in-out infinite 3s;
+          box-shadow: 0 0 8px rgba(234, 179, 8, 0.4);
+        }
+        .aurora-particle-5 {
+          width: 4px; height: 4px;
+          background: rgba(168, 85, 247, 0.6);
+          left: 65%; bottom: 20%;
+          animation: aurora-float-2 10s ease-in-out infinite 4s;
+          box-shadow: 0 0 10px rgba(168, 85, 247, 0.4), 0 0 20px rgba(168, 85, 247, 0.15);
+        }
       `}</style>
     </div>
   );
