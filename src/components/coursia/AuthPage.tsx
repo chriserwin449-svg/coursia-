@@ -20,6 +20,7 @@ import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 
 export default function AuthPage() {
   const lang = useAppStore((s) => s.lang);
+  const setLang = useAppStore((s) => s.setLang);
   const tx = t(lang);
   const setView = useAppStore((s) => s.setView);
   const setUser = useAppStore((s) => s.setUser);
@@ -36,8 +37,6 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const isFr = lang === "fr";
-
   // Code validation helpers
   const isCodeLongEnough = code.length >= 4;
   const doCodesMatch = code.length > 0 && confirmCode.length > 0 && code === confirmCode;
@@ -51,11 +50,11 @@ export default function AuthPage() {
       // Frontend validation for registration
       if (!isLogin) {
         if (code.length < 4) {
-          setError(isFr ? "Le code doit contenir au moins 4 caractères" : "Code must be at least 4 characters");
+          setError(tx.auth.codeMin4Error);
           return;
         }
         if (code !== confirmCode) {
-          setError(isFr ? "Les codes ne correspondent pas" : "Codes do not match");
+          setError(tx.auth.codesMismatchError);
           return;
         }
       }
@@ -77,12 +76,12 @@ export default function AuthPage() {
         if (data.error === "user_not_found") {
           setError("user_not_found");
         } else if (data.error === "wrong_password") {
-          setError(isFr ? "Code incorrect" : "Wrong code");
+          setError(tx.auth.wrongCode);
         } else if (data.error === "email_not_confirmed") {
-          setError(isFr ? "Vérifie ton email pour confirmer ton compte" : "Check your email to confirm your account");
+          setError(tx.auth.checkEmailConfirm);
         } else {
           const debugInfo = data.debug ? `\n\n[${data.debug}]` : "";
-          setError(data.error + debugInfo || (isFr ? "Une erreur est survenue" : "An error occurred"));
+          setError(data.error + debugInfo || tx.common.error);
           if (data.debug) {
             console.error("[AuthPage] Server debug:", data.debug);
           }
@@ -107,7 +106,7 @@ export default function AuthPage() {
       // Track conversion event
       trackEvent({ name: isLogin ? "login" : "signup" });
     } catch {
-      setError(isFr ? "Erreur de connexion" : "Connection error");
+      setError(tx.auth.connectionError);
     } finally {
       setLoading(false);
     }
@@ -121,6 +120,17 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen bg-night flex flex-col">
+      {/* Language toggle - top right */}
+      <div className="fixed top-4 right-4 z-50">
+        <button
+          onClick={() => setLang(lang === "fr" ? "en" : "fr")}
+          title={lang === "fr" ? "Switch to English" : "Passer en Français"}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl glass text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-200 cursor-pointer text-sm font-bold"
+        >
+          <span>{lang === "fr" ? "EN" : "FR"}</span>
+        </button>
+      </div>
+
       {/* Background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/3 left-1/4 w-[500px] h-[500px] bg-mauve/8 rounded-full blur-[120px]" />
@@ -147,10 +157,7 @@ export default function AuthPage() {
               <span className="gradient-text">{tx.app.name}</span>
             </h1>
             <p className="text-muted-foreground text-sm">
-              {isLogin
-                ? (isFr ? "Connecte-toi pour continuer" : "Sign in to continue")
-                : (isFr ? "Crée ton compte pour commencer" : "Create your account to get started")
-              }
+              {isLogin ? tx.auth.signInToContinue : tx.auth.createToGetStarted}
             </p>
           </div>
 
@@ -162,7 +169,7 @@ export default function AuthPage() {
                 <div className="grid grid-cols-2 gap-3 animate-fade-in">
                   <div>
                     <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                      {isFr ? "Prénom" : "First Name"}
+                      {tx.auth.firstName}
                     </label>
                     <div className="relative">
                       <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
@@ -170,7 +177,7 @@ export default function AuthPage() {
                         type="text"
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
-                        placeholder={isFr ? "Marie" : "Jane"}
+                        placeholder={tx.auth.firstNamePlaceholder}
                         required
                         className="w-full pl-11 pr-4 py-3.5 rounded-2xl bg-night border border-border text-foreground font-semibold placeholder:text-muted-foreground/40 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300 text-sm"
                       />
@@ -178,7 +185,7 @@ export default function AuthPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                      {isFr ? "Nom" : "Last Name"}
+                      {tx.auth.lastName}
                     </label>
                     <div className="relative">
                       <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
@@ -186,7 +193,7 @@ export default function AuthPage() {
                         type="text"
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
-                        placeholder={isFr ? "Dupont" : "Doe"}
+                        placeholder={tx.auth.lastNamePlaceholder}
                         required
                         className="w-full pl-11 pr-4 py-3.5 rounded-2xl bg-night border border-border text-foreground font-semibold placeholder:text-muted-foreground/40 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300 text-sm"
                       />
@@ -206,7 +213,7 @@ export default function AuthPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="exemple@email.com"
+                    placeholder={tx.auth.emailPlaceholder}
                     required
                     className="w-full pl-11 pr-4 py-3.5 rounded-2xl bg-night border border-border text-foreground font-semibold placeholder:text-muted-foreground/40 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300 text-sm"
                   />
@@ -216,7 +223,7 @@ export default function AuthPage() {
               {/* Code (password) */}
               <div>
                 <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                  {isFr ? "Code d'accès" : "Access Code"}
+                  {tx.auth.accessCode}
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
@@ -224,7 +231,7 @@ export default function AuthPage() {
                     type={showCode ? "text" : "password"}
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
-                    placeholder={isFr ? "Au moins 4 caractères" : "At least 4 characters"}
+                    placeholder={tx.auth.accessCodePlaceholder}
                     required
                     minLength={4}
                     className={`w-full pl-11 pr-12 py-3.5 rounded-2xl bg-night border text-foreground font-semibold placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300 text-sm ${
@@ -246,13 +253,13 @@ export default function AuthPage() {
                 {/* Minimum length hint */}
                 {!isLogin && code.length > 0 && !isCodeLongEnough && (
                   <p className="mt-1.5 text-xs text-red-400 animate-fade-in">
-                    {isFr ? "Minimum 4 caractères requis" : "Minimum 4 characters required"} ({code.length}/4)
+                    {tx.auth.minCharsHint} ({code.length}/4)
                   </p>
                 )}
                 {!isLogin && code.length > 0 && isCodeLongEnough && (
                   <p className="mt-1.5 text-xs text-emerald-400 flex items-center gap-1.5 animate-fade-in">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    {isFr ? "Code valide" : "Code valid"}
+                    {tx.auth.codeValid}
                   </p>
                 )}
               </div>
@@ -261,7 +268,7 @@ export default function AuthPage() {
               {!isLogin && code.length >= 4 && (
                 <div className="animate-fade-in">
                   <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                    {isFr ? "Confirmer le code" : "Confirm Code"}
+                    {tx.auth.confirmCode}
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
@@ -269,7 +276,7 @@ export default function AuthPage() {
                       type={showConfirmCode ? "text" : "password"}
                       value={confirmCode}
                       onChange={(e) => setConfirmCode(e.target.value)}
-                      placeholder={isFr ? "Retape ton code" : "Re-enter your code"}
+                      placeholder={tx.auth.confirmCodePlaceholder}
                       required
                       minLength={4}
                       className={`w-full pl-11 pr-12 py-3.5 rounded-2xl bg-night border text-foreground font-semibold placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300 text-sm ${
@@ -296,12 +303,12 @@ export default function AuthPage() {
                       {doCodesMatch ? (
                         <>
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          {isFr ? "Les codes correspondent" : "Codes match"}
+                          {tx.auth.codesMatch}
                         </>
                       ) : (
                         <>
                           <XCircle className="w-3.5 h-3.5" />
-                          {isFr ? "Les codes ne correspondent pas" : "Codes do not match"}
+                          {tx.auth.codesDontMatch}
                         </>
                       )}
                     </p>
@@ -313,9 +320,7 @@ export default function AuthPage() {
               {error && error === "user_not_found" && (
                 <div className="p-4 rounded-2xl bg-mauve/10 border border-mauve/20 animate-fade-in">
                   <p className="text-sm font-bold text-mauve-light mb-2">
-                    {isFr
-                      ? "Aucun compte trouvé avec cette adresse email"
-                      : "No account found with this email address"}
+                    {tx.auth.noAccountFound}
                   </p>
                   <button
                     type="button"
@@ -323,7 +328,7 @@ export default function AuthPage() {
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-mauve/20 text-mauve-light text-sm font-bold hover:bg-mauve/30 transition-all duration-200 cursor-pointer"
                   >
                     <Sparkles className="w-4 h-4" />
-                    {isFr ? "Créer un compte" : "Create an account"}
+                    {tx.auth.createAccount}
                   </button>
                 </div>
               )}
@@ -334,12 +339,14 @@ export default function AuthPage() {
               )}
 
               {/* Email confirmation notice */}
+              {error && error.includes("email") && lang === "en" && (
+                <div className="p-3.5 rounded-2xl bg-mauve/10 border border-mauve/20 text-mauve-light text-sm font-semibold animate-fade-in">
+                  {tx.auth.confirmationEmail}
+                </div>
+              )}
               {error && error.includes("Vérifie") && (
                 <div className="p-3.5 rounded-2xl bg-mauve/10 border border-mauve/20 text-mauve-light text-sm font-semibold animate-fade-in">
-                  {isFr
-                    ? "Un email de confirmation a été envoyé. Vérifie ta boîte mail et clique sur le lien."
-                    : "A confirmation email was sent. Check your inbox and click the link."
-                  }
+                  {tx.auth.confirmationEmail}
                 </div>
               )}
 
@@ -352,19 +359,19 @@ export default function AuthPage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>{isFr ? "Chargement..." : "Loading..."}</span>
+                    <span>{tx.common.loading}</span>
                   </>
                 ) : (
                   <>
                     {isLogin ? (
                       <>
                         <Sparkles className="w-5 h-5" />
-                        <span>{isFr ? "Se Connecter" : "Sign In"}</span>
+                        <span>{tx.auth.signIn}</span>
                       </>
                     ) : (
                       <>
                         <Sparkles className="w-5 h-5" />
-                        <span>{isFr ? "Créer mon Compte" : "Create Account"}</span>
+                        <span>{tx.auth.createMyAccount}</span>
                       </>
                     )}
                     <ArrowRight className="w-4 h-4" />
@@ -376,19 +383,13 @@ export default function AuthPage() {
             {/* Toggle login/register */}
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
-                {isLogin
-                  ? (isFr ? "Pas encore de compte ?" : "Don't have an account?")
-                  : (isFr ? "Déjà un compte ?" : "Already have an account?")
-                }
+                {isLogin ? tx.auth.noAccountYet : tx.auth.alreadyHaveAccount}
                 {" "}
                 <button
                   onClick={toggleMode}
                   className="text-mauve-light font-bold hover:text-foreground transition-colors cursor-pointer"
                 >
-                  {isLogin
-                    ? (isFr ? "Créer un compte" : "Sign Up")
-                    : (isFr ? "Se connecter" : "Sign In")
-                  }
+                  {isLogin ? tx.auth.signUp : tx.auth.signIn}
                 </button>
               </p>
             </div>
@@ -401,7 +402,7 @@ export default function AuthPage() {
               className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               <span className="mr-1">←</span>
-              {isFr ? "Retour à l'accueil" : "Back to home"}
+              {tx.auth.backToHome}
             </button>
           </div>
         </div>

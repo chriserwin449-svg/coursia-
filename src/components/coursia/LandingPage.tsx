@@ -16,6 +16,7 @@ import {
   BarChart3,
   Star,
   Settings,
+  Globe,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -23,6 +24,7 @@ import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 
 export default function LandingPage() {
   const lang = useAppStore((s) => s.lang);
+  const setLang = useAppStore((s) => s.setLang);
   const tx = t(lang);
   const setView = useAppStore((s) => s.setView);
   const user = useAppStore((s) => s.user);
@@ -68,107 +70,25 @@ export default function LandingPage() {
     if (el) el.scrollIntoView({ behavior: "smooth" });
   };
 
-  const isFr = lang === "fr";
-
-  // Feature cards for "Pourquoi choisir" section
-  const featureCards = [
-    {
-      icon: BookOpen,
-      title: isFr ? "Leçons dynamiques" : "Dynamic lessons",
-      desc: isFr
-        ? "Des cours clairs, structurés et générés automatiquement pour retenir l'essentiel."
-        : "Clear, structured courses automatically generated to retain the essentials.",
-      gradient: "from-mauve to-mauve-dark",
-    },
-    {
-      icon: Settings,
-      title: isFr ? "100% personnalisé" : "100% personalized",
-      desc: isFr
-        ? "Le contenu s'adapte à ton niveau, ton rythme et tes objectifs."
-        : "The content adapts to your level, pace and objectives.",
-      gradient: "from-pink-500 to-rose-600",
-    },
-    {
-      icon: BarChart3,
-      title: isFr ? "Suivi intelligent" : "Intelligent tracking",
-      desc: isFr
-        ? "Suis ta progression et reçois des recommandations intelligentes."
-        : "Track your progress and receive intelligent recommendations.",
-      gradient: "from-orange-500 to-amber-600",
-    },
-    {
-      icon: Star,
-      title: isFr ? "Apprends plus vite" : "Learn faster",
-      desc: isFr
-        ? "Des méthodes prouvées pour maximiser ta compréhension et ta rétention."
-        : "Proven methods to maximize your understanding and retention.",
-      gradient: "from-mauve-light to-mauve",
-    },
-  ];
+  // Feature cards
+  const featureCards = tx.landing.featureCards.map((card, i) => {
+    const icons = [BookOpen, Settings, BarChart3, Star];
+    const gradients = ["from-mauve to-mauve-dark", "from-pink-500 to-rose-600", "from-orange-500 to-amber-600", "from-mauve-light to-mauve"];
+    return { ...card, icon: icons[i], gradient: gradients[i] };
+  });
 
   // Audience cards
-  const audienceCards = [
-    {
-      icon: GraduationCap,
-      title: isFr ? "Étudiants" : "Students",
-      desc: isFr
-        ? "Réussis tes examens et comprends mieux."
-        : "Pass your exams and understand better.",
-      gradient: "from-mauve to-purple-600",
-    },
-    {
-      icon: Briefcase,
-      title: isFr ? "Professionnels" : "Professionals",
-      desc: isFr
-        ? "Développe tes compétences et progresse dans ta carrière."
-        : "Develop your skills and progress in your career.",
-      gradient: "from-orange-500 to-amber-600",
-    },
-    {
-      icon: Lightbulb,
-      title: isFr ? "Curieux" : "Curious",
-      desc: isFr
-        ? "Explore de nouveaux sujets quand tu veux."
-        : "Explore new topics whenever you want.",
-      gradient: "from-mauve-light to-mauve",
-    },
-  ];
+  const audienceCards = tx.landing.audienceCards.map((card, i) => {
+    const icons = [GraduationCap, Briefcase, Lightbulb];
+    const gradients = ["from-mauve to-purple-600", "from-orange-500 to-amber-600", "from-mauve-light to-mauve"];
+    return { ...card, icon: icons[i], gradient: gradients[i] };
+  });
 
   // Hero badges
-  const heroBadges = [
-    {
-      icon: Sparkles,
-      label: isFr ? "Généré par IA" : "AI Generated",
-      sub: isFr ? "Contenu sur-mesure" : "Custom content",
-    },
-    {
-      icon: Settings,
-      label: isFr ? "Adaptatif" : "Adaptive",
-      sub: isFr ? "Selon ton niveau et ton rythme" : "Based on your level and pace",
-    },
-    {
-      icon: Check,
-      label: isFr ? "Simple & Efficace" : "Simple & Effective",
-      sub: isFr ? "Apprends sans distraction" : "Learn without distractions",
-    },
-  ];
-
-  // FAQ items
-  const faqs = isFr
-    ? [
-        { q: "Comment fonctionne la progression par niveaux ?", a: "Chaque cours comporte 3 niveaux de difficulté : Débutant, Intermédiaire et Avancé. Tu commences toujours par le niveau Débutant. Après avoir terminé un niveau, tu peux choisir de passer au suivant." },
-        { q: "Les cours sont-ils personnalisés selon mon niveau ?", a: "Oui ! L'IA adapte la complexité du contenu, les exemples et les quiz en fonction de ton niveau." },
-        { q: "Puis-je créer un cours gratuitement ?", a: "Oui ! Tu peux créer ton premier cours gratuitement et lire le premier chapitre." },
-        { q: "Comment fonctionne le système de flammes ?", a: "Les flammes sont ta monnaie d'apprentissage ! Tu en gagnes en réussissant des quiz et en terminant des cours." },
-        { q: "Puis-je accéder à mes cours depuis n'importe quel appareil ?", a: "Oui, Coursia est accessible depuis n'importe quel navigateur web." },
-      ]
-    : [
-        { q: "How does level progression work?", a: "Each course has 3 difficulty levels: Beginner, Intermediate and Advanced." },
-        { q: "Are courses personalized to my level?", a: "Yes! The AI adapts the content complexity, examples and quizzes based on your level." },
-        { q: "Can I create a course for free?", a: "Yes! You can create your first course for free and read the first chapter." },
-        { q: "How does the flame system work?", a: "Flames are your learning currency! You earn them by passing quizzes and completing courses." },
-        { q: "Can I access my courses from any device?", a: "Yes, Coursia is accessible from any web browser." },
-      ];
+  const heroBadges = tx.landing.heroBadges.map((badge, i) => {
+    const icons = [Sparkles, Settings, Check];
+    return { ...badge, icon: icons[i] };
+  });
 
   return (
     <div className="min-h-screen bg-night flex flex-col">
@@ -184,27 +104,37 @@ export default function LandingPage() {
           {/* Nav links (desktop) */}
           <div className="hidden md:flex items-center gap-6">
             <button onClick={() => scrollTo("hero")} className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-              {isFr ? "Accueil" : "Home"}
+              {tx.landing.navHome}
             </button>
             <button onClick={() => scrollTo("features")} className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-              {isFr ? "Fonctionnalités" : "Features"}
+              {tx.landing.navFeatures}
             </button>
             <button onClick={() => scrollTo("audience")} className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-              {isFr ? "À propos" : "About"}
+              {tx.landing.navAbout}
             </button>
             <button onClick={() => scrollTo("pricing")} className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-              {isFr ? "Tarifs" : "Pricing"}
+              {tx.landing.navPricing}
             </button>
           </div>
 
-          {/* CTA buttons */}
-          <div className="flex items-center gap-3">
+          {/* CTA buttons + Language toggle */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Language toggle */}
+            <button
+              onClick={() => setLang(lang === "fr" ? "en" : "fr")}
+              title={lang === "fr" ? "Switch to English" : "Passer en Français"}
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-200 cursor-pointer text-sm font-bold"
+            >
+              <Globe className="w-4 h-4" />
+              <span>{lang === "fr" ? "EN" : "FR"}</span>
+            </button>
+
             <button
               onClick={() => user ? setView("create") : setView("auth")}
               className="hidden sm:inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               <LogIn className="w-4 h-4" />
-              <span>{isFr ? "Connexion" : "Login"}</span>
+              <span>{tx.landing.navLogin}</span>
             </button>
             <button
               onClick={() => user ? setView("create") : setView("auth")}
@@ -244,7 +174,7 @@ export default function LandingPage() {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass text-sm text-mauve-light font-semibold mb-8">
             <Sparkles className="w-4 h-4" />
-            <span>{isFr ? "Propulsé par l'Intelligence Artificielle" : "Powered by Artificial Intelligence"}</span>
+            <span>{tx.landing.poweredBy}</span>
           </div>
 
           {/* Logo */}
@@ -256,16 +186,14 @@ export default function LandingPage() {
 
           {/* Hero heading */}
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-6 leading-tight max-w-4xl mx-auto">
-            <span className="text-foreground">{isFr ? "Tu n'as pas besoin de plus de contenu. Tu as besoin d'un" : "You don't need more content. You need a"}</span>{" "}
-            <span className="gradient-text">{isFr ? "cours qui s'adapte à toi" : "course that adapts to you"}</span>
+            <span className="text-foreground">{tx.landing.heroHeading1}</span>{" "}
+            <span className="gradient-text">{tx.landing.heroHeading2}</span>
             <span className="text-foreground">.</span>
           </h1>
 
           {/* Subheading */}
           <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
-            {isFr
-              ? "Coursia crée des leçons dynamiques, claires et personnalisées pour t'aider à apprendre plus vite et mieux retenir."
-              : "Coursia creates dynamic, clear and personalized lessons to help you learn faster and remember better."}
+            {tx.landing.heroSubtitleAlt}
           </p>
 
           {/* CTA Buttons */}
@@ -275,7 +203,7 @@ export default function LandingPage() {
               className="hero-cta-btn group inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg sm:text-xl font-bold transition-all duration-300 glow-mauve hover:shadow-[0_0_50px_rgba(124,92,191,0.6)] cursor-pointer"
             >
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
-              <span className="relative z-10">{isFr ? "Commencer gratuitement" : "Start for free"}</span>
+              <span className="relative z-10">{tx.landing.startFree}</span>
               <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
               <span className="absolute inset-0 rounded-full bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </button>
@@ -327,13 +255,11 @@ export default function LandingPage() {
         >
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
-              {isFr ? "Apprendre n'a jamais été aussi" : "Learning has never been so"}{" "}
-              <span className="gradient-text">{isFr ? "simple" : "simple"}</span>
+              {tx.landing.whyChooseTitle}{" "}
+              <span className="gradient-text">{tx.landing.whyChooseHighlight}</span>
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              {isFr
-                ? "Coursia transforme n'importe quel sujet en une expérience d'apprentissage interactive et personnalisée."
-                : "Coursia transforms any subject into an interactive and personalized learning experience."}
+              {tx.landing.whyChooseDesc}
             </p>
           </div>
 
@@ -371,14 +297,12 @@ export default function LandingPage() {
         >
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
-              {isFr ? "Pour qui est" : "Who is"}{" "}
+              {tx.landing.whoForTitle}{" "}
               <span className="gradient-text">{tx.app.name}</span>{" "}
-              {isFr ? "?" : "for?"}
+              {tx.landing.whoForTitleEnd}
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              {isFr
-                ? "Que tu sois étudiant, professionnel ou simplement curieux, Coursia t'aide à atteindre tes objectifs."
-                : "Whether you're a student, professional or simply curious, Coursia helps you achieve your goals."}
+              {tx.landing.whoForDesc}
             </p>
           </div>
 
@@ -401,7 +325,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ===== PRICING SECTION (KEPT FROM ORIGINAL) ===== */}
+      {/* ===== PRICING SECTION ===== */}
       <section id="pricing" className="relative py-24 px-4">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-mauve/5 rounded-full blur-[150px]" />
@@ -500,7 +424,7 @@ export default function LandingPage() {
           </div>
 
           <p className="text-center text-xs text-muted-foreground/40 mt-10">
-            {isFr ? "Paiement 100% sécurisé via PayPal" : "100% secure payment via PayPal"}
+            {tx.landing.securePayment}
           </p>
         </div>
       </section>
@@ -513,14 +437,14 @@ export default function LandingPage() {
         <div className="relative z-10 max-w-3xl mx-auto">
           <div className="text-center mb-14">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
-              <span className="gradient-text">{isFr ? "Questions Fréquentes" : "Frequently Asked Questions"}</span>
+              <span className="gradient-text">{tx.landing.faqTitle}</span>
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              {isFr ? "Tout ce que tu dois savoir sur Coursia." : "Everything you need to know about Coursia."}
+              {tx.landing.faqSubtitle}
             </p>
           </div>
           <div className="space-y-4">
-            {faqs.map((faq, i) => (
+            {tx.landing.faqs.map((faq, i) => (
               <div key={i} className="glass rounded-2xl overflow-hidden transition-all duration-300 hover:border-mauve/30">
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
@@ -553,20 +477,18 @@ export default function LandingPage() {
           </div>
           <div className="relative z-10">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
-              {isFr ? "Prêt à révolutionner ta façon d'apprendre" : "Ready to revolutionize your way of learning"}
+              {tx.landing.finalCtaTitle}
               <span className="gradient-text"> ?</span>
             </h2>
             <p className="text-muted-foreground text-lg mb-8 max-w-xl mx-auto">
-              {isFr
-                ? "Rejoins des milliers d'apprenants qui utilisent déjà Coursia."
-                : "Join thousands of learners already using Coursia."}
+              {tx.landing.finalCtaDesc}
             </p>
             <button
               onClick={() => user ? setView("create") : setView("auth")}
               className="hero-cta-btn group inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg sm:text-xl font-bold transition-all duration-300 glow-mauve hover:shadow-[0_0_50px_rgba(124,92,191,0.6)] cursor-pointer"
             >
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
-              <span className="relative z-10">{isFr ? "Commencer gratuitement" : "Start for free"}</span>
+              <span className="relative z-10">{tx.landing.startFree}</span>
               <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
           </div>

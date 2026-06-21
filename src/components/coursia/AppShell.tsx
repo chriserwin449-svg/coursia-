@@ -159,9 +159,8 @@ export default function AppShell() {
 
             if (res.ok && data.success) {
               // Payment captured and subscription activated
-              const message = lang === "fr"
-                ? "Paiement réussi ! Ton abonnement est maintenant actif."
-                : "Payment successful! Your subscription is now active.";
+              const paymentTx = t(lang);
+              const message = paymentTx.payment.success;
               useAppStore.getState().setShowCelebration(true);
               useAppStore.getState().setCelebrationMessage(message);
               trackEvent({ name: "payment_success" });
@@ -169,26 +168,23 @@ export default function AppShell() {
             } else {
               // Capture failed — show error
               console.error("[payment] Capture failed:", data.error);
-              const errorMsg = lang === "fr"
-                ? "Le paiement n'a pas pu être finalisé. Contacte le support si le problème persiste."
-                : "Payment could not be finalized. Contact support if the issue persists.";
+              const paymentTx = t(lang);
+              const errorMsg = paymentTx.payment.captureFailed;
               useAppStore.getState().setShowCelebration(true);
               useAppStore.getState().setCelebrationMessage(errorMsg);
             }
           } else {
             // No requestId — just show success (webhook might handle it)
-            const message = lang === "fr"
-              ? "Paiement réussi ! Ton abonnement est maintenant actif."
-              : "Payment successful! Your subscription is now active.";
+            const paymentTx = t(lang);
+            const message = paymentTx.payment.success;
             useAppStore.getState().setShowCelebration(true);
             useAppStore.getState().setCelebrationMessage(message);
             trackEvent({ name: "payment_success" });
           }
         } catch (err) {
           console.error("[payment] Capture error:", err);
-          const message = lang === "fr"
-            ? "Erreur de connexion. Vérifie ta connexion internet."
-            : "Connection error. Check your internet connection.";
+          const paymentTx = t(lang);
+          const message = paymentTx.payment.connectionError;
           useAppStore.getState().setShowCelebration(true);
           useAppStore.getState().setCelebrationMessage(message);
         }
@@ -212,9 +208,8 @@ export default function AppShell() {
     const cardVerified = params.get("card_verified");
     if (cardVerified === "success") {
       const lang = useAppStore.getState().lang;
-      const message = lang === "fr"
-        ? "Carte vérifiée avec succès ! Tu peux maintenant continuer à générer tes cours d'essai."
-        : "Card verified successfully! You can now continue generating your trial courses.";
+      const paymentTx = t(lang);
+      const message = paymentTx.payment.cardVerified;
 
       // Capture the $0.01 verification payment
       const requestId = params.get("request_id");

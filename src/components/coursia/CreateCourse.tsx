@@ -230,7 +230,7 @@ export default function CreateCourse() {
       setView("viewer");
       trackEvent({ name: "course_created", properties: { plan: String(data.plan || level) } });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Une erreur est survenue");
+      setError(err instanceof Error ? err.message : tx.common.error);
     } finally {
       setLoading(false);
       setIsGenerating(false);
