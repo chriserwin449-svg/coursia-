@@ -581,7 +581,7 @@ function extractFallbackCourse(text: string): { description: string; chapters: A
 
 export async function POST(request: NextRequest) {
   try {
-    const { title, sourceLinks = [], level = 0, courseLang = "fr", userId } = await request.json();
+    const { title, sourceLinks = [], level = 0, courseLang = "en", userId } = await request.json();
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
       return NextResponse.json({ error: "Title is required" }, { status: 400 });
@@ -625,7 +625,7 @@ export async function POST(request: NextRequest) {
       console.log("[generate] Outline failed, trying single-call fallback...");
       const fallbackResult = await generateSingleCall(title, courseLang, level, webContext, sourceContext);
       if (!fallbackResult || fallbackResult.chapters.length === 0) {
-        return NextResponse.json({ error: "L'IA n'a pas pu générer un cours valide. Réessaie." }, { status: 500 });
+        return NextResponse.json({ error: "The AI could not generate a valid course. Please try again." }, { status: 500 });
       }
       const course = await saveCourse(title, level, userId, sourceLinks, fallbackResult.description, fallbackResult.chapters, scrapedPages.length);
       return NextResponse.json(buildResponse(course, sourceLinks, scrapedPages.length));
@@ -659,7 +659,7 @@ export async function POST(request: NextRequest) {
       console.log("[generate] All chapters failed, trying single-call fallback...");
       const fallbackResult = await generateSingleCall(title, courseLang, level, webContext, sourceContext);
       if (!fallbackResult || fallbackResult.chapters.length === 0) {
-        return NextResponse.json({ error: "L'IA n'a pas pu générer un cours valide. Réessaie." }, { status: 500 });
+        return NextResponse.json({ error: "The AI could not generate a valid course. Please try again." }, { status: 500 });
       }
       const course = await saveCourse(title, level, userId, sourceLinks, fallbackResult.description, fallbackResult.chapters, scrapedPages.length);
       return NextResponse.json(buildResponse(course, sourceLinks, scrapedPages.length));

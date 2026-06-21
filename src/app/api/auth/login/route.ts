@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     if (!email || !password) {
       return NextResponse.json(
-        { error: "Email et mot de passe requis" },
+        { error: "Email and password required" },
         { status: 400 },
       );
     }
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       const msg = dbTestError instanceof Error ? dbTestError.message : String(dbTestError);
       console.error("[login] DB connection failed:", msg);
       return NextResponse.json(
-        { error: "Base de données indisponible. Réessaie dans quelques instants." },
+        { error: "Database unavailable. Please try again in a moment." },
         { status: 503 },
       );
     }
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.error("[login] User lookup failed:", err);
       return NextResponse.json(
-        { error: "Erreur lors de la connexion" },
+        { error: "Connection error" },
         { status: 500 },
       );
     }
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[login] Unhandled error:", error);
     return NextResponse.json(
-      { error: "Erreur lors de la connexion" },
+      { error: "Connection error" },
       { status: 500 },
     );
   }

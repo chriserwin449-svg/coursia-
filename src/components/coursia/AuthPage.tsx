@@ -11,8 +11,6 @@ import {
   EyeOff,
   Loader2,
   Sparkles,
-  CheckCircle2,
-  XCircle,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -37,9 +35,8 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Code validation helpers
-  const isCodeLongEnough = code.length >= 4;
-  const doCodesMatch = code.length > 0 && confirmCode.length > 0 && code === confirmCode;
+  // Validation helpers
+  const isValid = code.length >= 4 && code === confirmCode;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,7 +217,7 @@ export default function AuthPage() {
                 </div>
               </div>
 
-              {/* Code (password) */}
+              {/* Password */}
               <div>
                 <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
                   {tx.auth.accessCode}
@@ -234,13 +231,7 @@ export default function AuthPage() {
                     placeholder={tx.auth.accessCodePlaceholder}
                     required
                     minLength={4}
-                    className={`w-full pl-11 pr-12 py-3.5 rounded-2xl bg-night border text-foreground font-semibold placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300 text-sm ${
-                      code.length > 0 && !isLogin
-                        ? isCodeLongEnough
-                          ? "border-emerald-500/50 focus:border-emerald-500 focus:ring-emerald-500/20"
-                          : "border-red-400/50 focus:border-red-400 focus:ring-red-400/20"
-                        : "border-border focus:border-mauve focus:ring-mauve/20"
-                    }`}
+                    className="w-full pl-11 pr-12 py-3.5 rounded-2xl bg-night border border-border text-foreground font-semibold placeholder:text-muted-foreground/40 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300 text-sm"
                   />
                   <button
                     type="button"
@@ -250,23 +241,11 @@ export default function AuthPage() {
                     {showCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-                {/* Minimum length hint */}
-                {!isLogin && code.length > 0 && !isCodeLongEnough && (
-                  <p className="mt-1.5 text-xs text-red-400 animate-fade-in">
-                    {tx.auth.minCharsHint} ({code.length}/4)
-                  </p>
-                )}
-                {!isLogin && code.length > 0 && isCodeLongEnough && (
-                  <p className="mt-1.5 text-xs text-emerald-400 flex items-center gap-1.5 animate-fade-in">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    {tx.auth.codeValid}
-                  </p>
-                )}
               </div>
 
-              {/* Confirm Code (register only) */}
-              {!isLogin && code.length >= 4 && (
-                <div className="animate-fade-in">
+              {/* Confirm Password (register only) */}
+              {!isLogin && (
+                <div>
                   <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
                     {tx.auth.confirmCode}
                   </label>
@@ -279,13 +258,7 @@ export default function AuthPage() {
                       placeholder={tx.auth.confirmCodePlaceholder}
                       required
                       minLength={4}
-                      className={`w-full pl-11 pr-12 py-3.5 rounded-2xl bg-night border text-foreground font-semibold placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300 text-sm ${
-                        confirmCode.length > 0
-                          ? doCodesMatch
-                            ? "border-emerald-500/50 focus:border-emerald-500 focus:ring-emerald-500/20"
-                            : "border-red-400/50 focus:border-red-400 focus:ring-red-400/20"
-                          : "border-border focus:border-mauve focus:ring-mauve/20"
-                      }`}
+                      className="w-full pl-11 pr-12 py-3.5 rounded-2xl bg-night border border-border text-foreground font-semibold placeholder:text-muted-foreground/40 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300 text-sm"
                     />
                     <button
                       type="button"
@@ -295,24 +268,6 @@ export default function AuthPage() {
                       {showConfirmCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  {/* Match indicator */}
-                  {confirmCode.length > 0 && (
-                    <p className={`mt-1.5 text-xs flex items-center gap-1.5 animate-fade-in ${
-                      doCodesMatch ? "text-emerald-400" : "text-red-400"
-                    }`}>
-                      {doCodesMatch ? (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          {tx.auth.codesMatch}
-                        </>
-                      ) : (
-                        <>
-                          <XCircle className="w-3.5 h-3.5" />
-                          {tx.auth.codesDontMatch}
-                        </>
-                      )}
-                    </p>
-                  )}
                 </div>
               )}
 
@@ -353,7 +308,7 @@ export default function AuthPage() {
               {/* Submit */}
               <button
                 type="submit"
-                disabled={loading || (!isLogin && (code.length < 4 || !doCodesMatch))}
+                disabled={loading || (!isLogin && !isValid)}
                 className="w-full flex items-center justify-center gap-3 py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-mauve/25 hover:shadow-mauve/40 hover:scale-[1.01] active:scale-[0.99]"
               >
                 {loading ? (

@@ -213,19 +213,19 @@ export async function POST(request: NextRequest) {
 
     if (!email || !password || !firstName || !lastName) {
       return NextResponse.json(
-        { error: "Tous les champs sont requis" },
+        { error: "All fields are required" },
         { status: 400 },
       );
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return NextResponse.json({ error: "Email invalide" }, { status: 400 });
+      return NextResponse.json({ error: "Invalid email" }, { status: 400 });
     }
 
     if (password.length < 4) {
       return NextResponse.json(
-        { error: "Code trop court (min 4 caractères)" },
+        { error: "Password too short (min 4 characters)" },
         { status: 400 },
       );
     }
@@ -241,7 +241,7 @@ export async function POST(request: NextRequest) {
       const msg = dbTestError instanceof Error ? dbTestError.message : String(dbTestError);
       console.error("[register] DB connection failed:", msg);
       return NextResponse.json(
-        { error: "Base de données indisponible. Réessaie dans quelques instants." },
+        { error: "Database unavailable. Please try again in a moment." },
         { status: 503 },
       );
     }
@@ -265,14 +265,14 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.error("[register] User lookup error:", err);
       return NextResponse.json(
-        { error: "Erreur lors de la vérification de l'email" },
+        { error: "Error verifying email" },
         { status: 500 },
       );
     }
 
     if (existingUser && existingUser.length > 0) {
       return NextResponse.json(
-        { error: "Un compte existe déjà avec cet email" },
+        { error: "An account already exists with this email" },
         { status: 409 },
       );
     }
@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
     } catch (err) {
       console.error("[register] User INSERT error:", err);
       return NextResponse.json(
-        { error: "Erreur lors de la création du compte" },
+        { error: "Error creating account" },
         { status: 500 },
       );
     }
@@ -333,7 +333,7 @@ export async function POST(request: NextRequest) {
     console.error("[register] Unhandled error:", error);
     const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: "Erreur lors de l'inscription" },
+      { error: "Registration error" },
       { status: 500 },
     );
   }
