@@ -199,6 +199,8 @@ export default function CreateCourse() {
       return;
     }
 
+    const generatingTitle = title.trim();
+
     setLoading(true);
     setError("");
     setIsGenerating(true);
@@ -208,7 +210,7 @@ export default function CreateCourse() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: title.trim(),
+          title: generatingTitle,
           sourceLinks: links,
           level: isRandomTopic ? 0 : selectedLevel,
           courseLang,
@@ -230,6 +232,27 @@ export default function CreateCourse() {
       setView("viewer");
       trackEvent({ name: "course_created", properties: { plan: String(data.plan || level) } });
     } catch (err: unknown) {
+      // The generation may have succeeded server-side but the response timed out.
+      // Refresh courses and check if one with the same title appeared — auto-open it.
+      try {
+        const checkRes = await fetch(`/api/courses?userId=${useAppStore.getState().userId || ''}`);
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          const list: CourseData[] = (checkData.courses as CourseData[]) || [];
+          setCourses(list);
+          // Find a course matching the title (case-insensitive) that was just created
+          const match = list.find(
+            (c) => c.title.toLowerCase() === generatingTitle.toLowerCase()
+          );
+          if (match) {
+            setSelectedCourseId(match.id);
+            setView("viewer");
+            trackEvent({ name: "course_created_recovery", properties: { title: generatingTitle } });
+            return; // skip error display
+          }
+        }
+      } catch { /* fallback to error display */ }
+
       setError(err instanceof Error ? err.message : tx.common.error);
     } finally {
       setLoading(false);

@@ -314,9 +314,7 @@ export default function OffersPage() {
       setTimeout(captureAndRefresh, 1000);
     } else if (paymentStatus === "cancelled") {
       window.history.replaceState({}, "", "/");
-      setTimeout(() => {
-        setCheckoutError(lang === "fr" ? "Paiement annulé. Tu peux réessayer." : "Payment cancelled. You can try again.");
-      }, 0);
+      // Silently return — no error message needed
     }
   }, [userId, lang]);
 

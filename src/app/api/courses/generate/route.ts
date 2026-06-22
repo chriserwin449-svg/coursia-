@@ -4,6 +4,10 @@ import ZAI from "z-ai-web-dev-sdk";
 import { smartChatCompletion } from "@/lib/openai";
 import { FREE_COURSE_LIMIT, MAX_SOURCE_LINKS, MAX_TOKENS } from "@/lib/constants";
 
+// Vercel serverless function timeout — course generation needs 120s
+// (web search + AI outline + 4-6 AI chapter generations)
+export const maxDuration = 120;
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
