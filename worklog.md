@@ -99,3 +99,17 @@ Work Log:
 Stage Summary:
 - Payment checkout now works for all users — UUIDs with dashes are accepted
 - Pushed to GitHub: commit 9775b39 on main branch
+---
+Task ID: 5
+Agent: Main Agent
+Task: Remove PayPal error message + fix course generation double-click
+
+Work Log:
+- Removed "Payment cancelled" error from OffersPage — when user cancels PayPal and returns, page silently cleans URL without showing red error
+- Added `export const maxDuration = 120` to generate/route.ts — Vercel was timing out the function (default 10-60s) before course generation could complete, causing the course to save to DB but response to never reach client
+- Added recovery logic in CreateCourse.tsx — on generate error, checks if a course with the same title was already saved to DB (from a previous timeout), auto-opens it instead of showing error
+
+Stage Summary:
+- PayPal page no longer shows error on return from cancelled payment
+- Course generation should work on first click (120s timeout + recovery fallback)
+- Pushed to GitHub: commit 54cbfe8 on main branch
