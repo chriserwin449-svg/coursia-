@@ -80,3 +80,22 @@ Stage Summary:
 - Paywall no longer blocks navigation — users see Next button and can browse, paywall appears as overlay on locked content
 - OffersPage no longer crashes — all translation accesses are null-safe and SSR-safe
 - Project pushed to GitHub: coursia- (main branch, commit 5bf2f16)
+---
+Task ID: 4
+Agent: Main Agent
+Task: Fix "User ID required" error on payment page
+
+Work Log:
+- Investigated the error: users see "User ID required" red message on offers page when clicking a plan
+- Found root cause: `isValidUserId()` regex `^[a-z0-9]+$` in 3 API routes rejects UUIDs containing dashes
+- The register API generates user IDs via `crypto.randomUUID()` (e.g., `550e8400-e29b-41d4-a716-446655440000`) which contains dashes
+- The regex only allowed alphanumeric chars, so every real user ID failed validation
+- Fixed `isValidUserId` in all 3 files:
+  - `src/app/api/subscription/checkout/route.ts`
+  - `src/app/api/subscription/verify-card/route.ts`
+  - `src/app/api/subscription/confirm/route.ts`
+- Changed regex from `^[a-z0-9]+$` to `^[a-z0-9-]+$` to accept both CUID and UUID formats
+
+Stage Summary:
+- Payment checkout now works for all users — UUIDs with dashes are accepted
+- Pushed to GitHub: commit 9775b39 on main branch
