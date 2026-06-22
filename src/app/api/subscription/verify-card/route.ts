@@ -34,8 +34,9 @@ setInterval(() => {
 
 // ─── Input validation ──────────────────────────────────────────────────────
 function isValidUserId(userId: string): boolean {
-  const cuidRegex = /^[a-z0-9]+$/;
-  return userId.length > 5 && userId.length < 50 && cuidRegex.test(userId);
+  // Accept both cuid (clxxx...) and standard UUID (xxx-xxx-xxx) formats
+  const idRegex = /^[a-z0-9-]+$/;
+  return userId.length > 5 && userId.length < 50 && idRegex.test(userId);
 }
 
 // ─── Security headers ────────────────────────────────────────────────────

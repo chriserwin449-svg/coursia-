@@ -29,8 +29,9 @@ setInterval(() => {
 
 // ─── Input validation ──────────────────────────────────────────────────────
 function isValidUserId(userId: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(userId);
+  // Accept both cuid (clxxx...) and standard UUID (xxx-xxx-xxx) formats
+  const idRegex = /^[a-z0-9-]+$/;
+  return userId.length > 5 && userId.length < 50 && idRegex.test(userId);
 }
 
 function sanitizeString(str: string): string {
