@@ -138,9 +138,8 @@ export default function LandingPage() {
             </button>
             <button
               onClick={() => user ? setView("create") : setView("auth")}
-              className="hero-cta-btn group inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold transition-all duration-300 glow-mauve cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-border text-foreground text-sm font-bold transition-colors duration-200 cursor-pointer"
             >
-              <Sparkles className="w-3.5 h-3.5" />
               <span>{tx.landing.cta}</span>
             </button>
           </div>
@@ -200,16 +199,14 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
             <button
               onClick={() => user ? setView("create") : setView("auth")}
-              className="hero-cta-btn group inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg sm:text-xl font-bold transition-all duration-300 glow-mauve hover:shadow-[0_0_50px_rgba(124,92,191,0.6)] cursor-pointer"
+              className="group inline-flex items-center gap-3 px-10 py-5 rounded-full border border-border text-foreground text-lg sm:text-xl font-bold transition-colors duration-200 cursor-pointer"
             >
-              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
-              <span className="relative z-10">{tx.landing.startFree}</span>
+              <span>{tx.landing.startFree}</span>
               <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
-              <span className="absolute inset-0 rounded-full bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </button>
             <button
               onClick={() => scrollTo("pricing")}
-              className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-full glass text-foreground font-semibold hover:border-mauve/30 transition-all duration-300 cursor-pointer text-sm sm:text-lg"
+              className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-full border border-border text-foreground font-semibold transition-colors duration-200 cursor-pointer text-sm sm:text-lg"
             >
               {tx.landing.pricing.title}
               <ArrowRight className="w-4 h-4" />
@@ -485,10 +482,9 @@ export default function LandingPage() {
             </p>
             <button
               onClick={() => user ? setView("create") : setView("auth")}
-              className="hero-cta-btn group inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg sm:text-xl font-bold transition-all duration-300 glow-mauve hover:shadow-[0_0_50px_rgba(124,92,191,0.6)] cursor-pointer"
+              className="group inline-flex items-center gap-3 px-10 py-5 rounded-full border border-border text-foreground text-lg sm:text-xl font-bold transition-colors duration-200 cursor-pointer"
             >
-              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
-              <span className="relative z-10">{tx.landing.startFree}</span>
+              <span>{tx.landing.startFree}</span>
               <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
           </div>
