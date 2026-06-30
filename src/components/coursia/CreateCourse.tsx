@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Globe,
   Crown,
+  Gift,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -41,6 +42,7 @@ export default function CreateCourse() {
   const [inGracePeriod, setInGracePeriod] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState(0);
   const [isRandomTopic, setIsRandomTopic] = useState(false);
+  const [generationStep, setGenerationStep] = useState(0);
 
   // ─── Store refs for random topic ────────────────────────────────────────
   const storeRandomTopic = useAppStore((s) => s.randomTopic);
@@ -63,6 +65,21 @@ export default function CreateCourse() {
       setStoreRandomTopic(null); // consume it
     }
   }, [storeRandomTopic, storeRandomCourseLang, setStoreRandomTopic]);
+
+  // ─── Progress message cycling during generation ──────────────────────
+  const progressMessages = useMemo(() => lang === "fr"
+    ? ["Préparation du cours...", "Génération du contenu par l'IA...", "Finalisation du cours..."]
+    : ["Preparing course...", "Generating content with AI...", "Finalizing course..."],
+    [lang]
+  );
+
+  useEffect(() => {
+    if (!loading) { setGenerationStep(0); return; }
+    const interval = setInterval(() => {
+      setGenerationStep(prev => (prev + 1) % progressMessages.length);
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [loading, progressMessages.length]);
 
   // ─── Personalized greeting (time-based) ──────────────────────────────
   const greeting = useMemo(() => {
@@ -189,9 +206,20 @@ export default function CreateCourse() {
     setLinks(links.filter((_, i) => i !== index));
   };
 
-  // ─── Generate course ──────────────────────────────────────────────────
+  // ─── Generate course (with retry + DB recovery) ─────────────────────
   const generateCourse = async () => {
-    if (!title.trim()) return;
+    if (!title.trim() || loading) return;
+
+    // Validate payload before sending
+    const effectiveLevel = isRandomTopic ? 0 : selectedLevel;
+    if (effectiveLevel < 0 || effectiveLevel > 2) {
+      setError(lang === "fr" ? "Niveau invalide" : "Invalid level");
+      return;
+    }
+    if (!["fr", "en"].includes(courseLang)) {
+      setError(lang === "fr" ? "Langue invalide" : "Invalid language");
+      return;
+    }
 
     // Free limit check
     if (!hasSubscription && !canCreateCourse) {
@@ -200,60 +228,112 @@ export default function CreateCourse() {
     }
 
     const generatingTitle = title.trim();
+    const payload = {
+      title: generatingTitle,
+      sourceLinks: links,
+      level: effectiveLevel,
+      courseLang,
+      userId: useAppStore.getState().userId,
+    };
 
+    console.log("[generate] Starting generation:", { title: generatingTitle, level: effectiveLevel, lang: courseLang });
     setLoading(true);
     setError("");
     setIsGenerating(true);
+    setGenerationStep(0);
+
+    const MAX_ATTEMPTS = 3; // initial + 2 retries
+    let lastError: string | null = null;
 
     try {
-      const res = await fetch("/api/courses/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: generatingTitle,
-          sourceLinks: links,
-          level: isRandomTopic ? 0 : selectedLevel,
-          courseLang,
-          userId: useAppStore.getState().userId,
-        }),
-      });
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        // Between retries: DB recovery check to avoid duplicate courses
+        if (attempt > 0) {
+          const backoffMs = 1000 * attempt; // exponential: 1s, 2s
+          console.log(`[generate] Retry ${attempt}/${MAX_ATTEMPTS - 1} in ${backoffMs}ms...`);
+          await new Promise(r => setTimeout(r, backoffMs));
+          setGenerationStep(0);
 
-      const data = await res.json();
-      if (!res.ok) {
-        if (data.error === "FREE_LIMIT" || data.error === "TRIAL_LIMIT" || data.error === "TRIAL_EXPIRED") {
-          setView("offers");
-          return;
+          try {
+            const checkRes = await fetch(`/api/courses?userId=${useAppStore.getState().userId || ''}`);
+            if (checkRes.ok) {
+              const checkData = await checkRes.json();
+              const list: CourseData[] = (checkData.courses as CourseData[]) || [];
+              setCourses(list);
+              const match = list.find((c) => c.title.toLowerCase() === generatingTitle.toLowerCase());
+              if (match) {
+                console.log(`[generate] Course found in DB after failed attempt, recovering: "${match.title}"`);
+                setSelectedCourseId(match.id);
+                setView("viewer");
+                trackEvent({ name: "course_created_recovery", properties: { title: generatingTitle, attempt: attempt + 1 } });
+                return;
+              }
+            }
+          } catch { /* non-critical */ }
         }
-        throw new Error(data.error || "Failed to generate");
+
+        try {
+          const res = await fetch("/api/courses/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            if (data.error === "FREE_LIMIT" || data.error === "TRIAL_LIMIT" || data.error === "TRIAL_EXPIRED") {
+              setView("offers");
+              return;
+            }
+            lastError = data.error || "Server error";
+            console.warn(`[generate] Attempt ${attempt + 1} failed (${res.status}): ${lastError}`);
+            continue; // retry
+          }
+
+          // Handle empty/null AI responses
+          if (!data.course) {
+            lastError = "Empty response from server";
+            console.warn(`[generate] Attempt ${attempt + 1}: empty course data`);
+            continue;
+          }
+
+          // Success!
+          const course = data.course as CourseData;
+          console.log(`[generate] Success on attempt ${attempt + 1}: "${course.title}"`);
+          setSelectedCourseId(course.id);
+          setView("viewer");
+          trackEvent({ name: "course_created", properties: { plan: String(effectiveLevel), attempt: attempt + 1 } });
+          return;
+        } catch (err: unknown) {
+          lastError = err instanceof Error ? err.message : "Network error";
+          console.warn(`[generate] Attempt ${attempt + 1} network error: ${lastError}`);
+        }
       }
 
-      const course = data.course as CourseData;
-      setSelectedCourseId(course.id);
-      setView("viewer");
-      trackEvent({ name: "course_created", properties: { plan: String(data.plan || level) } });
-    } catch (err: unknown) {
-      // The generation may have succeeded server-side but the response timed out.
-      // Refresh courses and check if one with the same title appeared — auto-open it.
+      // All attempts failed — final DB recovery check
       try {
         const checkRes = await fetch(`/api/courses?userId=${useAppStore.getState().userId || ''}`);
         if (checkRes.ok) {
           const checkData = await checkRes.json();
           const list: CourseData[] = (checkData.courses as CourseData[]) || [];
           setCourses(list);
-          // Find a course matching the title (case-insensitive) that was just created
-          const match = list.find(
-            (c) => c.title.toLowerCase() === generatingTitle.toLowerCase()
-          );
+          const match = list.find((c) => c.title.toLowerCase() === generatingTitle.toLowerCase());
           if (match) {
+            console.log(`[generate] Final recovery: course "${match.title}" found in DB`);
             setSelectedCourseId(match.id);
             setView("viewer");
             trackEvent({ name: "course_created_recovery", properties: { title: generatingTitle } });
-            return; // skip error display
+            return;
           }
         }
-      } catch { /* fallback to error display */ }
+      } catch { /* non-critical */ }
 
-      setError(err instanceof Error ? err.message : tx.common.error);
+      // No recovery possible — show meaningful error
+      setError(lang === "fr"
+        ? "Impossible de générer le cours. Réessaie dans un instant."
+        : "Could not generate the course. Please try again in a moment."
+      );
     } finally {
       setLoading(false);
       setIsGenerating(false);
@@ -490,6 +570,23 @@ export default function CreateCourse() {
           </div>
         ) : null}
 
+        {/* ─── First course free badge ─── */}
+        {!hasSubscription && canCreateCourse && (
+          <div className="mb-6 p-4 rounded-2xl glass text-center animate-fade-in">
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Gift className="w-5 h-5 text-gold" />
+              <span className="text-sm font-bold text-gold">
+                {lang === "fr" ? "Ton premier cours est gratuit !" : "Your first course is free!"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {lang === "fr"
+                ? "Découvre la puissance de l'IA pour créer ton premier cours. Ensuite, choisis un abonnement."
+                : "Discover the power of AI to create your first course. Then choose a subscription."}
+            </p>
+          </div>
+        )}
+
         {/* ─── Error ─── */}
         {error && (
           <div className="mb-6 p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-sm font-semibold animate-[fadeIn_0.3s_ease-out]">
@@ -517,7 +614,7 @@ export default function CreateCourse() {
             {loading ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>{tx.create.generating}</span>
+                <span>{progressMessages[generationStep]}</span>
               </>
             ) : (
               <>

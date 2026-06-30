@@ -386,6 +386,18 @@ export default function OffersPage() {
           </div>
         )}
 
+        {/* ===== REDIRECTING TO CHECKOUT ===== */}
+        {loadingPlan && !checkoutError && !paymentSuccess && (
+          <div className="max-w-2xl mx-auto mb-8">
+            <div className="flex items-center gap-3 p-5 rounded-2xl bg-mauve/10 border border-mauve/30 animate-fade-in">
+              <Loader2 className="w-5 h-5 text-mauve-light animate-spin" />
+              <p className="text-sm text-mauve-light font-medium">
+                {lang === "fr" ? "Redirection vers le paiement sécurisé..." : "Redirecting to secure checkout..."}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ===== STATUS BANNERS ===== */}
         <div className="max-w-2xl mx-auto mb-8 space-y-3">
           {/* Personalized renewal reminder */}
@@ -463,8 +475,8 @@ export default function OffersPage() {
             </div>
           )}
 
-          {/* Checkout error */}
-          {checkoutError && (
+          {/* Checkout error — only show when not actively loading */}
+          {checkoutError && !loadingPlan && (
             <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-red-500/10 border border-red-500/30 animate-fade-in">
               <AlertTriangle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
               <p className="text-sm sm:text-base text-red-200 font-medium">{checkoutError}</p>
@@ -521,9 +533,11 @@ export default function OffersPage() {
                   className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {loadingPlan === "monthly" ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : null}
-                  {lang === "fr" ? "Choisir Mensuel" : "Choose Monthly"}
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>{lang === "fr" ? "Redirection..." : "Redirecting..."}</span>
+                    </>
+                  ) : (lang === "fr" ? "Choisir Mensuel" : "Choose Monthly")}
                 </button>
               )}
             </div>
@@ -588,9 +602,11 @@ export default function OffersPage() {
                   className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden cursor-pointer"
                 >
                   {loadingPlan === "annual" ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : null}
-                  {lang === "fr" ? "Choisir Annuel" : "Choose Annual"}
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>{lang === "fr" ? "Redirection..." : "Redirecting..."}</span>
+                    </>
+                  ) : (lang === "fr" ? "Choisir Annuel" : "Choose Annual")}
                 </button>
               )}
             </div>
