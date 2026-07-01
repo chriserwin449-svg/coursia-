@@ -123,6 +123,20 @@ model CourseProgress {
   sessions          StudySession[]
 }
 
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String?
+  type      String   @default("general") // "bug_report" | "feature_request" | "question" | "general"
+  subject   String
+  message   String
+  email     String?
+  page      String?
+  metadata  String   @default("{}")
+  status    String   @default("new") // "new" | "read" | "resolved" | "dismissed"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model StudySession {
   id              String   @id @default(cuid())
   userId          String?
