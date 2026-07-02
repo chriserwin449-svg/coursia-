@@ -179,6 +179,7 @@ export async function createPayPalOrder(params: CreateOrderParams): Promise<Crea
         brand_name: "Coursia",
         locale: "en-US",
         user_action: "PAY_NOW",
+        landing_page: "BILLING",
         return_url: params.plan === "card_verify"
           ? `${appUrl}/?card_verified=success&request_id=${encodeURIComponent(params.requestId)}`
           : `${appUrl}/?payment=success&plan=${params.plan}&request_id=${encodeURIComponent(params.requestId)}`,
@@ -190,7 +191,19 @@ export async function createPayPalOrder(params: CreateOrderParams): Promise<Crea
   if (!response.ok) {
     const errorText = await response.text();
     console.error("[paypal] Create order failed:", response.status, errorText);
-    throw new Error(`PayPal order creation failed: ${response.status}`);
+    // Classify error for better frontend handling
+    let errorType = "PAYPAL_ORDER_FAILED";
+    let userMessage = `PayPal order creation failed: ${response.status}`;
+    if (response.status === 401) {
+      errorType = "PAYPAL_AUTH";
+      userMessage = "PayPal authentication failed. Check API credentials.";
+    } else if (response.status === 422) {
+      errorType = "PAYPAL_VALIDATION";
+      userMessage = "PayPal order validation failed. Check order details.";
+    }
+    const err = new Error(userMessage) as Error & { code: string };
+    err.code = errorType;
+    throw err;
   }
 
   const data = (await response.json()) as {
@@ -233,7 +246,22 @@ export async function capturePayPalOrder(orderId: string): Promise<CaptureResult
   if (!response.ok) {
     const errorText = await response.text();
     console.error("[paypal] Capture order failed:", response.status, errorText);
-    throw new Error(`PayPal capture failed: ${response.status}`);
+    // Classify capture errors for frontend
+    let errorType = "PAYPAL_CAPTURE_FAILED";
+    let userMessage = `PayPal capture failed: ${response.status}`;
+    if (response.status === 422) {
+      errorType = "PAYPAL_ALREADY_CAPTURED";
+      userMessage = "This payment has already been captured.";
+    } else if (response.status === 404) {
+      errorType = "PAYPAL_ORDER_NOT_FOUND";
+      userMessage = "PayPal order not found. It may have expired.";
+    } else if (response.status === 400) {
+      errorType = "PAYPAL_INVALID_REQUEST";
+      userMessage = "Invalid PayPal capture request.";
+    }
+    const err = new Error(userMessage) as Error & { code: string };
+    err.code = errorType;
+    throw err;
   }
 
   const data = (await response.json()) as {

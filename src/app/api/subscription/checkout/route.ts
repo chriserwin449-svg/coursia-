@@ -192,10 +192,20 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("[checkout] Unhandled error:", error);
 
-    // Return the actual error message for debugging
-    const errMsg = error instanceof Error ? error.message : "Unknown error";
+    // Classify errors for better frontend handling
+    const err = error as Error & { code?: string };
+    const errorCode = err.code || "CHECKOUT_UNKNOWN";
+    const errMsg = err.message || "Unknown error";
+
+    // Log specific error types
+    if (errorCode.includes("PAYPAL_AUTH")) {
+      console.error("[checkout] PayPal credentials invalid — check PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET");
+    } else if (errorCode.includes("PAYPAL_VALIDATION")) {
+      console.error("[checkout] PayPal order validation failed:", errMsg);
+    }
+
     return NextResponse.json(
-      { error: "Payment initialization failed", details: errMsg },
+      { error: "Payment initialization failed", details: errMsg, code: errorCode },
       { status: 500, headers: securityHeaders() }
     );
   }

@@ -15,6 +15,7 @@ import CourseViewer from "@/components/coursia/CourseViewer";
 import Journey from "@/components/coursia/Journey";
 import OffersPage from "@/components/coursia/OffersPage";
 import TopBar from "@/components/coursia/TopBar";
+import { PayPalProviderWrapper } from "@/components/coursia/PayPalProvider";
 
 function MobileBottomNav() {
   const view = useAppStore((s) => s.view);
@@ -81,6 +82,16 @@ export default function AppShell() {
       if (savedToken) {
         setAuthToken(savedToken);
       }
+
+      // Restore pending generation from localStorage
+      try {
+        const stored = localStorage.getItem("coursia-pending-generation");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          useAppStore.getState().setPendingGeneration(parsed);
+          console.log("[appshell] Restored pending generation from localStorage:", parsed.topic);
+        }
+      } catch { /* ignore */ }
     }
   }, [setAuthToken]);
 
@@ -133,7 +144,11 @@ export default function AppShell() {
     };
   }, [checkPaywallStatus]);
 
-  // Handle payment success/redirect — capture PayPal order and activate subscription
+  // Handle payment success/redirect from legacy redirect flow (webhook backup)
+  // The primary flow now uses inline PayPalButtons, but this handles:
+  // 1. Webhook-triggered redirects
+  // 2. Legacy redirect flow
+  // 3. Direct URL access with payment params
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -143,10 +158,9 @@ export default function AppShell() {
     if (paymentStatus === "success") {
       const lang = useAppStore.getState().lang;
 
-      // Clean URL immediately (remove query params without page reload)
+      // Clean URL immediately
       window.history.replaceState({}, "", window.location.pathname);
 
-      // Attempt to capture the PayPal order via our API
       const capturePayment = async () => {
         try {
           if (requestId) {
@@ -158,20 +172,38 @@ export default function AppShell() {
             const data = await res.json();
 
             if (res.ok && data.success) {
-              // Payment captured and subscription activated
               const paymentTx = t(lang);
               const message = paymentTx.payment.success;
               useAppStore.getState().setShowCelebration(true);
               useAppStore.getState().setCelebrationMessage(message);
-              trackEvent({ name: "payment_success" });
-              console.log("[payment] Capture successful, plan:", data.plan);
+              trackEvent({ name: "payment_success", properties: { method: "redirect" } });
+              console.log("[payment] Redirect capture successful, plan:", data.plan);
+
+              // Update store subscription state
+              useAppStore.getState().setHasSubscription(true);
+              useAppStore.getState().setSubscriptionStatus("active");
             } else {
-              // Capture failed — show error
-              console.error("[payment] Capture failed:", data.error);
-              const paymentTx = t(lang);
-              const errorMsg = paymentTx.payment.captureFailed;
-              useAppStore.getState().setShowCelebration(true);
-              useAppStore.getState().setCelebrationMessage(errorMsg);
+              console.warn("[payment] Redirect capture returned:", data.error || res.status);
+              // Even if capture fails, the webhook may have handled it
+              // Check subscription status
+              const uid = useAppStore.getState().userId;
+              if (uid) {
+                try {
+                  const pwRes = await fetch("/api/courses/paywall-status", {
+                    headers: { Authorization: `Bearer ${uid}` },
+                  });
+                  const pwData = await pwRes.json();
+                  if (pwData.hasSubscription && pwData.subscriptionStatus === "active") {
+                    const paymentTx = t(lang);
+                    const message = paymentTx.payment.success;
+                    useAppStore.getState().setShowCelebration(true);
+                    useAppStore.getState().setCelebrationMessage(message);
+                    useAppStore.getState().setHasSubscription(true);
+                    useAppStore.getState().setSubscriptionStatus("active");
+                    console.log("[payment] Subscription confirmed via paywall-status check");
+                  }
+                } catch { /* non-critical */ }
+              }
             }
           } else {
             // No requestId — just show success (webhook might handle it)
@@ -179,10 +211,10 @@ export default function AppShell() {
             const message = paymentTx.payment.success;
             useAppStore.getState().setShowCelebration(true);
             useAppStore.getState().setCelebrationMessage(message);
-            trackEvent({ name: "payment_success" });
+            trackEvent({ name: "payment_success", properties: { method: "webhook_fallback" } });
           }
         } catch (err) {
-          console.error("[payment] Capture error:", err);
+          console.error("[payment] Redirect capture error:", err);
           const paymentTx = t(lang);
           const message = paymentTx.payment.connectionError;
           useAppStore.getState().setShowCelebration(true);
@@ -192,42 +224,46 @@ export default function AppShell() {
 
       capturePayment();
 
-      // Redirect to offers page to show active subscription status
+      // Check for pending course generation to auto-resume
+      const pending = useAppStore.getState().pendingGeneration;
       const isAuthenticated = useAppStore.getState().isAuthenticated;
       if (isAuthenticated) {
-        useAppStore.getState().setView("offers");
+        if (pending) {
+          console.log("[payment] Found pending generation after redirect — navigating to create");
+          useAppStore.getState().setPendingGeneration(null);
+          setTimeout(() => {
+            useAppStore.getState().setView("create");
+          }, 2000);
+        } else {
+          useAppStore.getState().setView("offers");
+        }
       } else {
         useAppStore.getState().setView("landing");
       }
     } else if (paymentStatus === "cancelled") {
-      // Payment cancelled by user
       window.history.replaceState({}, "", window.location.pathname);
     }
 
-    // Handle card verification success (user verified card via PayPal $0.01)
+    // Handle card verification success
     const cardVerified = params.get("card_verified");
     if (cardVerified === "success") {
       const lang = useAppStore.getState().lang;
       const paymentTx = t(lang);
       const message = paymentTx.payment.cardVerified;
 
-      // Capture the $0.01 verification payment
-      const requestId = params.get("request_id");
-      if (requestId) {
+      const reqId = params.get("request_id");
+      if (reqId) {
         fetch("/api/subscription/capture", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ requestId, plan: "monthly" }),
+          body: JSON.stringify({ requestId: reqId, plan: "monthly" }),
         }).catch(() => {});
       }
 
       useAppStore.getState().setShowCelebration(true);
       useAppStore.getState().setCelebrationMessage(message);
-
-      // Clean URL
       window.history.replaceState({}, "", window.location.pathname);
 
-      // Redirect to create page to continue with free trial courses
       const isAuthenticated = useAppStore.getState().isAuthenticated;
       if (isAuthenticated) {
         useAppStore.getState().setView("create");
@@ -244,27 +280,27 @@ export default function AppShell() {
       ) : view === "auth" ? (
         <AuthPage />
       ) : (
-        <div className="min-h-screen">
-          <Sidebar />
-          {view !== "viewer" && <TopBar />}
-          <main
-            className={`min-h-screen transition-all duration-300 ease-in-out pb-16 md:pb-0 ${
-              collapsed
-                ? "ml-0 md:ml-[72px]"
-                : "ml-0 md:ml-[72px] lg:ml-64"
-            }`}
-          >
-            {view === "create" && <CreateCourse />}
-            {view === "library" && <LibraryPage />}
-            {view === "viewer" && <CourseViewer />}
-            {view === "journey" && <Journey />}
-            {view === "offers" && <OffersPage />}
-          </main>
-          <MobileBottomNav />
-        </div>
+        <PayPalProviderWrapper>
+          <div className="min-h-screen">
+            <Sidebar />
+            {view !== "viewer" && <TopBar />}
+            <main
+              className={`min-h-screen transition-all duration-300 ease-in-out pb-16 md:pb-0 ${
+                collapsed
+                  ? "ml-0 md:ml-[72px]"
+                  : "ml-0 md:ml-[72px] lg:ml-64"
+              }`}
+            >
+              {view === "create" && <CreateCourse />}
+              {view === "library" && <LibraryPage />}
+              {view === "viewer" && <CourseViewer />}
+              {view === "journey" && <Journey />}
+              {view === "offers" && <OffersPage />}
+            </main>
+            <MobileBottomNav />
+          </div>
+        </PayPalProviderWrapper>
       )}
-
-
     </div>
   );
 }

@@ -209,6 +209,64 @@ export default function CreateCourse() {
     fetchCourses();
   }, [fetchCourses]);
 
+  // ─── Auto-resume pending course generation after payment ─────────────
+  useEffect(() => {
+    const pending = useAppStore.getState().pendingGeneration;
+    if (!pending) {
+      // Also check localStorage in case store wasn't hydrated yet
+      if (typeof window !== "undefined") {
+        try {
+          const stored = localStorage.getItem("coursia-pending-generation");
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            useAppStore.getState().setPendingGeneration(parsed);
+            return; // Will re-trigger this effect
+          }
+        } catch { /* ignore */ }
+      }
+      return;
+    }
+
+    // Check if user now has an active subscription before auto-generating
+    const checkAndResume = async () => {
+      try {
+        const userId = useAppStore.getState().userId;
+        const headers: Record<string, string> = {};
+        if (userId) headers["Authorization"] = `Bearer ${userId}`;
+        const res = await fetch("/api/courses/paywall-status", { headers });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.canGenerate || data.hasSubscription) {
+            console.log("[create] Auto-resuming pending generation:", pending.topic);
+            // Set the form values from pending generation
+            setTitle(pending.topic);
+            setCourseLang(pending.courseLang);
+            setSelectedLevel(pending.level);
+            if (pending.isRandom) {
+              setIsRandomTopic(true);
+              setSuggestedTopic(pending.topic);
+              setShowSuggested(true);
+            }
+            // Clear the pending generation
+            useAppStore.getState().setPendingGeneration(null);
+            // Trigger generation after a brief delay to let state settle
+            setTimeout(() => {
+              generateCourse();
+            }, 500);
+          } else {
+            console.log("[create] Pending generation found but user still not subscribed — keeping pending");
+          }
+        }
+      } catch (err) {
+        console.error("[create] Error checking subscription for auto-resume:", err);
+      }
+    };
+
+    // Small delay to ensure store is hydrated
+    const timer = setTimeout(checkAndResume, 800);
+    return () => clearTimeout(timer);
+  }, []);
+
   // ─── Cleanup: abort any ongoing generation on unmount ───────────────
   useEffect(() => {
     return () => {
@@ -246,25 +304,25 @@ export default function CreateCourse() {
   // ─── User-friendly error classification ─────────────────────────────
   const getErrorMessage = useCallback((errorType: string, httpStatus: number, detail: string): string => {
     if (lang === "fr") {
-      if (httpStatus === 403) return "Limite de cours gratuits atteinte. Passe à un abonnement pour continuer.";
-      if (errorType === "RATE_LIMIT") return "Trop de demandes. Attends quelques secondes et réessaie.";
-      if (errorType === "TIMEOUT") return "La génération a pris trop de temps. Réessaie.";
-      if (errorType === "NETWORK") return "Problème de connexion. Vérifie ton internet et réessaie.";
-      if (errorType === "AUTH") return "Erreur d'authentification IA. Réessaie dans un instant.";
-      if (errorType === "SERVER") return "Le serveur IA est temporairement indisponible. Réessaie dans quelques instants.";
-      if (errorType === "PARSE" || errorType === "EMPTY") return "L'IA n'a pas pu générer un cours valide. Réessaie avec un autre sujet.";
-      if (errorType === "AI_GENERATION_FAILED") return "L'IA n'a pas pu structurer le cours. Réessaie.";
-      return "Une erreur inattendue est survenue. Réessaie dans un instant.";
+      if (httpStatus === 403) return "Tu as atteint ta limite de cours gratuits. Passe à Premium pour en créer autant que tu veux !";
+      if (errorType === "RATE_LIMIT") return "Oups, tu as été un peu trop rapide ! Attends quelques secondes et réessaie.";
+      if (errorType === "TIMEOUT") return "La génération prend un peu trop de temps cette fois-ci. Réessaie, ça devrait passer.";
+      if (errorType === "NETWORK") return "Pas de connexion internet ? Vérifie ton Wi-Fi et réessaie.";
+      if (errorType === "AUTH") return "Un petit souci côté serveur. Réessaie dans quelques secondes, ça va marcher.";
+      if (errorType === "SERVER") return "Les serveurs sont un peu chargés en ce moment. Reviens dans quelques instants !";
+      if (errorType === "PARSE" || errorType === "EMPTY") return "L'IA n'arrive pas à traiter ce sujet. Essaie avec un sujet plus précis ou différent.";
+      if (errorType === "AI_GENERATION_FAILED") return "L'IA a eu du mal à structurer ce cours. Réessaie, elle fera mieux la prochaine fois !";
+      return "Un imprévu s'est produit. Réessaie, ça devrait fonctionner.";
     } else {
-      if (httpStatus === 403) return "Free course limit reached. Upgrade to a subscription to continue.";
-      if (errorType === "RATE_LIMIT") return "Too many requests. Wait a few seconds and try again.";
-      if (errorType === "TIMEOUT") return "Generation timed out. Please try again.";
-      if (errorType === "NETWORK") return "Connection issue. Check your internet and try again.";
-      if (errorType === "AUTH") return "AI authentication error. Please try again in a moment.";
-      if (errorType === "SERVER") return "AI server temporarily unavailable. Please try again in a moment.";
-      if (errorType === "PARSE" || errorType === "EMPTY") return "AI couldn't generate a valid course. Try a different topic.";
-      if (errorType === "AI_GENERATION_FAILED") return "AI couldn't structure the course. Please try again.";
-      return "An unexpected error occurred. Please try again in a moment.";
+      if (httpStatus === 403) return "You've reached your free course limit. Upgrade to Premium to create unlimited courses!";
+      if (errorType === "RATE_LIMIT") return "You're going a bit too fast! Wait a few seconds and try again.";
+      if (errorType === "TIMEOUT") return "This one's taking a bit long. Try again — it should go through.";
+      if (errorType === "NETWORK") return "Looks like you're offline. Check your Wi-Fi and try again.";
+      if (errorType === "AUTH") return "Quick server hiccup. Try again in a few seconds — it'll work.";
+      if (errorType === "SERVER") return "Servers are a bit busy right now. Give it a moment and try again!";
+      if (errorType === "PARSE" || errorType === "EMPTY") return "AI couldn't process this topic. Try something more specific or different.";
+      if (errorType === "AI_GENERATION_FAILED") return "AI had trouble structuring this course. Try again — it'll do better next time!";
+      return "Something unexpected happened. Try again — it should work.";
     }
   }, [lang]);
 
@@ -288,8 +346,15 @@ export default function CreateCourse() {
       return;
     }
 
-    // Free limit check
+    // Free limit check — save pending generation for auto-resume after payment
     if (!hasSubscription && !canCreateCourse) {
+      console.log("[generate] Paywall hit — saving pending generation for auto-resume");
+      useAppStore.getState().setPendingGeneration({
+        topic: title.trim(),
+        courseLang,
+        level: effectiveLevel,
+        isRandom: !!isRandomTopic,
+      });
       setView("offers");
       return;
     }
@@ -392,6 +457,14 @@ export default function CreateCourse() {
             lastError = (errorData.message as string) || (errorData.error as string) || `HTTP ${res.status}`;
 
             if (errorData.error === "FREE_LIMIT" || errorData.error === "TRIAL_LIMIT" || errorData.error === "TRIAL_EXPIRED") {
+              // Save pending generation for auto-resume after payment
+              console.log("[generate] Paywall error from API — saving pending generation");
+              useAppStore.getState().setPendingGeneration({
+                topic: generatingTitle,
+                courseLang,
+                level: effectiveLevel,
+                isRandom: !!isRandomTopic,
+              });
               setView("offers");
               return;
             }

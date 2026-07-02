@@ -129,6 +129,9 @@ interface AppState {
   setHasNotification: (v: boolean) => void;
   notificationDismissed: boolean;
   setNotificationDismissed: (v: boolean) => void;
+  // Pending course generation (saved before payment, resumed after)
+  pendingGeneration: { topic: string; courseLang: string; level: number; isRandom: boolean } | null;
+  setPendingGeneration: (v: { topic: string; courseLang: string; level: number; isRandom: boolean } | null) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -234,4 +237,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   setHasNotification: (v) => set({ hasNotification: v }),
   notificationDismissed: false,
   setNotificationDismissed: (v) => set({ notificationDismissed: v }),
+  // Pending course generation
+  pendingGeneration: null,
+  setPendingGeneration: (v) => {
+    // Persist to localStorage for cross-page resume
+    if (typeof window !== "undefined") {
+      if (v) {
+        localStorage.setItem("coursia-pending-generation", JSON.stringify(v));
+      } else {
+        localStorage.removeItem("coursia-pending-generation");
+      }
+    }
+    set({ pendingGeneration: v });
+  },
 }));

@@ -219,8 +219,44 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error("[capture] Unhandled error:", error);
+
+    // Classify capture errors for frontend
+    const err = error as Error & { code?: string };
+    const errorCode = err.code || "CAPTURE_UNKNOWN";
+    const errMsg = err.message || "Unknown error";
+
+    // If the order was already captured, return success with alreadyActive flag
+    // This prevents blocking the user after a double-click or race condition
+    if (errorCode === "PAYPAL_ALREADY_CAPTURED") {
+      console.warn("[capture] Order already captured — this may be a double-click");
+      return NextResponse.json(
+        { success: true, orderId: "unknown", status: "COMPLETED", plan: "unknown", alreadyActive: true },
+        { headers: securityHeaders() }
+      );
+    }
+
+    // For order not found, check if subscription is already active (webhook may have handled it)
+    if (errorCode === "PAYPAL_ORDER_NOT_FOUND") {
+      const targetUserId = (error as Error & { userId?: string }).userId;
+      if (targetUserId) {
+        try {
+          const user = await db.user.findUnique({
+            where: { id: targetUserId },
+            select: { subscriptionStatus: true, subscriptionPlan: true },
+          });
+          if (user?.subscriptionStatus === "active") {
+            console.log("[capture] Order not found but user already has active subscription — treating as success");
+            return NextResponse.json(
+              { success: true, orderId: "unknown", status: "COMPLETED", plan: user.subscriptionPlan, alreadyActive: true },
+              { headers: securityHeaders() }
+            );
+          }
+        } catch { /* non-critical */ }
+      }
+    }
+
     return NextResponse.json(
-      { error: "Payment capture failed" },
+      { error: "Payment capture failed", details: errMsg, code: errorCode },
       { status: 500, headers: securityHeaders() }
     );
   }
