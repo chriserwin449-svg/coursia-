@@ -46,3 +46,25 @@ Stage Summary:
 - CourseViewer retries fetching 3 times before showing error
 - Payment page no longer shows server error - buttons are disabled with "Coming soon" when PayPal is not configured
 - All changes pushed to GitHub
+---
+Task ID: 1
+Agent: Main Agent (Full Stack)
+Task: Fix course generation bug, remove feedback button, fix payment errors, push to GitHub
+
+Work Log:
+- Analyzed entire codebase: CreateCourse.tsx, generate/route.ts, openai.ts, OffersPage.tsx, paypal.ts, store.ts, AppShell.tsx
+- Identified 7 root causes of the "Impossible de générer le cours" bug
+- Fixed src/lib/openai.ts: ZAI SDK now receives maxTokens/temperature, each provider has 2 retries with 1s/2s exponential backoff, added classifyAIError() utility
+- Fixed src/app/api/courses/generate/route.ts: Input validation, comprehensive step-by-step logging with timing, proper error codes (INVALID_INPUT, AI_GENERATION_FAILED, GENERATION_ERROR with errorType), better retry with 1s/2s backoff
+- Fixed src/components/coursia/CreateCourse.tsx: Added AbortController (150s timeout), generatingRef for double-click prevention, 5-step time-based progress animation, specific error messages per error type, cleanup on unmount, safe res.json() parsing
+- Fixed src/components/coursia/OffersPage.tsx: Safe JSON parsing of checkout response, specific error messages per HTTP status (404, 429, 400, 500/503), PayPal-specific error detection
+- Deleted src/components/coursia/FeedbackWidget.tsx (was not imported anywhere)
+- Verified: next build passes, ESLint clean on src/, TypeScript clean on modified files
+- Pushed to GitHub: commit 79fd417
+
+Stage Summary:
+- Root cause: ZAI SDK calls ignored maxTokens/temperature, no retry within AI providers, no frontend timeout, no double-click prevention, generic error messages
+- Files modified: openai.ts, generate/route.ts, CreateCourse.tsx, OffersPage.tsx
+- Files deleted: FeedbackWidget.tsx
+- Build: passes (next build succeeds)
+- Pushed to: https://github.com/chriserwin449-svg/coursia-.git (main branch, commit 79fd417)
