@@ -44,6 +44,10 @@ export default function CreateCourse() {
   const [isRandomTopic, setIsRandomTopic] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
 
+  // ─── Double-click prevention ref ───────────────────────────────────────
+  const generatingRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+
   // ─── Store refs for random topic ────────────────────────────────────────
   const storeRandomTopic = useAppStore((s) => s.randomTopic);
   const storeRandomCourseLang = useAppStore((s) => s.randomCourseLang);
@@ -66,20 +70,42 @@ export default function CreateCourse() {
     }
   }, [storeRandomTopic, storeRandomCourseLang, setStoreRandomTopic]);
 
-  // ─── Progress message cycling during generation ──────────────────────
+  // ─── Progress messages: 5 detailed steps ──────────────────────────────
   const progressMessages = useMemo(() => lang === "fr"
-    ? ["Préparation du cours...", "Génération du contenu par l'IA...", "Finalisation du cours..."]
-    : ["Preparing course...", "Generating content with AI...", "Finalizing course..."],
+    ? [
+        "Préparation du cours...",
+        "Analyse du sujet...",
+        "Création du plan...",
+        "Génération des chapitres...",
+        "Finalisation...",
+      ]
+    : [
+        "Preparing course...",
+        "Analyzing subject...",
+        "Creating outline...",
+        "Generating chapters...",
+        "Finalizing...",
+      ],
     [lang]
   );
 
+  // Simulate step progression based on time elapsed
   useEffect(() => {
     if (!loading) { setGenerationStep(0); return; }
+    // Advance through steps: each step ~12-15s (course takes ~60-90s total)
+    const stepDurations = [3000, 8000, 18000, 45000, 70000]; // ms thresholds
     const interval = setInterval(() => {
-      setGenerationStep(prev => (prev + 1) % progressMessages.length);
-    }, 8000);
+      const elapsed = Date.now() - (progressStartRef.current || Date.now());
+      let step = 0;
+      for (let i = stepDurations.length - 1; i >= 0; i--) {
+        if (elapsed >= stepDurations[i]) { step = i + 1; break; }
+      }
+      setGenerationStep(Math.min(step, progressMessages.length - 1));
+    }, 2000);
     return () => clearInterval(interval);
   }, [loading, progressMessages.length]);
+
+  const progressStartRef = useRef(0);
 
   // ─── Personalized greeting (time-based) ──────────────────────────────
   const greeting = useMemo(() => {
@@ -183,6 +209,17 @@ export default function CreateCourse() {
     fetchCourses();
   }, [fetchCourses]);
 
+  // ─── Cleanup: abort any ongoing generation on unmount ───────────────
+  useEffect(() => {
+    return () => {
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
+      }
+      generatingRef.current = false;
+    };
+  }, []);
+
   // ─── Clear suggested topic when user modifies title manually ────────
   const handleTitleChange = (newTitle: string) => {
     setTitle(newTitle);
@@ -206,8 +243,38 @@ export default function CreateCourse() {
     setLinks(links.filter((_, i) => i !== index));
   };
 
-  // ─── Generate course (with retry + DB recovery) ─────────────────────
+  // ─── User-friendly error classification ─────────────────────────────
+  const getErrorMessage = useCallback((errorType: string, httpStatus: number, detail: string): string => {
+    if (lang === "fr") {
+      if (httpStatus === 403) return "Limite de cours gratuits atteinte. Passe à un abonnement pour continuer.";
+      if (errorType === "RATE_LIMIT") return "Trop de demandes. Attends quelques secondes et réessaie.";
+      if (errorType === "TIMEOUT") return "La génération a pris trop de temps. Réessaie.";
+      if (errorType === "NETWORK") return "Problème de connexion. Vérifie ton internet et réessaie.";
+      if (errorType === "AUTH") return "Erreur d'authentification IA. Réessaie dans un instant.";
+      if (errorType === "SERVER") return "Le serveur IA est temporairement indisponible. Réessaie dans quelques instants.";
+      if (errorType === "PARSE" || errorType === "EMPTY") return "L'IA n'a pas pu générer un cours valide. Réessaie avec un autre sujet.";
+      if (errorType === "AI_GENERATION_FAILED") return "L'IA n'a pas pu structurer le cours. Réessaie.";
+      return "Une erreur inattendue est survenue. Réessaie dans un instant.";
+    } else {
+      if (httpStatus === 403) return "Free course limit reached. Upgrade to a subscription to continue.";
+      if (errorType === "RATE_LIMIT") return "Too many requests. Wait a few seconds and try again.";
+      if (errorType === "TIMEOUT") return "Generation timed out. Please try again.";
+      if (errorType === "NETWORK") return "Connection issue. Check your internet and try again.";
+      if (errorType === "AUTH") return "AI authentication error. Please try again in a moment.";
+      if (errorType === "SERVER") return "AI server temporarily unavailable. Please try again in a moment.";
+      if (errorType === "PARSE" || errorType === "EMPTY") return "AI couldn't generate a valid course. Try a different topic.";
+      if (errorType === "AI_GENERATION_FAILED") return "AI couldn't structure the course. Please try again.";
+      return "An unexpected error occurred. Please try again in a moment.";
+    }
+  }, [lang]);
+
+  // ─── Generate course (with retry, timeout, DB recovery) ─────────────
   const generateCourse = async () => {
+    // ═══ DOUBLE-CLICK PREVENTION ═══
+    if (generatingRef.current) {
+      console.log("[generate] Blocked: already generating");
+      return;
+    }
     if (!title.trim() || loading) return;
 
     // Validate payload before sending
@@ -237,13 +304,26 @@ export default function CreateCourse() {
     };
 
     console.log("[generate] Starting generation:", { title: generatingTitle, level: effectiveLevel, lang: courseLang });
+
+    // ═══ SET LOADING STATE ═══
+    generatingRef.current = true;
     setLoading(true);
-    setError("");
+    setError(""); // CRITICAL: Clear error BEFORE any async work
     setIsGenerating(true);
     setGenerationStep(0);
+    progressStartRef.current = Date.now();
 
-    const MAX_ATTEMPTS = 3; // initial + 2 retries
+    // ═══ ABORT CONTROLLER (150s timeout) ═══
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+    const { signal } = abortRef.current;
+    const FETCH_TIMEOUT_MS = 150_000; // 150 seconds
+    const timeoutId = setTimeout(() => abortRef.current?.abort(), FETCH_TIMEOUT_MS);
+
+    const MAX_ATTEMPTS = 3;
     let lastError: string | null = null;
+    let lastHttpStatus = 0;
+    let lastErrorType = "UNKNOWN";
     let courseRecovered = false;
 
     // Helper: poll DB to find a course that may have been created in the background
@@ -267,10 +347,15 @@ export default function CreateCourse() {
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         // Between retries: DB recovery check to avoid duplicate courses
         if (attempt > 0) {
-          const backoffMs = 2000 * attempt; // exponential: 2s, 4s
+          const backoffMs = 1000 * Math.pow(2, attempt); // 2s, 4s
           console.log(`[generate] Retry ${attempt}/${MAX_ATTEMPTS - 1} in ${backoffMs}ms...`);
-          await new Promise(r => setTimeout(r, backoffMs));
           setGenerationStep(0);
+          await new Promise(r => setTimeout(r, backoffMs));
+
+          if (signal.aborted) {
+            console.log("[generate] Aborted during retry backoff");
+            break;
+          }
 
           // Poll DB for the course (the API may have completed in the background)
           const recovered = await pollDbForCourse(2, 2000);
@@ -289,40 +374,67 @@ export default function CreateCourse() {
         }
 
         try {
+          console.log(`[generate] Attempt ${attempt + 1}/${MAX_ATTEMPTS}...`);
           const res = await fetch("/api/courses/generate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
+            signal,
           });
 
-          const data = await res.json();
-
           if (!res.ok) {
-            if (data.error === "FREE_LIMIT" || data.error === "TRIAL_LIMIT" || data.error === "TRIAL_EXPIRED") {
+            // Try to parse error body for more details
+            let errorData: Record<string, unknown> = {};
+            try { errorData = await res.json(); } catch { /* ignore parse error */ }
+
+            lastHttpStatus = res.status;
+            lastErrorType = (errorData.errorType as string) || "UNKNOWN";
+            lastError = (errorData.message as string) || (errorData.error as string) || `HTTP ${res.status}`;
+
+            if (errorData.error === "FREE_LIMIT" || errorData.error === "TRIAL_LIMIT" || errorData.error === "TRIAL_EXPIRED") {
               setView("offers");
               return;
             }
-            lastError = data.error || "Server error";
+
             console.warn(`[generate] Attempt ${attempt + 1} failed (${res.status}): ${lastError}`);
             continue; // retry
           }
 
+          // Parse successful response
+          let data: Record<string, unknown>;
+          try {
+            data = await res.json();
+          } catch (parseErr) {
+            console.error("[generate] Failed to parse response JSON:", parseErr);
+            lastErrorType = "PARSE";
+            lastError = "Invalid response from server";
+            continue;
+          }
+
           // Handle empty/null AI responses
           if (!data.course) {
+            lastErrorType = "EMPTY";
             lastError = "Empty response from server";
             console.warn(`[generate] Attempt ${attempt + 1}: empty course data`);
             continue;
           }
 
-          // Success!
+          // ═══ SUCCESS ═══
           const course = data.course as CourseData;
-          console.log(`[generate] Success on attempt ${attempt + 1}: "${course.title}"`);
+          console.log(`[generate] ✓ Success on attempt ${attempt + 1}: "${course.title}" (${course.chapters?.length || 0} chapters)`);
           setSelectedCourseId(course.id);
           setView("viewer");
           trackEvent({ name: "course_created", properties: { plan: String(effectiveLevel), attempt: attempt + 1 } });
           return;
         } catch (err: unknown) {
+          if (signal.aborted) {
+            console.log("[generate] Request aborted (timeout or user cancel)");
+            lastErrorType = "TIMEOUT";
+            lastError = "Request timed out";
+            break; // Don't retry on abort
+          }
           lastError = err instanceof Error ? err.message : "Network error";
+          lastErrorType = "NETWORK";
           console.warn(`[generate] Attempt ${attempt + 1} network error: ${lastError}`);
         }
       }
@@ -343,14 +455,16 @@ export default function CreateCourse() {
         return;
       }
 
-      // No recovery possible — show meaningful error
-      setError(lang === "fr"
-        ? "Impossible de générer le cours. Réessaie dans un instant."
-        : "Could not generate the course. Please try again in a moment."
-      );
+      // ═══ NO RECOVERY — Show specific error message ═══
+      const errorMsg = getErrorMessage(lastErrorType, lastHttpStatus, lastError || "");
+      console.error(`[generate] ALL ATTEMPTS FAILED: type=${lastErrorType}, status=${lastHttpStatus}, detail=${lastError}`);
+      setError(errorMsg);
     } finally {
+      clearTimeout(timeoutId);
+      generatingRef.current = false;
       setLoading(false);
       setIsGenerating(false);
+      abortRef.current = null;
       // Only refresh courses list if we're still on this page (not redirected to viewer)
       if (!courseRecovered) {
         fetchCourses();
@@ -631,7 +745,10 @@ export default function CreateCourse() {
             {loading ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>{progressMessages[generationStep]}</span>
+                <span className="flex items-center gap-2">
+                  <span>{progressMessages[generationStep]}</span>
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
+                </span>
               </>
             ) : (
               <>

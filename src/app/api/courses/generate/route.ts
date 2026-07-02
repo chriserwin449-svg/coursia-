@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
-import { smartChatCompletion } from "@/lib/openai";
+import { smartChatCompletion, classifyAIError } from "@/lib/openai";
 import { FREE_COURSE_LIMIT, MAX_SOURCE_LINKS, MAX_TOKENS } from "@/lib/constants";
 
 // Vercel serverless function timeout — course generation needs 120s
@@ -10,13 +10,43 @@ export const maxDuration = 120;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TIMING & LOGGING UTILITIES
+// ═══════════════════════════════════════════════════════════════════════════
+
+const timings: Record<string, number> = {};
+
+function logStep(step: string) {
+  const now = Date.now();
+  timings[step] = now;
+  console.log(`[generate][${step}] ── ${new Date().toISOString()}`);
+}
+
+function logDuration(from: string, to: string) {
+  const start = timings[from];
+  const end = timings[to] || Date.now();
+  if (start) {
+    console.log(`[generate][timing] ${from} → ${to}: ${((end - start) / 1000).toFixed(1)}s`);
+  }
+}
+
+/**
+ * Retry with exponential backoff: 1s, 2s, 4s (3 attempts)
+ */
 async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
   for (let attempt = 0; attempt <= retries; attempt++) {
-    try { return await fn(); } catch (error: unknown) {
+    try {
+      return await fn();
+    } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
-      if (attempt < retries && (msg.includes("429") || msg.includes("timeout") || msg.includes("ECONNRESET") || msg.includes("ETIMEDOUT") || msg.includes("socket") || msg.includes("fetch failed"))) {
-        console.log(`[retry] Attempt ${attempt + 1} failed (${msg.slice(0, 100)}), retrying in ${2000 * (attempt + 1)}ms...`);
-        await sleep(2000 * (attempt + 1));
+      const isRetryable = msg.includes("429") || msg.includes("timeout") || msg.includes("ECONNRESET")
+        || msg.includes("ETIMEDOUT") || msg.includes("socket") || msg.includes("fetch failed")
+        || msg.includes("502") || msg.includes("503") || msg.includes("500");
+
+      if (attempt < retries && isRetryable) {
+        const delay = 1000 * Math.pow(2, attempt); // 1s, 2s
+        console.log(`[retry] Attempt ${attempt + 1} failed (${msg.slice(0, 120)}), retrying in ${delay}ms...`);
+        await sleep(delay);
         continue;
       }
       throw error;
@@ -46,7 +76,9 @@ async function searchOnce(
       .slice(0, 4)
       .map((r: SearchResult, i: number) => `[${i + 1}] ${r.name}: ${r.snippet}`)
       .join("\n");
-  } catch { return ""; }
+  } catch {
+    return "";
+  }
 }
 
 async function deepSearch(
@@ -81,7 +113,7 @@ async function deepSearch(
 
   const combined = blocks.join("\n\n");
   const totalResults = [r1, r2, r3, r4].filter(Boolean).length;
-  console.log(`[search] Deep search completed: ${totalResults}/4 queries returned results`);
+  console.log(`[search] Deep search completed: ${totalResults}/4 queries returned results (${combined.length} chars)`);
 
   return combined;
 }
@@ -231,6 +263,7 @@ async function generateOutline(
   title: string, courseLang: string, level: number, webContext: string, sourceContext: string,
 ): Promise<OutlineResult | null> {
   const systemPrompt = buildOutlineSystemPrompt(title, courseLang, level, webContext, sourceContext);
+  console.log(`[outline] Generating outline for "${title}" (level=${level}, lang=${courseLang})...`);
   const completion = await smartChatCompletion([
     { role: "system", content: systemPrompt },
     { role: "user", content: `Conçois le plan détaillé du cours de niveau ${level} sur : ${title}` },
@@ -238,6 +271,10 @@ async function generateOutline(
 
   const text = completion.content || "";
   console.log(`[outline] Response: ${text.length} chars, provider: ${completion.provider}`);
+  if (!text) {
+    console.warn("[outline] Empty response from AI");
+    return null;
+  }
   return extractOutline(text);
 }
 
@@ -465,6 +502,10 @@ async function generateChapter(
 
   const text = completion.content || "";
   console.log(`[chapter-${chapterIdx + 1}] ${text.length} chars, provider: ${completion.provider}`);
+  if (!text) {
+    console.warn(`[chapter-${chapterIdx + 1}] Empty response`);
+    return null;
+  }
   return extractChapter(text);
 }
 
@@ -542,6 +583,10 @@ async function generateSingleCall(
 
   const text = completion.content || "";
   console.log(`[fallback] ${text.length} chars, provider: ${completion.provider}`);
+  if (!text) {
+    console.warn("[fallback] Empty response");
+    return null;
+  }
   return extractFallbackCourse(text);
 }
 
@@ -588,25 +633,59 @@ function extractFallbackCourse(text: string): { description: string; chapters: A
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  logStep("start");
+
   try {
-    const { title, sourceLinks = [], level = 0, courseLang = "en", userId } = await request.json();
+    // ── Parse and validate input ──
+    let body: { title?: string; sourceLinks?: string[]; level?: number; courseLang?: string; userId?: string };
+    try {
+      body = await request.json();
+    } catch {
+      console.error("[generate] Invalid JSON body");
+      return NextResponse.json({ error: "INVALID_INPUT", message: "Invalid request body" }, { status: 400 });
+    }
+
+    const { title, sourceLinks = [], level = 0, courseLang = "en", userId: rawUserId } = body;
+    const userId: string | null = rawUserId || null;
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
-      return NextResponse.json({ error: "Title is required" }, { status: 400 });
+      console.warn("[generate] Missing or empty title");
+      return NextResponse.json({ error: "INVALID_INPUT", message: "Title is required" }, { status: 400 });
     }
+
+    if (!["fr", "en"].includes(courseLang)) {
+      console.warn(`[generate] Invalid courseLang: ${courseLang}`);
+      return NextResponse.json({ error: "INVALID_INPUT", message: "Invalid language" }, { status: 400 });
+    }
+
+    if (typeof level !== "number" || level < 0 || level > 2) {
+      console.warn(`[generate] Invalid level: ${level}`);
+      return NextResponse.json({ error: "INVALID_INPUT", message: "Invalid level" }, { status: 400 });
+    }
+
+    console.log(`[generate] ═══ VALIDATION OK ═══ title="${title.trim()}" level=${level} lang=${courseLang} userId=${userId || 'anonymous'} links=${sourceLinks.length}`);
 
     // ── Free limit ──
     if (userId) {
-      const [user, existingCourses] = await Promise.all([
-        db.user.findUnique({ where: { id: userId }, select: { subscriptionStatus: true } }),
-        db.course.count({ where: { userId } }),
-      ]);
-      if (user?.subscriptionStatus !== "active" && existingCourses >= FREE_COURSE_LIMIT) {
-        return NextResponse.json({ error: "FREE_LIMIT", requiresSubscription: true }, { status: 403 });
+      try {
+        const [user, existingCourses] = await Promise.all([
+          db.user.findUnique({ where: { id: userId }, select: { subscriptionStatus: true } }),
+          db.course.count({ where: { userId } }),
+        ]);
+        if (user?.subscriptionStatus !== "active" && existingCourses >= FREE_COURSE_LIMIT) {
+          console.log(`[generate] Free limit reached for user ${userId}: ${existingCourses}/${FREE_COURSE_LIMIT}`);
+          return NextResponse.json({ error: "FREE_LIMIT", requiresSubscription: true }, { status: 403 });
+        }
+        console.log(`[generate] User quota OK: ${existingCourses}/${FREE_COURSE_LIMIT} courses, subscription: ${user?.subscriptionStatus || 'none'}`);
+      } catch (dbError) {
+        console.error("[generate] DB error checking quota:", dbError instanceof Error ? dbError.message : dbError);
+        // Don't block generation if DB check fails — continue anyway
       }
     }
 
     // ── Step 0: Deep web search + source scraping (parallel) ──
+    logStep("search_start");
     let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
     let webContext = "";
     let scrapedPages: ScrapedPage[] = [];
@@ -620,7 +699,7 @@ export async function POST(request: NextRequest) {
         await zaiInstance.functions.invoke("web_search", { query: "warmup", num: 1 });
         console.log("[generate] SDK warm-up successful");
       } catch {
-        console.log("[generate] SDK warm-up failed (non-critical)");
+        console.log("[generate] SDK warm-up failed (non-critical, continuing)");
       }
 
       const [searchResults, scraped] = await Promise.all([
@@ -629,44 +708,71 @@ export async function POST(request: NextRequest) {
       ]);
       webContext = searchResults;
       scrapedPages = scraped;
-    } catch {
-      console.log("[generate] z-ai SDK unavailable, skipping search/scraping");
+    } catch (err) {
+      console.warn("[generate] z-ai SDK unavailable, skipping search/scraping:", err instanceof Error ? err.message : err);
     }
 
     const sourceContext = buildSourceContext(scrapedPages);
-    console.log(`[generate] Starting generation for "${title}" level=${level} (web: ${webContext.length > 0 ? "yes" : "no"}, sources: ${scrapedPages.length})`);
+    logStep("search_end");
+    logDuration("search_start", "search_end");
+    console.log(`[generate] Search phase complete: web=${webContext.length > 0 ? webContext.length + 'chars' : 'none'}, sources=${scrapedPages.length}`);
 
-    // ── Step 1: Generate outline (with retry for cold-start failures) ──
+    // ── Step 1: Generate outline (with retry) ──
+    logStep("outline_start");
     let outline: OutlineResult | null = null;
+    let outlineError: unknown = null;
+
     try {
-      outline = await withRetry(() => generateOutline(title, courseLang, level, webContext, sourceContext), 1);
-    } catch (error: unknown) {
+      outline = await withRetry(() => generateOutline(title, courseLang, level, webContext, sourceContext), 2);
+    } catch (error) {
+      outlineError = error;
       const msg = error instanceof Error ? error.message : String(error);
-      console.log(`[generate] Outline first attempt failed (${msg.slice(0, 120)}), retrying without research context...`);
+      console.log(`[generate] Outline all retries failed (${msg.slice(0, 150)}), trying without research context...`);
       try {
         outline = await generateOutline(title, courseLang, level, "", "");
-      } catch {
-        console.log("[generate] Outline retry also failed");
+      } catch (retryErr) {
+        console.error("[generate] Outline retry without context also failed:", retryErr instanceof Error ? retryErr.message : retryErr);
       }
     }
 
+    logStep("outline_end");
+    logDuration("outline_start", "outline_end");
+
     if (!outline || outline.chapters.length < 3) {
-      console.log("[generate] Outline failed, trying single-call fallback...");
+      console.log("[generate] Outline failed or too few chapters, trying single-call fallback...");
+      logStep("fallback_start");
       const fallbackResult = await generateSingleCall(title, courseLang, level, webContext, sourceContext);
+      logStep("fallback_end");
+      logDuration("fallback_start", "fallback_end");
+
       if (!fallbackResult || fallbackResult.chapters.length === 0) {
-        return NextResponse.json({ error: "The AI could not generate a valid course. Please try again." }, { status: 500 });
+        console.error("[generate] ALL GENERATION METHODS FAILED");
+        const errType = outlineError ? classifyAIError(outlineError) : "UNKNOWN";
+        return NextResponse.json({
+          error: "AI_GENERATION_FAILED",
+          message: "The AI could not generate a valid course structure. This is usually temporary.",
+          errorType: errType,
+        }, { status: 500 });
       }
+      console.log(`[generate] Fallback succeeded: ${fallbackResult.chapters.length} chapters`);
       const course = await saveCourse(title, level, userId, sourceLinks, fallbackResult.description, fallbackResult.chapters, scrapedPages.length);
+      logStep("save_end");
+      logDuration("start", "save_end");
+      console.log(`[generate] ═══ TOTAL TIME: ${((Date.now() - startTime) / 1000).toFixed(1)}s ═══`);
       return NextResponse.json(buildResponse(course, sourceLinks, scrapedPages.length));
     }
 
     console.log(`[outline] ${outline.chapters.length} chapters planned`);
 
     // ── Step 2: Generate each chapter individually ──
+    logStep("chapters_start");
     const generatedChapters: Array<{ title: string; content: string; summary: string }> = [];
 
     for (let i = 0; i < outline.chapters.length; i++) {
       const ch = outline.chapters[i];
+      console.log(`[generate] ── Chapter ${i + 1}/${outline.chapters.length}: "${ch.title}" ──`);
+      const chStart = Date.now();
+
       let chapter = await generateChapter(title, courseLang, level, i, outline.chapters.length, ch, webContext, sourceContext);
 
       if (!chapter) {
@@ -682,26 +788,57 @@ export async function POST(request: NextRequest) {
       } else {
         console.warn(`[chapter-${i + 1}] Completely failed, skipping`);
       }
+
+      console.log(`[chapter-${i + 1}] Time: ${((Date.now() - chStart) / 1000).toFixed(1)}s`);
     }
 
     if (generatedChapters.length === 0) {
       console.log("[generate] All chapters failed, trying single-call fallback...");
+      logStep("fallback2_start");
       const fallbackResult = await generateSingleCall(title, courseLang, level, webContext, sourceContext);
+      logStep("fallback2_end");
+
       if (!fallbackResult || fallbackResult.chapters.length === 0) {
-        return NextResponse.json({ error: "The AI could not generate a valid course. Please try again." }, { status: 500 });
+        console.error("[generate] ALL GENERATION METHODS FAILED (including fallback)");
+        return NextResponse.json({
+          error: "AI_GENERATION_FAILED",
+          message: "The AI could not generate any course chapters. Please try again.",
+        }, { status: 500 });
       }
       const course = await saveCourse(title, level, userId, sourceLinks, fallbackResult.description, fallbackResult.chapters, scrapedPages.length);
+      logStep("save_end");
+      logDuration("start", "save_end");
+      console.log(`[generate] ═══ TOTAL TIME: ${((Date.now() - startTime) / 1000).toFixed(1)}s ═══`);
       return NextResponse.json(buildResponse(course, sourceLinks, scrapedPages.length));
     }
 
     console.log(`[generate] Generated ${generatedChapters.length}/${outline.chapters.length} chapters successfully`);
+    logStep("chapters_end");
+    logDuration("chapters_start", "chapters_end");
 
     // ── Step 3: Save ──
+    logStep("save_start");
     const course = await saveCourse(title, level, userId, sourceLinks, outline.description, generatedChapters, scrapedPages.length);
+    logStep("save_end");
+    logDuration("save_start", "save_end");
+    logDuration("start", "save_end");
+    console.log(`[generate] ═══ COURSE GENERATED SUCCESSFULLY in ${((Date.now() - startTime) / 1000).toFixed(1)}s ═══`);
+    console.log(`[generate] Course ID: ${course.id}, Chapters: ${course.chapters.length}`);
     return NextResponse.json(buildResponse(course, sourceLinks, scrapedPages.length));
   } catch (error: unknown) {
-    console.error("Course generation error:", error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to generate course" }, { status: 500 });
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    const msg = error instanceof Error ? error.message : String(error);
+    const errorType = classifyAIError(error);
+    console.error(`[generate] ═══ UNHANDLED ERROR after ${duration}s ═══`);
+    console.error(`[generate] Error type: ${errorType}`);
+    console.error(`[generate] Error message: ${msg}`);
+    console.error(error);
+
+    return NextResponse.json({
+      error: "GENERATION_ERROR",
+      message: `Course generation failed: ${msg.slice(0, 200)}`,
+      errorType,
+    }, { status: 500 });
   }
 }
 

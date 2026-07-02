@@ -76,31 +76,58 @@ export default function OffersPage() {
         body: JSON.stringify({ plan, userId }),
       });
 
-      const data = await res.json();
+      // Safely parse response body
+      let data: Record<string, unknown> = {};
+      try {
+        data = await res.json();
+      } catch {
+        setCheckoutError(lang === "fr" ? "Réponse invalide du serveur. Réessaie." : "Invalid server response. Please try again.");
+        setLoadingPlan(null);
+        return;
+      }
 
       if (!res.ok) {
         if (data.code === "PAYPAL_NOT_CONFIGURED") {
           setPaypalNotConfigured(true);
+        } else if (res.status === 404) {
+          setCheckoutError(lang === "fr" ? "Utilisateur introuvable. Connecte-toi." : "User not found. Please sign in.");
+        } else if (res.status === 429) {
+          setCheckoutError(lang === "fr" ? "Trop de tentatives. Attends une minute." : "Too many attempts. Wait a minute.");
+        } else if (res.status === 400) {
+          setCheckoutError(String(data.error || "") || (lang === "fr" ? "Requête invalide." : "Invalid request."));
         } else {
-          setCheckoutError(data.error || (lang === "fr" ? "Erreur lors du paiement" : "Payment failed"));
+          // 500/503 — show the actual detail if available
+          const detail = data.details || data.error || "";
+          const isPayPalIssue = String(detail).toLowerCase().includes("paypal");
+          if (isPayPalIssue) {
+            setCheckoutError(lang === "fr"
+              ? "Service de paiement temporairement indisponible. Réessaie dans quelques minutes."
+              : "Payment service temporarily unavailable. Please try again in a few minutes.");
+          } else {
+            setCheckoutError(lang === "fr"
+              ? "Erreur serveur. Réessaie dans un instant."
+              : "Server error. Please try again in a moment.");
+          }
+          console.error("[checkout] Server error:", data);
         }
         setLoadingPlan(null);
         return;
       }
 
-      if (data.requestId) setPaymentRequestId(data.requestId);
-      setPaypalOrderId(data.orderId);
+      if (data.requestId) setPaymentRequestId(String(data.requestId));
+      if (data.orderId) setPaypalOrderId(String(data.orderId));
 
       // Redirect to PayPal for approval
       if (data.approveUrl) {
         trackEvent({ name: "payment_init", properties: { plan } });
-        window.location.href = data.approveUrl;
+        window.location.href = String(data.approveUrl);
       } else {
         setCheckoutError(lang === "fr" ? "Lien PayPal indisponible." : "PayPal link unavailable.");
         setLoadingPlan(null);
       }
-    } catch {
-      setCheckoutError(lang === "fr" ? "Erreur de connexion. Réessaie." : "Connection error. Please try again.");
+    } catch (err) {
+      console.error("[checkout] Network error:", err);
+      setCheckoutError(lang === "fr" ? "Erreur de connexion. Vérifie ton internet et réessaie." : "Connection error. Check your internet and try again.");
       setLoadingPlan(null);
     }
   }, [isAuthenticated, userId, lang, setView, loadingPlan, paypalConfigured]);
