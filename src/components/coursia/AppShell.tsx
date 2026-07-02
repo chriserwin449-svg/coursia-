@@ -15,7 +15,6 @@ import CourseViewer from "@/components/coursia/CourseViewer";
 import Journey from "@/components/coursia/Journey";
 import OffersPage from "@/components/coursia/OffersPage";
 import TopBar from "@/components/coursia/TopBar";
-import FeedbackWidget from "@/components/coursia/FeedbackWidget";
 
 function MobileBottomNav() {
   const view = useAppStore((s) => s.view);
@@ -265,8 +264,7 @@ export default function AppShell() {
         </div>
       )}
 
-      {/* Feedback widget — always visible */}
-      <FeedbackWidget />
+
     </div>
   );
 }

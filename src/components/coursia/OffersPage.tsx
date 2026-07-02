@@ -52,8 +52,8 @@ export default function OffersPage() {
   const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // PayPal is always assumed configured — the checkout API will handle errors if not
-  const isPaypalConfigured = true;
+  // PayPal configuration check
+  const [paypalConfigured, setPaypalConfigured] = useState<boolean | null>(null);
   const [paypalNotConfigured, setPaypalNotConfigured] = useState(false);
 
   // Handle checkout — create order and redirect to PayPal
@@ -63,6 +63,7 @@ export default function OffersPage() {
       return;
     }
     if (loadingPlan) return;
+    if (paypalConfigured === false) return; // Don't attempt checkout if PayPal not configured
 
     setLoadingPlan(plan);
     setCheckoutError(null);
@@ -102,7 +103,7 @@ export default function OffersPage() {
       setCheckoutError(lang === "fr" ? "Erreur de connexion. Réessaie." : "Connection error. Please try again.");
       setLoadingPlan(null);
     }
-  }, [isAuthenticated, userId, lang, setView, loadingPlan]);
+  }, [isAuthenticated, userId, lang, setView, loadingPlan, paypalConfigured]);
 
   // Check paywall & subscription status
   useEffect(() => {
@@ -112,6 +113,25 @@ export default function OffersPage() {
     // Dismiss notification dot when viewing offers page
     useAppStore.getState().setHasNotification(false);
     useAppStore.getState().setNotificationDismissed(true);
+
+    // Pre-check PayPal configuration
+    const checkPayPalConfig = async () => {
+      try {
+        const res = await fetch("/api/paypal/config");
+        if (res.ok) {
+          const data = await res.json();
+          setPaypalConfigured(!!data.configured);
+          if (!data.configured) setPaypalNotConfigured(true);
+        } else {
+          setPaypalConfigured(false);
+          setPaypalNotConfigured(true);
+        }
+      } catch {
+        setPaypalConfigured(false);
+        setPaypalNotConfigured(true);
+      }
+    };
+    checkPayPalConfig();
 
     const checkStatus = async () => {
       try {
@@ -332,6 +352,7 @@ export default function OffersPage() {
 
   // Button disabled logic
   const isButtonDisabled = (plan: string) =>
+    paypalConfigured === false ||
     loadingPlan === plan ||
     paymentProcessing ||
     (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired);
@@ -519,12 +540,14 @@ export default function OffersPage() {
                   disabled
                   className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired
-                    ? lang === "fr" ? "Plan Actuel" : "Current Plan"
-                    : <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        {lang === "fr" ? "Chargement..." : "Loading..."}
-                      </>}
+                  {paypalConfigured === false
+                    ? (lang === "fr" ? "Bientôt disponible" : "Coming soon")
+                    : isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired
+                      ? lang === "fr" ? "Plan Actuel" : "Current Plan"
+                      : <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          {lang === "fr" ? "Chargement..." : "Loading..."}
+                        </>}
                 </button>
               ) : (
                 <button
@@ -588,12 +611,14 @@ export default function OffersPage() {
                   disabled
                   className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden"
                 >
-                  {isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired
-                    ? lang === "fr" ? "Plan Actuel" : "Current Plan"
-                    : <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        {lang === "fr" ? "Chargement..." : "Loading..."}
-                      </>}
+                  {paypalConfigured === false
+                    ? (lang === "fr" ? "Bientôt disponible" : "Coming soon")
+                    : isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired
+                      ? lang === "fr" ? "Plan Actuel" : "Current Plan"
+                      : <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          {lang === "fr" ? "Chargement..." : "Loading..."}
+                        </>}
                 </button>
               ) : (
                 <button
@@ -617,20 +642,22 @@ export default function OffersPage() {
         <div className="text-center pb-10">
           {/* PayPal not configured notice */}
           {paypalNotConfigured && (
-            <div className="mb-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm font-semibold animate-[fadeIn_0.3s_ease-out]">
+            <div className="mb-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-semibold animate-[fadeIn_0.3s_ease-out]">
               ⚙️ {lang === "fr"
-                ? "Les paiements PayPal seront bientôt disponibles. Reviens vérifier prochainement !"
-                : "PayPal payments will be available soon. Check back later!"}
+                ? "Les paiements seront bientôt disponibles. Reviens vérifier prochainement !"
+                : "Payments will be available soon. Check back later!"}
             </div>
           )}
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <Lock className="w-3.5 h-3.5 text-muted-foreground/40" />
-            <span className="text-xs text-muted-foreground/50">
-              {lang === "fr"
-                ? "Paiement 100% sécurisé via PayPal"
-                : "100% secure payment via PayPal"}
-            </span>
-          </div>
+          {!paypalNotConfigured && (
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Lock className="w-3.5 h-3.5 text-muted-foreground/40" />
+              <span className="text-xs text-muted-foreground/50">
+                {lang === "fr"
+                  ? "Paiement 100% sécurisé via PayPal"
+                  : "100% secure payment via PayPal"}
+              </span>
+            </div>
+          )}
 
         </div>
       </div>

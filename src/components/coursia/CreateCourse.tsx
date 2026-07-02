@@ -244,32 +244,48 @@ export default function CreateCourse() {
 
     const MAX_ATTEMPTS = 3; // initial + 2 retries
     let lastError: string | null = null;
+    let courseRecovered = false;
+
+    // Helper: poll DB to find a course that may have been created in the background
+    const pollDbForCourse = async (maxPolls = 5, intervalMs = 3000): Promise<CourseData | null> => {
+      for (let p = 0; p < maxPolls; p++) {
+        try {
+          await new Promise(r => setTimeout(r, p === 0 ? 0 : intervalMs));
+          const checkRes = await fetch(`/api/courses?userId=${useAppStore.getState().userId || ''}`);
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            const list: CourseData[] = (checkData.courses as CourseData[]) || [];
+            const match = list.find((c) => c.title.toLowerCase() === generatingTitle.toLowerCase());
+            if (match) return match;
+          }
+        } catch { /* non-critical */ }
+      }
+      return null;
+    };
 
     try {
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         // Between retries: DB recovery check to avoid duplicate courses
         if (attempt > 0) {
-          const backoffMs = 1000 * attempt; // exponential: 1s, 2s
+          const backoffMs = 2000 * attempt; // exponential: 2s, 4s
           console.log(`[generate] Retry ${attempt}/${MAX_ATTEMPTS - 1} in ${backoffMs}ms...`);
           await new Promise(r => setTimeout(r, backoffMs));
           setGenerationStep(0);
 
-          try {
-            const checkRes = await fetch(`/api/courses?userId=${useAppStore.getState().userId || ''}`);
-            if (checkRes.ok) {
-              const checkData = await checkRes.json();
-              const list: CourseData[] = (checkData.courses as CourseData[]) || [];
-              setCourses(list);
-              const match = list.find((c) => c.title.toLowerCase() === generatingTitle.toLowerCase());
-              if (match) {
-                console.log(`[generate] Course found in DB after failed attempt, recovering: "${match.title}"`);
-                setSelectedCourseId(match.id);
-                setView("viewer");
-                trackEvent({ name: "course_created_recovery", properties: { title: generatingTitle, attempt: attempt + 1 } });
-                return;
-              }
-            }
-          } catch { /* non-critical */ }
+          // Poll DB for the course (the API may have completed in the background)
+          const recovered = await pollDbForCourse(2, 2000);
+          if (recovered) {
+            console.log(`[generate] Course found in DB after failed attempt, recovering: "${recovered.title}"`);
+            setCourses(prev => {
+              const exists = prev.some(c => c.id === recovered.id);
+              return exists ? prev : [recovered, ...prev];
+            });
+            setSelectedCourseId(recovered.id);
+            setView("viewer");
+            trackEvent({ name: "course_created_recovery", properties: { title: generatingTitle, attempt: attempt + 1 } });
+            courseRecovered = true;
+            return;
+          }
         }
 
         try {
@@ -311,23 +327,21 @@ export default function CreateCourse() {
         }
       }
 
-      // All attempts failed — final DB recovery check
-      try {
-        const checkRes = await fetch(`/api/courses?userId=${useAppStore.getState().userId || ''}`);
-        if (checkRes.ok) {
-          const checkData = await checkRes.json();
-          const list: CourseData[] = (checkData.courses as CourseData[]) || [];
-          setCourses(list);
-          const match = list.find((c) => c.title.toLowerCase() === generatingTitle.toLowerCase());
-          if (match) {
-            console.log(`[generate] Final recovery: course "${match.title}" found in DB`);
-            setSelectedCourseId(match.id);
-            setView("viewer");
-            trackEvent({ name: "course_created_recovery", properties: { title: generatingTitle } });
-            return;
-          }
-        }
-      } catch { /* non-critical */ }
+      // All attempts failed — poll DB to find course that may have been created in the background
+      console.log("[generate] All attempts failed, polling DB for recovery...");
+      const recovered = await pollDbForCourse(5, 3000);
+      if (recovered) {
+        console.log(`[generate] Final recovery: course "${recovered.title}" found in DB`);
+        setCourses(prev => {
+          const exists = prev.some(c => c.id === recovered.id);
+          return exists ? prev : [recovered, ...prev];
+        });
+        setSelectedCourseId(recovered.id);
+        setView("viewer");
+        trackEvent({ name: "course_created_recovery", properties: { title: generatingTitle } });
+        courseRecovered = true;
+        return;
+      }
 
       // No recovery possible — show meaningful error
       setError(lang === "fr"
@@ -337,7 +351,10 @@ export default function CreateCourse() {
     } finally {
       setLoading(false);
       setIsGenerating(false);
-      fetchCourses();
+      // Only refresh courses list if we're still on this page (not redirected to viewer)
+      if (!courseRecovered) {
+        fetchCourses();
+      }
     }
   };
 

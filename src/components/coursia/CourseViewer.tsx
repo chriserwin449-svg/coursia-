@@ -38,6 +38,7 @@ export default function CourseViewer() {
   const [course, setCourse] = useState<CourseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+  const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
   const [studySessionId, setStudySessionId] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [courseCompleted, setCourseCompleted] = useState(false);
@@ -222,58 +223,76 @@ export default function CourseViewer() {
     if (!selectedCourseId) return;
     setLoading(true);
     setFetchError(false);
-    try {
-      // Fetch subscription status in parallel with course data
-      const userId = useAppStore.getState().userId;
-      const authHeaders: Record<string, string> = {};
-      if (userId) authHeaders["Authorization"] = `Bearer ${userId}`;
+    setHasAttemptedFetch(false);
 
-      const [courseRes, statusRes] = await Promise.all([
-        fetch(`/api/courses/${selectedCourseId}`),
-        userId ? fetch("/api/courses/paywall-status", { headers: authHeaders }) : Promise.resolve(null),
-      ]);
+    // Retry logic: the course may have just been created and DB not fully committed
+    const maxRetries = 3;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Fetch subscription status in parallel with course data
+        const userId = useAppStore.getState().userId;
+        const authHeaders: Record<string, string> = {};
+        if (userId) authHeaders["Authorization"] = `Bearer ${userId}`;
 
-      const data = await courseRes.json();
-      // Parse subscription status
-      if (statusRes && statusRes.ok) {
-        const pw = await statusRes.json();
-        setIsSubscribed(!!pw.hasSubscription && pw.subscriptionStatus === "active");
-        setFreeChapterLimit(pw.freeChapterLimit || 1);
-        setCanStudy(pw.canStudy !== false);
-        setInGracePeriod(!!pw.inGracePeriod);
-        setGraceDaysRemaining(pw.graceDaysRemaining || 0);
-        setGraceExpired(pw.showPaywall && pw.paywallReason === "grace_expired");
-      }
+        const [courseRes, statusRes] = await Promise.all([
+          fetch(`/api/courses/${selectedCourseId}`),
+          userId ? fetch("/api/courses/paywall-status", { headers: authHeaders }) : Promise.resolve(null),
+        ]);
 
-      if (courseRes.ok && data.chapters?.length > 0) {
-        setCourse(data);
-        if (data.courseCompleted) setCourseCompleted(true);
-        const savedChapterKey = `coursia-last-chapter-${selectedCourseId}`;
-        const savedChapter = typeof window !== "undefined" ? localStorage.getItem(savedChapterKey) : null;
-        let restoreIdx = 0;
-        if (savedChapter) {
-          const savedIdx = parseInt(savedChapter, 10);
-          if (!isNaN(savedIdx) && savedIdx >= 0 && savedIdx < data.chapters.length) {
-            if (!isChapterLevelLockedForData(savedIdx, data)) restoreIdx = savedIdx;
+        const data = await courseRes.json();
+        // Parse subscription status
+        if (statusRes && statusRes.ok) {
+          const pw = await statusRes.json();
+          setIsSubscribed(!!pw.hasSubscription && pw.subscriptionStatus === "active");
+          setFreeChapterLimit(pw.freeChapterLimit || 1);
+          setCanStudy(pw.canStudy !== false);
+          setInGracePeriod(!!pw.inGracePeriod);
+          setGraceDaysRemaining(pw.graceDaysRemaining || 0);
+          setGraceExpired(pw.showPaywall && pw.paywallReason === "grace_expired");
+        }
+
+        if (courseRes.ok && data.chapters?.length > 0) {
+          setCourse(data);
+          if (data.courseCompleted) setCourseCompleted(true);
+          const savedChapterKey = `coursia-last-chapter-${selectedCourseId}`;
+          const savedChapter = typeof window !== "undefined" ? localStorage.getItem(savedChapterKey) : null;
+          let restoreIdx = 0;
+          if (savedChapter) {
+            const savedIdx = parseInt(savedChapter, 10);
+            if (!isNaN(savedIdx) && savedIdx >= 0 && savedIdx < data.chapters.length) {
+              if (!isChapterLevelLockedForData(savedIdx, data)) restoreIdx = savedIdx;
+            }
           }
+          if (restoreIdx === 0) {
+            const firstIncomplete = data.chapters.findIndex((ch: CourseChapter) => !ch.progress?.completed && !isChapterLevelLockedForData(data.chapters.indexOf(ch), data));
+            if (firstIncomplete >= 0) restoreIdx = firstIncomplete;
+          }
+          const currentIdx = useAppStore.getState().currentChapterIndex;
+          if (currentIdx === 0 || currentIdx >= data.chapters.length) {
+            setCurrentChapterIndex(restoreIdx);
+          }
+          startStudySession(selectedCourseId, data.chapters[restoreIdx >= 0 ? restoreIdx : 0]?.id);
+          setHasAttemptedFetch(true);
+          return; // success
+        } else if (attempt < maxRetries - 1) {
+          // Course not found yet (may have just been created), wait and retry
+          console.log(`[viewer] Course not ready (attempt ${attempt + 1}/${maxRetries}), retrying in 2s...`);
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        } else {
+          setFetchError(true);
         }
-        if (restoreIdx === 0) {
-          const firstIncomplete = data.chapters.findIndex((ch: CourseChapter) => !ch.progress?.completed && !isChapterLevelLockedForData(data.chapters.indexOf(ch), data));
-          if (firstIncomplete >= 0) restoreIdx = firstIncomplete;
+      } catch (err) {
+        if (attempt < maxRetries - 1) {
+          console.log(`[viewer] Fetch error (attempt ${attempt + 1}/${maxRetries}), retrying in 2s...`, err);
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
         }
-        const currentIdx = useAppStore.getState().currentChapterIndex;
-        if (currentIdx === 0 || currentIdx >= data.chapters.length) {
-          setCurrentChapterIndex(restoreIdx);
-        }
-        startStudySession(selectedCourseId, data.chapters[restoreIdx >= 0 ? restoreIdx : 0]?.id);
-      } else {
         setFetchError(true);
       }
-    } catch {
-      setFetchError(true);
-    } finally {
-      setLoading(false);
     }
+    setHasAttemptedFetch(true);
+    setLoading(false);
   }, [selectedCourseId, setCurrentChapterIndex]);
 
   // Helper to check level lock for data during fetch (before state is set)
@@ -516,7 +535,7 @@ export default function CourseViewer() {
   // ══════════════════════════════════════════════════════════════════
   // Loading / error state
   // ══════════════════════════════════════════════════════════════════
-  if (!selectedCourseId || fetchError || (!loading && !course)) {
+  if (!selectedCourseId || (fetchError && hasAttemptedFetch) || (hasAttemptedFetch && !loading && !course)) {
     return (
       <div className="flex items-center justify-center min-h-screen animate-fade-in">
         <div className="text-center">
