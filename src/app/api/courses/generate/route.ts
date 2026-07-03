@@ -286,6 +286,16 @@ function extractOutline(text: string): OutlineResult | null {
   const cb = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (cb) cleaned = cb[1].trim();
 
+  // Strategy 1: Direct JSON parse (ideal case — handles complete valid JSON)
+  try {
+    const data = JSON.parse(cleaned) as Record<string, unknown>;
+    if (data.chapters && Array.isArray(data.chapters)) {
+      const parsed = parseOutlineData(data);
+      if (parsed && parsed.chapters.length > 0) return parsed;
+    }
+  } catch { /* not valid JSON directly, continue */ }
+
+  // Strategy 2: Brace-matching extraction (for JSON embedded in text)
   const firstBrace = cleaned.indexOf("{");
   if (firstBrace === -1) return null;
 
@@ -301,59 +311,77 @@ function extractOutline(text: string): OutlineResult | null {
 
   const snippet = lastBrace > firstBrace ? cleaned.slice(firstBrace, lastBrace + 1) : cleaned.slice(firstBrace);
 
-  try {
-    const data = JSON.parse(snippet) as Record<string, unknown>;
-    if (!data.chapters || !Array.isArray(data.chapters)) return null;
-    const description = typeof data.description === "string" ? data.description : "";
-    const chapters: OutlineChapter[] = [];
-    for (const ch of data.chapters) {
-      if (!ch || typeof ch !== "object") continue;
-      const c = ch as Record<string, unknown>;
-      if (typeof c.title === "string" && c.title.trim()) {
-        chapters.push({
-          title: c.title.trim(),
-          goal: typeof c.goal === "string" ? c.goal.trim() : "",
-          keyConcepts: Array.isArray(c.keyConcepts) ? c.keyConcepts.map(String) : [],
-          subSections: Array.isArray(c.subSections) ? c.subSections.map(String) : [],
-          plannedAnalogy: typeof c.plannedAnalogy === "string" ? c.plannedAnalogy.trim() : "",
-          plannedCaseStudy: typeof c.plannedCaseStudy === "string" ? c.plannedCaseStudy.trim() : "",
-          plannedExample: typeof c.plannedExample === "string" ? c.plannedExample.trim() : "",
-          mythToBust: typeof c.mythToBust === "string" ? c.mythToBust.trim() : "",
-          reflectionQuestion: typeof c.reflectionQuestion === "string" ? c.reflectionQuestion.trim() : "",
-          realAction: typeof c.realAction === "string" ? c.realAction.trim() : "",
-          expertNote: typeof c.expertNote === "string" ? c.expertNote.trim() : "",
-        });
-      }
-    }
-    return chapters.length > 0 ? { description, chapters } : null;
-  } catch {
-    // Recovery attempt
+  const tryParse = (s: string): OutlineResult | null => {
     try {
-      const fixed = snippet.replace(/,\s*([}\]])/g, "$1").replace(/[\u201C\u201D\u2018\u2019]/g, "'");
-      const data = JSON.parse(fixed) as Record<string, unknown>;
-      if (!data.chapters || !Array.isArray(data.chapters)) return null;
-      const description = typeof data.description === "string" ? data.description : "";
-      const chapters: OutlineChapter[] = [];
-      for (const ch of data.chapters) {
-        if (!ch || typeof ch !== "object") continue;
-        const c = ch as Record<string, unknown>;
-        if (typeof c.title === "string" && c.title.trim()) {
-          chapters.push({
-            title: c.title.trim(), goal: typeof c.goal === "string" ? c.goal.trim() : "",
-            keyConcepts: Array.isArray(c.keyConcepts) ? c.keyConcepts.map(String) : [],
-            subSections: Array.isArray(c.subSections) ? c.subSections.map(String) : [],
-            plannedAnalogy: typeof c.plannedAnalogy === "string" ? c.plannedAnalogy.trim() : "",
-            plannedCaseStudy: typeof c.plannedCaseStudy === "string" ? c.plannedCaseStudy.trim() : "",
-            plannedExample: typeof c.plannedExample === "string" ? c.plannedExample.trim() : "",
-            mythToBust: typeof c.mythToBust === "string" ? c.mythToBust.trim() : "",
-            reflectionQuestion: typeof c.reflectionQuestion === "string" ? c.reflectionQuestion.trim() : "",
-            realAction: typeof c.realAction === "string" ? c.realAction.trim() : "",
-          });
-        }
-      }
-      return chapters.length > 0 ? { description, chapters } : null;
+      const data = JSON.parse(s) as Record<string, unknown>;
+      return parseOutlineData(data);
     } catch { return null; }
+  };
+
+  const result = tryParse(snippet)
+    || tryParse(snippet.replace(/,\s*([}\]])/g, "$1").replace(/[\u201C\u201D\u2018\u2019]/g, "'"));
+
+  if (result) return result;
+
+  // Strategy 3: Extract chapter titles from partial/truncated JSON
+  return extractChaptersFromPartialJSON(snippet);
+}
+
+function parseOutlineData(data: Record<string, unknown>): OutlineResult | null {
+  if (!data.chapters || !Array.isArray(data.chapters)) return null;
+  const description = typeof data.description === "string" ? data.description : "";
+  const chapters: OutlineChapter[] = [];
+  for (const ch of data.chapters) {
+    if (!ch || typeof ch !== "object") continue;
+    const c = ch as Record<string, unknown>;
+    if (typeof c.title === "string" && c.title.trim()) {
+      chapters.push({
+        title: c.title.trim(),
+        goal: typeof c.goal === "string" ? c.goal.trim() : "",
+        keyConcepts: Array.isArray(c.keyConcepts) ? c.keyConcepts.map(String) : [],
+        subSections: Array.isArray(c.subSections) ? c.subSections.map(String) : [],
+        plannedAnalogy: typeof c.plannedAnalogy === "string" ? c.plannedAnalogy.trim() : "",
+        plannedCaseStudy: typeof c.plannedCaseStudy === "string" ? c.plannedCaseStudy.trim() : "",
+        plannedExample: typeof c.plannedExample === "string" ? c.plannedExample.trim() : "",
+        mythToBust: typeof c.mythToBust === "string" ? c.mythToBust.trim() : "",
+        reflectionQuestion: typeof c.reflectionQuestion === "string" ? c.reflectionQuestion.trim() : "",
+        realAction: typeof c.realAction === "string" ? c.realAction.trim() : "",
+        expertNote: typeof c.expertNote === "string" ? c.expertNote.trim() : "",
+      });
+    }
   }
+  return chapters.length > 0 ? { description, chapters } : null;
+}
+
+/** Extract as many chapter outlines as possible from potentially truncated JSON */
+function extractChaptersFromPartialJSON(text: string): OutlineResult | null {
+  const chapterBlockRegex = /\{\s*"title"\s*:\s*"([^"]{5,200})"\s*,\s*"goal"\s*:\s*"([^"]*)"/g;
+  const matches: { title: string; goal: string }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = chapterBlockRegex.exec(text)) !== null) {
+    matches.push({ title: m[1], goal: m[2] });
+  }
+  if (matches.length === 0) return null;
+
+  const descMatch = text.match(/"description"\s*:\s*"([^"]{10,500})"/);
+  const description = descMatch ? descMatch[1] : "";
+
+  const chapters: OutlineChapter[] = matches.map((match) => ({
+    title: match.title,
+    goal: match.goal,
+    keyConcepts: [],
+    subSections: [],
+    plannedAnalogy: "",
+    plannedCaseStudy: "",
+    plannedExample: "",
+    mythToBust: "",
+    reflectionQuestion: "",
+    realAction: "",
+    expertNote: "",
+  }));
+
+  console.log(`[outline] Extracted ${chapters.length} chapters from partial JSON`);
+  return chapters.length > 0 ? { description, chapters } : null;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -517,6 +545,21 @@ function extractChapter(text: string): { title: string; content: string; summary
   const cb = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (cb) cleaned = cb[1].trim();
 
+  // Strategy 1: Direct JSON parse
+  const tryParse = (s: string) => {
+    try {
+      const data = JSON.parse(s) as Record<string, unknown>;
+      if (typeof data.title === "string" && data.title.trim() && typeof data.content === "string" && data.content.trim()) {
+        return { title: data.title.trim(), content: data.content.trim(), summary: typeof data.summary === "string" ? data.summary.trim() : "" };
+      }
+    } catch { /* continue */ }
+    return null;
+  };
+
+  let result = tryParse(cleaned);
+  if (result) return result;
+
+  // Strategy 2: Brace-matching extraction
   const firstBrace = cleaned.indexOf("{");
   if (firstBrace === -1) return null;
 
@@ -532,17 +575,34 @@ function extractChapter(text: string): { title: string; content: string; summary
 
   const snippet = lastBrace > firstBrace ? cleaned.slice(firstBrace, lastBrace + 1) : cleaned.slice(firstBrace);
 
-  const tryParse = (s: string) => {
-    try {
-      const data = JSON.parse(s) as Record<string, unknown>;
-      if (typeof data.title === "string" && data.title.trim() && typeof data.content === "string" && data.content.trim()) {
-        return { title: data.title.trim(), content: data.content.trim(), summary: typeof data.summary === "string" ? data.summary.trim() : "" };
-      }
-    } catch { /* continue */ }
-    return null;
-  };
+  result = tryParse(snippet)
+    || tryParse(snippet.replace(/,\s*([}\]])/g, "$1").replace(/[\u201C\u201D\u2018\u2019]/g, "'"));
 
-  return tryParse(snippet) || tryParse(snippet.replace(/,\s*([}\]])/g, "$1").replace(/[\u201C\u201D\u2018\u2019]/g, "'")) || null;
+  if (result) return result;
+
+  // Strategy 3: Extract title + content from partial JSON (e.g., truncated by token limit)
+  const titleMatch = cleaned.match(/"title"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  const contentMatch = cleaned.match(/"content"\s*:\s*"((?:[^"\\]|\\.|[\s\S])*?)(?:"\s*(?:,|\}|$))/);
+  const summaryMatch = cleaned.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+
+  if (titleMatch && contentMatch) {
+    let content = contentMatch[1]
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\");
+    // Ensure content has at least one heading
+    if (content.includes("##")) {
+      console.log(`[extractChapter] Recovered chapter from partial JSON: "${titleMatch[1].slice(0, 50)}..."`);
+      return {
+        title: titleMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"'),
+        content,
+        summary: summaryMatch ? summaryMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"') : "",
+      };
+    }
+  }
+
+  return null;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -559,6 +619,28 @@ function validateChapterQuality(content: string, level: number): { passed: boole
   if (headingCount < 4) issues.push(`Too few sections (${headingCount}, minimum 4)`);
 
   return { passed: issues.length === 0, wordCount, headingCount, issues };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EMERGENCY: Minimal chapter generation (when full prompt fails twice)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function generateChapterEmergency(
+  courseTitle: string, courseLang: string, level: number,
+  chapterIdx: number, totalChapters: number, outline: OutlineChapter,
+): Promise<{ title: string; content: string; summary: string } | null> {
+  const langNote = courseLang === "en" ? "Write in English." : "Écris en français.";
+  const levelLabel = level === 0 ? "beginner" : level === 1 ? "intermediate" : "advanced";
+
+  const completion = await smartChatCompletion([
+    { role: "system", content: `You are a teacher. ${langNote} Level: ${levelLabel}. Respond ONLY with valid JSON, no markdown.` },
+    { role: "user", content: `Write chapter ${chapterIdx + 1} of ${totalChapters} for a course on "${courseTitle}".\nChapter title: "${outline.title}"\nGoal: ${outline.goal}\n\nRespond ONLY with: {"title":"...","content":"## Section 1\\nContent\\n\\n## Section 2\\nContent\\n\\n## Key Takeaways\\nSummary","summary":"One sentence summary"}\n\nThe content must be at least 400 words with proper ## headings.` },
+  ], { maxTokens: 4096, temperature: 0.6 });
+
+  const text = completion.content || "";
+  console.log(`[emergency-chapter-${chapterIdx + 1}] ${text.length} chars, provider: ${completion.provider}`);
+  if (!text) return null;
+  return extractChapter(text);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -597,8 +679,21 @@ function extractFallbackCourse(text: string): { description: string; chapters: A
   let cleaned = text.trim();
   const cb = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (cb) cleaned = cb[1].trim();
+
+  // Strategy 1: Direct parse
+  const tryParse = (s: string) => {
+    try {
+      const data = JSON.parse(s) as Record<string, unknown>;
+      return parseFallbackData(data);
+    } catch { return null; }
+  };
+
+  let result = tryParse(cleaned);
+  if (result && result.chapters.length >= MIN_CHAPTERS) return result;
+
+  // Strategy 2: Brace-matching
   const firstBrace = cleaned.indexOf("{");
-  if (firstBrace === -1) return null;
+  if (firstBrace === -1) return result;
 
   let depth = 0, lastBrace = -1;
   for (let i = firstBrace; i < cleaned.length; i++) {
@@ -611,24 +706,27 @@ function extractFallbackCourse(text: string): { description: string; chapters: A
   }
 
   const snippet = lastBrace > firstBrace ? cleaned.slice(firstBrace, lastBrace + 1) : cleaned.slice(firstBrace);
-  const tryParse = (s: string) => {
-    try {
-      const data = JSON.parse(s) as Record<string, unknown>;
-      if (!data.chapters || !Array.isArray(data.chapters)) return null;
-      const description = typeof data.description === "string" ? data.description : "";
-      const chapters: Array<{ title: string; content: string; summary: string }> = [];
-      for (const ch of data.chapters) {
-        if (!ch || typeof ch !== "object") continue;
-        const c = ch as Record<string, unknown>;
-        if (typeof c.title === "string" && c.title.trim() && typeof c.content === "string" && c.content.trim()) {
-          chapters.push({ title: c.title.trim(), content: c.content.trim(), summary: typeof c.summary === "string" ? c.summary.trim() : "" });
-        }
-      }
-      return chapters.length > 0 ? { description, chapters } : null;
-    } catch { return null; }
-  };
 
-  return tryParse(snippet) || tryParse(snippet.replace(/,\s*([}\]])/g, "$1").replace(/[\u201C\u201D\u2018\u2019]/g, "'")) || null;
+  const parsed = tryParse(snippet)
+    || tryParse(snippet.replace(/,\s*([}\]])/g, "$1").replace(/[\u201C\u201D\u2018\u2019]/g, "'"));
+
+  if (parsed && (!result || parsed.chapters.length > result.chapters.length)) result = parsed;
+
+  return result;
+}
+
+function parseFallbackData(data: Record<string, unknown>): { description: string; chapters: Array<{ title: string; content: string; summary: string }> } | null {
+  if (!data.chapters || !Array.isArray(data.chapters)) return null;
+  const description = typeof data.description === "string" ? data.description : "";
+  const chapters: Array<{ title: string; content: string; summary: string }> = [];
+  for (const ch of data.chapters) {
+    if (!ch || typeof ch !== "object") continue;
+    const c = ch as Record<string, unknown>;
+    if (typeof c.title === "string" && c.title.trim() && typeof c.content === "string" && c.content.trim()) {
+      chapters.push({ title: c.title.trim(), content: c.content.trim(), summary: typeof c.summary === "string" ? c.summary.trim() : "" });
+    }
+  }
+  return chapters.length > 0 ? { description, chapters } : null;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -770,18 +868,32 @@ export async function POST(request: NextRequest) {
 
     // ── Step 2: Generate each chapter individually ──
     logStep("chapters_start");
-    const generatedChapters: Array<{ title: string; content: string; summary: string }> = [];
+    let generatedChapters: Array<{ title: string; content: string; summary: string }> = [];
 
     for (let i = 0; i < outline.chapters.length; i++) {
       const ch = outline.chapters[i];
       console.log(`[generate] ── Chapter ${i + 1}/${outline.chapters.length}: "${ch.title}" ──`);
       const chStart = Date.now();
 
-      let chapter = await generateChapter(title, courseLang, level, i, outline.chapters.length, ch, webContext, sourceContext);
+      // Attempt 1: Full prompt with research context
+      let chapter = await withRetry(
+        () => generateChapter(title, courseLang, level, i, outline.chapters.length, ch, webContext, sourceContext),
+        1, // 1 retry (2 attempts total)
+      );
 
+      // Attempt 2: Without research context (smaller prompt = faster, less likely to fail)
       if (!chapter) {
-        console.log(`[chapter-${i + 1}] Failed, retrying without research context...`);
-        chapter = await generateChapter(title, courseLang, level, i, outline.chapters.length, ch, "", "");
+        console.log(`[chapter-${i + 1}] Attempt 1 failed, trying without research context...`);
+        chapter = await withRetry(
+          () => generateChapter(title, courseLang, level, i, outline.chapters.length, ch, "", ""),
+          1,
+        );
+      }
+
+      // Attempt 3: Minimal emergency prompt — just asks for raw content, no fancy structure
+      if (!chapter) {
+        console.log(`[chapter-${i + 1}] Attempt 2 failed, trying minimal emergency prompt...`);
+        chapter = await generateChapterEmergency(title, courseLang, level, i, outline.chapters.length, ch);
       }
 
       if (chapter) {
@@ -790,30 +902,39 @@ export async function POST(request: NextRequest) {
         else console.log(`[chapter-${i + 1}] Quality OK (${quality.wordCount} words, ${quality.headingCount} headings)`);
         generatedChapters.push(chapter);
       } else {
-        console.warn(`[chapter-${i + 1}] Completely failed, skipping`);
+        console.error(`[chapter-${i + 1}] ALL 3 ATTEMPTS FAILED — chapter will be missing!`);
       }
 
       console.log(`[chapter-${i + 1}] Time: ${((Date.now() - chStart) / 1000).toFixed(1)}s`);
     }
 
-    if (generatedChapters.length === 0) {
-      console.log("[generate] All chapters failed, trying single-call fallback...");
+    // ── Safety net: if fewer than MIN_CHAPTERS were generated, try single-call fallback ──
+    if (generatedChapters.length < MIN_CHAPTERS) {
+      console.log(`[generate] Only ${generatedChapters.length}/${outline.chapters.length} chapters generated (need ${MIN_CHAPTERS}). Trying single-call fallback...`);
       logStep("fallback2_start");
       const fallbackResult = await generateSingleCall(title, courseLang, level, webContext, sourceContext);
       logStep("fallback2_end");
 
-      if (!fallbackResult || fallbackResult.chapters.length === 0) {
-        console.error("[generate] ALL GENERATION METHODS FAILED (including fallback)");
-        return NextResponse.json({
-          error: "AI_GENERATION_FAILED",
-          message: "The AI could not generate any course chapters. Please try again.",
-        }, { status: 500 });
+      if (fallbackResult && fallbackResult.chapters.length > generatedChapters.length) {
+        console.log(`[generate] Fallback produced ${fallbackResult.chapters.length} chapters (better than ${generatedChapters.length}), using fallback result`);
+        generatedChapters = fallbackResult.chapters;
+        // Use fallback description if it's better
+        if (fallbackResult.description && fallbackResult.description.length > (outline.description?.length || 0)) {
+          outline.description = fallbackResult.description;
+        }
+      } else if (fallbackResult) {
+        console.log(`[generate] Fallback produced only ${fallbackResult.chapters.length} chapters (not better), keeping original ${generatedChapters.length}`);
+      } else {
+        console.warn(`[generate] Single-call fallback also failed`);
       }
-      const course = await saveCourse(title, level, userId, sourceLinks, fallbackResult.description, fallbackResult.chapters, scrapedPages.length);
-      logStep("save_end");
-      logDuration("start", "save_end");
-      console.log(`[generate] ═══ TOTAL TIME: ${((Date.now() - startTime) / 1000).toFixed(1)}s ═══`);
-      return NextResponse.json(buildResponse(course, sourceLinks, scrapedPages.length));
+    }
+
+    if (generatedChapters.length === 0) {
+      console.error("[generate] ALL GENERATION METHODS FAILED — no chapters at all");
+      return NextResponse.json({
+        error: "AI_GENERATION_FAILED",
+        message: "The AI could not generate any course chapters. Please try again.",
+      }, { status: 500 });
     }
 
     console.log(`[generate] Generated ${generatedChapters.length}/${outline.chapters.length} chapters successfully`);
