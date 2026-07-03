@@ -1,4 +1,30 @@
 ---
+Task ID: push
+Agent: Main Agent
+Task: Push all fixes to remote — chapter generation robustness, verify landing page fixes
+
+Work Log:
+- Analyzed full codebase to understand chapter generation flow (generate/route.ts, CourseViewer.tsx, CreateCourse.tsx, openai.ts)
+- Identified root cause of "only one chapter" bug: chapters silently dropped when AI calls fail (no retry, no minimum threshold)
+- Fixed generate/route.ts with 3-layer robustness:
+  1. Each chapter now gets 3 generation attempts: full prompt (2x withRetry) + emergency minimal prompt
+  2. Safety net: if fewer than MIN_CHAPTERS generated, triggers single-call fallback and picks the better result
+  3. Improved JSON extraction for all parsers (extractOutline, extractChapter, extractFallbackCourse):
+     - Strategy 1: Direct JSON.parse (handles complete valid JSON)
+     - Strategy 2: Brace-matching extraction (JSON embedded in text/markdown)
+     - Strategy 3: Regex-based partial JSON recovery (truncated responses)
+- Added generateChapterEmergency() function — minimal prompt for when full prompt fails
+- Added parseOutlineData() and extractChaptersFromPartialJSON() helper functions
+- Added parseFallbackData() helper for cleaner fallback parsing
+- Verified via browser: landing page shows FR toggle, © 2026, no contact email, app-preview.png image
+- Lint: zero errors in src/
+- Committed and pushed: 4dba77e
+
+Stage Summary:
+- File modified: src/app/api/courses/generate/route.ts (+217/-96 lines)
+- Pushed to: https://github.com/chriserwin449-svg/coursia-.git (main, 79fd417..4dba77e)
+- All previous fixes confirmed in place: language toggle, copyright 2026, no contact email, completion flow with confetti
+---
 Task ID: 1
 Agent: Main Agent
 Task: Fix course generation reliability, payment redirect UX, and add first-course-free feature
