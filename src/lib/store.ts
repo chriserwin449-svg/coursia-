@@ -137,7 +137,7 @@ interface AppState {
 export const useAppStore = create<AppState>((set, get) => ({
   lang: (typeof window !== "undefined" && localStorage.getItem("coursia-lang"))
     ? (localStorage.getItem("coursia-lang") as AppLang)
-    : "en",
+    : "fr",
   setLang: (lang) => {
     if (typeof window !== "undefined") {
       localStorage.setItem("coursia-lang", lang);
