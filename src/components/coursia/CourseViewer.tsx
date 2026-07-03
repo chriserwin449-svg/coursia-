@@ -386,6 +386,68 @@ export default function CourseViewer() {
     setIsCompleting(false);
   }, [course, isCompleting, currentChapter?.progress?.completed, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, startStudySession, setCurrentChapterIndex, isSubscribed, freeChapterLimit, trackEvent]);
 
+  // ── Complete last chapter of a level → celebration + level-up prompt ──
+  const handleCompleteLevel = useCallback(async () => {
+    if (!course || isCompleting) return;
+    setIsCompleting(true);
+
+    // Mark current chapter complete
+    const wasJustCompleted = !currentChapter?.progress?.completed;
+    if (wasJustCompleted) {
+      await completeCurrentChapter();
+    }
+    endStudySession();
+
+    // Determine the completed level
+    const currentChLevel = currentChapter?.level ?? 0;
+    const currentMaxLevel = course?.maxUnlockedLevel ?? 0;
+    const completedLvl = Math.max(currentChLevel, currentMaxLevel);
+
+    // Award level completion bonus via API
+    try {
+      await fetch(`/api/courses/${selectedCourseId}/complete-level`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ level: completedLvl }),
+      });
+    } catch { /* non-critical */ }
+
+    // Refetch course to get updated progress
+    const courseRes = await fetch(`/api/courses/${selectedCourseId}`);
+    if (courseRes.ok) setCourse(await courseRes.json());
+
+    const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
+    const levelEmojis = ["🌱", "⚡", "🔥"];
+    const levelBonus = [50, 100, 150];
+    const bonusPts = levelBonus[Math.min(completedLvl, 2)] || 50;
+
+    // Show celebration
+    setShowConfetti(true);
+    setShowCelebration(true);
+    if (lang === "fr") {
+      setCelebrationMessage(`Niveau ${getLevelName(completedLvl)} terminé ${userName} ! ${levelEmojis[Math.min(completedLvl, 2)]} +${bonusPts} 🔥`);
+    } else {
+      setCelebrationMessage(`${getLevelName(completedLvl)} level complete ${userName}! ${levelEmojis[Math.min(completedLvl, 2)]} +${bonusPts} 🔥`);
+    }
+
+    // After celebration, show level-up screen
+    if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+    celebrationTimerRef.current = setTimeout(() => {
+      setShowCelebration(false);
+      setShowConfetti(false);
+      setCompletedLevel(completedLvl);
+
+      // Check if this was the last level (advanced = 2)
+      if (completedLvl >= 2) {
+        setShowAllMastered(true);
+      } else {
+        setShowReviewScreen(true);
+      }
+    }, 4000);
+
+    setIsCompleting(false);
+  }, [course, isCompleting, currentChapter, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, selectedCourseId, getLevelName]);
+
   const goToPrev = useCallback(() => {
     if (currentChapterIndex === 0 || !course) return;
     endStudySession();
@@ -442,18 +504,22 @@ export default function CourseViewer() {
       });
       const data = await res.json();
       if (res.ok && data.chapters?.length > 0) {
-        // Refetch course
-        await fetchCourse();
-        // Navigate to first chapter of new level
-        const firstNewChapterIdx = course.chapters.findIndex((ch) => (ch.level ?? 0) === nextLevel);
-        if (firstNewChapterIdx >= 0) setCurrentChapterIndex(firstNewChapterIdx);
+        // Refetch course to get updated chapters
+        const courseRes = await fetch(`/api/courses/${selectedCourseId}`);
+        if (courseRes.ok) {
+          const updatedCourse = await courseRes.json();
+          setCourse(updatedCourse);
+          // Navigate to first chapter of new level from updated data
+          const firstNewIdx = updatedCourse.chapters.findIndex((ch: { level?: number }) => (ch.level ?? 0) === nextLevel);
+          if (firstNewIdx >= 0) setCurrentChapterIndex(firstNewIdx);
+        }
       }
     } catch {
       // show error
     } finally {
       setIsGeneratingLevel(false);
     }
-  }, [course, selectedCourseId, maxUnlockedLevel, fetchCourse, setCurrentChapterIndex]);
+  }, [course, selectedCourseId, maxUnlockedLevel, setCurrentChapterIndex]);
 
   // ── Stop at current level ──
   const handleStopHere = useCallback(async () => {
@@ -604,7 +670,9 @@ export default function CourseViewer() {
                 {lang === "fr" ? `Niveau ${getLevelName(completedLevelData)}` : `Level ${getLevelName(completedLevelData)}`}
               </p>
               <p className="text-gold font-bold text-lg mt-1">
-                {lang === "fr" ? "+50 🔥" : "+50 🔥"}
+                {lang === "fr"
+                  ? `+${[50, 100, 150][Math.min(completedLevelData, 2)]} 🔥`
+                  : `+${[50, 100, 150][Math.min(completedLevelData, 2)]} 🔥`}
               </p>
             </div>
 
@@ -1160,14 +1228,13 @@ export default function CourseViewer() {
                       <>{tx.viewer.next}<ChevronRight className="w-4 h-4" /></>
                     )}
                   </button>
-                ) : allChaptersCompleted ? (
-                  <button onClick={() => setShowFinalQuiz(true)} className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-gold to-gold-dark text-night text-sm font-bold hover:from-gold-light hover:to-gold transition-all cursor-pointer">
-                    <Trophy className="w-4 h-4" />
-                    {tx.viewer.finalQuiz}
-                  </button>
                 ) : (
-                  <button onClick={goToNext} disabled={isCompleting} className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold hover:from-mauve-light hover:to-mauve transition-all disabled:opacity-50 cursor-pointer">
-                    {isCompleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <>{lang === "fr" ? "Terminer le cours" : "Complete course"}<CheckCircle2 className="w-4 h-4" /></>}
+                  <button onClick={handleCompleteLevel} disabled={isCompleting} className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-gold to-gold-dark text-night text-sm font-bold hover:from-gold-light hover:to-gold transition-all cursor-pointer">
+                    {isCompleting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <><Trophy className="w-4 h-4" />{currentChapter.progress?.completed ? (lang === "fr" ? "Niveau suivant" : "Next level") : (lang === "fr" ? "Terminer le niveau" : "Complete level")}</>
+                    )}
                   </button>
                 )}
               </div>

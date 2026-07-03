@@ -238,15 +238,30 @@ export function getFlameProgress(points: number): {
 }
 
 /**
- * Calculate flame points earned from a quiz score (score 0-100).
- * HARD mode: Only earns points if score >= 80.
- * Formula: Math.round(score * 0.15)
- * e.g. 100% = 15 pts, 90% = 13 pts, 80% = 12 pts
- * Below 80%: 0 pts
+ * Calculate flame points earned from a chapter completion.
+ * Points scale with course level: beginner=15, intermediate=30, advanced=50
  */
-export function calculateFlameEarned(score: number): number {
+export function calculateFlameEarned(score: number, level: number = 0): number {
   if (score < 80) return 0;
-  return Math.round(score * 0.15);
+  const basePoints = [15, 30, 50];
+  const multiplier = basePoints[Math.min(level, 2)] || 15;
+  return Math.round((score / 100) * multiplier);
+}
+
+/**
+ * Calculate bonus flame points for completing all chapters of a level.
+ * Beginner: +50, Intermediate: +100, Advanced: +150
+ */
+export function calculateLevelCompletionBonus(level: number): number {
+  const bonuses = [50, 100, 150];
+  return bonuses[Math.min(level, 2)] || 50;
+}
+
+/**
+ * Calculate bonus flame points for mastering all 3 levels.
+ */
+export function calculateMasteryBonus(): number {
+  return 500;
 }
 
 /**

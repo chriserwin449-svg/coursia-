@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 import { smartChatCompletion, classifyAIError } from "@/lib/openai";
-import { FREE_COURSE_LIMIT, MAX_SOURCE_LINKS, MAX_TOKENS } from "@/lib/constants";
+import { FREE_COURSE_LIMIT, MAX_SOURCE_LINKS, MAX_TOKENS, MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
 
 // Vercel serverless function timeout — course generation needs 120s
 // (web search + AI outline + 4-6 AI chapter generations)
@@ -231,6 +231,9 @@ ${researchBlock}
 Crée un plan de cours de niveau ${level} qui couvre le sujet avec profondeur et rigueur.
 Le plan doit être suffisamment détaillé pour qu'un autre expert puisse l'enseigner.
 
+NOMBRE DE CHAPITRES OBLIGATOIRE : entre ${MIN_CHAPTERS} et ${MAX_CHAPTERS} chapitres. Pas moins de ${MIN_CHAPTERS}, pas plus de ${MAX_CHAPTERS}.
+Chaque chapitre DOIT être substantiel et couvrir un aspect distinct du sujet.
+
 RÈGLES ABSOLUES :
 1. PROGRESSION : chaque chapitre construit sur le précédent. Ordre logique, pas aléatoire.
 2. PROFONDEUR : chaque chapitre doit contenir au moins 3 sous-sections distinctes.
@@ -266,7 +269,7 @@ async function generateOutline(
   console.log(`[outline] Generating outline for "${title}" (level=${level}, lang=${courseLang})...`);
   const completion = await smartChatCompletion([
     { role: "system", content: systemPrompt },
-    { role: "user", content: `Conçois le plan détaillé du cours de niveau ${level} sur : ${title}` },
+    { role: "user", content: `Conçois le plan détaillé du cours de niveau ${level} (${MIN_CHAPTERS}-${MAX_CHAPTERS} chapitres) sur : ${title}` },
   ], { maxTokens: 4096, temperature: 0.5 });
 
   const text = completion.content || "";
@@ -578,7 +581,7 @@ async function generateSingleCall(
       researchBlock,
       `Réponds UNIQUEMENT avec ce JSON : {"description":"...","chapters":[{"title":"...","content":"## Hook\\n\\n...\\n\\n## Contexte\\n\\n...\\n\\n## Concepts\\n\\n...\\n\\n> Insight\\n\\n## Mythe\\n\\n...\\n\\n## Réflexion\\n\\n...\\n\\n## Action\\n\\n...","summary":"..."}]}`,
     ].join("\n") },
-    { role: "user", content: `Crée un cours de niveau ${level} (4-6 chapitres) sur : ${title}` },
+    { role: "user", content: `Crée un cours de niveau ${level} (${MIN_CHAPTERS}-${MAX_CHAPTERS} chapitres OBLIGATOIRES, pas moins de ${MIN_CHAPTERS}) sur : ${title}` },
   ], { maxTokens: MAX_TOKENS, temperature: 0.7 });
 
   const text = completion.content || "";
@@ -738,7 +741,8 @@ export async function POST(request: NextRequest) {
     logStep("outline_end");
     logDuration("outline_start", "outline_end");
 
-    if (!outline || outline.chapters.length < 3) {
+    console.log(`[outline] Outline has ${outline.chapters.length} chapters, need at least ${MIN_CHAPTERS}`);
+    if (outline.chapters.length < MIN_CHAPTERS) {
       console.log("[generate] Outline failed or too few chapters, trying single-call fallback...");
       logStep("fallback_start");
       const fallbackResult = await generateSingleCall(title, courseLang, level, webContext, sourceContext);

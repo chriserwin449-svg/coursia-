@@ -68,3 +68,32 @@ Stage Summary:
 - Files deleted: FeedbackWidget.tsx
 - Build: passes (next build succeeds)
 - Pushed to: https://github.com/chriserwin449-svg/coursia-.git (main branch, commit 79fd417)
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Multiple fixes: language toggle, contact removal, copyright year, course generation chapters bug, course completion flow, flame points by level, hero image replacement
+
+Work Log:
+- Fixed language toggle: changed from showing opposite language to showing current language (lang.toUpperCase())
+- Removed all contact@coursia.app references from LandingPage.tsx and i18n.ts
+- Fixed copyright year from 2025 to 2026 in i18n.ts (both FR and EN app.footer)
+- Fixed course generation bug: outline prompt now explicitly requests MIN_CHAPTERS-MAX_CHAPTERS (4-6), uses constants from constants.ts
+- Complete course completion flow rewrite: removed quiz requirement, now triggers celebration + level-up prompt after all chapters read
+- Added handleCompleteLevel function in CourseViewer.tsx: marks last chapter complete, awards level bonus flames, shows personalized celebration with confetti, then shows level-up review screen
+- Updated flame points system: calculateFlameEarned now takes level parameter (beginner=15, intermediate=30, advanced=50 per chapter)
+- Added calculateLevelCompletionBonus: beginner +50, intermediate +100, advanced +150
+- Added calculateMasteryBonus: +500 for completing all 3 levels
+- Created /api/courses/[id]/complete-level/route.ts API endpoint for awarding level completion bonus
+- Added flameAwardedLevels field to CourseProgress schema to prevent duplicate awards
+- Updated generate-level API to use MIN_CHAPTERS/MAX_CHAPTERS constants
+- Replaced static mockup in landing page with real AI-generated app screenshot (public/app-preview.png)
+- Verified all changes pass ESLint with zero src/ errors
+- Browser verified: language toggle shows FR/EN correctly, footer shows 2026, no contact email, app preview image displays
+
+Stage Summary:
+- Files modified: LandingPage.tsx, CourseViewer.tsx, i18n.ts, generate/route.ts, flames.ts, schema.prisma, chapter complete route, generate-level route
+- Files created: src/app/api/courses/[id]/complete-level/route.ts, public/app-preview.png
+- Database: added flameAwardedLevels column to CourseProgress
+- All user-visible 2025 copyright references removed
+- All contact@coursia.app references removed

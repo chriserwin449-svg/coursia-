@@ -118,6 +118,7 @@ model CourseProgress {
   score             Int            @default(0)
   passedAt          DateTime?
   flameAwarded      Boolean        @default(false)
+  flameAwardedLevels String        @default("[]")
   maxUnlockedLevel  Int            @default(0)
   stoppedAtLevel    Int            @default(-1)
   sessions          StudySession[]

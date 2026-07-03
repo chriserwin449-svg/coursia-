@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 import { smartChatCompletion } from "@/lib/openai";
+import { MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -158,8 +159,8 @@ export async function POST(
             : "You are Coursia AI, an exceptional AI teacher.",
           "",
           courseLang === "fr"
-            ? `MISSION : Génère 4-6 chapitres pour le niveau ${nextLevel} du cours : ${course.title}`
-            : `MISSION: Generate 4-6 chapters for level ${nextLevel} of the course: ${course.title}`,
+            ? `MISSION : Génère ${MIN_CHAPTERS}-${MAX_CHAPTERS} chapitres pour le niveau ${nextLevel} du cours : ${course.title}`
+            : `MISSION: Generate ${MIN_CHAPTERS}-${MAX_CHAPTERS} chapters for level ${nextLevel} of the course: ${course.title}`,
           "",
           courseLang === "fr"
             ? "STYLE : Dynamique, humain, captivant, jamais robotique."

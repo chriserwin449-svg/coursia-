@@ -133,7 +133,7 @@ export default function LandingPage() {
               className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-200 cursor-pointer text-sm font-bold"
             >
               <Globe className="w-4 h-4" />
-              <span>{lang === "fr" ? "EN" : "FR"}</span>
+              <span>{lang.toUpperCase()}</span>
             </button>
 
             <button
@@ -246,68 +246,22 @@ export default function LandingPage() {
 
       {/* ===== PRODUCT PREVIEW SECTION ===== */}
       <section className="relative py-20 px-4">
-        <div className="relative z-10 max-w-4xl mx-auto text-center">
+        <div className="relative z-10 max-w-5xl mx-auto text-center">
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-4">
             {(tx.landing as Record<string, unknown>).mockupTitle as string}
           </h2>
           <p className="text-muted-foreground text-base sm:text-lg max-w-xl mx-auto mb-10">
             {(tx.landing as Record<string, unknown>).mockupDesc as string}
           </p>
-          {/* Course Mockup */}
-          <div className="glass rounded-2xl overflow-hidden text-left shadow-2xl shadow-mauve/10 border border-border/50 max-w-2xl mx-auto">
-            {/* Mockup Header */}
-            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-border/50 bg-night/50">
-              <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full bg-red-500/60" />
-                <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
-                <div className="w-3 h-3 rounded-full bg-emerald-500/60" />
-              </div>
-              <span className="text-xs text-muted-foreground/60 font-medium truncate">
-                {lang === "fr" ? "Introduction à l'intelligence artificielle" : "Introduction to Artificial Intelligence"}
-              </span>
-              <span className="ml-auto text-[10px] text-mauve-light font-bold bg-mauve/10 px-2 py-0.5 rounded-full">Niveau 1</span>
-            </div>
-            {/* Mockup Chapter List */}
-            <div className="p-4 space-y-2">
-              <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                <div className="w-7 h-7 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
-                  <Check className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{lang === "fr" ? "Chapitre 1 : Qu'est-ce que l'IA ?" : "Chapter 1: What is AI?"}</p>
-                  <p className="text-[11px] text-muted-foreground/60">{lang === "fr" ? "Quiz réussi — Score : 4/5" : "Quiz passed — Score: 4/5"}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-mauve/10 border border-mauve/20">
-                <div className="w-7 h-7 rounded-lg bg-mauve/20 flex items-center justify-center flex-shrink-0">
-                  <BookOpen className="w-4 h-4 text-mauve-light" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{lang === "fr" ? "Chapitre 2 : Les types d'apprentissage" : "Chapter 2: Types of Learning"}</p>
-                  <p className="text-[11px] text-muted-foreground/60">{lang === "fr" ? "En cours de lecture..." : "Currently reading..."}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl opacity-50">
-                <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
-                  <Lock className="w-3.5 h-3.5 text-muted-foreground" />
-                </div>
-                <p className="text-sm text-muted-foreground truncate">{lang === "fr" ? "Chapitre 3 : Réseaux de neurones" : "Chapter 3: Neural Networks"}</p>
-              </div>
-            </div>
-            {/* Mockup Quiz Preview */}
-            <div className="px-4 pb-4">
-              <div className="rounded-xl bg-night/60 border border-border/30 p-3.5">
-                <p className="text-xs font-bold text-mauve-light mb-2">{lang === "fr" ? "QUIZ — Chapitre 2" : "QUIZ — Chapter 2"}</p>
-                <p className="text-sm text-foreground mb-3">{lang === "fr" ? "Quel type d'apprentissage utilise des exemples étiquetés pour entraîner un modèle ?" : "Which type of learning uses labeled examples to train a model?"}</p>
-                <div className="flex flex-wrap gap-2">
-                  {["Supervisé", "Non supervisé", "Par renforcement", "Génératif"].map((opt, i) => (
-                    <span key={i} className={`text-xs px-3 py-1.5 rounded-lg border font-medium ${
-                      i === 0 ? "border-mauve/50 bg-mauve/15 text-mauve-light" : "border-border/50 text-muted-foreground"
-                    }`}>{opt}</span>
-                  ))}
-                </div>
-              </div>
-            </div>
+          {/* Real App Screenshot */}
+          <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-mauve/10 border border-border/50 max-w-4xl mx-auto">
+            <div className="absolute inset-0 bg-gradient-to-t from-night via-transparent to-transparent z-10 pointer-events-none" />
+            <img
+              src="/app-preview.png"
+              alt={lang === "fr" ? "Interface de création de cours Coursia" : "Coursia course creation interface"}
+              className="w-full h-auto block"
+              loading="lazy"
+            />
           </div>
         </div>
       </section>
@@ -645,13 +599,7 @@ export default function LandingPage() {
             >
               {(tx.landing as Record<string, unknown>).terms as string}
             </button>
-            <span className="text-muted-foreground/20">·</span>
-            <a
-              href={`mailto:${(tx.landing as Record<string, unknown>).contact as string}`}
-              className="text-muted-foreground/60 hover:text-foreground transition-colors"
-            >
-              {(tx.landing as Record<string, unknown>).contact as string}
-            </a>
+
           </div>
           <p className="text-xs text-muted-foreground/40">{(tx.landing as Record<string, unknown>).footer as string}</p>
         </div>
@@ -691,10 +639,8 @@ export default function LandingPage() {
                     : "The topics you enter to generate courses are sent to our AI provider. These topics are not stored beyond course generation. The generated content is stored in your personal space."}</p>
                   <h3 className="text-base font-semibold text-foreground pt-2">5. {lang === "fr" ? "Tes droits" : "Your Rights"}</h3>
                   <p>{lang === "fr"
-                    ? "Tu peux demander la suppression de ton compte et de toutes tes données à tout moment en nous contactant à contact@coursia.app. Nous répondrons dans les 48 heures."
-                    : "You can request the deletion of your account and all your data at any time by contacting us at contact@coursia.app. We will respond within 48 hours."}</p>
-                  <h3 className="text-base font-semibold text-foreground pt-2">6. {lang === "fr" ? "Contact" : "Contact"}</h3>
-                  <p>Pour toute question concernant cette politique ou tes données : <a href="mailto:contact@coursia.app" className="text-mauve-light hover:underline">contact@coursia.app</a></p>
+                    ? "Tu peux demander la suppression de ton compte et de toutes tes données à tout moment via les paramètres de ton compte."
+                    : "You can request the deletion of your account and all your data at any time via your account settings."}</p>
                 </div>
               </>
             )}
@@ -723,8 +669,7 @@ export default function LandingPage() {
                   <p>{lang === "fr"
                     ? "Coursia est fourni « en l'état ». Nous ne garantissons pas que le contenu généré soit exempt d'erreurs. Nous ne sommes pas responsables des pertes liées à l'utilisation du service."
                     : "Coursia is provided \"as is\". We do not guarantee that generated content is error-free. We are not responsible for losses related to the use of the service."}</p>
-                  <h3 className="text-base font-semibold text-foreground pt-2">6. {lang === "fr" ? "Contact" : "Contact"}</h3>
-                  <p>Pour toute question : <a href="mailto:contact@coursia.app" className="text-mauve-light hover:underline">contact@coursia.app</a></p>
+
                 </div>
               </>
             )}

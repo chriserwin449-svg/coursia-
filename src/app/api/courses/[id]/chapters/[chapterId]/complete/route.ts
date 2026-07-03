@@ -44,9 +44,10 @@ export async function POST(
       },
     });
 
-    // Award flame points if not already awarded
+    // Award flame points if not already awarded (scaled by level)
     if (!progress.flameAwarded) {
-      const flamePoints = calculateFlameEarned(100);
+      const courseLevel = chapter.course?.level ?? 0;
+      const flamePoints = calculateFlameEarned(100, courseLevel);
       await db.appSettings.upsert({
         where: { id: "main" },
         create: { id: "main", flamePoints },

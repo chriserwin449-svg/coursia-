@@ -2,7 +2,7 @@ const fr = {
   app: {
     name: "Coursia",
     tagline: "Maîtrise n'importe quel sujet grâce à des cours générés par l'IA. Apprends à ton rythme, progresse niveau par niveau, et deviens un expert.",
-    footer: "Propulsé par l'IA · Coursia © 2025",
+    footer: "Propulsé par l'IA · Coursia © 2026",
     lang: "FR",
   },
   common: {
@@ -110,7 +110,6 @@ const fr = {
     footer: `Propulsé par l'IA · Coursia © ${new Date().getFullYear()}`,
     privacy: "Politique de confidentialité",
     terms: "Conditions d'utilisation",
-    contact: "contact@coursia.app",
     mockupTitle: "Voici à quoi ressemble un cours Coursia",
     mockupDesc: "Un cours généré en quelques secondes, avec des chapitres structurés, du contenu clair et des quiz à la fin de chaque chapitre.",
     diffTitle: "En quoi c'est différent de demander à ChatGPT ?",
@@ -396,7 +395,7 @@ const en = {
   app: {
     name: "Coursia",
     tagline: "Master any subject with AI-generated courses. Learn at your own pace, progress level by level, and become an expert.",
-    footer: "Powered by AI · Coursia © 2025",
+    footer: "Powered by AI · Coursia © 2026",
     lang: "EN",
   },
   common: {
@@ -504,7 +503,6 @@ const en = {
     footer: `Powered by AI · Coursia © ${new Date().getFullYear()}`,
     privacy: "Privacy Policy",
     terms: "Terms of Use",
-    contact: "contact@coursia.app",
     mockupTitle: "This is what a Coursia course looks like",
     mockupDesc: "A course generated in seconds, with structured chapters, clear content and quizzes at the end of each chapter.",
     diffTitle: "How is this different from asking ChatGPT?",
