@@ -244,28 +244,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ===== PRODUCT PREVIEW SECTION ===== */}
-      <section className="relative py-20 px-4">
-        <div className="relative z-10 max-w-5xl mx-auto text-center">
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-4">
-            {(tx.landing as Record<string, unknown>).mockupTitle as string}
-          </h2>
-          <p className="text-muted-foreground text-base sm:text-lg max-w-xl mx-auto mb-10">
-            {(tx.landing as Record<string, unknown>).mockupDesc as string}
-          </p>
-          {/* Real App Screenshot */}
-          <div className="relative rounded-2xl overflow-hidden shadow-2xl shadow-mauve/10 border border-border/50 max-w-4xl mx-auto">
-            <div className="absolute inset-0 bg-gradient-to-t from-night via-transparent to-transparent z-10 pointer-events-none" />
-            <img
-              src="/app-preview.png"
-              alt={lang === "fr" ? "Interface de création de cours Coursia" : "Coursia course creation interface"}
-              className="w-full h-auto block"
-              loading="lazy"
-            />
-          </div>
-        </div>
-      </section>
-
       {/* ===== WHY CHOOSE SECTION ===== */}
       <section id="features" className="relative py-24 px-4">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
