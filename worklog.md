@@ -22,3 +22,23 @@ Stage Summary:
 - CourseViewer.tsx: Fixed critical TDZ crash (getLevelName), fixed setLoading bug, added null safety
 - i18n.ts: Added 4 new translation keys for both FR and EN
 - All changes verified via Agent Browser end-to-end testing
+
+---
+Task ID: 1
+Agent: main
+Task: Fix badges API, activeCourses stat, level-up Oui/Non, greetings, push to GitHub
+
+Work Log:
+- Fixed /api/badges/route.ts: added userId query param filter, added activeCourses count (non-completed courses)
+- Fixed Journey.tsx: passes userId to /api/badges, "Mes Cours" box now uses activeCourses instead of totalCourses
+- Updated CourseViewer.tsx: level review screen now shows "Veux-tu passer au niveau X ?" with Oui/Non buttons side by side
+- Added more greeting variations in i18n.ts (FR: Bienvenue, Content de te voir + 3 new messages; EN: Welcome back, Great to see you + 3 new messages)
+- Verified random topic already forces level 0 (Débutant) in CreateCourse.tsx
+- Pushed to GitHub: 971cfe9
+
+Stage Summary:
+- Bug fix: Cours créés/Mes Cours no longer show wrong counts (was counting ALL users' courses)
+- UX: Level progression now has clear Oui/Non choice after each level completion
+- Verified chapter completion celebration message already works (shows "Chapitre X terminé ! 🎉" for 2s)
+- Verified random course always starts at Débutant
+- All changes pushed to main branch
