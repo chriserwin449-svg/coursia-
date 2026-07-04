@@ -25,7 +25,7 @@ async function ensureAllColumns(): Promise<void> {
 }
 
 const FREE_COURSE_LIMIT = 1;
-const FREE_CHAPTER_LIMIT = 1;
+const FREE_CHAPTER_LIMIT = 9999; // First course is fully free (all chapters)
 const GRACE_PERIOD_DAYS = 3;
 const RENEWAL_NOTIFY_DAYS = 3; // Start showing notifications 3 days before expiry
 
@@ -288,12 +288,12 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      // Already used free course — blocked from creating more
+      // Already used free course — blocked from creating more, but can still study/progress
       const canGenerate = courseCount < FREE_COURSE_LIMIT;
       return NextResponse.json<PaywallStatus>({
-        canStudy: true, // can still read existing free course chapter 1
+        canStudy: true,
         canGenerate,
-        canProgress: false,
+        canProgress: true, // Can still progress through the free course
         inTrial: false,
         trialDaysRemaining: 0,
         trialCoursesGenerated: courseCount,
