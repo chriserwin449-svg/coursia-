@@ -1,22 +1,36 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getEarnedBadges, getNextBadge, getBadgeProgress } from "@/lib/badges";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = request.nextUrl.searchParams.get("userId");
+
     const courses = await db.course.findMany({
+      ...(userId ? { where: { userId } } : {}),
       include: {
         chapters: {
           include: { progress: true },
         },
+        progress: true,
       },
     });
 
     const totalCourses = courses.length;
+
     const completedCourses = courses.filter((course) =>
-      course.chapters.length > 0 &&
-      course.chapters.every((ch) => ch.progress?.completed)
+      course.progress?.completed ||
+      (course.chapters.length > 0 &&
+      course.chapters.every((ch) => ch.progress?.completed))
     ).length;
+
+    // Active courses = courses that are NOT fully completed
+    const activeCourses = courses.filter((course) => {
+      if (course.progress?.completed) return false;
+      // If there are chapters and ALL are completed, it's done
+      if (course.chapters.length > 0 && course.chapters.every((ch) => ch.progress?.completed)) return false;
+      return true;
+    }).length;
 
     const totalChapters = courses.reduce((sum, c) => sum + c.chapters.length, 0);
     const completedChapters = courses.reduce(
@@ -24,10 +38,9 @@ export async function GET() {
       0
     );
 
-    // Get real study time from sessions
-    const sessions = await db.studySession.findMany({
-      where: { endTime: { not: null } },
-    });
+    const sessionsWhere: Record<string, unknown> = { endTime: { not: null } };
+    if (userId) sessionsWhere.userId = userId;
+    const sessions = await db.studySession.findMany({ where: sessionsWhere });
     const totalStudyTime = sessions.reduce((sum, s) => {
       if (s.durationSeconds > 0) return sum + s.durationSeconds / 60;
       if (s.endTime) return sum + Math.max(0, (s.endTime.getTime() - s.startTime.getTime()) / 60000);
@@ -50,6 +63,7 @@ export async function GET() {
       stats: {
         totalCourses,
         completedCourses,
+        activeCourses,
         totalChapters,
         completedChapters,
         totalStudyTime: Math.round(totalStudyTime),

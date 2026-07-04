@@ -24,6 +24,7 @@ import { getCurrentFlameType, getFlameProgress, formatFlamePoints, type FlameRew
 interface Stats {
   totalCourses: number;
   completedCourses: number;
+  activeCourses: number;
   totalChapters: number;
   completedChapters: number;
   totalStudyTime: number;
@@ -78,8 +79,9 @@ export default function Journey() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const userId = useAppStore.getState().userId;
         const [badgesRes, studyRes, flamesRes] = await Promise.all([
-          fetch("/api/badges"),
+          fetch(`/api/badges${userId ? `?userId=${userId}` : ""}`),
           fetch("/api/study-time"),
           fetch("/api/flames"),
         ]);
@@ -367,7 +369,7 @@ export default function Journey() {
           {
             icon: Library,
             label: tx.journey.myCourses,
-            value: stats?.totalCourses ?? 0,
+            value: stats?.activeCourses ?? 0,
             color: "text-emerald-400",
             bgColor: "bg-emerald-500/10",
             glowColor: "rgba(16, 185, 129, 0.35)",

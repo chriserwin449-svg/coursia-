@@ -702,19 +702,26 @@ export default function CourseViewer() {
             </div>
 
             {/* Action buttons */}
-            <div className="flex flex-col gap-3">
+            <div className="text-center mb-4">
+              <p className="text-foreground font-bold text-sm">
+                {lang === "fr"
+                  ? `Veux-tu passer au niveau ${getLevelName(completedLevelData + 1)} ?`
+                  : `Do you want to advance to ${getLevelName(completedLevelData + 1)} level?`}
+              </p>
+            </div>
+            <div className="flex gap-3">
               <button
                 onClick={handleContinueToNextLevel}
-                className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-full bg-gradient-to-r from-gold to-gold-dark text-night font-bold text-sm hover:from-gold-light hover:to-gold transition-all cursor-pointer shadow-lg shadow-gold/20"
+                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-sm hover:from-emerald-400 hover:to-emerald-500 transition-all cursor-pointer shadow-lg shadow-emerald-500/20"
               >
-                <Rocket className="w-5 h-5" />
-                {tx.levelReview.nextLevel}
+                <Check className="w-5 h-5" />
+                {lang === "fr" ? "Oui" : "Yes"}
               </button>
               <button
                 onClick={handleStopHere}
-                className="w-full px-6 py-3 rounded-full glass text-muted-foreground font-bold text-sm hover:bg-white/10 hover:text-foreground transition-all cursor-pointer"
+                className="flex-1 px-6 py-4 rounded-full glass text-muted-foreground font-bold text-sm hover:bg-white/10 hover:text-foreground transition-all cursor-pointer border border-border/50"
               >
-                {tx.levelReview.stopHere}
+                {lang === "fr" ? "Non" : "No"}
               </button>
             </div>
           </div>

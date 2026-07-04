@@ -194,7 +194,7 @@ const fr = {
     greetingMorning: "Bonjour",
     greetingAfternoon: "Bon après-midi",
     greetingEvening: "Bonsoir",
-    greetingCasual: ["Salut", "Hey", "Coucou"],
+    greetingCasual: ["Salut", "Hey", "Coucou", "Bienvenue", "Content de te voir"],
     greetingMessages: [
       "Prêt à apprendre quelque chose de nouveau ?",
       "On crée un cours ensemble ?",
@@ -202,6 +202,9 @@ const fr = {
       "Ton apprentissage t'attend !",
       "Une nouvelle idée à explorer ?",
       "C'est le moment d'apprendre !",
+      "En forme pour un nouveau cours ?",
+      "Tu vas kiffer ce sujet !",
+      "Le savoir n'attend que toi.",
     ],
   },
   library: {
@@ -591,7 +594,7 @@ const en = {
     greetingMorning: "Good morning",
     greetingAfternoon: "Good afternoon",
     greetingEvening: "Good evening",
-    greetingCasual: ["Hey", "Hi", "What's up"],
+    greetingCasual: ["Hey", "Hi", "What's up", "Welcome back", "Great to see you"],
     greetingMessages: [
       "Ready to learn something new?",
       "Let's create a course together!",
@@ -599,6 +602,9 @@ const en = {
       "Your learning awaits!",
       "Got a new idea to explore?",
       "It's time to learn!",
+      "In the mood for a new course?",
+      "You're gonna love this topic!",
+      "Knowledge is waiting for you.",
     ],
   },
   library: {
