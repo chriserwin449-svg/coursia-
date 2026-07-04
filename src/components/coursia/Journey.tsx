@@ -13,6 +13,8 @@ import {
   TrendingUp,
   X,
   Flame,
+  ChevronRight,
+  Library,
 } from "lucide-react";
 import { BADGE_DEFINITIONS } from "@/lib/badges";
 import { t } from "@/lib/i18n";
@@ -67,6 +69,9 @@ export default function Journey() {
   const [selectedPeriod, setSelectedPeriod] = useState<StudyTimePeriod>("today");
   const [showStudyDetail, setShowStudyDetail] = useState(false);
   const [showFlameCollection, setShowFlameCollection] = useState(false);
+  const [showMyCourses, setShowMyCourses] = useState(false);
+  const [myCoursesList, setMyCoursesList] = useState<Array<{ id: string; title: string; overallProgress: number; courseCompleted: boolean }>>([]);
+  const [loadingCourses, setLoadingCourses] = useState(false);
   const [isActivityActive, setIsActivityActive] = useState(true);
   const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -122,6 +127,27 @@ export default function Journey() {
       if (activityTimerRef.current) clearTimeout(activityTimerRef.current);
     };
   }, []);
+
+  // ── Open My Courses modal ──
+  const handleOpenMyCourses = async () => {
+    setShowMyCourses(true);
+    setLoadingCourses(true);
+    try {
+      const userId = useAppStore.getState().userId;
+      const res = await fetch(`/api/courses${userId ? `?userId=${userId}` : ""}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMyCoursesList(data.courses || []);
+      }
+    } catch { /* silent */ }
+    finally { setLoadingCourses(false); }
+  };
+
+  const openCourseFromModal = (courseId: string) => {
+    useAppStore.getState().setSelectedCourseId(courseId);
+    useAppStore.getState().setView("viewer");
+    setShowMyCourses(false);
+  };
 
   if (loading) {
     return (
@@ -339,15 +365,15 @@ export default function Journey() {
             onClick: () => setShowFlameCollection(true),
           },
           {
-            icon: Flame,
-            label: lang === "fr" ? "Points de flamme" : "Flame points",
-            value: `${flameData?.flamePoints ?? 0}`,
-            color: "text-red-400",
-            bgColor: "bg-red-500/10",
-            glowColor: "rgba(239, 68, 68, 0.35)",
-            borderColor: "border-red-500/20",
+            icon: Library,
+            label: tx.journey.myCourses,
+            value: stats?.totalCourses ?? 0,
+            color: "text-emerald-400",
+            bgColor: "bg-emerald-500/10",
+            glowColor: "rgba(16, 185, 129, 0.35)",
+            borderColor: "border-emerald-500/20",
             delay: "100ms",
-            onClick: () => setShowFlameCollection(true),
+            onClick: handleOpenMyCourses,
           },
         ].map((stat) => (
           <div
@@ -649,6 +675,81 @@ export default function Journey() {
                     : "Keep studying to unlock more rewards!"}
                 </p>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════ MY COURSES MODAL ═══════════ */}
+      {showMyCourses && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-night/80 backdrop-blur-sm animate-fade-in" onClick={() => setShowMyCourses(false)}>
+          <div
+            className="bg-night-light border border-border rounded-3xl w-full max-w-lg max-h-[85vh] overflow-y-auto custom-scrollbar mx-4 animate-fade-in-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-border sticky top-0 bg-night-light z-10 rounded-t-3xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                  <Library className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-extrabold">{tx.journey.myCoursesList}</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {myCoursesList.length} {lang === "fr" ? "cours" : "courses"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMyCourses(false)}
+                className="p-2 rounded-xl hover:bg-white/10 transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4">
+              {loadingCourses ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-mauve" />
+                </div>
+              ) : myCoursesList.length === 0 ? (
+                <div className="text-center py-12">
+                  <BookOpen className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">{tx.journey.noCourses}</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {myCoursesList.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => openCourseFromModal(c.id)}
+                      className="w-full flex items-center gap-4 p-4 rounded-2xl glass text-left transition-all duration-200 cursor-pointer group hover:bg-white/5"
+                    >
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${c.courseCompleted ? "bg-emerald-500/15" : "bg-mauve/15"}`}>
+                        {c.courseCompleted ? (
+                          <Trophy className="w-5 h-5 text-emerald-400" />
+                        ) : (
+                          <BookOpen className="w-5 h-5 text-mauve-light" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm text-foreground truncate">{c.title}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className="flex-1 h-1.5 rounded-full bg-night overflow-hidden max-w-[120px]">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${c.courseCompleted ? "bg-emerald-400" : "bg-gradient-to-r from-mauve to-gold"}`}
+                              style={{ width: `${c.overallProgress}%` }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-bold text-muted-foreground">{c.overallProgress}%</span>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/40 group-hover:text-foreground transition-colors flex-shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

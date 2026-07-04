@@ -147,6 +147,7 @@ export default function CourseViewer() {
   const isChapterLevelLocked = (index: number): boolean => {
     if (!course) return false;
     const ch = course.chapters[index];
+    if (!ch) return true;
     const chLevel = ch.level ?? 0;
     // Locked if chapter level exceeds maxUnlockedLevel
     if (chLevel > maxUnlockedLevel) return true;
@@ -157,10 +158,12 @@ export default function CourseViewer() {
 
   const isChapterUnlocked = (index: number) => {
     if (isChapterLevelLocked(index)) return false;
+    if (!course) return false;
+    if (index < 0 || index >= course.chapters.length) return false;
     // Free preview: lock chapters beyond freeChapterLimit for non-subscribers
     if (!isSubscribed && index >= freeChapterLimit) return false;
     if (index === 0) return true;
-    return course?.chapters[index - 1]?.progress?.completed === true;
+    return course.chapters[index - 1]?.progress?.completed === true;
   };
 
   // ── Study session tracking ──
@@ -273,6 +276,7 @@ export default function CourseViewer() {
           }
           startStudySession(selectedCourseId, data.chapters[restoreIdx >= 0 ? restoreIdx : 0]?.id);
           setHasAttemptedFetch(true);
+          setLoading(false);
           return; // success
         } else if (attempt < maxRetries - 1) {
           // Course not found yet (may have just been created), wait and retry
@@ -332,7 +336,7 @@ export default function CourseViewer() {
     localStorage.setItem(`coursia-last-chapter-${selectedCourseId}`, String(currentChapterIndex));
   }, [currentChapterIndex, selectedCourseId, course]);
 
-  const currentChapter = course?.chapters[currentChapterIndex];
+  const currentChapter = course?.chapters?.[currentChapterIndex] ?? null;
 
   const completeCurrentChapter = useCallback(async (): Promise<boolean> => {
     if (!currentChapter || currentChapter.progress?.completed) return true;
@@ -349,6 +353,9 @@ export default function CourseViewer() {
       return false;
     } catch { return false; }
   }, [currentChapter, selectedCourseId]);
+
+  // ── Level names helper (defined early — referenced in useCallback deps) ──
+  const getLevelName = (level: number) => lang === "fr" ? LEVEL_NAMES_FR[level] : LEVEL_NAMES_EN[level];
 
   // ── Is current chapter locked for free users? ──
   const isCurrentChapterLocked = useMemo(() => {
@@ -559,9 +566,6 @@ export default function CourseViewer() {
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [isFullscreen, goToNext, goToPrev, setIsFullscreen]);
-
-  // ── Level names helper ──
-  const getLevelName = (level: number) => lang === "fr" ? LEVEL_NAMES_FR[level] : LEVEL_NAMES_EN[level];
 
   // ══════════════════════════════════════════════════════════════════
   // LOCKED — grace period expired, subscription fully blocked
@@ -908,7 +912,7 @@ export default function CourseViewer() {
                 </div>
               )}
               <div className="prose prose-invert max-w-none text-[18px] leading-8 animate-fade-in-slide-right prose-p:text-[1.175rem] prose-p:leading-[2] prose-p:mb-6 prose-h2:text-[1.6rem] prose-h2:mt-12 prose-h2:mb-6 prose-h3:text-[1.4rem] prose-h3:mt-10 prose-h3:mb-5 prose-li:text-[1.175rem] prose-li:my-2 prose-li:leading-[2] prose-ul:my-6 prose-ol:my-6 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
-                <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
+                <ReactMarkdown>{currentChapter.content || ""}</ReactMarkdown>
               </div>
             </div>
           </div>
@@ -1186,7 +1190,7 @@ export default function CourseViewer() {
                 prose-blockquote:text-amber-300 prose-blockquote:border-gold/30 prose-blockquote:my-6 sm:my-8
                 prose-hr:border-gold/20 prose-hr:my-8 sm:my-12
               ">
-                <ReactMarkdown>{currentChapter.content}</ReactMarkdown>
+                <ReactMarkdown>{currentChapter.content || ""}</ReactMarkdown>
               </div>
 
               {/* Paywall overlay on locked chapters */}
