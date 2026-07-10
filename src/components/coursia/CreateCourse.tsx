@@ -141,43 +141,64 @@ export default function CreateCourse() {
   // ─── Rotating placeholder with typing/fade effect ────────────────────
   const placeholders = tx.create.placeholders;
   const [displayedPlaceholder, setDisplayedPlaceholder] = useState(placeholders[0]);
-  const [isTyping, setIsTyping] = useState(true);
   const [charIndex, setCharIndex] = useState(0);
-  const [isFading, setIsFading] = useState(false);
-  const innerTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  // Phase: 'typing' | 'visible' | 'fadingOut' | 'fadingIn'
+  const [placeholderPhase, setPlaceholderPhase] = useState<"typing" | "visible" | "fadingOut" | "fadingIn">("typing");
+  const timerARef = useRef<ReturnType<typeof setTimeout>>();
+  const timerBRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
-    // Skip typing animation while user has typed something
+    // Skip animation while user has typed something
     if (title.length > 0) {
       setDisplayedPlaceholder("");
-      setIsTyping(false);
+      setPlaceholderPhase("typing");
       return;
     }
 
     const currentPlaceholder = placeholders[placeholderIndex];
+    const clear = () => { clearTimeout(timerARef.current); clearTimeout(timerBRef.current); };
 
-    if (isTyping) {
-      if (charIndex <= currentPlaceholder.length) {
-        const timeout = setTimeout(() => {
-          setDisplayedPlaceholder(currentPlaceholder.slice(0, charIndex));
-          setCharIndex(charIndex + 1);
-        }, 35);
-        return () => clearTimeout(timeout);
-      } else {
-        // Finished typing, wait then start fading
-        const timeout = setTimeout(() => {
-          setIsFading(true);
-          innerTimerRef.current = setTimeout(() => {
-            setPlaceholderIndex((placeholderIndex + 1) % placeholders.length);
-            setCharIndex(0);
-            setIsTyping(true);
-            setIsFading(false);
-          }, 500);
-        }, 2200);
-        return () => { clearTimeout(timeout); if (innerTimerRef.current) clearTimeout(innerTimerRef.current); };
+    switch (placeholderPhase) {
+      case "typing": {
+        if (charIndex <= currentPlaceholder.length) {
+          timerARef.current = setTimeout(() => {
+            setDisplayedPlaceholder(currentPlaceholder.slice(0, charIndex));
+            setCharIndex(charIndex + 1);
+          }, 35);
+          return clear;
+        } else {
+          // Finished typing → show full text briefly
+          timerARef.current = setTimeout(() => setPlaceholderPhase("visible"), 1800);
+          return clear;
+        }
+      }
+
+      case "visible": {
+        // Start fading out
+        timerARef.current = setTimeout(() => setPlaceholderPhase("fadingOut"), 800);
+        return clear;
+      }
+
+      case "fadingOut": {
+        // After fade-out transition (500ms), switch to next placeholder in invisible state
+        timerARef.current = setTimeout(() => {
+          setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
+          setCharIndex(0);
+          setDisplayedPlaceholder("");
+          setPlaceholderPhase("fadingIn");
+        }, 500);
+        return clear;
+      }
+
+      case "fadingIn": {
+        // Wait one frame for opacity-0 to apply, then start typing (which triggers opacity-100)
+        timerARef.current = setTimeout(() => {
+          setPlaceholderPhase("typing");
+        }, 30);
+        return clear;
       }
     }
-  }, [charIndex, isTyping, isFading, placeholderIndex, placeholders, title]);
+  }, [charIndex, placeholderPhase, placeholderIndex, placeholders, title]);
 
   // ─── Fetch courses & subscription status ───────────────────────────
   const fetchCourses = useCallback(async () => {
@@ -601,15 +622,19 @@ export default function CreateCourse() {
             {/* Animated placeholder overlay */}
             {!title && (
               <div
-                className={`absolute left-6 top-1/2 -translate-y-1/2 pointer-events-none text-lg font-bold transition-opacity duration-500 ${
-                  isFading ? "opacity-0" : "opacity-100"
+                className={`absolute left-6 top-1/2 -translate-y-1/2 pointer-events-none text-lg font-bold transition-opacity duration-500 ease-in-out ${
+                  placeholderPhase === "fadingOut" || placeholderPhase === "fadingIn"
+                    ? "opacity-0"
+                    : "opacity-100"
                 }`}
                 aria-hidden="true"
               >
                 <span className="text-muted-foreground/40">
                   {displayedPlaceholder}
                 </span>
-                <span className="inline-block w-0.5 h-5 bg-mauve/60 ml-0.5 align-middle animate-pulse" />
+                {placeholderPhase === "typing" && (
+                  <span className="inline-block w-0.5 h-5 bg-mauve/60 ml-0.5 align-middle animate-pulse" />
+                )}
               </div>
             )}
           </div>

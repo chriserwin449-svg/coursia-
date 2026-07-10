@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { plan, userId } = body as Record<string, unknown>;
+    const { plan, userId, locale } = body as Record<string, unknown>;
 
     // 2. Validate plan
     if (!plan || typeof plan !== "string" || !isValidPlan(plan)) {
@@ -161,6 +161,7 @@ export async function POST(request: NextRequest) {
       userId,
       userEmail: user?.email || undefined,
       requestId: paymentRequest.id,
+      locale: typeof locale === "string" ? locale : undefined,
     });
 
     // 8. Update payment request with PayPal order ID

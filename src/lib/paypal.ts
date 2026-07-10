@@ -115,6 +115,7 @@ export interface CreateOrderParams {
   userId: string;
   userEmail?: string;
   requestId: string;
+  locale?: string;
 }
 
 export interface CreateOrderResult {
@@ -177,9 +178,10 @@ export async function createPayPalOrder(params: CreateOrderParams): Promise<Crea
       ],
       application_context: {
         brand_name: "Coursia",
-        locale: "en-US",
+        locale: params.locale || "fr_FR",
         user_action: "PAY_NOW",
         landing_page: "BILLING",
+        shipping_preference: "NO_SHIPPING",
         return_url: params.plan === "card_verify"
           ? `${appUrl}/?card_verified=success&request_id=${encodeURIComponent(params.requestId)}`
           : `${appUrl}/?payment=success&plan=${params.plan}&request_id=${encodeURIComponent(params.requestId)}`,

@@ -71,7 +71,7 @@ export default function OffersPage() {
       const res = await fetch("/api/subscription/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, userId }),
+        body: JSON.stringify({ plan, userId, locale: lang === "fr" ? "fr_FR" : "en_US" }),
       });
 
       let data: Record<string, unknown> = {};
