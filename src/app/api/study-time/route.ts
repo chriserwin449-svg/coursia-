@@ -1,8 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const userId = request.headers.get("Authorization")?.replace("Bearer ", "") || "";
+    
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
@@ -21,11 +23,13 @@ export async function GET() {
     // This month start
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Fetch all study sessions
+    // Fetch study sessions for THIS USER ONLY
+    const where = userId
+      ? { endTime: { not: null }, userId }
+      : { endTime: { not: null } };
+
     const sessions = await db.studySession.findMany({
-      where: {
-        endTime: { not: null },
-      },
+      where,
       orderBy: { startTime: "desc" },
     });
 
@@ -83,7 +87,7 @@ export async function GET() {
       last3Days: Math.round(last3Days),
       thisWeek: Math.round(thisWeek),
       thisMonth: Math.round(thisMonth),
-      dailyBreakdown,
+      dailyBreakdown: dailyBreakdown || [],
     });
   } catch (error) {
     console.error("Study time error:", error);
@@ -92,14 +96,15 @@ export async function GET() {
 }
 
 /* ── POST /api/study-time — Start or end a study session ── */
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, courseId, chapterId, sessionId } = body as {
+    const { action, courseId, chapterId, sessionId, userId } = body as {
       action: "start" | "end";
       courseId: string;
       chapterId?: string;
       sessionId?: string;
+      userId?: string;
     };
 
     if (!action) {
@@ -114,6 +119,7 @@ export async function POST(request: Request) {
         data: {
           courseId,
           chapterId: chapterId || null,
+          userId: userId || null,
           startTime: new Date(),
         },
       });

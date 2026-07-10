@@ -42,3 +42,57 @@ Stage Summary:
 - Verified chapter completion celebration message already works (shows "Chapitre X terminé ! 🎉" for 2s)
 - Verified random course always starts at Débutant
 - All changes pushed to main branch
+
+---
+Task ID: 2
+Agent: fullstack-developer
+Task: Fix per-user flame points (was global — all users shared one balance)
+
+Work Log:
+- Identified root cause: All 5 API routes used `db.appSettings.upsert({ where: { id: "main" } })` — a single shared row
+- Created shared helper `src/lib/get-user-id.ts` that extracts userId from Authorization header, query params, or request body
+- Added `userId` field to `FlameTransaction` model in Prisma schema + auto-migrate
+- Fixed 5 backend API routes to use per-user AppSettings (userId as the row id):
+  1. `src/app/api/flames/route.ts` (GET + POST) — now filters transactions by userId
+  2. `src/app/api/courses/[id]/chapters/[chapterId]/complete/route.ts`
+  3. `src/app/api/courses/[id]/chapters/[chapterId]/quiz/route.ts` (PUT handler)
+  4. `src/app/api/courses/[id]/complete-level/route.ts`
+  5. `src/app/api/courses/[id]/final-quiz/route.ts` (PUT handler)
+- Fixed 4 frontend calls to pass userId via Authorization header:
+  1. `FlameCounter.tsx` — GET /api/flames
+  2. `Journey.tsx` — GET /api/flames
+  3. `CourseViewer.tsx` — POST /chapters/.../complete
+  4. `CourseViewer.tsx` — POST /complete-level
+  5. `CourseViewer.tsx` — PUT /final-quiz
+- Graceful fallback: when no userId is available, falls back to "main" (backward compatible for unauthenticated scenarios)
+
+Stage Summary:
+- Schema: Added `userId String?` to FlameTransaction model
+- Auto-migrate: Added ALTER TABLE for FlameTransaction.userId column (PostgreSQL)
+- Backend: All 13 occurrences of `id: "main"` replaced with `id: settingsId` (userId || "main")
+- Backend: FlameTransaction.create calls now include `userId` field
+- Backend: GET /api/flames now filters transactions per-user
+- Frontend: All flame-related API calls now pass `Authorization: Bearer ${userId}` header
+- New shared utility: `src/lib/get-user-id.ts` for consistent userId extraction across routes
+
+---
+Task ID: 3
+Agent: fullstack-developer
+Task: Fix quiz+level crash bugs (JSON.parse + missing array validation)
+
+Work Log:
+- Bug 1: `complete-level/route.ts` — `JSON.parse(progress.flameAwardedLevels)` could throw on malformed DB data
+  - Wrapped in try/catch with fallback to empty array
+  - Also added `Array.isArray()` guard for non-string, non-array values
+- Bug 2a: `chapters/[chapterId]/quiz/route.ts` PUT handler — `answers` from request body used without validation
+  - Added `if (!Array.isArray(answers))` check returning 400
+  - Wrapped `JSON.parse(chapter.quiz.questions)` in try/catch returning 500 "Malformed quiz data"
+- Bug 2b: `final-quiz/route.ts` PUT handler — same issues as 2a
+  - Added `if (!Array.isArray(answers))` check returning 400
+  - Wrapped `JSON.parse(course.finalQuiz.questions)` in try/catch returning 500 "Malformed quiz data"
+
+Stage Summary:
+- 3 files changed, 4 defensive guards added
+- All `JSON.parse` calls on DB-stored JSON now have try/catch fallbacks
+- Both quiz submission endpoints now validate `answers` is an array before processing
+- No functional behavior changes for valid requests; only crash resilience improved

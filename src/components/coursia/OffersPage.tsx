@@ -96,7 +96,7 @@ export default function OffersPage() {
         } else if (res.status === 400 && String(data.error).includes("Already subscribed")) {
           setCheckoutError(lang === "fr" ? "Tu as déjà un abonnement actif !" : "You already have an active subscription!");
         } else {
-          setCheckoutError(String(data.error || data.details || (lang === "fr" ? "Un souci technique. Réessaie." : "Something went wrong.")));
+          setCheckoutError(String(data.details || data.error || (lang === "fr" ? "Un souci technique. Réessaie." : "Something went wrong.")));
         }
         setCheckoutLoading(null);
         return;

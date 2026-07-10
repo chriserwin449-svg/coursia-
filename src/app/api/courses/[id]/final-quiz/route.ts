@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { smartChatCompletion } from "@/lib/openai";
 import { calculateCourseCompletionBonus } from "@/lib/flames";
+import { getUserIdFromRequest } from "@/lib/get-user-id";
 
 export async function POST(
   _request: NextRequest,
@@ -138,6 +139,10 @@ export async function PUT(
     const { id: courseId } = await params;
     const { answers } = await request.json();
 
+    if (!Array.isArray(answers)) {
+      return NextResponse.json({ error: "answers must be an array" }, { status: 400 });
+    }
+
     const course = await db.course.findUnique({
       where: { id: courseId },
       include: { finalQuiz: true, progress: true },
@@ -147,7 +152,12 @@ export async function PUT(
       return NextResponse.json({ error: "Final quiz not found" }, { status: 404 });
     }
 
-    const questions = JSON.parse(course.finalQuiz.questions);
+    let questions: { correctIndex: number }[];
+    try {
+      questions = JSON.parse(course.finalQuiz.questions);
+    } catch {
+      return NextResponse.json({ error: "Malformed quiz data" }, { status: 500 });
+    }
     let correctCount = 0;
 
     questions.forEach((q: { correctIndex: number }, idx: number) => {
@@ -177,10 +187,12 @@ export async function PUT(
     // Award bonus flame points on course completion (first pass only)
     // Harder earning: scaled bonus based on score
     if (passed && !courseProgress.flameAwarded) {
+      const userId = getUserIdFromRequest(request);
       const bonusPoints = calculateCourseCompletionBonus(score);
+      const settingsId = userId || "main";
       await db.appSettings.upsert({
-        where: { id: "main" },
-        create: { id: "main", flamePoints: bonusPoints },
+        where: { id: settingsId },
+        create: { id: settingsId, flamePoints: bonusPoints },
         update: { flamePoints: { increment: bonusPoints } },
       });
       await db.flameTransaction.create({
@@ -188,6 +200,7 @@ export async function PUT(
           amount: bonusPoints,
           reason: "course_complete",
           courseId,
+          userId: userId || null,
         },
       });
       await db.courseProgress.update({

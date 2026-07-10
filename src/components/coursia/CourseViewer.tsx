@@ -334,9 +334,12 @@ export default function CourseViewer() {
   const completeCurrentChapter = useCallback(async (): Promise<boolean> => {
     if (!currentChapter || currentChapter.progress?.completed) return true;
     try {
+      const userId = useAppStore.getState().userId;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (userId) headers["Authorization"] = `Bearer ${userId}`;
       const res = await fetch(`/api/courses/${selectedCourseId}/chapters/${currentChapter.id}/complete`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
       });
       if (res.ok) {
         const courseRes = await fetch(`/api/courses/${selectedCourseId}`);
@@ -394,9 +397,12 @@ export default function CourseViewer() {
 
     // Award level completion bonus via API
     try {
+      const userId = useAppStore.getState().userId;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (userId) headers["Authorization"] = `Bearer ${userId}`;
       await fetch(`/api/courses/${selectedCourseId}/complete-level`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ level: completedLvl }),
       });
     } catch { /* non-critical */ }
@@ -1272,10 +1278,13 @@ function QuizPanel({
   const submitQuiz = async () => {
     setSubmitting(true);
     try {
+      const userId = useAppStore.getState().userId;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (userId) headers["Authorization"] = `Bearer ${userId}`;
       const url = `/api/courses/${courseId}/final-quiz`;
       const res = await fetch(url, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ answers }),
       });
       const data = await res.json();

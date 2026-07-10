@@ -179,6 +179,12 @@ export async function ensureSchemaUpToDate(): Promise<void> {
       );
     } catch { /* ignore */ }
 
+    try {
+      await db.$executeRawUnsafe(
+        `DO $$ BEGIN ALTER TABLE "FlameTransaction" ADD COLUMN "userId" TEXT; EXCEPTION WHEN duplicate_column THEN null; END $$;`
+      );
+    } catch { /* ignore */ }
+
     console.log("✅ Auto-migration completed successfully");
     migrationRan = true;
   } catch (error) {

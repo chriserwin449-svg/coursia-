@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { calculateFlameEarned } from "@/lib/flames";
+import { getUserIdFromRequest } from "@/lib/get-user-id";
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ chapterId: string }> }
 ) {
   try {
     const { chapterId } = await params;
+    const userId = getUserIdFromRequest(request);
 
     const chapter = await db.chapter.findUnique({
       where: { id: chapterId },
@@ -48,9 +50,10 @@ export async function POST(
     if (!progress.flameAwarded) {
       const courseLevel = chapter.course?.level ?? 0;
       const flamePoints = calculateFlameEarned(100, courseLevel);
+      const settingsId = userId || "main";
       await db.appSettings.upsert({
-        where: { id: "main" },
-        create: { id: "main", flamePoints },
+        where: { id: settingsId },
+        create: { id: settingsId, flamePoints },
         update: { flamePoints: { increment: flamePoints } },
       });
       await db.flameTransaction.create({
@@ -59,6 +62,7 @@ export async function POST(
           reason: "chapter_complete",
           courseId: chapter.courseId,
           chapterId,
+          userId: userId || null,
         },
       });
       await db.chapterProgress.update({

@@ -178,7 +178,7 @@ export async function createPayPalOrder(params: CreateOrderParams): Promise<Crea
       ],
       application_context: {
         brand_name: "Coursia",
-        locale: params.locale || "fr_FR",
+        locale: (params.locale || "fr_FR").replace("_", "-"),
         user_action: "PAY_NOW",
         landing_page: "BILLING",
         shipping_preference: "NO_SHIPPING",

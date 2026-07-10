@@ -103,7 +103,10 @@ export default function FlameCounter() {
 
     const fetchFlames = async () => {
       try {
-        const res = await fetch("/api/flames");
+        const userId = useAppStore.getState().userId;
+        const headers: Record<string, string> = {};
+        if (userId) headers["Authorization"] = `Bearer ${userId}`;
+        const res = await fetch("/api/flames", userId ? { headers } : undefined);
         if (res.ok && !cancelled) {
           const data = await res.json();
           if (data.flamePoints !== undefined) {

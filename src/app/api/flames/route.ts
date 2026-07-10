@@ -7,20 +7,26 @@ import {
   FLAME_REWARDS,
   type FlameReward,
 } from "@/lib/flames";
+import { getUserIdFromRequest } from "@/lib/get-user-id";
 
 /* ── GET /api/flames ──────────────────────────────────────────────────── */
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // 1. Get or create AppSettings row
+    const userId = getUserIdFromRequest(request);
+
+    // 1. Get or create per-user AppSettings row
+    const settingsId = userId || "main";
     const settings = await db.appSettings.upsert({
-      where: { id: "main" },
-      create: { id: "main", flamePoints: 0 },
+      where: { id: settingsId },
+      create: { id: settingsId, flamePoints: 0 },
       update: {},
     });
 
-    // 2. Get all flame transactions (newest first, last 20)
+    // 2. Get flame transactions for THIS USER (newest first, last 20)
+    const where = userId ? { userId } : {};
     const allTransactions = await db.flameTransaction.findMany({
+      where,
       orderBy: { createdAt: "desc" },
     });
 
@@ -65,12 +71,13 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action, amount, reason, courseId, chapterId } = body as {
+    const { action, amount, reason, courseId, chapterId, userId: bodyUserId } = body as {
       action?: string;
       amount?: number;
       reason?: string;
       courseId?: string;
       chapterId?: string;
+      userId?: string;
     };
 
     if (!action || !["award", "spend"].includes(action)) {
@@ -85,10 +92,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "reason is required" }, { status: 400 });
     }
 
-    // Get or create AppSettings
+    const userId = getUserIdFromRequest(request, bodyUserId);
+    const settingsId = userId || "main";
+
+    // Get or create per-user AppSettings
     const settings = await db.appSettings.upsert({
-      where: { id: "main" },
-      create: { id: "main", flamePoints: 0 },
+      where: { id: settingsId },
+      create: { id: settingsId, flamePoints: 0 },
       update: {},
     });
 
@@ -102,19 +112,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create the flame transaction
+    // Create the flame transaction with userId
     await db.flameTransaction.create({
       data: {
         amount: transactionAmount,
         reason,
         courseId: courseId || null,
         chapterId: chapterId || null,
+        userId: userId || null,
       },
     });
 
-    // Update AppSettings flame points
+    // Update per-user AppSettings flame points
     const updatedSettings = await db.appSettings.update({
-      where: { id: "main" },
+      where: { id: settingsId },
       data: { flamePoints: settings.flamePoints + transactionAmount },
     });
 

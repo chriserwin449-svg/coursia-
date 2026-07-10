@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { calculateLevelCompletionBonus, calculateMasteryBonus } from "@/lib/flames";
+import { getUserIdFromRequest } from "@/lib/get-user-id";
 
 export async function POST(
   request: NextRequest,
@@ -8,7 +9,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const { level } = await request.json();
+    const { level, userId: bodyUserId } = await request.json();
 
     if (level === undefined || level < 0 || level > 2) {
       return NextResponse.json({ error: "Invalid level" }, { status: 400 });
@@ -25,11 +26,16 @@ export async function POST(
 
     // Check if this level bonus was already awarded (stored in progress)
     const progress = course.progress;
-    const awardedLevels: number[] = progress?.flameAwardedLevels
-      ? (typeof progress.flameAwardedLevels === "string"
-          ? JSON.parse(progress.flameAwardedLevels)
-          : progress.flameAwardedLevels)
-      : [];
+    let awardedLevels: number[] = [];
+    try {
+      awardedLevels = progress?.flameAwardedLevels
+        ? (typeof progress.flameAwardedLevels === "string"
+            ? JSON.parse(progress.flameAwardedLevels)
+            : Array.isArray(progress.flameAwardedLevels) ? progress.flameAwardedLevels : [])
+        : [];
+    } catch {
+      awardedLevels = [];
+    }
 
     if (awardedLevels.includes(level)) {
       return NextResponse.json({ success: true, alreadyAwarded: true, message: "Level bonus already awarded" });
@@ -48,10 +54,14 @@ export async function POST(
       reason = "level_complete";
     }
 
-    // Award flame points
+    // Get userId from body, header, or query param
+    const userId = getUserIdFromRequest(request, bodyUserId);
+    const settingsId = userId || "main";
+
+    // Award flame points per-user
     await db.appSettings.upsert({
-      where: { id: "main" },
-      create: { id: "main", flamePoints: bonusPoints },
+      where: { id: settingsId },
+      create: { id: settingsId, flamePoints: bonusPoints },
       update: { flamePoints: { increment: bonusPoints } },
     });
 
@@ -60,6 +70,7 @@ export async function POST(
         amount: bonusPoints,
         reason,
         courseId: id,
+        userId: userId || null,
       },
     });
 

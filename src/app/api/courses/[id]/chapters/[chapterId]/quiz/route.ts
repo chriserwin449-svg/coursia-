@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { smartChatCompletion } from "@/lib/openai";
 import { calculateFlameEarned } from "@/lib/flames";
+import { getUserIdFromRequest } from "@/lib/get-user-id";
 
 export async function POST(
   request: NextRequest,
@@ -144,6 +145,10 @@ export async function PUT(
     const { chapterId } = await params;
     const { answers } = await request.json();
 
+    if (!Array.isArray(answers)) {
+      return NextResponse.json({ error: "answers must be an array" }, { status: 400 });
+    }
+
     const chapter = await db.chapter.findUnique({
       where: { id: chapterId },
       include: { quiz: true, progress: true },
@@ -153,7 +158,12 @@ export async function PUT(
       return NextResponse.json({ error: "Quiz not found" }, { status: 404 });
     }
 
-    const questions = JSON.parse(chapter.quiz.questions);
+    let questions: { correctIndex: number }[];
+    try {
+      questions = JSON.parse(chapter.quiz.questions);
+    } catch {
+      return NextResponse.json({ error: "Malformed quiz data" }, { status: 500 });
+    }
     let correctCount = 0;
 
     questions.forEach((q: { correctIndex: number }, idx: number) => {
@@ -182,10 +192,12 @@ export async function PUT(
 
     // Award flame points if quiz passed and not already awarded
     if (passed && !progress.flameAwarded) {
+      const userId = getUserIdFromRequest(request);
       const flamePoints = calculateFlameEarned(score);
+      const settingsId = userId || "main";
       await db.appSettings.upsert({
-        where: { id: "main" },
-        create: { id: "main", flamePoints },
+        where: { id: settingsId },
+        create: { id: settingsId, flamePoints },
         update: { flamePoints: { increment: flamePoints } },
       });
       await db.flameTransaction.create({
@@ -194,6 +206,7 @@ export async function PUT(
           reason: "chapter_complete",
           courseId: chapter.courseId,
           chapterId,
+          userId: userId || null,
         },
       });
       await db.chapterProgress.update({

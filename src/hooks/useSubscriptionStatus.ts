@@ -61,6 +61,10 @@ export function useSubscriptionStatus(): SubscriptionStatusResult {
       const headers: Record<string, string> = {};
       if (userId) headers["Authorization"] = `Bearer ${userId}`;
       const res = await fetch("/api/courses/paywall-status", { headers });
+      if (!res.ok) {
+        setLoading(false);
+        return;
+      }
       const data = await res.json();
 
       const hasSub = data.hasSubscription && data.subscriptionStatus === "active";

@@ -50,6 +50,7 @@ model AppSettings {
 
 model FlameTransaction {
   id          String   @id @default(cuid())
+  userId      String?
   amount      Int
   reason      String
   courseId    String?

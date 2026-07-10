@@ -82,8 +82,8 @@ export default function Journey() {
         const userId = useAppStore.getState().userId;
         const [badgesRes, studyRes, flamesRes] = await Promise.all([
           fetch(`/api/badges${userId ? `?userId=${userId}` : ""}`),
-          fetch("/api/study-time"),
-          fetch("/api/flames"),
+          fetch(`/api/study-time`, userId ? { headers: { Authorization: `Bearer ${userId}` } } : undefined),
+          fetch("/api/flames", userId ? { headers: { Authorization: `Bearer ${userId}` } } : undefined),
         ]);
         if (badgesRes.ok) {
           const data = await badgesRes.json();
@@ -793,7 +793,7 @@ export default function Journey() {
                 <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4">
                   {tx.journey.dailyBreakdown}
                 </h3>
-                {studyTime.dailyBreakdown.length === 0 ? (
+                {(!studyTime?.dailyBreakdown || studyTime.dailyBreakdown.length === 0) ? (
                   <div className="text-center py-8">
                     <Clock className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
                     <p className="text-sm text-muted-foreground">{tx.journey.noStudyData}</p>
