@@ -10,356 +10,11 @@ import {
   ShieldAlert,
   Gift,
   Lock,
-  X,
-  CreditCard,
-  ShieldCheck,
 } from "lucide-react";
-import { PayPalButtons } from "@paypal/react-paypal-js";
-import { usePayPalScriptReducer } from "@paypal/react-paypal-js";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import { trackEvent } from "@/lib/analytics";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
-
-// ─── Payment Modal Component ─────────────────────────────────────────────
-
-function PaymentModal({
-  plan,
-  lang,
-  onClose,
-  onSuccess,
-}: {
-  plan: "monthly" | "annual";
-  lang: "fr" | "en";
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const tx = t(lang);
-  const userId = useAppStore((s) => s.userId);
-  const [{ isPending, isResolved, isRejected }] = usePayPalScriptReducer();
-
-  const [step, setStep] = useState<"idle" | "creating" | "paying" | "capturing" | "success" | "error">("idle");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [requestId, setRequestId] = useState<string | null>(null);
-  const capturingRef = useRef(false);
-
-  const planInfo = plan === "monthly"
-    ? { name: tx.landing.pricing.monthly.name, price: tx.landing.pricing.monthly.price, period: tx.landing.pricing.monthly.period }
-    : { name: tx.landing.pricing.annual.name, price: tx.landing.pricing.annual.price, period: tx.landing.pricing.annual.period };
-
-  // createOrder callback — called by PayPalButtons when user initiates payment
-  const createOrder = useCallback(async (): Promise<string> => {
-    console.log("[paypal-modal] createOrder called for plan:", plan);
-
-    // Prevent double creation
-    if (step === "creating" || step === "paying" || step === "capturing") {
-      console.warn("[paypal-modal] Blocking duplicate createOrder");
-      throw new Error("Payment already in progress");
-    }
-
-    setStep("creating");
-    setErrorMessage(null);
-
-    try {
-      const res = await fetch("/api/subscription/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan, userId }),
-      });
-
-      let data: Record<string, unknown> = {};
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error(lang === "fr" ? "Impossible de se connecter au service de paiement. Vérifie ton Wi-Fi." : "Can't reach the payment service. Check your Wi-Fi.");
-      }
-
-      if (!res.ok) {
-        const code = data.code as string | undefined;
-        if (code === "PAYPAL_NOT_CONFIGURED") {
-          throw new Error(lang === "fr" ? "Le paiement n'est pas encore configuré. Reviens bientôt !" : "Payments aren't ready yet. Check back soon!");
-        }
-        if (res.status === 404) {
-          throw new Error(lang === "fr" ? "Compte introuvable. Connecte-toi d'abord." : "Account not found. Please sign in first.");
-        }
-        if (res.status === 429) {
-          throw new Error(lang === "fr" ? "Tu cliques un peu trop vite ! Attends une minute et réessaie." : "A bit too fast! Wait a minute and try again.");
-        }
-        if (res.status === 400 && String(data.error).includes("Already subscribed")) {
-          throw new Error(lang === "fr" ? "Tu as déjà un abonnement actif !" : "You already have an active subscription!");
-        }
-        throw new Error(String(data.error || data.details || (lang === "fr" ? "Un souci technique. Réessaie dans un instant." : "Something went wrong. Try again in a moment.")));
-      }
-
-      const orderId = String(data.orderId || "");
-      if (data.requestId) setRequestId(String(data.requestId));
-
-      if (!orderId) {
-        throw new Error(lang === "fr" ? "Impossible de préparer le paiement. Réessaie." : "Couldn't prepare the payment. Try again.");
-      }
-
-      console.log("[paypal-modal] Order created:", orderId.substring(0, 12) + "...");
-      setStep("paying");
-      trackEvent({ name: "payment_init", properties: { plan, method: "inline" } });
-      return orderId;
-    } catch (err) {
-      console.error("[paypal-modal] createOrder error:", err);
-      const msg = err instanceof Error ? err.message : (lang === "fr" ? "Erreur inconnue." : "Unknown error.");
-      setErrorMessage(msg);
-      setStep("error");
-      throw err; // Re-throw so PayPal shows error state
-    }
-  }, [plan, userId, lang, step]);
-
-  // onApprove callback — called by PayPalButtons when user approves payment
-  const onApprove = useCallback(async (): Promise<void> => {
-    console.log("[paypal-modal] onApprove called");
-
-    // Prevent double capture
-    if (capturingRef.current) {
-      console.warn("[paypal-modal] Blocking duplicate capture");
-      return;
-    }
-    capturingRef.current = true;
-    setStep("capturing");
-
-    try {
-      if (!requestId) {
-        console.error("[paypal-modal] No requestId available for capture");
-        // Try to continue — webhook may handle it
-        setStep("success");
-        onSuccess();
-        return;
-      }
-
-      const res = await fetch("/api/subscription/capture", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ requestId }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        console.log("[paypal-modal] Payment captured successfully, plan:", data.plan);
-        setStep("success");
-        trackEvent({ name: "payment_success", properties: { plan, method: "inline" } });
-        onSuccess();
-      } else {
-        // Capture failed — but payment may have been approved via webhook
-        console.warn("[paypal-modal] Capture returned:", data.error || res.status);
-
-        // If it's "already active", still treat as success
-        if (data.alreadyActive) {
-          console.log("[paypal-modal] Subscription already active — treating as success");
-          setStep("success");
-          onSuccess();
-          return;
-        }
-
-        // For other errors, show success anyway (webhook will handle activation)
-        // The user already paid — we should not block them
-        console.log("[paypal-modal] Payment was approved by user, capture had issue — allowing success (webhook backup)");
-        setStep("success");
-        onSuccess();
-      }
-    } catch (err) {
-      console.error("[paypal-modal] onApprove error:", err);
-      // User has already paid — don't block them
-      console.log("[paypal-modal] Network error during capture — allowing success (webhook backup)");
-      setStep("success");
-      onSuccess();
-    } finally {
-      capturingRef.current = false;
-    }
-  }, [requestId, lang, onSuccess]);
-
-  // onError callback — called by PayPalButtons when PayPal SDK encounters an error
-  const onError = useCallback((err: Record<string, unknown>) => {
-    console.error("[paypal-modal] PayPal SDK error:", err);
-    if (step !== "success") {
-      setErrorMessage(lang === "fr"
-        ? "PayPal a rencontré un problème. Réessaie dans un instant."
-        : "PayPal ran into an issue. Try again in a moment.");
-      setStep("error");
-    }
-    trackEvent({ name: "payment_error", properties: { plan, error: "sdk_error" } });
-  }, [lang, plan, step]);
-
-  // onCancel callback — called when user closes PayPal popup
-  const onCancel = useCallback(() => {
-    console.log("[paypal-modal] Payment cancelled by user");
-    setStep("idle");
-    trackEvent({ name: "payment_cancelled", properties: { plan } });
-  }, [plan]);
-
-  // Close handler
-  const handleClose = useCallback(() => {
-    if (step === "capturing") {
-      // Don't allow closing during capture
-      return;
-    }
-    trackEvent({ name: "payment_modal_closed", properties: { plan, step } });
-    onClose();
-  }, [step, plan, onClose]);
-
-  // Show success state briefly, then close
-  useEffect(() => {
-    if (step === "success") {
-      const timer = setTimeout(() => {
-        onClose();
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [step, onClose]);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={handleClose}
-        aria-hidden="true"
-      />
-
-      {/* Modal */}
-      <div className="relative w-full max-w-md glass rounded-3xl p-6 sm:p-8 shadow-2xl shadow-mauve/20 animate-fade-in-slide-up">
-        {/* Close button */}
-        {step !== "success" && step !== "capturing" && (
-          <button
-            onClick={handleClose}
-            className="absolute top-4 right-4 p-2 rounded-xl hover:bg-white/10 transition-colors duration-200 cursor-pointer"
-            aria-label={lang === "fr" ? "Fermer" : "Close"}
-          >
-            <X className="w-5 h-5 text-muted-foreground" />
-          </button>
-        )}
-
-        {/* ─── IDLE / CREATING / PAYING STATE ─── */}
-        {(step === "idle" || step === "creating" || step === "paying") && (
-          <>
-            {/* Header */}
-            <div className="text-center mb-6">
-              <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-mauve to-gold flex items-center justify-center shadow-lg shadow-mauve/30">
-                {plan === "annual"
-                  ? <Crown className="w-7 h-7 text-white" />
-                  : <Zap className="w-7 h-7 text-white" />}
-              </div>
-              <h3 className="text-xl font-bold mb-1">
-                {planInfo.name}
-              </h3>
-              <div className="flex items-baseline justify-center gap-1">
-                <span className="text-3xl font-extrabold">{planInfo.price}</span>
-                <span className="text-muted-foreground">{planInfo.period}</span>
-              </div>
-            </div>
-
-            {/* Security badge */}
-            <div className="flex items-center justify-center gap-2 mb-6 text-xs text-muted-foreground">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>{lang === "fr" ? "Paiement sécurisé par PayPal" : "Secure payment by PayPal"}</span>
-            </div>
-
-            {/* PayPal Buttons */}
-            <div className="space-y-3">
-              {(isPending || step === "creating") ? (
-                <div className="flex flex-col items-center gap-3 py-8">
-                  <Loader2 className="w-8 h-8 text-mauve-light animate-spin" />
-                  <p className="text-sm text-muted-foreground">
-                    {lang === "fr" ? "Création de la commande..." : "Creating order..."}
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <PayPalButtons
-                    style={{
-                      layout: "vertical",
-                      color: "gold",
-                      shape: "rect",
-                      label: "pay",
-                      height: 48,
-                      tagline: false,
-                    }}
-                    disabled={step !== "idle" && step !== "error"}
-                    createOrder={createOrder}
-                    onApprove={onApprove}
-                    onError={onError}
-                    onCancel={onCancel}
-                  />
-
-                  {/* Card payment hint */}
-                  <p className="text-center text-xs text-muted-foreground/70 mt-1">
-                    <CreditCard className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />
-                    {lang === "fr"
-                      ? "PayPal affiche aussi le paiement par carte bancaire"
-                      : "PayPal also shows debit/credit card payment"}
-                  </p>
-                </>
-              )}
-            </div>
-
-            {/* Retry button on error */}
-            {step === "error" && !isPending && (
-              <button
-                onClick={() => { setStep("idle"); setErrorMessage(null); }}
-                className="w-full mt-4 py-3 rounded-2xl glass text-muted-foreground font-semibold text-sm hover:text-foreground hover:bg-white/5 transition-all duration-200 cursor-pointer"
-              >
-                {lang === "fr" ? "Réessayer" : "Try again"}
-              </button>
-            )}
-
-            {/* Cancel link */}
-            {step === "idle" && (
-              <button
-                onClick={handleClose}
-                className="w-full mt-4 py-2 text-muted-foreground/60 text-sm hover:text-muted-foreground transition-colors cursor-pointer"
-              >
-                {lang === "fr" ? "Annuler" : "Cancel"}
-              </button>
-            )}
-          </>
-        )}
-
-        {/* ─── CAPTURING STATE ─── */}
-        {step === "capturing" && (
-          <div className="text-center py-8">
-            <Loader2 className="w-10 h-10 text-mauve-light animate-spin mx-auto mb-4" />
-            <p className="text-base font-semibold text-foreground">
-              {lang === "fr" ? "Confirmation du paiement..." : "Confirming payment..."}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {lang === "fr" ? "Ne ferme pas cette page." : "Don't close this page."}
-            </p>
-          </div>
-        )}
-
-        {/* ─── SUCCESS STATE ─── */}
-        {step === "success" && (
-          <div className="text-center py-6 animate-fade-in">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/20 flex items-center justify-center">
-              <Check className="w-8 h-8 text-emerald-400" />
-            </div>
-            <h3 className="text-xl font-bold text-emerald-300 mb-1">
-              {lang === "fr" ? "Paiement réussi !" : "Payment successful!"}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {lang === "fr"
-                ? "Ton abonnement est maintenant actif."
-                : "Your subscription is now active."}
-            </p>
-          </div>
-        )}
-
-        {/* ─── ERROR STATE ─── */}
-        {step === "error" && errorMessage && (
-          <div className="mt-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
-            <p className="text-sm text-red-200">{errorMessage}</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 // ─── Main OffersPage Component ───────────────────────────────────────────
 
@@ -387,8 +42,8 @@ export default function OffersPage() {
   const [firstName, setFirstName] = useState<string>("");
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
-  // Payment modal state
-  const [paymentModalPlan, setPaymentModalPlan] = useState<"monthly" | "annual" | null>(null);
+  // Direct checkout: tracks which plan button is currently loading
+  const [checkoutLoading, setCheckoutLoading] = useState<"monthly" | "annual" | null>(null);
 
   // Countdown timer for last 24 hours
   const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
@@ -398,65 +53,71 @@ export default function OffersPage() {
   const [paypalConfigured, setPaypalConfigured] = useState<boolean | null>(null);
   const [paypalNotConfigured, setPaypalNotConfigured] = useState(false);
 
-  // ─── Open payment modal ────────────────────────────────────────────────
-  const openPaymentModal = useCallback((plan: "monthly" | "annual") => {
+  // ─── Direct redirect to PayPal checkout ──────────────────────────────
+  const handleChoosePlan = useCallback(async (plan: "monthly" | "annual") => {
     if (!isAuthenticated || !userId) {
       setView("auth");
       return;
     }
     if (paypalConfigured === false) return;
     if (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired) return;
+    if (checkoutLoading) return; // prevent double-click
 
     setCheckoutError(null);
-    setPaymentModalPlan(plan);
-    trackEvent({ name: "payment_modal_opened", properties: { plan } });
-  }, [isAuthenticated, userId, paypalConfigured, isSubscribed, showRenewalReminder, inGracePeriod, graceExpired, setView]);
+    setCheckoutLoading(plan);
+    trackEvent({ name: "checkout_started", properties: { plan, method: "redirect" } });
 
-  // ─── Handle payment success from modal ─────────────────────────────────
-  const handlePaymentSuccess = useCallback(async () => {
-    console.log("[offers] Payment success — refreshing status");
-
-    // Show celebration
-    const paymentTx = t(lang);
-    const message = paymentTx.payment.success;
-    useAppStore.getState().setShowCelebration(true);
-    useAppStore.getState().setCelebrationMessage(message);
-
-    // Refresh subscription status
     try {
-      const headers: Record<string, string> = {};
-      if (userId) headers["Authorization"] = `Bearer ${userId}`;
-      const res = await fetch("/api/courses/paywall-status", { headers });
-      const data = await res.json();
-      if (data.hasSubscription && data.subscriptionStatus === "active") {
-        setIsSubscribed(true);
-        setSubscriptionPlan(data.subscriptionPlan || paymentModalPlan || "monthly");
-        setTrialExpired(false);
-        setInGracePeriod(false);
-        setGraceExpired(false);
-        setShowRenewalReminder(false);
+      const res = await fetch("/api/subscription/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan, userId }),
+      });
 
-        // Update global store
-        useAppStore.getState().setHasSubscription(true);
-        useAppStore.getState().setSubscriptionStatus("active");
-        useAppStore.getState().setHasNotification(false);
+      let data: Record<string, unknown> = {};
+      try {
+        data = await res.json();
+      } catch {
+        setCheckoutError(lang === "fr"
+          ? "Impossible de se connecter au service de paiement. Vérifie ton Wi-Fi."
+          : "Can't reach the payment service. Check your Wi-Fi.");
+        setCheckoutLoading(null);
+        return;
       }
-    } catch {
-      // Non-critical — celebration already shown
-    }
 
-    // Check for pending course generation to auto-resume
-    const pending = useAppStore.getState().pendingGeneration;
-    if (pending) {
-      console.log("[offers] Found pending course generation:", pending.topic);
-      useAppStore.getState().setPendingGeneration(null);
-      // Navigate to create view — the CreateCourse component will auto-detect
-      // the pending generation and trigger it
-      setTimeout(() => {
-        useAppStore.getState().setView("create");
-      }, 1500);
+      if (!res.ok) {
+        const code = data.code as string | undefined;
+        if (code === "PAYPAL_NOT_CONFIGURED") {
+          setCheckoutError(lang === "fr" ? "Le paiement n'est pas encore configuré." : "Payments aren't ready yet.");
+        } else if (res.status === 404) {
+          setCheckoutError(lang === "fr" ? "Compte introuvable. Connecte-toi d'abord." : "Account not found. Please sign in first.");
+        } else if (res.status === 429) {
+          setCheckoutError(lang === "fr" ? "Tu cliques un peu trop vite ! Attends une minute." : "A bit too fast! Wait a minute.");
+        } else if (res.status === 400 && String(data.error).includes("Already subscribed")) {
+          setCheckoutError(lang === "fr" ? "Tu as déjà un abonnement actif !" : "You already have an active subscription!");
+        } else {
+          setCheckoutError(String(data.error || data.details || (lang === "fr" ? "Un souci technique. Réessaie." : "Something went wrong.")));
+        }
+        setCheckoutLoading(null);
+        return;
+      }
+
+      const approveUrl = String(data.approveUrl || "");
+      if (!approveUrl) {
+        setCheckoutError(lang === "fr" ? "Impossible de préparer le paiement. Réessaie." : "Couldn't prepare the payment. Try again.");
+        setCheckoutLoading(null);
+        return;
+      }
+
+      // Redirect directly to PayPal — no modal, no detour
+      console.log("[offers] Redirecting to PayPal for plan:", plan);
+      window.location.href = approveUrl;
+    } catch (err) {
+      console.error("[offers] Checkout error:", err);
+      setCheckoutError(lang === "fr" ? "Erreur lors de la préparation du paiement." : "Error preparing payment.");
+      setCheckoutLoading(null);
     }
-  }, [lang, userId, paymentModalPlan]);
+  }, [isAuthenticated, userId, paypalConfigured, isSubscribed, showRenewalReminder, inGracePeriod, graceExpired, setView, checkoutLoading, lang]);
 
   // Check paywall & subscription status
   useEffect(() => {
@@ -806,10 +467,16 @@ export default function OffersPage() {
               </button>
             ) : (
               <button
-                onClick={() => openPaymentModal("monthly")}
-                className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
+                onClick={() => handleChoosePlan("monthly")}
+                disabled={checkoutLoading !== null}
+                className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-wait"
               >
-                {lang === "fr" ? "Choisir Mensuel" : "Choose Monthly"}
+                {checkoutLoading === "monthly" ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : null}
+                {checkoutLoading === "monthly"
+                  ? (lang === "fr" ? "Redirection vers PayPal..." : "Redirecting to PayPal...")
+                  : (lang === "fr" ? "Choisir Mensuel" : "Choose Monthly")}
               </button>
             )}
           </div>
@@ -871,10 +538,16 @@ export default function OffersPage() {
               </button>
             ) : (
               <button
-                onClick={() => openPaymentModal("annual")}
-                className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden cursor-pointer"
+                onClick={() => handleChoosePlan("annual")}
+                disabled={checkoutLoading !== null}
+                className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden cursor-pointer disabled:opacity-70 disabled:cursor-wait"
               >
-                {lang === "fr" ? "Choisir Annuel" : "Choose Annual"}
+                {checkoutLoading === "annual" ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : null}
+                {checkoutLoading === "annual"
+                  ? (lang === "fr" ? "Redirection vers PayPal..." : "Redirecting to PayPal...")
+                  : (lang === "fr" ? "Choisir Annuel" : "Choose Annual")}
               </button>
             )}
           </div>
@@ -902,16 +575,6 @@ export default function OffersPage() {
         </div>
       </div>
     </div>
-
-    {/* ===== PAYMENT MODAL ===== */}
-    {paymentModalPlan && (
-      <PaymentModal
-        plan={paymentModalPlan}
-        lang={lang}
-        onClose={() => setPaymentModalPlan(null)}
-        onSuccess={handlePaymentSuccess}
-      />
-    )}
 
     {/* ===== ANIMATIONS ===== */}
     <style jsx global>{`

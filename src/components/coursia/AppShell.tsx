@@ -15,7 +15,7 @@ import CourseViewer from "@/components/coursia/CourseViewer";
 import Journey from "@/components/coursia/Journey";
 import OffersPage from "@/components/coursia/OffersPage";
 import TopBar from "@/components/coursia/TopBar";
-import { PayPalProviderWrapper } from "@/components/coursia/PayPalProvider";
+
 
 function MobileBottomNav() {
   const view = useAppStore((s) => s.view);
@@ -280,26 +280,24 @@ export default function AppShell() {
       ) : view === "auth" ? (
         <AuthPage />
       ) : (
-        <PayPalProviderWrapper>
-          <div className="min-h-screen">
-            <Sidebar />
-            {view !== "viewer" && <TopBar />}
-            <main
-              className={`min-h-screen transition-all duration-300 ease-in-out pb-16 md:pb-0 ${
-                collapsed
-                  ? "ml-0 md:ml-[72px]"
-                  : "ml-0 md:ml-[72px] lg:ml-64"
-              }`}
-            >
-              {view === "create" && <CreateCourse />}
-              {view === "library" && <LibraryPage />}
-              {view === "viewer" && <CourseViewer />}
-              {view === "journey" && <Journey />}
-              {view === "offers" && <OffersPage />}
-            </main>
-            <MobileBottomNav />
-          </div>
-        </PayPalProviderWrapper>
+        <div className="min-h-screen">
+          <Sidebar />
+          {view !== "viewer" && <TopBar />}
+          <main
+            className={`min-h-screen transition-all duration-300 ease-in-out pb-16 md:pb-0 ${
+              collapsed
+                ? "ml-0 md:ml-[72px]"
+                : "ml-0 md:ml-[72px] lg:ml-64"
+            }`}
+          >
+            {view === "create" && <CreateCourse />}
+            {view === "library" && <LibraryPage />}
+            {view === "viewer" && <CourseViewer />}
+            {view === "journey" && <Journey />}
+            {view === "offers" && <OffersPage />}
+          </main>
+          <MobileBottomNav />
+        </div>
       )}
     </div>
   );
