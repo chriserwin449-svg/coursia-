@@ -10,6 +10,9 @@ import {
   ShieldAlert,
   Gift,
   Lock,
+  Sparkles,
+  BookOpen,
+  Trophy,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -44,6 +47,9 @@ export default function OffersPage() {
 
   // Direct checkout: tracks which plan button is currently loading
   const [checkoutLoading, setCheckoutLoading] = useState<"monthly" | "annual" | null>(null);
+
+  // Track whether paywall status has loaded (to prevent UI flash)
+  const [statusLoaded, setStatusLoaded] = useState(false);
 
   // Countdown timer for last 24 hours
   const [countdown, setCountdown] = useState({ hours: 0, minutes: 0, seconds: 0 });
@@ -152,12 +158,14 @@ export default function OffersPage() {
         const res = await fetch("/api/courses/paywall-status", { headers });
         const data = await res.json();
 
+        // Always capture courses generated count
+        setTrialCoursesGenerated(data.trialCoursesGenerated || 0);
+
         if (data.firstName) setFirstName(data.firstName);
 
         if (data.inTrial) {
           setInTrial(true);
           setTrialDaysRemaining(data.trialDaysRemaining || 0);
-          setTrialCoursesGenerated(data.trialCoursesGenerated || 0);
         } else if (data.showPaywall && data.paywallReason === "trial_expired") {
           setTrialExpired(true);
         }
@@ -183,6 +191,8 @@ export default function OffersPage() {
         }
       } catch {
         // silently fail
+      } finally {
+        setStatusLoaded(true);
       }
     };
     checkStatus();
@@ -312,6 +322,9 @@ export default function OffersPage() {
     return null;
   }, [isSubscribed, showRenewalReminder, firstName, lang, tx.offers]);
 
+  // Show "Start for free" if user hasn't generated any course yet
+  const showStartFree = statusLoaded && trialCoursesGenerated === 0 && !isSubscribed;
+
   // Button disabled logic
   const isButtonDisabled = (plan: string) =>
     paypalConfigured === false ||
@@ -422,32 +435,91 @@ export default function OffersPage() {
           )}
         </div>
 
-        {/* ===== PRICING CARDS ===== */}
-        <div
-          className={`grid gap-6 lg:gap-8 items-start mb-20 grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto`}
-        >
-          {/* MONTHLY PLAN */}
-          <div className="pricing-card-float monthly-card-glow glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
-            <div className="mb-6">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
-                  <Zap className="w-6 h-6 text-mauve-light" />
+        {/* ===== CONTENT: Start Free vs Pricing Cards ===== */}
+        {!statusLoaded ? (
+          /* Loading skeleton while fetching status */
+          <div className="flex items-center justify-center py-24">
+            <Loader2 className="w-8 h-8 animate-spin text-mauve-light" />
+          </div>
+        ) : showStartFree ? (
+          /* ── START FOR FREE ── New user who hasn't generated their first course */
+          <div className="max-w-lg mx-auto mb-20">
+            <div className="free-card-glow glass rounded-3xl p-8 sm:p-10 text-center relative overflow-hidden">
+              {/* Decorative glow */}
+              <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-64 bg-emerald-500/10 rounded-full blur-[80px] pointer-events-none" />
+
+              <div className="relative z-10">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center mx-auto mb-6">
+                  <Sparkles className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-400" />
                 </div>
-                <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.monthly.name}</h3>
+
+                <h2 className="text-2xl sm:text-3xl font-extrabold mb-3">
+                  <span className="gradient-text">{tx.offers.startFreeTitle}</span>
+                </h2>
+                <p className="text-muted-foreground text-sm sm:text-base max-w-sm mx-auto mb-8">
+                  {tx.offers.startFreeSubtitle}
+                </p>
+
+                <ul className="space-y-3 mb-10 text-left max-w-sm mx-auto">
+                  {[
+                    { icon: BookOpen, text: tx.offers.startFreeFeature1 },
+                    { icon: Check, text: tx.offers.startFreeFeature2 },
+                    { icon: Trophy, text: tx.offers.startFreeFeature3 },
+                  ].map(({ icon: Icon, text }) => (
+                    <li key={text} className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Icon className="w-4 h-4 text-emerald-400" />
+                      </div>
+                      <span className="text-sm text-muted-foreground pt-1">{text}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <button
+                  onClick={() => {
+                    trackEvent({ name: "start_free_clicked" });
+                    setView("create");
+                  }}
+                  className="w-full py-4 sm:py-4.5 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-lg hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2.5 cursor-pointer shadow-[0_0_30px_rgba(16,185,129,0.2)] hover:shadow-[0_0_40px_rgba(16,185,129,0.3)]"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  {tx.offers.startFreeButton}
+                </button>
+
+                <p className="text-xs text-muted-foreground/50 mt-5 flex items-center justify-center gap-2">
+                  <Lock className="w-3 h-3" />
+                  {tx.offers.startFreeNote}
+                </p>
               </div>
-              <p className="text-muted-foreground text-sm">{tx.landing.pricing.monthly.desc}</p>
             </div>
-            <div className="mb-6">
-              <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.monthly.price}</span>
-              <span className="text-lg text-muted-foreground">{tx.landing.pricing.monthly.period}</span>
-            </div>
-            <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
-              {tx.landing.pricing.monthly.features.map((f) => (
-                <li key={f} className="flex items-start gap-3">
-                  <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm text-muted-foreground">{f}</span>
-                </li>
-              ))}
+          </div>
+        ) : (
+          /* ── PRICING CARDS ── User has generated at least 1 course */
+          <div
+            className={`grid gap-6 lg:gap-8 items-start mb-20 grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto`}
+          >
+            {/* MONTHLY PLAN */}
+            <div className="pricing-card-float monthly-card-glow glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
+              <div className="mb-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
+                    <Zap className="w-6 h-6 text-mauve-light" />
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.monthly.name}</h3>
+                </div>
+                <p className="text-muted-foreground text-sm">{tx.landing.pricing.monthly.desc}</p>
+              </div>
+              <div className="mb-6">
+                <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.monthly.price}</span>
+                <span className="text-lg text-muted-foreground">{tx.landing.pricing.monthly.period}</span>
+              </div>
+              <ul className="flex-1 space-y-2 sm:space-y-3 mb-8">
+                {tx.landing.pricing.monthly.features.map((f) => (
+                  <li key={f} className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-muted-foreground">{f}</span>
+                  </li>
+                ))}
             </ul>
 
             {/* CTA Button */}
@@ -551,18 +623,19 @@ export default function OffersPage() {
               </button>
             )}
           </div>
-        </div>
+          </div>
+        )}
 
         {/* ===== BOTTOM NOTE ===== */}
         <div className="text-center pb-10">
-          {paypalNotConfigured && (
+          {!showStartFree && paypalNotConfigured && (
             <div className="mb-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-semibold animate-[fadeIn_0.3s_ease-out]">
               ⚙️ {lang === "fr"
                 ? "Les paiements seront bientôt disponibles. Reviens vérifier prochainement !"
                 : "Payments will be available soon. Check back later!"}
             </div>
           )}
-          {!paypalNotConfigured && (
+          {!showStartFree && !paypalNotConfigured && (
             <div className="flex items-center justify-center gap-2 mb-2">
               <Lock className="w-3.5 h-3.5 text-muted-foreground/40" />
               <span className="text-xs text-muted-foreground/50">
@@ -630,6 +703,14 @@ export default function OffersPage() {
       .monthly-card-glow:hover {
         border-color: rgba(168,85,247,0.45) !important;
         animation: monthly-glow 2s ease-in-out infinite;
+      }
+
+      @keyframes free-card-pulse {
+        0%, 100% { box-shadow: 0 0 20px rgba(16,185,129,0.08), 0 0 40px rgba(16,185,129,0.04); }
+        50% { box-shadow: 0 0 30px rgba(16,185,129,0.18), 0 0 60px rgba(16,185,129,0.08), 0 0 80px rgba(16,185,129,0.04); }
+      }
+      .free-card-glow {
+        animation: free-card-pulse 3s ease-in-out infinite;
       }
 
       @keyframes fade-in {
