@@ -96,3 +96,27 @@ Stage Summary:
 - All `JSON.parse` calls on DB-stored JSON now have try/catch fallbacks
 - Both quiz submission endpoints now validate `answers` is an array before processing
 - No functional behavior changes for valid requests; only crash resilience improved
+---
+Task ID: 4
+Agent: main
+Task: Show "Start for Free" for new users on offers page instead of monthly/annual plans
+
+Work Log:
+- Read OffersPage.tsx, paywall-status API, paypal.ts, i18n.ts, store.ts to understand the full flow
+- Identified that paywall-status API returns `trialCoursesGenerated` (0 for new users)
+- Added `statusLoaded` state to prevent UI flash between loading and loaded states
+- Added `showStartFree` computed boolean: `statusLoaded && trialCoursesGenerated === 0 && !isSubscribed`
+- Created beautiful "Start for Free" card with emerald gradient, Sparkles icon, 3 feature bullets
+- Card navigates to `setView("create")` when clicked (direct to course creation)
+- Loading spinner shows while paywall status is being fetched
+- After the free card, the pricing cards (monthly/annual) appear normally
+- Hidden PayPal/payment notes when showing the free card
+- Added 6 new i18n strings for both FR and EN (startFreeTitle, startFreeSubtitle, startFreeButton, startFreeNote, startFreeFeature1-3)
+- Added `free-card-pulse` CSS animation (subtle emerald glow)
+- Imported `Sparkles`, `BookOpen`, `Trophy` icons from lucide-react
+
+Stage Summary:
+- OffersPage.tsx: Added 3-way conditional rendering (loading → start free → pricing cards)
+- i18n.ts: Added 6 FR + 6 EN translation keys for the "Start for Free" UI
+- Verified via Agent Browser: FR and EN both show correct translations, button navigates to Create page
+- Pushed to GitHub: 3da9535
