@@ -120,3 +120,21 @@ Stage Summary:
 - i18n.ts: Added 6 FR + 6 EN translation keys for the "Start for Free" UI
 - Verified via Agent Browser: FR and EN both show correct translations, button navigates to Create page
 - Pushed to GitHub: 3da9535
+---
+Task ID: 5
+Agent: main
+Task: Fix OffersPage layout — keep both pricing cards + add 'Start for Free' below, change landing page buttons
+
+Work Log:
+- User clarified: keep both Monthly/Annual cards ALWAYS visible on OffersPage
+- Add "Commencer gratuitement" banner BELOW the two cards (only for new users with 0 courses)
+- Removed the previous approach that replaced pricing cards with a single free card
+- Changed landing page pricing buttons ("Choisir Mensuel", "Choisir Annuel") from `setView("offers")` to `setView("create")`
+- Removed unused imports (BookOpen, Trophy) and free-card-glow CSS animation
+- Fixed missing `</div>` that caused JSX parsing error (grid container wasn't closed)
+
+Stage Summary:
+- OffersPage.tsx: Both pricing cards always visible, "Commencer gratuitement" banner appears below for new users
+- LandingPage.tsx: Pricing CTA buttons now navigate to Create page
+- Verified via Agent Browser: both cards visible, free banner below, all buttons navigate correctly
+- Pushed to GitHub: db1d085
