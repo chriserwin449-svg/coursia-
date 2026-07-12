@@ -434,11 +434,6 @@ export default function OffersPage() {
         </div>
 
         {/* ===== PRICING CARDS ===== */}
-        {!statusLoaded ? (
-          <div className="flex items-center justify-center py-24">
-            <Loader2 className="w-8 h-8 animate-spin text-mauve-light" />
-          </div>
-        ) : (
           <div className={`grid gap-6 lg:gap-8 items-start grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto`}>
             {/* MONTHLY PLAN */}
             <div className="pricing-card-float monthly-card-glow glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
@@ -465,7 +460,22 @@ export default function OffersPage() {
             </ul>
 
             {/* CTA Button */}
-            {isButtonDisabled("monthly") ? (
+            {showStartFree ? (
+              <button
+                onClick={() => {
+                  trackEvent({ name: "start_free_clicked" });
+                  if (!isAuthenticated) {
+                    setView("auth");
+                  } else {
+                    setView("create");
+                  }
+                }}
+                className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+              >
+                <Sparkles className="w-5 h-5" />
+                {tx.offers.startFreeButton}
+              </button>
+            ) : isButtonDisabled("monthly") ? (
               <button
                 disabled
                 className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2"
@@ -536,7 +546,22 @@ export default function OffersPage() {
             </ul>
 
             {/* CTA Button */}
-            {isButtonDisabled("annual") ? (
+            {showStartFree ? (
+              <button
+                onClick={() => {
+                  trackEvent({ name: "start_free_clicked" });
+                  if (!isAuthenticated) {
+                    setView("auth");
+                  } else {
+                    setView("create");
+                  }
+                }}
+                className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+              >
+                <Sparkles className="w-5 h-5" />
+                {tx.offers.startFreeButton}
+              </button>
+            ) : isButtonDisabled("annual") ? (
               <button
                 disabled
                 className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden"
@@ -565,34 +590,7 @@ export default function OffersPage() {
               </button>
             )}
           </div>
-          </div>
-        )}
-
-        {/* ===== START FOR FREE (new users only — below pricing cards) ===== */}
-        {showStartFree && statusLoaded && (
-          <div className="max-w-4xl mx-auto mt-8 mb-8 animate-fade-in-slide-up">
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 p-5 sm:p-6 rounded-2xl glass border border-emerald-500/20">
-              <div className="text-center sm:text-left">
-                <p className="text-base sm:text-lg font-bold text-emerald-400 mb-1">
-                  {tx.offers.startFreeTitle}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {tx.offers.startFreeNote}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  trackEvent({ name: "start_free_clicked" });
-                  setView("create");
-                }}
-                className="flex-shrink-0 px-7 py-3 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.15)]"
-              >
-                <Sparkles className="w-4 h-4" />
-                {tx.offers.startFreeButton}
-              </button>
-            </div>
-          </div>
-        )}
+        </div>
 
         {/* ===== BOTTOM NOTE ===== */}
         <div className="text-center pb-10">

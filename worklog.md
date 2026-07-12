@@ -138,3 +138,24 @@ Stage Summary:
 - LandingPage.tsx: Pricing CTA buttons now navigate to Create page
 - Verified via Agent Browser: both cards visible, free banner below, all buttons navigate correctly
 - Pushed to GitHub: db1d085
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Replace "Choisir Mensuel/Annuel" buttons with "Commencer gratuitement" for new users on both Offers and Landing pages
+
+Work Log:
+- Read and analyzed OffersPage.tsx and LandingPage.tsx current state
+- Removed the `!statusLoaded` loading gate that hid the pricing grid on OffersPage
+- Removed the green "Essaie d'abord, décide après" banner from OffersPage
+- Added `showStartFree` conditional button rendering on both monthly and annual pricing cards in OffersPage — when true, buttons show "Commencer gratuitement" with Sparkles icon and emerald gradient, onClick navigates to Create page (or Auth if not logged in)
+- Added `showStartFree` state + paywall-status fetch to LandingPage for authenticated users (defaults to true for visitors)
+- Changed LandingPage top-right nav button from "Essayer Gratuitement" (tx.landing.cta) to "Commencer gratuitement" (tx.landing.startFree)
+- Changed both LandingPage pricing card buttons to conditionally show "Commencer gratuitement" with emerald gradient for new users
+- Fixed lint error (avoided setState in effect when not needed)
+- Verified with browser: all buttons correctly show "Commencer gratuitement", clicking navigates to Auth page for unauthenticated users
+
+Stage Summary:
+- OffersPage.tsx: Buttons change from "Choisir Mensuel/Annuel" → "Commencer gratuitement" for new users (trialCoursesGenerated === 0 && !isSubscribed), removed green banner, removed loading gate
+- LandingPage.tsx: Top-right button "Essayer Gratuitement" → "Commencer gratuitement", pricing buttons conditionally show "Commencer gratuitement" for new users, added paywall-status fetch
+- All verified via browser snapshot (agent-browser) — landing page shows correct button text

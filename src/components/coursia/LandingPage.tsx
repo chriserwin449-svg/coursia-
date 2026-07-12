@@ -34,6 +34,25 @@ export default function LandingPage() {
   const tx = t(lang);
   const setView = useAppStore((s) => s.setView);
   const user = useAppStore((s) => s.user);
+  const userId = useAppStore((s) => s.userId);
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+
+  // Track if user is new (hasn't generated first course) — default true for visitors
+  const [showStartFree, setShowStartFree] = useState(true);
+
+  useEffect(() => {
+    if (!isAuthenticated || !userId) return;
+    fetch("/api/courses/paywall-status", {
+      headers: { Authorization: `Bearer ${userId}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.trialCoursesGenerated > 0 || data.hasSubscription) {
+          setShowStartFree(false);
+        }
+      })
+      .catch(() => {});
+  }, [isAuthenticated, userId]);
 
   // Scroll-triggered visibility
   const heroRef = useRef<HTMLDivElement>(null);
@@ -147,7 +166,7 @@ export default function LandingPage() {
               onClick={() => user ? setView("create") : setView("auth")}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-border text-foreground text-sm font-bold transition-colors duration-200 cursor-pointer"
             >
-              <span>{tx.landing.cta}</span>
+              <span>{tx.landing.startFree}</span>
             </button>
           </div>
         </div>
@@ -408,10 +427,10 @@ export default function LandingPage() {
                 ))}
               </ul>
               <button
-                onClick={() => setView("create")}
-                className="landing-monthly-btn-shimmer w-full py-4 rounded-full text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 cursor-pointer relative overflow-hidden"
+                onClick={() => user ? setView("create") : setView("auth")}
+                className={`w-full py-4 rounded-full font-bold transition-all duration-300 cursor-pointer relative overflow-hidden ${showStartFree ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-[0_0_20px_rgba(16,185,129,0.2)]" : "landing-monthly-btn-shimmer text-white hover:from-mauve-light hover:to-mauve"}`}
               >
-                {tx.landing.pricing.monthly.cta}
+                {showStartFree ? tx.landing.startFree : tx.landing.pricing.monthly.cta}
               </button>
             </div>
 
@@ -450,10 +469,10 @@ export default function LandingPage() {
                 ))}
               </ul>
               <button
-                onClick={() => setView("create")}
-                className="landing-annual-btn-shimmer w-full py-4 rounded-full text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer relative overflow-hidden"
+                onClick={() => user ? setView("create") : setView("auth")}
+                className={`w-full py-4 rounded-full font-bold transition-all duration-300 cursor-pointer relative overflow-hidden ${showStartFree ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-[0_0_20px_rgba(16,185,129,0.2)]" : "landing-annual-btn-shimmer text-night hover:from-amber-400 hover:to-gold shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)]"}`}
               >
-                {tx.landing.pricing.annual.cta}
+                {showStartFree ? tx.landing.startFree : tx.landing.pricing.annual.cta}
               </button>
             </div>
           </div>
