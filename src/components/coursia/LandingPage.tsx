@@ -408,7 +408,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <button
-                onClick={() => setView("offers")}
+                onClick={() => setView("create")}
                 className="landing-monthly-btn-shimmer w-full py-4 rounded-full text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 cursor-pointer relative overflow-hidden"
               >
                 {tx.landing.pricing.monthly.cta}
@@ -450,7 +450,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <button
-                onClick={() => setView("offers")}
+                onClick={() => setView("create")}
                 className="landing-annual-btn-shimmer w-full py-4 rounded-full text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer relative overflow-hidden"
               >
                 {tx.landing.pricing.annual.cta}

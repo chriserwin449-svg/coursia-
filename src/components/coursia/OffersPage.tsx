@@ -11,8 +11,6 @@ import {
   Gift,
   Lock,
   Sparkles,
-  BookOpen,
-  Trophy,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -435,69 +433,13 @@ export default function OffersPage() {
           )}
         </div>
 
-        {/* ===== CONTENT: Start Free vs Pricing Cards ===== */}
+        {/* ===== PRICING CARDS ===== */}
         {!statusLoaded ? (
-          /* Loading skeleton while fetching status */
           <div className="flex items-center justify-center py-24">
             <Loader2 className="w-8 h-8 animate-spin text-mauve-light" />
           </div>
-        ) : showStartFree ? (
-          /* ── START FOR FREE ── New user who hasn't generated their first course */
-          <div className="max-w-lg mx-auto mb-20">
-            <div className="free-card-glow glass rounded-3xl p-8 sm:p-10 text-center relative overflow-hidden">
-              {/* Decorative glow */}
-              <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-64 h-64 bg-emerald-500/10 rounded-full blur-[80px] pointer-events-none" />
-
-              <div className="relative z-10">
-                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center mx-auto mb-6">
-                  <Sparkles className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-400" />
-                </div>
-
-                <h2 className="text-2xl sm:text-3xl font-extrabold mb-3">
-                  <span className="gradient-text">{tx.offers.startFreeTitle}</span>
-                </h2>
-                <p className="text-muted-foreground text-sm sm:text-base max-w-sm mx-auto mb-8">
-                  {tx.offers.startFreeSubtitle}
-                </p>
-
-                <ul className="space-y-3 mb-10 text-left max-w-sm mx-auto">
-                  {[
-                    { icon: BookOpen, text: tx.offers.startFreeFeature1 },
-                    { icon: Check, text: tx.offers.startFreeFeature2 },
-                    { icon: Trophy, text: tx.offers.startFreeFeature3 },
-                  ].map(({ icon: Icon, text }) => (
-                    <li key={text} className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <Icon className="w-4 h-4 text-emerald-400" />
-                      </div>
-                      <span className="text-sm text-muted-foreground pt-1">{text}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <button
-                  onClick={() => {
-                    trackEvent({ name: "start_free_clicked" });
-                    setView("create");
-                  }}
-                  className="w-full py-4 sm:py-4.5 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-lg hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2.5 cursor-pointer shadow-[0_0_30px_rgba(16,185,129,0.2)] hover:shadow-[0_0_40px_rgba(16,185,129,0.3)]"
-                >
-                  <Sparkles className="w-5 h-5" />
-                  {tx.offers.startFreeButton}
-                </button>
-
-                <p className="text-xs text-muted-foreground/50 mt-5 flex items-center justify-center gap-2">
-                  <Lock className="w-3 h-3" />
-                  {tx.offers.startFreeNote}
-                </p>
-              </div>
-            </div>
-          </div>
         ) : (
-          /* ── PRICING CARDS ── User has generated at least 1 course */
-          <div
-            className={`grid gap-6 lg:gap-8 items-start mb-20 grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto`}
-          >
+          <div className={`grid gap-6 lg:gap-8 items-start grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto`}>
             {/* MONTHLY PLAN */}
             <div className="pricing-card-float monthly-card-glow glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
               <div className="mb-6">
@@ -626,16 +568,42 @@ export default function OffersPage() {
           </div>
         )}
 
+        {/* ===== START FOR FREE (new users only — below pricing cards) ===== */}
+        {showStartFree && statusLoaded && (
+          <div className="max-w-4xl mx-auto mt-8 mb-8 animate-fade-in-slide-up">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6 p-5 sm:p-6 rounded-2xl glass border border-emerald-500/20">
+              <div className="text-center sm:text-left">
+                <p className="text-base sm:text-lg font-bold text-emerald-400 mb-1">
+                  {tx.offers.startFreeTitle}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {tx.offers.startFreeNote}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  trackEvent({ name: "start_free_clicked" });
+                  setView("create");
+                }}
+                className="flex-shrink-0 px-7 py-3 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.15)]"
+              >
+                <Sparkles className="w-4 h-4" />
+                {tx.offers.startFreeButton}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* ===== BOTTOM NOTE ===== */}
         <div className="text-center pb-10">
-          {!showStartFree && paypalNotConfigured && (
+          {paypalNotConfigured && (
             <div className="mb-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-semibold animate-[fadeIn_0.3s_ease-out]">
               ⚙️ {lang === "fr"
                 ? "Les paiements seront bientôt disponibles. Reviens vérifier prochainement !"
                 : "Payments will be available soon. Check back later!"}
             </div>
           )}
-          {!showStartFree && !paypalNotConfigured && (
+          {!paypalNotConfigured && (
             <div className="flex items-center justify-center gap-2 mb-2">
               <Lock className="w-3.5 h-3.5 text-muted-foreground/40" />
               <span className="text-xs text-muted-foreground/50">
@@ -703,14 +671,6 @@ export default function OffersPage() {
       .monthly-card-glow:hover {
         border-color: rgba(168,85,247,0.45) !important;
         animation: monthly-glow 2s ease-in-out infinite;
-      }
-
-      @keyframes free-card-pulse {
-        0%, 100% { box-shadow: 0 0 20px rgba(16,185,129,0.08), 0 0 40px rgba(16,185,129,0.04); }
-        50% { box-shadow: 0 0 30px rgba(16,185,129,0.18), 0 0 60px rgba(16,185,129,0.08), 0 0 80px rgba(16,185,129,0.04); }
-      }
-      .free-card-glow {
-        animation: free-card-pulse 3s ease-in-out infinite;
       }
 
       @keyframes fade-in {
