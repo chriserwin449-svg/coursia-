@@ -38,7 +38,8 @@ export default function CreateCourse() {
   const [showSuggested, setShowSuggested] = useState(false);
   const [suggestedTopic, setSuggestedTopic] = useState("");
   const [hasSubscription, setHasSubscription] = useState(false);
-  const [canCreateCourse, setCanCreateCourse] = useState(true);
+  const [canCreateCourse, setCanCreateCourse] = useState(false);
+  const [paywallLoaded, setPaywallLoaded] = useState(false);
   const [inGracePeriod, setInGracePeriod] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState(0);
   const [isRandomTopic, setIsRandomTopic] = useState(false);
@@ -223,6 +224,8 @@ export default function CreateCourse() {
       }
     } catch {
       // silently ignore
+    } finally {
+      setPaywallLoaded(true);
     }
   }, []);
 
@@ -800,7 +803,7 @@ export default function CreateCourse() {
         ) : null}
 
         {/* ─── First course free badge ─── */}
-        {!hasSubscription && canCreateCourse && (
+        {paywallLoaded && !hasSubscription && canCreateCourse && (
           <div className="mb-6 p-4 rounded-2xl glass text-center animate-fade-in">
             <div className="flex items-center justify-center gap-2 mb-2">
               <Gift className="w-5 h-5 text-gold" />

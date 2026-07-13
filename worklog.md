@@ -159,3 +159,25 @@ Stage Summary:
 - OffersPage.tsx: Buttons change from "Choisir Mensuel/Annuel" → "Commencer gratuitement" for new users (trialCoursesGenerated === 0 && !isSubscribed), removed green banner, removed loading gate
 - LandingPage.tsx: Top-right button "Essayer Gratuitement" → "Commencer gratuitement", pricing buttons conditionally show "Commencer gratuitement" for new users, added paywall-status fetch
 - All verified via browser snapshot (agent-browser) — landing page shows correct button text
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Multiple UI fixes — landing page buttons, hero text, badge text, first-course-free message, PayPal spacing
+
+Work Log:
+- Removed `showStartFree` state/effect from LandingPage.tsx, restored original "Choisir Mensuel"/"Choisir Annuel" buttons with shimmer animations
+- Removed trailing "." from hero heading (no longer needed since new text ends with "?")
+- Updated i18n FR hero: "Chaque personne apprend différemment." + "Pourquoi suivre le même cours que tout le monde ?"
+- Updated i18n FR subtitle: "Avec Coursia, l'IA construit un parcours d'apprentissage entièrement personnalisé pour toi..."
+- Updated i18n EN hero/subtitle with English equivalents
+- Changed annual badge from "Le plus populaire" to "Le plus économique sur le long terme" (FR) / "Most cost-effective in the long run" (EN)
+- Fixed "Ton premier cours est gratuit !" in CreateCourse.tsx: changed `canCreateCourse` initial state to `false`, added `paywallLoaded` state, only show badge after API confirms user can create
+- Fixed PayPal text spacing on Offers page: added `mt-10` to bottom note container
+
+Stage Summary:
+- Landing page pricing cards now show original purple/gold "Choisir Mensuel"/"Choisir Annuel" buttons
+- Hero text updated to "Chaque personne apprend différemment. Pourquoi suivre le même cours que tout le monde ?"
+- Annual badge changed to "Le plus économique sur le long terme"
+- "Ton premier cours est gratuit" will no longer flash or reappear after first course
+- PayPal text no longer sticks to annual card
