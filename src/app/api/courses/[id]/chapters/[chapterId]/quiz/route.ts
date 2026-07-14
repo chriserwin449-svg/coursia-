@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { smartChatCompletion } from "@/lib/openai";
-import { calculateFlameEarned } from "@/lib/flames";
+import { CHAPTER_COMPLETE_FLAMES } from "@/lib/flames";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
 
 export async function POST(
@@ -193,7 +193,7 @@ export async function PUT(
     // Award flame points if quiz passed and not already awarded
     if (passed && !progress.flameAwarded) {
       const userId = getUserIdFromRequest(request);
-      const flamePoints = calculateFlameEarned(score);
+      const flamePoints = CHAPTER_COMPLETE_FLAMES;
       const settingsId = userId || "main";
       await db.appSettings.upsert({
         where: { id: settingsId },

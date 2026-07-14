@@ -94,6 +94,22 @@ export const FLAME_TYPES: FlameType[] = [
 
 export const COURSE_CREATION_COST = 100;
 
+// ── Fixed flame reward constants (Task #6 overhaul) ──
+/** +2 flames when completing a chapter (passing the chapter quiz) */
+export const CHAPTER_COMPLETE_FLAMES = 2;
+/** +6 flames when completing a level (all chapters in a level done) */
+export const LEVEL_COMPLETE_FLAMES = 6;
+/** +10 bonus flames when completing ALL 3 levels of a course */
+export const COURSE_MASTERY_FLAMES = 10;
+/** +3 flames for a good study session (>= 10 min continuous) */
+export const STUDY_TIME_GOOD_FLAMES = 3;
+/** -1 flame for a very short study session (< 2 min) */
+export const STUDY_TIME_SHORT_PENALTY = -1;
+/** Threshold in seconds: sessions at or above this get +3 flames */
+export const STUDY_TIME_GOOD_THRESHOLD = 600; // 10 minutes
+/** Threshold in seconds: sessions below this get -1 flame */
+export const STUDY_TIME_SHORT_THRESHOLD = 120; // 2 minutes
+
 /**
  * Calculate course completion bonus flame points.
  * Only awarded if score >= 60 (passed).

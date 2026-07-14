@@ -593,7 +593,7 @@ export default function OffersPage() {
         </div>
 
         {/* ===== BOTTOM NOTE ===== */}
-        <div className="text-center pb-10 mt-10">
+        <div className="text-center pb-10 mt-16">
           {paypalNotConfigured && (
             <div className="mb-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-semibold animate-[fadeIn_0.3s_ease-out]">
               ⚙️ {lang === "fr"

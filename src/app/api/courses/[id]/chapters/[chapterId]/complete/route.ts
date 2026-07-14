@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { calculateFlameEarned } from "@/lib/flames";
+import { CHAPTER_COMPLETE_FLAMES } from "@/lib/flames";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
 
 export async function POST(
@@ -46,10 +46,9 @@ export async function POST(
       },
     });
 
-    // Award flame points if not already awarded (scaled by level)
+    // Award flame points if not already awarded
     if (!progress.flameAwarded) {
-      const courseLevel = chapter.course?.level ?? 0;
-      const flamePoints = calculateFlameEarned(100, courseLevel);
+      const flamePoints = CHAPTER_COMPLETE_FLAMES;
       const settingsId = userId || "main";
       await db.appSettings.upsert({
         where: { id: settingsId },

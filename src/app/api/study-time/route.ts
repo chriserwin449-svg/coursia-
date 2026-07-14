@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getUserIdFromRequest } from "@/lib/get-user-id";
+import { STUDY_TIME_GOOD_FLAMES, STUDY_TIME_SHORT_PENALTY, STUDY_TIME_GOOD_THRESHOLD, STUDY_TIME_SHORT_THRESHOLD } from "@/lib/flames";
 
 export async function GET(request: NextRequest) {
   try {
@@ -145,6 +147,62 @@ export async function POST(request: NextRequest) {
         where: { id: sessionId },
         data: { endTime, durationSeconds },
       });
+
+      // Award or penalize flames based on session duration (only once per session)
+      if (!session.flameAwarded) {
+        const userId = getUserIdFromRequest(request, body.userId);
+        let flameDelta = 0;
+        let reason = "";
+
+        if (durationSeconds >= STUDY_TIME_GOOD_THRESHOLD) {
+          // Good study session (>= 10 min): +3 flames
+          flameDelta = STUDY_TIME_GOOD_FLAMES;
+          reason = "study_time_good";
+        } else if (durationSeconds < STUDY_TIME_SHORT_THRESHOLD) {
+          // Very short session (< 2 min): -1 flame (but never below 0)
+          flameDelta = STUDY_TIME_SHORT_PENALTY;
+          reason = "study_time_short";
+        }
+
+        if (flameDelta !== 0 && userId) {
+          const settingsId = userId || "main";
+          const settings = await db.appSettings.upsert({
+            where: { id: settingsId },
+            create: { id: settingsId, flamePoints: 0 },
+            update: {},
+          });
+
+          // Ensure total never goes below 0
+          const newTotal = Math.max(0, settings.flamePoints + flameDelta);
+          await db.appSettings.update({
+            where: { id: settingsId },
+            data: { flamePoints: newTotal },
+          });
+
+          await db.flameTransaction.create({
+            data: {
+              amount: flameDelta,
+              reason,
+              courseId: session.courseId,
+              userId,
+            },
+          });
+
+          // Mark session as flame-awarded
+          await db.studySession.update({
+            where: { id: sessionId },
+            data: { flameAwarded: true },
+          });
+
+          return NextResponse.json({ success: true, durationSeconds, flameDelta, newTotal });
+        } else if (flameDelta !== 0 && !userId) {
+          // No userId — still mark as awarded to avoid re-checking
+          await db.studySession.update({
+            where: { id: sessionId },
+            data: { flameAwarded: true },
+          });
+        }
+      }
 
       return NextResponse.json({ success: true, durationSeconds });
     }

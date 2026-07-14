@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { calculateLevelCompletionBonus, calculateMasteryBonus } from "@/lib/flames";
+import { LEVEL_COMPLETE_FLAMES, COURSE_MASTERY_FLAMES } from "@/lib/flames";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
 
 export async function POST(
@@ -47,10 +47,10 @@ export async function POST(
 
     if (level >= 2) {
       // All levels mastered — big bonus
-      bonusPoints = calculateLevelCompletionBonus(level) + calculateMasteryBonus();
+      bonusPoints = LEVEL_COMPLETE_FLAMES + COURSE_MASTERY_FLAMES;
       reason = "all_levels_mastered";
     } else {
-      bonusPoints = calculateLevelCompletionBonus(level);
+      bonusPoints = LEVEL_COMPLETE_FLAMES;
       reason = "level_complete";
     }
 
@@ -76,12 +76,10 @@ export async function POST(
 
     // Mark level as awarded
     const updatedAwarded = [...awardedLevels, level];
-    // @ts-expect-error - flameAwardedLevels is a JSON field
     await db.courseProgress.upsert({
       where: { courseId: id },
       create: { courseId: id },
       update: {
-        // @ts-expect-error - flameAwardedLevels is a JSON field
         flameAwardedLevels: JSON.stringify(updatedAwarded),
       },
     });

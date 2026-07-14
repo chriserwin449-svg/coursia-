@@ -182,7 +182,7 @@ export default function CourseViewer() {
       await fetch("/api/study-time", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "end", sessionId: studySessionId }),
+        body: JSON.stringify({ action: "end", sessionId: studySessionId, userId: useAppStore.getState().userId }),
       });
     } catch { /* ignore */ }
     setStudySessionId(null);
@@ -201,7 +201,7 @@ export default function CourseViewer() {
         fetch("/api/study-time", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "end", sessionId: studySessionId }),
+          body: JSON.stringify({ action: "end", sessionId: studySessionId, userId: useAppStore.getState().userId }),
         }).catch(() => {});
       }
     };
@@ -210,7 +210,7 @@ export default function CourseViewer() {
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (studySessionId) {
-        navigator.sendBeacon("/api/study-time", new Blob([JSON.stringify({ action: "end", sessionId: studySessionId })], { type: "application/json" }));
+        navigator.sendBeacon("/api/study-time", new Blob([JSON.stringify({ action: "end", sessionId: studySessionId, userId: useAppStore.getState().userId })], { type: "application/json" }));
       }
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -361,19 +361,25 @@ export default function CourseViewer() {
 
     setIsCompleting(true);
     const wasJustCompleted = !currentChapter?.progress?.completed;
+    const nextIdx = currentChapterIndex + 1;
+
+    // Advance to next chapter immediately so the UI updates on the first click
+    setCurrentChapterIndex(nextIdx);
+
+    // Complete the previous chapter in the background (don't block navigation)
     if (wasJustCompleted) {
       const success = await completeCurrentChapter();
-      if (!success) { setIsCompleting(false); return; }
-      const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
-      setShowConfetti(true);
-      setShowCelebration(true);
-      setCelebrationMessage(lang === "fr" ? `Chapitre ${currentChapterIndex + 1} terminé ${userName} ! 🎉` : `Chapter ${currentChapterIndex + 1} done ${userName}! 🎉`);
-      if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
-      celebrationTimerRef.current = setTimeout(() => { setShowCelebration(false); setShowConfetti(false); }, 2000);
+      if (success) {
+        const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
+        setShowConfetti(true);
+        setShowCelebration(true);
+        setCelebrationMessage(lang === "fr" ? `Chapitre ${currentChapterIndex + 1} terminé ${userName} ! 🎉` : `Chapter ${currentChapterIndex + 1} done ${userName}! 🎉`);
+        if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+        celebrationTimerRef.current = setTimeout(() => { setShowCelebration(false); setShowConfetti(false); }, 2000);
+      }
     }
+
     endStudySession();
-    const nextIdx = currentChapterIndex + 1;
-    setCurrentChapterIndex(nextIdx);
     startStudySession(course.id, course.chapters[nextIdx]?.id);
     setIsCompleting(false);
   }, [course, isCompleting, currentChapter?.progress?.completed, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, startStudySession, setCurrentChapterIndex]);

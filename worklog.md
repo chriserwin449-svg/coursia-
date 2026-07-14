@@ -181,3 +181,55 @@ Stage Summary:
 - Annual badge changed to "Le plus économique sur le long terme"
 - "Ton premier cours est gratuit" will no longer flash or reappear after first course
 - PayPal text no longer sticks to annual card
+---
+Task ID: 6
+Agent: general-purpose
+Task: Overhaul flames system with new point rules + study time rewards
+
+Work Log:
+- Read all 6 target files + Prisma schema + auto-migrate.ts to understand current flame logic
+- Current system: chapter quiz gave 15-50 flames (scaled by level), level completion gave 50-150, mastery gave 500
+- Replaced variable flame calculations with fixed constants in `src/lib/flames.ts`:
+  - `CHAPTER_COMPLETE_FLAMES = 2` (was 15-50 via calculateFlameEarned)
+  - `LEVEL_COMPLETE_FLAMES = 6` (was 50-150 via calculateLevelCompletionBonus)
+  - `COURSE_MASTERY_FLAMES = 10` (was 500 via calculateMasteryBonus)
+  - `STUDY_TIME_GOOD_FLAMES = 3`, `STUDY_TIME_SHORT_PENALTY = -1`
+  - `STUDY_TIME_GOOD_THRESHOLD = 600` (10 min), `STUDY_TIME_SHORT_THRESHOLD = 120` (2 min)
+- Updated `quiz/route.ts` PUT handler: replaced `calculateFlameEarned(score)` with `CHAPTER_COMPLETE_FLAMES` (fixed +2)
+- Updated `complete/route.ts`: replaced `calculateFlameEarned(100, courseLevel)` with `CHAPTER_COMPLETE_FLAMES` (fixed +2)
+- Updated `complete-level/route.ts`: replaced `calculateLevelCompletionBonus(level)` with `LEVEL_COMPLETE_FLAMES` (+6), `calculateMasteryBonus()` with `COURSE_MASTERY_FLAMES` (+10). Also removed now-unnecessary `@ts-expect-error` directives.
+- Added `flameAwarded Boolean @default(false)` to StudySession model in Prisma schema
+- Added auto-migration for `flameAwarded` column on StudySession table (PostgreSQL)
+- Overhauled `study-time/route.ts` end action with study time flame rewards:
+  - >= 600 seconds (10 min): +3 flames, reason "study_time_good"
+  - < 120 seconds (2 min): -1 flame, reason "study_time_short" (never goes below 0 total)
+  - 2-10 min range: no change (neutral)
+  - Uses `flameAwarded` flag on StudySession to ensure only awarded once per session
+  - Creates FlameTransaction for audit trail
+- Updated `CourseViewer.tsx` to pass `userId` in all 3 places that end study sessions (endStudySession callback, cleanup useEffect, beforeunload handler) so the study-time API can attribute flames correctly
+- Kept `calculateCourseCompletionBonus` and `calculateFlameEarned` functions in flames.ts (still used by final-quiz route and for backward compatibility)
+- TypeScript verified: no new errors in any modified file
+
+Stage Summary:
+- 7 files changed: quiz/route.ts, complete/route.ts, complete-level/route.ts, study-time/route.ts, flames.ts, auto-migrate.ts, CourseViewer.tsx, schema.prisma
+- New flame economy: chapter +2, level +6, all-levels bonus +10, good session +3, short session -1 (min 0)
+- Study time rewards fully integrated into session end flow with duplicate protection via `flameAwarded` flag
+- All changes use existing FlameTransaction model for logging
+---
+Task ID: 5
+Agent: general-purpose
+Task: Fix next chapter double-click bug
+
+Work Log:
+- Read worklog.md and analyzed CourseViewer.tsx (~1400 lines) to understand the chapter navigation system
+- Identified the `goToNext` async callback (line 356) which handles "Next Chapter" button clicks
+- Root cause: `goToNext` called `setCurrentChapterIndex(nextIdx)` AFTER awaiting `completeCurrentChapter()`. The async API call (POST /complete + GET /courses) introduced a delay before the chapter actually advanced in the UI. During this delay, the component re-rendered with `isCompleting=true` (showing a spinner) but the chapter index hadn't changed yet, making it appear as if the first click did nothing.
+- Fix: Moved `setCurrentChapterIndex(nextIdx)` to execute IMMEDIATELY (before the await), so the chapter advances on the first click with instant visual feedback. The chapter completion API call now runs in the background without blocking navigation.
+- Also removed the `if (!success) { setIsCompleting(false); return; }` early-exit since the chapter has already advanced — if completion fails, the user is still on the correct next chapter.
+- Added `if (success)` guard around celebration code so confetti/celebration only shows when completion actually succeeds.
+- Pre-existing TS errors on lines 76-77 (useRef without initial value) confirmed unrelated to this change.
+
+Stage Summary:
+- CourseViewer.tsx: Restructured `goToNext` to advance `currentChapterIndex` synchronously before the async `completeCurrentChapter()` call
+- Single click now immediately navigates to the next chapter; completion + celebration happen in background
+- No other functionality changed (sidebar nav, prev button, keyboard nav, level completion all unaffected)

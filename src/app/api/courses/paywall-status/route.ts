@@ -135,6 +135,7 @@ export async function GET(request: NextRequest) {
         email: true,
         firstName: true,
         hasCardOnFile: true,
+        freeCourseUsed: true,
       },
     });
 
@@ -262,6 +263,30 @@ export async function GET(request: NextRequest) {
 
     // ── 6. FREE PREVIEW CHECK (user exists but no active subscription) ──
     if (user) {
+      // If free course was already used (even if deleted), block generation
+      if (user.freeCourseUsed) {
+        return NextResponse.json<PaywallStatus>({
+          canStudy: true,
+          canGenerate: false,
+          canProgress: true,
+          inTrial: false,
+          trialDaysRemaining: 0,
+          trialCoursesGenerated: 1,
+          trialCoursesMax: FREE_COURSE_LIMIT,
+          hasSubscription: false,
+          inGracePeriod: false,
+          showRenewalReminder: false,
+          renewalUrgency: "none",
+          isOfflineMode: false,
+          showPaywall: true,
+          paywallReason: "free_limit",
+          firstName: user.firstName || undefined,
+          hasCardOnFile: !!user.hasCardOnFile,
+          requireCard: false,
+          freeChapterLimit: FREE_CHAPTER_LIMIT,
+        });
+      }
+
       const courseCount = userId ? await db.course.count({ where: { userId } }) : 0;
 
       // No courses yet — free to create first course

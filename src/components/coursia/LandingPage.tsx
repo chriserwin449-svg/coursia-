@@ -145,7 +145,7 @@ export default function LandingPage() {
             </button>
             <button
               onClick={() => user ? setView("create") : setView("auth")}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-border text-foreground text-sm font-bold transition-colors duration-200 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-sm font-bold transition-all duration-200 cursor-pointer hover:opacity-90"
             >
               <span>{tx.landing.startFree}</span>
             </button>
@@ -198,8 +198,9 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
             <button
               onClick={() => user ? setView("create") : setView("auth")}
-              className="group inline-flex items-center gap-3 px-10 py-5 rounded-full border border-border text-foreground text-lg sm:text-xl font-bold transition-colors duration-200 cursor-pointer"
+              className="group inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-lg sm:text-xl font-bold hover:opacity-90 transition-all duration-200 cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.2)]"
             >
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
               <span>{tx.landing.startFree}</span>
               <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
@@ -406,12 +407,7 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <button
-                onClick={() => setView("create")}
-                className="landing-monthly-btn-shimmer w-full py-4 rounded-full text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 cursor-pointer relative overflow-hidden"
-              >
-                {tx.landing.pricing.monthly.cta}
-              </button>
+
             </div>
 
             {/* ANNUAL PLAN — highlighted */}
@@ -448,12 +444,7 @@ export default function LandingPage() {
                   </li>
                 ))}
               </ul>
-              <button
-                onClick={() => setView("create")}
-                className="landing-annual-btn-shimmer w-full py-4 rounded-full text-night font-bold hover:from-amber-400 hover:to-gold transition-all duration-300 shadow-[0_0_30px_rgba(234,179,8,0.3)] hover:shadow-[0_0_40px_rgba(234,179,8,0.5)] cursor-pointer relative overflow-hidden"
-              >
-                {tx.landing.pricing.annual.cta}
-              </button>
+
             </div>
           </div>
 
@@ -519,8 +510,9 @@ export default function LandingPage() {
             </p>
             <button
               onClick={() => user ? setView("create") : setView("auth")}
-              className="group inline-flex items-center gap-3 px-10 py-5 rounded-full border border-border text-foreground text-lg sm:text-xl font-bold transition-colors duration-200 cursor-pointer"
+              className="group inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-lg sm:text-xl font-bold hover:opacity-90 transition-all duration-200 cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.2)]"
             >
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
               <span>{tx.landing.startFree}</span>
               <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>

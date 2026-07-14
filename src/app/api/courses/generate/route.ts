@@ -102,7 +102,7 @@ async function deepSearch(
     searchOnce(zai, `${topic} ${levelContext} explained ${langQ}`),
     searchOnce(zai, `${topic} real world examples case studies applications ${langQ}`),
     searchOnce(zai, `${topic} common mistakes misconceptions pitfalls ${langQ}`),
-    searchOnce(zai, `${topic} latest advances 2024 2025 trends future ${langQ}`),
+    searchOnce(zai, `${topic} latest advances 2025 trends future ${langQ}`),
   ]);
 
   const blocks: string[] = [];
@@ -201,7 +201,7 @@ function buildOutlineSystemPrompt(
     `AVANCÉ (niveau 3) :
 - Le lecteur est déjà compétent. Tu le rends EXPERT.
 - Cas limites, paradoxes, edge cases, exceptions aux règles.
-- Dernières avancées de la recherche (2023-2025).
+- Dernières avancées de la recherche (2024-2025).
 - Débats actuels entre experts du domaine — présente les deux camps.
 - Remets en question les certitudes : "Ce que vous pensiez savoir..."
 - Analyse critique, multi-perspectives, pensée de second ordre.
@@ -982,6 +982,19 @@ async function saveCourse(
     include: { chapters: { orderBy: { order: "asc" } } },
   });
   await db.courseProgress.upsert({ where: { courseId: course.id }, create: { courseId: course.id }, update: {} });
+
+  // Mark free course as used (prevents delete-and-recreate abuse)
+  if (userId) {
+    try {
+      await db.user.update({
+        where: { id: userId },
+        data: { freeCourseUsed: true },
+      });
+    } catch {
+      // Non-critical — paywall check will catch it on next load
+    }
+  }
+
   return course;
 }
 

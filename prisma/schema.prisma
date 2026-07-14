@@ -21,6 +21,7 @@ model User {
   subscriptionStartDate  DateTime?
   subscriptionEndDate    DateTime?
   trialStartDate         DateTime?  // Starts when user creates first course
+  freeCourseUsed         Boolean  @default(false) // Set to true after first free course generation (prevents delete-and-recreate abuse)
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
   paymentRequests         PaymentRequest[]
@@ -149,4 +150,5 @@ model StudySession {
   startTime       DateTime
   endTime         DateTime?
   durationSeconds Int      @default(0)
+  flameAwarded    Boolean  @default(false)
 }
