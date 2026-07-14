@@ -97,23 +97,25 @@ async function deepSearch(
 
   const langQ = courseLang === "en" ? "in english" : "en français";
 
-  // 4 parallel searches from different angles
-  const [r1, r2, r3, r4] = await Promise.all([
+  // 5 parallel searches from different angles for richer, more accurate content
+  const [r1, r2, r3, r4, r5] = await Promise.all([
     searchOnce(zai, `${topic} ${levelContext} explained ${langQ}`),
     searchOnce(zai, `${topic} real world examples case studies applications ${langQ}`),
     searchOnce(zai, `${topic} common mistakes misconceptions pitfalls ${langQ}`),
     searchOnce(zai, `${topic} latest advances 2025 trends future ${langQ}`),
+    searchOnce(zai, `best resources learn ${topic} ${courseLang === "en" ? "2025" : "2025"} ${langQ}`),
   ]);
 
   const blocks: string[] = [];
   if (r1) blocks.push(`══ CONCEPTS & EXPLANATIONS ══\n${r1}`);
   if (r2) blocks.push(`══ REAL-WORLD EXAMPLES & CASES ══\n${r2}`);
   if (r3) blocks.push(`══ COMMON MISTAKES & MISCONCEPTIONS ══\n${r3}`);
-  if (r4) blocks.push(`══ LATEST ADVANCES & TRENDS ══\n${r4}`);
+  if (r4) blocks.push(`══ LATEST ADVANCES & TRENDS (2025) ══\n${r4}`);
+  if (r5) blocks.push(`══ BEST RESOURCES & REFERENCES ══\n${r5}`);
 
   const combined = blocks.join("\n\n");
-  const totalResults = [r1, r2, r3, r4].filter(Boolean).length;
-  console.log(`[search] Deep search completed: ${totalResults}/4 queries returned results (${combined.length} chars)`);
+  const totalResults = [r1, r2, r3, r4, r5].filter(Boolean).length;
+  console.log(`[search] Deep search completed: ${totalResults}/5 queries returned results (${combined.length} chars)`);
 
   return combined;
 }
@@ -239,7 +241,7 @@ RÈGLES ABSOLUES :
 2. PROFONDEUR : chaque chapitre doit contenir au moins 3 sous-sections distinctes.
 3. CONCRET : chaque chapitre doit avoir au moins 1 cas réel ou exemple précis (noms, chiffres, situations).
 4. ANALOGIES : variées (cuisine, sport, musique, finance, nature, technologie, santé...).
-5. ANCRAGE RECHERCHE : intègre les données de recherche ci-dessus comme faits vérifiables.
+5. ANCRAGE RECHERCHE : intègre les données de recherche ci-dessus comme faits vérifiables. Privilégie les données 2024-2025. Chaque chapitre doit s'appuyer sur au moins 1 fait réel de la recherche.
 
 Réponds UNIQUEMENT avec ce JSON valide :
 {
@@ -405,7 +407,12 @@ function buildChapterSystemPrompt(
 ${webContext}
 ${sourceContext}
 ═══ FIN DES DONNÉES ═══
-IMPORTANT : Utilise ces données pour des faits, chiffres et exemples RÉELS et VÉRIFIABLES. Ne jamais inventer de statistiques.`;
+RÈGLE CRITIQUE : Les données de recherche ci-dessus sont TA source de vérité. 
+- Utilise systématiquement les faits, chiffres, noms et exemples trouvés dans ces données.
+- Si les données contiennent des statistiques, cite-les PRECISÉMENT (source, année, pourcentage).
+- N'invente JAMAIS de statistiques ou de faits. Préfère citer un chiffre réel qu'en inventer un.
+- Si les données couvrent un aspect du chapitre, construis ton contenu AUTOUR de ces données réelles.
+- Intègre les informations les plus récentes (2024-2025) en priorité.`;
   }
 
   const isAdvanced = level >= 2;
@@ -771,14 +778,15 @@ export async function POST(request: NextRequest) {
     if (userId) {
       try {
         const [user, existingCourses] = await Promise.all([
-          db.user.findUnique({ where: { id: userId }, select: { subscriptionStatus: true } }),
+          db.user.findUnique({ where: { id: userId }, select: { subscriptionStatus: true, freeCourseUsed: true } }),
           db.course.count({ where: { userId } }),
         ]);
-        if (user?.subscriptionStatus !== "active" && existingCourses >= FREE_COURSE_LIMIT) {
-          console.log(`[generate] Free limit reached for user ${userId}: ${existingCourses}/${FREE_COURSE_LIMIT}`);
+        const freeLimitReached = user?.subscriptionStatus !== "active" && (user?.freeCourseUsed || existingCourses >= FREE_COURSE_LIMIT);
+        if (freeLimitReached) {
+          console.log(`[generate] Free limit reached for user ${userId}: freeCourseUsed=${user?.freeCourseUsed}, courses=${existingCourses}/${FREE_COURSE_LIMIT}`);
           return NextResponse.json({ error: "FREE_LIMIT", requiresSubscription: true }, { status: 403 });
         }
-        console.log(`[generate] User quota OK: ${existingCourses}/${FREE_COURSE_LIMIT} courses, subscription: ${user?.subscriptionStatus || 'none'}`);
+        console.log(`[generate] User quota OK: ${existingCourses}/${FREE_COURSE_LIMIT} courses, freeCourseUsed=${user?.freeCourseUsed}, subscription: ${user?.subscriptionStatus || 'none'}`);
       } catch (dbError) {
         console.error("[generate] DB error checking quota:", dbError instanceof Error ? dbError.message : dbError);
         // Don't block generation if DB check fails — continue anyway

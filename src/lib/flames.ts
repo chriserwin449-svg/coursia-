@@ -101,11 +101,11 @@ export const CHAPTER_COMPLETE_FLAMES = 2;
 export const LEVEL_COMPLETE_FLAMES = 6;
 /** +10 bonus flames when completing ALL 3 levels of a course */
 export const COURSE_MASTERY_FLAMES = 10;
-/** +3 flames for a good study session (>= 10 min continuous) */
-export const STUDY_TIME_GOOD_FLAMES = 3;
+/** +5 flames for a good study session (>= 10 min continuous) */
+export const STUDY_TIME_GOOD_FLAMES = 5;
 /** -1 flame for a very short study session (< 2 min) */
 export const STUDY_TIME_SHORT_PENALTY = -1;
-/** Threshold in seconds: sessions at or above this get +3 flames */
+/** Threshold in seconds: sessions at or above this get +5 flames */
 export const STUDY_TIME_GOOD_THRESHOLD = 600; // 10 minutes
 /** Threshold in seconds: sessions below this get -1 flame */
 export const STUDY_TIME_SHORT_THRESHOLD = 120; // 2 minutes

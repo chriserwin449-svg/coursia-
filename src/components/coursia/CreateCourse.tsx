@@ -519,6 +519,7 @@ export default function CreateCourse() {
           // ═══ SUCCESS ═══
           const course = data.course as CourseData;
           console.log(`[generate] ✓ Success on attempt ${attempt + 1}: "${course.title}" (${course.chapters?.length || 0} chapters)`);
+          setCanCreateCourse(false); // Immediately hide free badge — free course used
           setSelectedCourseId(course.id);
           setView("viewer");
           trackEvent({ name: "course_created", properties: { plan: String(effectiveLevel), attempt: attempt + 1 } });

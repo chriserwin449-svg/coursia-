@@ -43,6 +43,7 @@ export default function CourseViewer() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [courseCompleted, setCourseCompleted] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const isCompletingRef = useRef(false);
   const [mobileChapterOpen, setMobileChapterOpen] = useState(false);
 
   // Paywall state for grace period / locked access
@@ -354,11 +355,10 @@ export default function CourseViewer() {
   const getLevelName = (level: number) => lang === "fr" ? LEVEL_NAMES_FR[level] : LEVEL_NAMES_EN[level];
 
   const goToNext = useCallback(async () => {
-    if (!course || isCompleting) return;
+    if (!course || isCompletingRef.current) return;
     if (currentChapterIndex >= course.chapters.length - 1) return;
 
-    if (isChapterLevelLocked(currentChapterIndex + 1)) return;
-
+    isCompletingRef.current = true;
     setIsCompleting(true);
     const wasJustCompleted = !currentChapter?.progress?.completed;
     const nextIdx = currentChapterIndex + 1;
@@ -381,12 +381,14 @@ export default function CourseViewer() {
 
     endStudySession();
     startStudySession(course.id, course.chapters[nextIdx]?.id);
+    isCompletingRef.current = false;
     setIsCompleting(false);
-  }, [course, isCompleting, currentChapter?.progress?.completed, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, startStudySession, setCurrentChapterIndex]);
+  }, [course, currentChapter?.progress?.completed, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, startStudySession, setCurrentChapterIndex]);
 
   // ── Complete last chapter of a level → celebration + level-up prompt ──
   const handleCompleteLevel = useCallback(async () => {
-    if (!course || isCompleting) return;
+    if (!course || isCompletingRef.current) return;
+    isCompletingRef.current = true;
     setIsCompleting(true);
 
     // Mark current chapter complete
@@ -446,8 +448,9 @@ export default function CourseViewer() {
       }
     }, 4000);
 
+    isCompletingRef.current = false;
     setIsCompleting(false);
-  }, [course, isCompleting, currentChapter, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, selectedCourseId, getLevelName]);
+  }, [course, currentChapter, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, selectedCourseId, getLevelName]);
 
   const goToPrev = useCallback(() => {
     if (currentChapterIndex === 0 || !course) return;

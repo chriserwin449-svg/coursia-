@@ -470,7 +470,7 @@ export default function OffersPage() {
                     setView("create");
                   }
                 }}
-                className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(124,92,191,0.2)]"
               >
                 <Sparkles className="w-5 h-5" />
                 {tx.offers.startFreeButton}
@@ -556,7 +556,7 @@ export default function OffersPage() {
                     setView("create");
                   }
                 }}
-                className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+                className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden cursor-pointer shadow-[0_0_20px_rgba(124,92,191,0.2)]"
               >
                 <Sparkles className="w-5 h-5" />
                 {tx.offers.startFreeButton}
