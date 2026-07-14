@@ -233,3 +233,28 @@ Stage Summary:
 - CourseViewer.tsx: Restructured `goToNext` to advance `currentChapterIndex` synchronously before the async `completeCurrentChapter()` call
 - Single click now immediately navigates to the next chapter; completion + celebration happen in background
 - No other functionality changed (sidebar nav, prev button, keyboard nav, level completion all unaffected)
+
+---
+Task ID: 2
+Agent: main
+Task: Pre-launch fixes: brand color, free course abuse, Suivant bug, flames, quality
+
+Work Log:
+- Changed all "Commencer gratuitement" buttons from emerald to Coursia brand mauve gradient (from-mauve to-mauve-dark) in LandingPage.tsx (3 buttons: top-right nav, hero CTA, final CTA) and OffersPage.tsx (2 buttons: monthly and annual cards)
+- Verified landing page pricing cards already had buttons removed (no "Choisir le plan" buttons)
+- Verified PayPal spacing already has mt-16 on offers page
+- CRITICAL FIX: Added freeCourseUsed check to generate API (route.ts line 773-777) — now checks both user.freeCourseUsed AND existing course count, preventing delete-and-recreate abuse
+- Fixed "Ton premier cours est gratuit" badge: added setCanCreateCourse(false) immediately on successful generation in CreateCourse.tsx (line 522), ensuring badge never reappears
+- Added freeCourseUsed to PostgreSQL migration in paywall-status/route.ts for Vercel deployments
+- Fixed "Suivant" double-click bug in CourseViewer.tsx: introduced isCompletingRef to prevent stale closure issues, removed silent isChapterLevelLocked guard from goToNext, updated handleCompleteLevel to also use ref
+- Flames point system verified and adjusted: +2/chapter (CHAPTER_COMPLETE_FLAMES), +6/level (LEVEL_COMPLETE_FLAMES), +10 all-3-levels (COURSE_MASTERY_FLAMES), increased good study time from +3 to +5 (STUDY_TIME_GOOD_FLAMES), -1 for bad time (< 2 min)
+- Course quality improved: added 5th search query for "best resources learn {topic} 2025", strengthened research data instructions in chapter prompt (5 specific rules for using real data), enhanced outline prompt research anchoring rule
+- All changes committed and pushed to GitHub (c12bfd6)
+
+Stage Summary:
+- 7 files modified: generate/route.ts, paywall-status/route.ts, CourseViewer.tsx, CreateCourse.tsx, LandingPage.tsx, OffersPage.tsx, flames.ts
+- Critical security fix: free course abuse prevention via freeCourseUsed flag
+- UI fix: brand-consistent button colors
+- UX fix: Suivant button single-click navigation
+- Gamification: verified and tuned flames point values
+- Quality: enhanced AI course generation with better search and research usage
