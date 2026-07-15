@@ -1,260 +1,164 @@
 ---
 Task ID: 1
-Agent: main
-Task: Replace "Points de flamme" card with "Mes Cours" card + fix CourseViewer crash
+Agent: Main
+Task: Comprehensive Coursia app fixes and features
 
 Work Log:
-- Explored project structure (AppShell SPA, Zustand state router, Journey.tsx, CourseViewer.tsx)
-- Identified 3 stats cards in Journey.tsx: Cours Créés, Cours Terminés, Points de flamme
-- Replaced "Points de flamme" card with "Mes Cours" card (emerald color, Library icon, shows total course count)
-- Added "My Courses" modal with full course list (title, progress bar, completion status)
-- Clicking a course in the modal navigates to the CourseViewer
-- Added i18n translations (FR: myCourses, myCoursesList, noCourses, openCourse; EN: equivalents)
-- Diagnosed CourseViewer crash: "ReferenceError: Cannot access 'getLevelName' before initialization"
-  - Root cause: getLevelName was defined at line 568 but referenced in useCallback dependency array at line 453
-  - This is a JavaScript Temporal Dead Zone (TDZ) error — const/let variables can't be accessed before their declaration
-- Fixed by moving getLevelName definition to line 358 (before all useCallback hooks)
-- Also fixed setLoading(false) never called on success in fetchCourse (was causing infinite loading)
-- Added defensive null checks: currentChapter access with optional chaining, null content fallback for ReactMarkdown, bounds checking in isChapterLevelLocked and isChapterUnlocked
+- Analyzed entire Coursia project structure (40+ API routes, 46 UI components, Prisma schema, Zustand store, i18n system)
+- Identified brand colors: primary=#7c5cbf (mauve), accent=#d4a843 (gold), gradient=mauve→gold
 
 Stage Summary:
-- Journey.tsx: Replaced flame points card with "Mes Cours" card + modal with clickable course list
-- CourseViewer.tsx: Fixed critical TDZ crash (getLevelName), fixed setLoading bug, added null safety
-- i18n.ts: Added 4 new translation keys for both FR and EN
-- All changes verified via Agent Browser end-to-end testing
-
----
-Task ID: 1
-Agent: main
-Task: Fix badges API, activeCourses stat, level-up Oui/Non, greetings, push to GitHub
-
-Work Log:
-- Fixed /api/badges/route.ts: added userId query param filter, added activeCourses count (non-completed courses)
-- Fixed Journey.tsx: passes userId to /api/badges, "Mes Cours" box now uses activeCourses instead of totalCourses
-- Updated CourseViewer.tsx: level review screen now shows "Veux-tu passer au niveau X ?" with Oui/Non buttons side by side
-- Added more greeting variations in i18n.ts (FR: Bienvenue, Content de te voir + 3 new messages; EN: Welcome back, Great to see you + 3 new messages)
-- Verified random topic already forces level 0 (Débutant) in CreateCourse.tsx
-- Pushed to GitHub: 971cfe9
-
-Stage Summary:
-- Bug fix: Cours créés/Mes Cours no longer show wrong counts (was counting ALL users' courses)
-- UX: Level progression now has clear Oui/Non choice after each level completion
-- Verified chapter completion celebration message already works (shows "Chapitre X terminé ! 🎉" for 2s)
-- Verified random course always starts at Débutant
-- All changes pushed to main branch
+- Full understanding of codebase architecture achieved
+- Key files identified: generate API, paywall-status, CreateCourse, CourseViewer, store, i18n
 
 ---
 Task ID: 2
-Agent: fullstack-developer
-Task: Fix per-user flame points (was global — all users shared one balance)
+Agent: Main
+Task: Fix CRITICAL free course abuse with atomic race-condition protection
 
 Work Log:
-- Identified root cause: All 5 API routes used `db.appSettings.upsert({ where: { id: "main" } })` — a single shared row
-- Created shared helper `src/lib/get-user-id.ts` that extracts userId from Authorization header, query params, or request body
-- Added `userId` field to `FlameTransaction` model in Prisma schema + auto-migrate
-- Fixed 5 backend API routes to use per-user AppSettings (userId as the row id):
-  1. `src/app/api/flames/route.ts` (GET + POST) — now filters transactions by userId
-  2. `src/app/api/courses/[id]/chapters/[chapterId]/complete/route.ts`
-  3. `src/app/api/courses/[id]/chapters/[chapterId]/quiz/route.ts` (PUT handler)
-  4. `src/app/api/courses/[id]/complete-level/route.ts`
-  5. `src/app/api/courses/[id]/final-quiz/route.ts` (PUT handler)
-- Fixed 4 frontend calls to pass userId via Authorization header:
-  1. `FlameCounter.tsx` — GET /api/flames
-  2. `Journey.tsx` — GET /api/flames
-  3. `CourseViewer.tsx` — POST /chapters/.../complete
-  4. `CourseViewer.tsx` — POST /complete-level
-  5. `CourseViewer.tsx` — PUT /final-quiz
-- Graceful fallback: when no userId is available, falls back to "main" (backward compatible for unauthenticated scenarios)
+- Replaced non-atomic check in generate API with db.$transaction that atomically reads freeCourseUsed and sets it to true BEFORE generation
+- Removed course-count-based fallback (FREE_COURSE_LIMIT) — single source of truth is User.freeCourseUsed
+- Changed fail-open (allow on DB error) to fail-closed (block on DB error) for security
+- Removed redundant freeCourseUsed update in saveCourse() since it's now done atomically before generation
 
 Stage Summary:
-- Schema: Added `userId String?` to FlameTransaction model
-- Auto-migrate: Added ALTER TABLE for FlameTransaction.userId column (PostgreSQL)
-- Backend: All 13 occurrences of `id: "main"` replaced with `id: settingsId` (userId || "main")
-- Backend: FlameTransaction.create calls now include `userId` field
-- Backend: GET /api/flames now filters transactions per-user
-- Frontend: All flame-related API calls now pass `Authorization: Bearer ${userId}` header
-- New shared utility: `src/lib/get-user-id.ts` for consistent userId extraction across routes
+- Race condition eliminated via interactive Prisma transaction
+- Free course flag is set atomically before any generation work begins
+- If generation fails, the flag remains set (user can't retry free course — this is correct behavior)
+- No course-count logic remains anywhere in the generation flow
 
 ---
 Task ID: 3
-Agent: fullstack-developer
-Task: Fix quiz+level crash bugs (JSON.parse + missing array validation)
+Agent: Main
+Task: Fix paywall-status API: Add freeCourseUsed, remove course-count logic, add 48h warning
 
 Work Log:
-- Bug 1: `complete-level/route.ts` — `JSON.parse(progress.flameAwardedLevels)` could throw on malformed DB data
-  - Wrapped in try/catch with fallback to empty array
-  - Also added `Array.isArray()` guard for non-string, non-array values
-- Bug 2a: `chapters/[chapterId]/quiz/route.ts` PUT handler — `answers` from request body used without validation
-  - Added `if (!Array.isArray(answers))` check returning 400
-  - Wrapped `JSON.parse(chapter.quiz.questions)` in try/catch returning 500 "Malformed quiz data"
-- Bug 2b: `final-quiz/route.ts` PUT handler — same issues as 2a
-  - Added `if (!Array.isArray(answers))` check returning 400
-  - Wrapped `JSON.parse(course.finalQuiz.questions)` in try/catch returning 500 "Malformed quiz data"
+- Rewrote paywall-status route to use freeCourseUsed as single source of truth
+- Added freeCourseUsed boolean to PaywallStatus response
+- Added expiryWarning48h boolean (true when subscription expires within 48 hours)
+- Updated renewal urgency levels to include "48hours"
+- Removed trialCoursesGenerated count-based logic from free user path
+- Simplified decision tree: active sub → free user with freeCourseUsed=true → free user with freeCourseUsed=false
 
 Stage Summary:
-- 3 files changed, 4 defensive guards added
-- All `JSON.parse` calls on DB-stored JSON now have try/catch fallbacks
-- Both quiz submission endpoints now validate `answers` is an array before processing
-- No functional behavior changes for valid requests; only crash resilience improved
+- PaywallStatus now includes freeCourseUsed and expiryWarning48h
+- Clean separation: grace period check, active sub check, free user check
+- 48h warning threshold = 48 * 60 * 60 * 1000 ms
+
 ---
 Task ID: 4
-Agent: main
-Task: Show "Start for Free" for new users on offers page instead of monthly/annual plans
+Agent: Main
+Task: Fix CreateCourse messages: First course free → Used free course + offers button
 
 Work Log:
-- Read OffersPage.tsx, paywall-status API, paypal.ts, i18n.ts, store.ts to understand the full flow
-- Identified that paywall-status API returns `trialCoursesGenerated` (0 for new users)
-- Added `statusLoaded` state to prevent UI flash between loading and loaded states
-- Added `showStartFree` computed boolean: `statusLoaded && trialCoursesGenerated === 0 && !isSubscribed`
-- Created beautiful "Start for Free" card with emerald gradient, Sparkles icon, 3 feature bullets
-- Card navigates to `setView("create")` when clicked (direct to course creation)
-- Loading spinner shows while paywall status is being fetched
-- After the free card, the pricing cards (monthly/annual) appear normally
-- Hidden PayPal/payment notes when showing the free card
-- Added 6 new i18n strings for both FR and EN (startFreeTitle, startFreeSubtitle, startFreeButton, startFreeNote, startFreeFeature1-3)
-- Added `free-card-pulse` CSS animation (subtle emerald glow)
-- Imported `Sparkles`, `BookOpen`, `Trophy` icons from lucide-react
+- Added localFreeCourseUsed state (synced from paywall-status API)
+- Split message display into 3 states: Grace period, Free course used (with offers button), First course free badge
+- Added GraduationCap icon import for the "used" card
+- Updated paywall fetch to sync freeCourseUsed and expiryWarning48h to Zustand store
+- After successful generation, immediately set localFreeCourseUsed=true to hide badge
 
 Stage Summary:
-- OffersPage.tsx: Added 3-way conditional rendering (loading → start free → pricing cards)
-- i18n.ts: Added 6 FR + 6 EN translation keys for the "Start for Free" UI
-- Verified via Agent Browser: FR and EN both show correct translations, button navigates to Create page
-- Pushed to GitHub: 3da9535
+- Three distinct message states, never shown simultaneously
+- "Ton premier cours est gratuit" only shows when freeCourseUsed=false AND !hasSubscription
+- "Tu as utilisé ton cours d'essai" shows with "Voir les offres" button when freeCourseUsed=true
+- State updates immediately on generation success, not just on next page load
+
 ---
 Task ID: 5
-Agent: main
-Task: Fix OffersPage layout — keep both pricing cards + add 'Start for Free' below, change landing page buttons
+Agent: Main
+Task: Add subscription notification system (48h warning, badge, banner)
 
 Work Log:
-- User clarified: keep both Monthly/Annual cards ALWAYS visible on OffersPage
-- Add "Commencer gratuitement" banner BELOW the two cards (only for new users with 0 courses)
-- Removed the previous approach that replaced pricing cards with a single free card
-- Changed landing page pricing buttons ("Choisir Mensuel", "Choisir Annuel") from `setView("offers")` to `setView("create")`
-- Removed unused imports (BookOpen, Trophy) and free-card-glow CSS animation
-- Fixed missing `</div>` that caused JSX parsing error (grid container wasn't closed)
+- Added expiryWarning48h state to Zustand store
+- Updated Sidebar to show red notification dot when expiryWarning48h is true
+- Added 48h expiry warning banner to OffersPage
+- Banner shows "Ton abonnement arrive bientôt à expiration" with 48h message
+- Badge on "Offres" menu entry combines hasNotification and expiryWarning48h
 
 Stage Summary:
-- OffersPage.tsx: Both pricing cards always visible, "Commencer gratuitement" banner appears below for new users
-- LandingPage.tsx: Pricing CTA buttons now navigate to Create page
-- Verified via Agent Browser: both cards visible, free banner below, all buttons navigate correctly
-- Pushed to GitHub: db1d085
+- Red dot on sidebar "Offres" when subscription expires within 48h
+- Warning banner on offers page during 48h window
+- Badge disappears after renewal (paywall-status returns false)
 
----
-Task ID: 1
-Agent: Main Agent
-Task: Replace "Choisir Mensuel/Annuel" buttons with "Commencer gratuitement" for new users on both Offers and Landing pages
-
-Work Log:
-- Read and analyzed OffersPage.tsx and LandingPage.tsx current state
-- Removed the `!statusLoaded` loading gate that hid the pricing grid on OffersPage
-- Removed the green "Essaie d'abord, décide après" banner from OffersPage
-- Added `showStartFree` conditional button rendering on both monthly and annual pricing cards in OffersPage — when true, buttons show "Commencer gratuitement" with Sparkles icon and emerald gradient, onClick navigates to Create page (or Auth if not logged in)
-- Added `showStartFree` state + paywall-status fetch to LandingPage for authenticated users (defaults to true for visitors)
-- Changed LandingPage top-right nav button from "Essayer Gratuitement" (tx.landing.cta) to "Commencer gratuitement" (tx.landing.startFree)
-- Changed both LandingPage pricing card buttons to conditionally show "Commencer gratuitement" with emerald gradient for new users
-- Fixed lint error (avoided setState in effect when not needed)
-- Verified with browser: all buttons correctly show "Commencer gratuitement", clicking navigates to Auth page for unauthenticated users
-
-Stage Summary:
-- OffersPage.tsx: Buttons change from "Choisir Mensuel/Annuel" → "Commencer gratuitement" for new users (trialCoursesGenerated === 0 && !isSubscribed), removed green banner, removed loading gate
-- LandingPage.tsx: Top-right button "Essayer Gratuitement" → "Commencer gratuitement", pricing buttons conditionally show "Commencer gratuitement" for new users, added paywall-status fetch
-- All verified via browser snapshot (agent-browser) — landing page shows correct button text
-
----
-Task ID: 2
-Agent: Main Agent
-Task: Multiple UI fixes — landing page buttons, hero text, badge text, first-course-free message, PayPal spacing
-
-Work Log:
-- Removed `showStartFree` state/effect from LandingPage.tsx, restored original "Choisir Mensuel"/"Choisir Annuel" buttons with shimmer animations
-- Removed trailing "." from hero heading (no longer needed since new text ends with "?")
-- Updated i18n FR hero: "Chaque personne apprend différemment." + "Pourquoi suivre le même cours que tout le monde ?"
-- Updated i18n FR subtitle: "Avec Coursia, l'IA construit un parcours d'apprentissage entièrement personnalisé pour toi..."
-- Updated i18n EN hero/subtitle with English equivalents
-- Changed annual badge from "Le plus populaire" to "Le plus économique sur le long terme" (FR) / "Most cost-effective in the long run" (EN)
-- Fixed "Ton premier cours est gratuit !" in CreateCourse.tsx: changed `canCreateCourse` initial state to `false`, added `paywallLoaded` state, only show badge after API confirms user can create
-- Fixed PayPal text spacing on Offers page: added `mt-10` to bottom note container
-
-Stage Summary:
-- Landing page pricing cards now show original purple/gold "Choisir Mensuel"/"Choisir Annuel" buttons
-- Hero text updated to "Chaque personne apprend différemment. Pourquoi suivre le même cours que tout le monde ?"
-- Annual badge changed to "Le plus économique sur le long terme"
-- "Ton premier cours est gratuit" will no longer flash or reappear after first course
-- PayPal text no longer sticks to annual card
 ---
 Task ID: 6
-Agent: general-purpose
-Task: Overhaul flames system with new point rules + study time rewards
+Agent: Main
+Task: Fix random topic diversity with persistent DB tracking
 
 Work Log:
-- Read all 6 target files + Prisma schema + auto-migrate.ts to understand current flame logic
-- Current system: chapter quiz gave 15-50 flames (scaled by level), level completion gave 50-150, mastery gave 500
-- Replaced variable flame calculations with fixed constants in `src/lib/flames.ts`:
-  - `CHAPTER_COMPLETE_FLAMES = 2` (was 15-50 via calculateFlameEarned)
-  - `LEVEL_COMPLETE_FLAMES = 6` (was 50-150 via calculateLevelCompletionBonus)
-  - `COURSE_MASTERY_FLAMES = 10` (was 500 via calculateMasteryBonus)
-  - `STUDY_TIME_GOOD_FLAMES = 3`, `STUDY_TIME_SHORT_PENALTY = -1`
-  - `STUDY_TIME_GOOD_THRESHOLD = 600` (10 min), `STUDY_TIME_SHORT_THRESHOLD = 120` (2 min)
-- Updated `quiz/route.ts` PUT handler: replaced `calculateFlameEarned(score)` with `CHAPTER_COMPLETE_FLAMES` (fixed +2)
-- Updated `complete/route.ts`: replaced `calculateFlameEarned(100, courseLevel)` with `CHAPTER_COMPLETE_FLAMES` (fixed +2)
-- Updated `complete-level/route.ts`: replaced `calculateLevelCompletionBonus(level)` with `LEVEL_COMPLETE_FLAMES` (+6), `calculateMasteryBonus()` with `COURSE_MASTERY_FLAMES` (+10). Also removed now-unnecessary `@ts-expect-error` directives.
-- Added `flameAwarded Boolean @default(false)` to StudySession model in Prisma schema
-- Added auto-migration for `flameAwarded` column on StudySession table (PostgreSQL)
-- Overhauled `study-time/route.ts` end action with study time flame rewards:
-  - >= 600 seconds (10 min): +3 flames, reason "study_time_good"
-  - < 120 seconds (2 min): -1 flame, reason "study_time_short" (never goes below 0 total)
-  - 2-10 min range: no change (neutral)
-  - Uses `flameAwarded` flag on StudySession to ensure only awarded once per session
-  - Creates FlameTransaction for audit trail
-- Updated `CourseViewer.tsx` to pass `userId` in all 3 places that end study sessions (endStudySession callback, cleanup useEffect, beforeunload handler) so the study-time API can attribute flames correctly
-- Kept `calculateCourseCompletionBonus` and `calculateFlameEarned` functions in flames.ts (still used by final-quiz route and for backward compatibility)
-- TypeScript verified: no new errors in any modified file
+- Added UsedTopic model to Prisma schema (id, title, userId, createdAt, @@unique([title]))
+- Pushed schema to database with prisma db push
+- Rewrote /api/courses/random to use DB-persisted topic tracking
+- Removed in-memory recentTopics cache
+- Both AI-generated and fallback topics are persisted to DB
+- Expanded fallback list from 30 to 50 topics
 
 Stage Summary:
-- 7 files changed: quiz/route.ts, complete/route.ts, complete-level/route.ts, study-time/route.ts, flames.ts, auto-migrate.ts, CourseViewer.tsx, schema.prisma
-- New flame economy: chapter +2, level +6, all-levels bonus +10, good session +3, short session -1 (min 0)
-- Study time rewards fully integrated into session end flow with duplicate protection via `flameAwarded` flag
-- All changes use existing FlameTransaction model for logging
----
-Task ID: 5
-Agent: general-purpose
-Task: Fix next chapter double-click bug
-
-Work Log:
-- Read worklog.md and analyzed CourseViewer.tsx (~1400 lines) to understand the chapter navigation system
-- Identified the `goToNext` async callback (line 356) which handles "Next Chapter" button clicks
-- Root cause: `goToNext` called `setCurrentChapterIndex(nextIdx)` AFTER awaiting `completeCurrentChapter()`. The async API call (POST /complete + GET /courses) introduced a delay before the chapter actually advanced in the UI. During this delay, the component re-rendered with `isCompleting=true` (showing a spinner) but the chapter index hadn't changed yet, making it appear as if the first click did nothing.
-- Fix: Moved `setCurrentChapterIndex(nextIdx)` to execute IMMEDIATELY (before the await), so the chapter advances on the first click with instant visual feedback. The chapter completion API call now runs in the background without blocking navigation.
-- Also removed the `if (!success) { setIsCompleting(false); return; }` early-exit since the chapter has already advanced — if completion fails, the user is still on the correct next chapter.
-- Added `if (success)` guard around celebration code so confetti/celebration only shows when completion actually succeeds.
-- Pre-existing TS errors on lines 76-77 (useRef without initial value) confirmed unrelated to this change.
-
-Stage Summary:
-- CourseViewer.tsx: Restructured `goToNext` to advance `currentChapterIndex` synchronously before the async `completeCurrentChapter()` call
-- Single click now immediately navigates to the next chapter; completion + celebration happen in background
-- No other functionality changed (sidebar nav, prev button, keyboard nav, level completion all unaffected)
+- Topics are tracked persistently across server restarts
+- Unique constraint prevents duplicate tracking
+- Fallback pool filters out DB-tracked topics
+- AI prompt includes recently used topics to avoid repetition
 
 ---
-Task ID: 2
-Agent: main
-Task: Pre-launch fixes: brand color, free course abuse, Suivant bug, flames, quality
+Task ID: 7
+Agent: Main
+Task: Fix course generation persistence when user leaves page
 
 Work Log:
-- Changed all "Commencer gratuitement" buttons from emerald to Coursia brand mauve gradient (from-mauve to-mauve-dark) in LandingPage.tsx (3 buttons: top-right nav, hero CTA, final CTA) and OffersPage.tsx (2 buttons: monthly and annual cards)
-- Verified landing page pricing cards already had buttons removed (no "Choisir le plan" buttons)
-- Verified PayPal spacing already has mt-16 on offers page
-- CRITICAL FIX: Added freeCourseUsed check to generate API (route.ts line 773-777) — now checks both user.freeCourseUsed AND existing course count, preventing delete-and-recreate abuse
-- Fixed "Ton premier cours est gratuit" badge: added setCanCreateCourse(false) immediately on successful generation in CreateCourse.tsx (line 522), ensuring badge never reappears
-- Added freeCourseUsed to PostgreSQL migration in paywall-status/route.ts for Vercel deployments
-- Fixed "Suivant" double-click bug in CourseViewer.tsx: introduced isCompletingRef to prevent stale closure issues, removed silent isChapterLevelLocked guard from goToNext, updated handleCompleteLevel to also use ref
-- Flames point system verified and adjusted: +2/chapter (CHAPTER_COMPLETE_FLAMES), +6/level (LEVEL_COMPLETE_FLAMES), +10 all-3-levels (COURSE_MASTERY_FLAMES), increased good study time from +3 to +5 (STUDY_TIME_GOOD_FLAMES), -1 for bad time (< 2 min)
-- Course quality improved: added 5th search query for "best resources learn {topic} 2025", strengthened research data instructions in chapter prompt (5 specific rules for using real data), enhanced outline prompt research anchoring rule
-- All changes committed and pushed to GitHub (c12bfd6)
+- Removed the useEffect cleanup that aborted generation on unmount
+- The API call continues in the background even if user navigates away
+- Course is saved to DB; user can find it in their library when they return
+- Double-click prevention (generatingRef) still works for new generations
 
 Stage Summary:
-- 7 files modified: generate/route.ts, paywall-status/route.ts, CourseViewer.tsx, CreateCourse.tsx, LandingPage.tsx, OffersPage.tsx, flames.ts
-- Critical security fix: free course abuse prevention via freeCourseUsed flag
-- UI fix: brand-consistent button colors
-- UX fix: Suivant button single-click navigation
-- Gamification: verified and tuned flames point values
-- Quality: enhanced AI course generation with better search and research usage
+- Course generation is no longer cancelled when user navigates away
+- The API completes and persists the course regardless of frontend state
+
+---
+Task ID: 8
+Agent: Main
+Task: Fix course language bug (English selection generates French)
+
+Work Log:
+- Changed outline generation user prompt to use English when courseLang="en"
+- The system prompt already had language instructions; the user prompt was always in French
+- Now: courseLang="en" → "Design the detailed outline for a level X course..." 
+- courseLang="fr" → "Conçois le plan détaillé du cours de niveau X..."
+
+Stage Summary:
+- Both system and user prompts now consistently reflect the target language
+
+---
+Task ID: 9
+Agent: Main
+Task: Fix Suivant animation bug
+
+Work Log:
+- Added unique key prop to fullscreen mode markdown content div
+- Changed key from absent to `key={fs-chapter-${currentChapter.id}-${currentChapterIndex}}`
+- Also updated normal mode key to include currentChapterIndex
+
+Stage Summary:
+- Animations now re-trigger on every chapter navigation in both fullscreen and normal modes
+
+---
+Task ID: 10
+Agent: Main
+Task: Implement level quiz system (7 questions, 4/7 pass, second chance, +1pt/correct)
+
+Work Log:
+- Created /api/courses/[id]/level-quiz/route.ts (POST generates 7 Qs, PUT submits answers)
+- Quiz uses AI to generate questions from chapter content, with fallback questions
+- In-memory cache prevents duplicate questions on second attempt
+- Created LevelQuizPanel component in CourseViewer.tsx
+- Modified handleCompleteLevel to show quiz before level-up screen
+- Quiz: 7 questions, 4/7 to pass, +1 flame point per correct answer
+- Failed first attempt → retry with different questions
+- Failed second attempt → still proceed (user always moves on)
+- Added handleLevelQuizComplete callback with celebration on pass
+
+Stage Summary:
+- Full level quiz flow: complete all chapters → quiz → pass/retry → continue
+- Points awarded via FlameTransaction and AppSettings
+- Different questions on retry attempt via server-side cache avoidance

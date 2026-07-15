@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 import { smartChatCompletion, classifyAIError } from "@/lib/openai";
-import { FREE_COURSE_LIMIT, MAX_SOURCE_LINKS, MAX_TOKENS, MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
+import { MAX_SOURCE_LINKS, MAX_TOKENS, MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
 
 // Vercel serverless function timeout — course generation needs 120s
 // (web search + AI outline + 4-6 AI chapter generations)
@@ -271,7 +271,9 @@ async function generateOutline(
   console.log(`[outline] Generating outline for "${title}" (level=${level}, lang=${courseLang})...`);
   const completion = await smartChatCompletion([
     { role: "system", content: systemPrompt },
-    { role: "user", content: `Conçois le plan détaillé du cours de niveau ${level} (${MIN_CHAPTERS}-${MAX_CHAPTERS} chapitres) sur : ${title}` },
+    { role: "user", content: courseLang === "en"
+      ? `Design the detailed outline for a level ${level} course (${MIN_CHAPTERS}-${MAX_CHAPTERS} chapters) on: ${title}`
+      : `Conçois le plan détaillé du cours de niveau ${level} (${MIN_CHAPTERS}-${MAX_CHAPTERS} chapitres) sur : ${title}` },
   ], { maxTokens: 4096, temperature: 0.5 });
 
   const text = completion.content || "";
@@ -774,22 +776,44 @@ export async function POST(request: NextRequest) {
 
     console.log(`[generate] ═══ VALIDATION OK ═══ title="${title.trim()}" level=${level} lang=${courseLang} userId=${userId || 'anonymous'} links=${sourceLinks.length}`);
 
-    // ── Free limit ──
+    // ── CRITICAL: Free course abuse prevention (atomic, race-condition-safe) ──
+    // Single source of truth: User.freeCourseUsed boolean in the database.
+    // This flag is NEVER reset, even if the course is deleted.
+    // We use an interactive transaction to atomically check + claim the free slot.
     if (userId) {
       try {
-        const [user, existingCourses] = await Promise.all([
-          db.user.findUnique({ where: { id: userId }, select: { subscriptionStatus: true, freeCourseUsed: true } }),
-          db.course.count({ where: { userId } }),
-        ]);
-        const freeLimitReached = user?.subscriptionStatus !== "active" && (user?.freeCourseUsed || existingCourses >= FREE_COURSE_LIMIT);
-        if (freeLimitReached) {
-          console.log(`[generate] Free limit reached for user ${userId}: freeCourseUsed=${user?.freeCourseUsed}, courses=${existingCourses}/${FREE_COURSE_LIMIT}`);
+        let canGenerate = false;
+        await db.$transaction(async (tx) => {
+          const user = await tx.user.findUnique({
+            where: { id: userId },
+            select: { subscriptionStatus: true, freeCourseUsed: true },
+          });
+          // Active subscription → always allow
+          if (user?.subscriptionStatus === "active") {
+            canGenerate = true;
+            return;
+          }
+          // Free course already used → BLOCK
+          if (user?.freeCourseUsed) {
+            canGenerate = false;
+            return;
+          }
+          // First free course → claim the slot ATOMICALLY (prevents race conditions)
+          await tx.user.update({
+            where: { id: userId },
+            data: { freeCourseUsed: true },
+          });
+          canGenerate = true;
+        });
+        if (!canGenerate) {
+          console.log(`[generate] Free limit reached for user ${userId}: freeCourseUsed=true, subscription not active`);
           return NextResponse.json({ error: "FREE_LIMIT", requiresSubscription: true }, { status: 403 });
         }
-        console.log(`[generate] User quota OK: ${existingCourses}/${FREE_COURSE_LIMIT} courses, freeCourseUsed=${user?.freeCourseUsed}, subscription: ${user?.subscriptionStatus || 'none'}`);
+        console.log(`[generate] User quota OK: freeCourseUsed now claimed for user ${userId}`);
       } catch (dbError) {
         console.error("[generate] DB error checking quota:", dbError instanceof Error ? dbError.message : dbError);
-        // Don't block generation if DB check fails — continue anyway
+        // If DB check fails, BLOCK generation to be safe (fail-closed)
+        return NextResponse.json({ error: "FREE_LIMIT", requiresSubscription: true }, { status: 403 });
       }
     }
 
@@ -991,17 +1015,8 @@ async function saveCourse(
   });
   await db.courseProgress.upsert({ where: { courseId: course.id }, create: { courseId: course.id }, update: {} });
 
-  // Mark free course as used (prevents delete-and-recreate abuse)
-  if (userId) {
-    try {
-      await db.user.update({
-        where: { id: userId },
-        data: { freeCourseUsed: true },
-      });
-    } catch {
-      // Non-critical — paywall check will catch it on next load
-    }
-  }
+  // freeCourseUsed is now set atomically BEFORE generation starts (in the main POST handler)
+  // No need to set it here again.
 
   return course;
 }

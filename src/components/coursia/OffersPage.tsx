@@ -42,6 +42,7 @@ export default function OffersPage() {
   const [timeRemainingMs, setTimeRemainingMs] = useState<number | undefined>();
   const [firstName, setFirstName] = useState<string>("");
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [expiryWarning48h, setExpiryWarning48h] = useState(false);
 
   // Direct checkout: tracks which plan button is currently loading
   const [checkoutLoading, setCheckoutLoading] = useState<"monthly" | "annual" | null>(null);
@@ -178,6 +179,12 @@ export default function OffersPage() {
             setRenewalDaysRemaining(data.renewalDaysRemaining || 0);
             setRenewalUrgency(data.renewalUrgency || "none");
             setTimeRemainingMs(data.timeRemainingMs);
+          }
+
+          // 48h expiry warning
+          if (data.expiryWarning48h) {
+            setExpiryWarning48h(true);
+            useAppStore.getState().setExpiryWarning48h(true);
           }
         }
 
@@ -363,6 +370,25 @@ export default function OffersPage() {
                     {String(countdown.hours).padStart(2, "0")}:{String(countdown.minutes).padStart(2, "0")}:{String(countdown.seconds).padStart(2, "0")}
                   </p>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* 48h expiry warning banner */}
+          {expiryWarning48h && statusLoaded && !graceExpired && (
+            <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 animate-fade-in">
+              <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm sm:text-base text-amber-200 font-medium">
+                  {lang === "fr"
+                    ? "👋 Ton abonnement arrive bientôt à expiration."
+                    : "👋 Your subscription is expiring soon."}
+                </p>
+                <p className="text-xs text-amber-300/70 mt-1">
+                  {lang === "fr"
+                    ? "Il expire dans 48 heures. Renouvelle-le maintenant pour continuer à créer tes cours sans interruption."
+                    : "It expires in 48 hours. Renew now to keep creating courses without interruption."}
+                </p>
               </div>
             </div>
           )}

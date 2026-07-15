@@ -152,3 +152,12 @@ model StudySession {
   durationSeconds Int      @default(0)
   flameAwarded    Boolean  @default(false)
 }
+
+model UsedTopic {
+  id        String   @id @default(cuid())
+  title     String
+  userId    String?  // null = globally used (all users)
+  createdAt DateTime @default(now())
+
+  @@unique([title]) // Prevent duplicate topic entries
+}

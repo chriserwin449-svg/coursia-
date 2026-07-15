@@ -13,6 +13,7 @@ import {
   Globe,
   Crown,
   Gift,
+  GraduationCap,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -41,21 +42,22 @@ export default function CreateCourse() {
   const [canCreateCourse, setCanCreateCourse] = useState(false);
   const [paywallLoaded, setPaywallLoaded] = useState(false);
   const [inGracePeriod, setInGracePeriod] = useState(false);
+  const [localFreeCourseUsed, setLocalFreeCourseUsed] = useState(false);
   const [selectedLevel, setSelectedLevel] = useState(0);
   const [isRandomTopic, setIsRandomTopic] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
 
-  // ─── Double-click prevention ref ───────────────────────────────────────
+  //  Double-click prevention ref 
   const generatingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  // ─── Store refs for random topic ────────────────────────────────────────
+  //  Store refs for random topic 
   const storeRandomTopic = useAppStore((s) => s.randomTopic);
   const storeRandomCourseLang = useAppStore((s) => s.randomCourseLang);
   const setStoreRandomTopic = useAppStore((s) => s.setRandomTopic);
   const prevRandomRef = useRef<string | null>(null);
 
-  // ─── React to random topic changes from TopBar (instant, no reload) ───
+  //  React to random topic changes from TopBar (instant, no reload) 
   useEffect(() => {
     if (storeRandomTopic && storeRandomTopic !== prevRandomRef.current) {
       setTitle(storeRandomTopic);
@@ -71,7 +73,7 @@ export default function CreateCourse() {
     }
   }, [storeRandomTopic, storeRandomCourseLang, setStoreRandomTopic]);
 
-  // ─── Progress messages: 5 detailed steps ──────────────────────────────
+  //  Progress messages: 5 detailed steps 
   const progressMessages = useMemo(() => lang === "fr"
     ? [
         "Préparation du cours...",
@@ -108,7 +110,7 @@ export default function CreateCourse() {
 
   const progressStartRef = useRef(0);
 
-  // ─── Personalized greeting (time-based) ──────────────────────────────
+  //  Personalized greeting (time-based) 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
     const firstName = user?.firstName || "";
@@ -139,7 +141,7 @@ export default function CreateCourse() {
     };
   }, [user?.firstName, tx.create]);
 
-  // ─── Rotating placeholder with typing/fade effect ────────────────────
+  //  Rotating placeholder with typing/fade effect 
   const placeholders = tx.create.placeholders;
   const [displayedPlaceholder, setDisplayedPlaceholder] = useState(placeholders[0]);
   const [charIndex, setCharIndex] = useState(0);
@@ -201,7 +203,7 @@ export default function CreateCourse() {
     }
   }, [charIndex, placeholderPhase, placeholderIndex, placeholders, title]);
 
-  // ─── Fetch courses & subscription status ───────────────────────────
+  //  Fetch courses & subscription status 
   const fetchCourses = useCallback(async () => {
     try {
       const res = await fetch(`/api/courses?userId=${useAppStore.getState().userId || ''}`);
@@ -221,6 +223,11 @@ export default function CreateCourse() {
         setHasSubscription(pw.hasSubscription);
         setCanCreateCourse(pw.canGenerate);
         setInGracePeriod(!!pw.inGracePeriod);
+        // Sync freeCourseUsed from database (single source of truth)
+        setLocalFreeCourseUsed(!!pw.freeCourseUsed);
+        useAppStore.getState().setFreeCourseUsed(!!pw.freeCourseUsed);
+        // Sync 48h expiry warning
+        useAppStore.getState().setExpiryWarning48h(!!pw.expiryWarning48h);
       }
     } catch {
       // silently ignore
@@ -233,7 +240,7 @@ export default function CreateCourse() {
     fetchCourses();
   }, [fetchCourses]);
 
-  // ─── Auto-resume pending course generation after payment ─────────────
+  //  Auto-resume pending course generation after payment 
   useEffect(() => {
     const pending = useAppStore.getState().pendingGeneration;
     if (!pending) {
@@ -291,18 +298,12 @@ export default function CreateCourse() {
     return () => clearTimeout(timer);
   }, []);
 
-  // ─── Cleanup: abort any ongoing generation on unmount ───────────────
-  useEffect(() => {
-    return () => {
-      if (abortRef.current) {
-        abortRef.current.abort();
-        abortRef.current = null;
-      }
-      generatingRef.current = false;
-    };
-  }, []);
+  //  Do NOT abort generation on unmount — let it continue in the background 
+  // The API will finish generating and save the course to the DB even if the user navigates away.
+  // The user will see the course in their library when they return.
+  // We only abort if the user explicitly starts a new generation (handled in generateCourse via generatingRef).
 
-  // ─── Clear suggested topic when user modifies title manually ────────
+  //  Clear suggested topic when user modifies title manually 
   const handleTitleChange = (newTitle: string) => {
     setTitle(newTitle);
     if (newTitle.trim() !== suggestedTopic.trim()) {
@@ -312,7 +313,7 @@ export default function CreateCourse() {
     }
   };
 
-  // ─── Link management ──────────────────────────────────────────────────
+  //  Link management 
   const addLink = () => {
     const trimmed = linkInput.trim();
     if (trimmed && !links.includes(trimmed)) {
@@ -325,7 +326,7 @@ export default function CreateCourse() {
     setLinks(links.filter((_, i) => i !== index));
   };
 
-  // ─── User-friendly error classification ─────────────────────────────
+  //  User-friendly error classification 
   const getErrorMessage = useCallback((errorType: string, httpStatus: number, detail: string): string => {
     if (lang === "fr") {
       if (httpStatus === 403) return "Tu as atteint ta limite de cours gratuits. Passe à Premium pour en créer autant que tu veux !";
@@ -350,7 +351,7 @@ export default function CreateCourse() {
     }
   }, [lang]);
 
-  // ─── Generate course (with retry, timeout, DB recovery) ─────────────
+  //  Generate course (with retry, timeout, DB recovery) 
   const generateCourse = async () => {
     // ═══ DOUBLE-CLICK PREVENTION ═══
     if (generatingRef.current) {
@@ -519,7 +520,10 @@ export default function CreateCourse() {
           // ═══ SUCCESS ═══
           const course = data.course as CourseData;
           console.log(`[generate] ✓ Success on attempt ${attempt + 1}: "${course.title}" (${course.chapters?.length || 0} chapters)`);
-          setCanCreateCourse(false); // Immediately hide free badge — free course used
+          // Immediately mark free course as used (reflects the atomic DB flag set before generation)
+          setCanCreateCourse(false);
+          setLocalFreeCourseUsed(true);
+          useAppStore.getState().setFreeCourseUsed(true);
           setSelectedCourseId(course.id);
           setView("viewer");
           trackEvent({ name: "course_created", properties: { plan: String(effectiveLevel), attempt: attempt + 1 } });
@@ -570,13 +574,13 @@ export default function CreateCourse() {
     }
   };
 
-  // ─── Open a course ────────────────────────────────────────────────────
+  //  Open a course 
   const openCourse = (id: string) => {
     setSelectedCourseId(id);
     setView("viewer");
   };
 
-  // ─── Helpers ──────────────────────────────────────────────────────────
+  //  Helpers 
   const courseLangLabels = tx.create.courseLangs;
 
   const formatDate = (dateStr: string) => {
@@ -608,7 +612,7 @@ export default function CreateCourse() {
 
       {/* ═══════════ Main creation card ═══════════ */}
       <div className="glass rounded-2xl sm:rounded-3xl p-4 sm:p-6 md:p-10">
-        {/* ─── Title input ─── */}
+        {/*  Title input  */}
         <div className="mb-8">
           <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
             {tx.create.placeholder}
@@ -644,7 +648,7 @@ export default function CreateCourse() {
           </div>
         </div>
 
-        {/* ─── Source links ─── */}
+        {/*  Source links  */}
         <div className="mb-8">
           <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
             <LinkIcon className="w-4 h-4 inline mr-1.5 -mt-0.5" />
@@ -697,7 +701,7 @@ export default function CreateCourse() {
           )}
         </div>
 
-        {/* ─── Course language selector ─── */}
+        {/*  Course language selector  */}
         <div className="mb-8">
           <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
             <Globe className="w-4 h-4 inline mr-1.5 -mt-0.5" />
@@ -731,7 +735,7 @@ export default function CreateCourse() {
           </div>
         </div>
 
-        {/* ─── Level selector ─── */}
+        {/*  Level selector  */}
         {!isRandomTopic && (
           <div className="mb-8">
             <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
@@ -769,29 +773,19 @@ export default function CreateCourse() {
           </div>
         )}
 
-        {/* ─── Limit reached: show offers button only ─── */}
-        {(!hasSubscription && !canCreateCourse) || inGracePeriod ? (
+        {/*  Grace period: subscription ended  */}
+        {inGracePeriod ? (
           <div className="mb-6 p-5 rounded-2xl glass text-center animate-fade-in">
             <div className="w-14 h-14 rounded-2xl bg-gold/10 flex items-center justify-center mx-auto mb-3">
               <Crown className="w-7 h-7 text-gold" />
             </div>
             <p className="text-sm font-bold text-foreground mb-1">
-              {inGracePeriod
-                ? (lang === "fr"
-                  ? "Abonnement terminé"
-                  : "Subscription ended")
-                : (lang === "fr"
-                  ? "Cours gratuit utilisé !"
-                  : "Free course used!")}
+              {lang === "fr" ? "Abonnement terminé" : "Subscription ended"}
             </p>
             <p className="text-xs text-muted-foreground mb-4">
-              {inGracePeriod
-                ? (lang === "fr"
-                  ? "Renouvelle ton abonnement pour continuer à créer des cours."
-                  : "Renew your subscription to keep creating courses.")
-                : (lang === "fr"
-                  ? "Passe à un abonnement pour créer des cours illimités."
-                  : "Upgrade to a subscription for unlimited courses.")}
+              {lang === "fr"
+                ? "Renouvelle ton abonnement pour continuer à créer des cours."
+                : "Renew your subscription to keep creating courses."}
             </p>
             <button
               onClick={() => setView("offers")}
@@ -803,8 +797,31 @@ export default function CreateCourse() {
           </div>
         ) : null}
 
-        {/* ─── First course free badge ─── */}
-        {paywallLoaded && !hasSubscription && canCreateCourse && (
+        {paywallLoaded && !hasSubscription && !inGracePeriod && localFreeCourseUsed && (
+          <div className="mb-6 p-5 rounded-2xl glass text-center animate-fade-in">
+            <div className="w-14 h-14 rounded-2xl bg-mauve/10 flex items-center justify-center mx-auto mb-3">
+              <GraduationCap className="w-7 h-7 text-mauve-light" />
+            </div>
+            <p className="text-sm font-bold text-foreground mb-1">
+              {lang === "fr" ? "Tu as utilisé ton cours d'essai" : "You've used your free trial course"}
+            </p>
+            <p className="text-xs text-muted-foreground mb-4">
+              {lang === "fr"
+                ? "Passe à un abonnement pour continuer à créer des cours personnalisés."
+                : "Upgrade to a subscription to keep creating personalized courses."}
+            </p>
+            <button
+              onClick={() => setView("offers")}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-extrabold hover:from-mauve-light hover:to-mauve transition-all duration-300 cursor-pointer"
+            >
+              <Crown className="w-4 h-4" />
+              {lang === "fr" ? "Voir les offres" : "See plans"}
+            </button>
+          </div>
+        )}
+
+        {/*  First course free badge (only when freeCourseUsed is false)  */}
+        {paywallLoaded && !hasSubscription && !inGracePeriod && !localFreeCourseUsed && (
           <div className="mb-6 p-4 rounded-2xl glass text-center animate-fade-in">
             <div className="flex items-center justify-center gap-2 mb-2">
               <Gift className="w-5 h-5 text-gold" />
@@ -820,14 +837,14 @@ export default function CreateCourse() {
           </div>
         )}
 
-        {/* ─── Error ─── */}
+        {/*  Error  */}
         {error && (
           <div className="mb-6 p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-sm font-semibold animate-[fadeIn_0.3s_ease-out]">
             {error}
           </div>
         )}
 
-        {/* ─── Suggested topic banner ─── */}
+        {/*  Suggested topic banner  */}
         {showSuggested && suggestedTopic && (
           <div className="mb-6 p-4 rounded-2xl glass text-center transition-all duration-300">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
@@ -837,7 +854,7 @@ export default function CreateCourse() {
           </div>
         )}
 
-        {/* ─── Generate button ─── */}
+        {/*  Generate button  */}
         <div className="flex items-center justify-center">
           <button
             onClick={generateCourse}

@@ -25,12 +25,11 @@ async function ensureAllColumns(): Promise<void> {
   } catch { /* non-critical */ }
 }
 
-const FREE_COURSE_LIMIT = 1;
-const FREE_CHAPTER_LIMIT = 9999; // First course is fully free (all chapters)
 const GRACE_PERIOD_DAYS = 3;
-const RENEWAL_NOTIFY_DAYS = 3; // Start showing notifications 3 days before expiry
+/** 48 hours in milliseconds */
+const EXPIRY_WARNING_MS = 48 * 60 * 60 * 1000;
 
-type RenewalUrgency = "1month" | "2weeks" | "1week" | "3days" | "24hours" | "last24hours" | "none";
+type RenewalUrgency = "1month" | "2weeks" | "1week" | "3days" | "48hours" | "24hours" | "last24hours" | "none";
 
 function computeRenewalUrgency(endDate: Date, plan: string): { urgency: RenewalUrgency; showReminder: boolean; timeRemainingMs?: number } {
   const now = new Date();
@@ -39,10 +38,10 @@ function computeRenewalUrgency(endDate: Date, plan: string): { urgency: RenewalU
   const daysRemaining = msRemaining / (1000 * 60 * 60 * 24);
 
   if (plan === "annual") {
-    // Annual: 30 days, 14 days, 7 days, 3 days, 24 hours, last 24 hours
     if (hoursRemaining <= 0) return { urgency: "none", showReminder: false };
     if (hoursRemaining <= 24) return { urgency: "last24hours", showReminder: true, timeRemainingMs: msRemaining };
     if (daysRemaining <= 1) return { urgency: "24hours", showReminder: true };
+    if (daysRemaining <= 2) return { urgency: "48hours", showReminder: true };
     if (daysRemaining <= 3) return { urgency: "3days", showReminder: true };
     if (daysRemaining <= 7) return { urgency: "1week", showReminder: true };
     if (daysRemaining <= 14) return { urgency: "2weeks", showReminder: true };
@@ -50,10 +49,11 @@ function computeRenewalUrgency(endDate: Date, plan: string): { urgency: RenewalU
     return { urgency: "none", showReminder: false };
   }
 
-  // Monthly: 7 days, 3 days, 24 hours, last 24 hours
+  // Monthly
   if (hoursRemaining <= 0) return { urgency: "none", showReminder: false };
   if (hoursRemaining <= 24) return { urgency: "last24hours", showReminder: true, timeRemainingMs: msRemaining };
   if (daysRemaining <= 1) return { urgency: "24hours", showReminder: true };
+  if (daysRemaining <= 2) return { urgency: "48hours", showReminder: true };
   if (daysRemaining <= 3) return { urgency: "3days", showReminder: true };
   if (daysRemaining <= 7) return { urgency: "1week", showReminder: true };
   return { urgency: "none", showReminder: false };
@@ -78,6 +78,8 @@ interface PaywallStatus {
   renewalUrgency: RenewalUrgency;
   timeRemainingMs?: number;
   daysUntilExpiry?: number;
+  /** true when subscription expires within 48 hours */
+  expiryWarning48h: boolean;
   isOfflineMode: boolean;
   showPaywall: boolean;
   paywallReason: string;
@@ -85,14 +87,27 @@ interface PaywallStatus {
   hasCardOnFile: boolean;
   requireCard: boolean;
   freeChapterLimit: number;
+  /** Whether the user has already claimed their one-time free course */
+  freeCourseUsed: boolean;
+}
+
+function defaultStatus(overrides: Partial<PaywallStatus> = {}): PaywallStatus {
+  return {
+    canStudy: true, canGenerate: true, canProgress: true,
+    inTrial: false, trialCoursesGenerated: 0, trialCoursesMax: 1,
+    hasSubscription: false, inGracePeriod: false,
+    showRenewalReminder: false, renewalUrgency: "none",
+    isOfflineMode: false, showPaywall: false, paywallReason: "no_user",
+    hasCardOnFile: false, requireCard: false, freeChapterLimit: 9999,
+    expiryWarning48h: false,
+    ...overrides,
+  };
 }
 
 export async function GET(request: NextRequest) {
   try {
-    // Auto-migrate schema columns if needed (PostgreSQL only)
     await ensureAllColumns();
 
-    // ── 1. Get user ID from query or header ──
     let userId: string | null = null;
     const authHeader = request.headers.get("Authorization");
     if (authHeader?.startsWith("Bearer ")) {
@@ -102,29 +117,12 @@ export async function GET(request: NextRequest) {
       userId = searchParams.get("userId");
     }
 
-    // ── 2. If no user, return default (free) ──
+    // ── No user → full free access ──
     if (!userId) {
-      return NextResponse.json<PaywallStatus>({
-        canStudy: true,
-        canGenerate: true,
-        canProgress: true,
-        inTrial: false,
-        trialCoursesGenerated: 0,
-        trialCoursesMax: FREE_COURSE_LIMIT,
-        hasSubscription: false,
-        inGracePeriod: false,
-        showRenewalReminder: false,
-        renewalUrgency: "none",
-        isOfflineMode: false,
-        hasCardOnFile: false,
-        requireCard: false,
-        showPaywall: false,
-        paywallReason: "no_user",
-        freeChapterLimit: FREE_CHAPTER_LIMIT,
-      });
+      return NextResponse.json<PaywallStatus>(defaultStatus());
     }
 
-    // ── 3. Fetch user data ──
+    // ── Fetch user data ──
     const user = await db.user.findUnique({
       where: { id: userId },
       select: {
@@ -140,30 +138,27 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // ── 4. ACTIVE SUBSCRIPTION ──
+    // ── ACTIVE SUBSCRIPTION ──
     if (user && user.subscriptionStatus === "active") {
       const endDate = user.subscriptionEndDate ? new Date(user.subscriptionEndDate) : null;
       const now = new Date();
 
-      // ── 4a. Check if subscription has expired (end date passed) ──
+      // Check if subscription has expired
       if (endDate && endDate <= now) {
-        // Auto-expire the subscription in the database
         try {
           await db.user.update({
             where: { id: userId },
             data: { subscriptionStatus: "expired" },
           });
-        } catch {
-          // If update fails, continue with grace period logic using in-memory status
-        }
-        // Fall through to grace period check below
+        } catch { /* fall through to grace period */ }
       } else {
-        // ── 4b. Subscription is truly active ──
+        // Truly active
         let showRenewalReminder = false;
         let renewalDaysRemaining = 0;
         let renewalUrgency: RenewalUrgency = "none";
         let timeRemainingMs: number | undefined;
         let daysUntilExpiry: number | undefined;
+        let expiryWarning48h = false;
 
         if (endDate) {
           const { urgency, showReminder, timeRemainingMs: trm } = computeRenewalUrgency(endDate, user.subscriptionPlan || "monthly");
@@ -172,37 +167,32 @@ export async function GET(request: NextRequest) {
           renewalDaysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
           timeRemainingMs = trm;
           daysUntilExpiry = Math.max(0, renewalDaysRemaining);
+          // 48h warning
+          expiryWarning48h = (endDate.getTime() - now.getTime()) <= EXPIRY_WARNING_MS;
         }
 
         return NextResponse.json<PaywallStatus>({
-          canStudy: true,
-          canGenerate: true,
-          canProgress: true,
-          inTrial: false,
-          trialCoursesGenerated: 0,
-          trialCoursesMax: FREE_COURSE_LIMIT,
-          hasSubscription: true,
-          subscriptionPlan: user.subscriptionPlan,
-          subscriptionStatus: user.subscriptionStatus,
-          subscriptionEndDate: user.subscriptionEndDate?.toISOString(),
-          inGracePeriod: false,
-          showRenewalReminder,
-          renewalDaysRemaining,
-          renewalUrgency,
-          timeRemainingMs,
-          daysUntilExpiry,
-          isOfflineMode: false,
-          showPaywall: false,
-          paywallReason: "subscribed",
-          firstName: user.firstName || undefined,
-          hasCardOnFile: true,
-          requireCard: false,
-          freeChapterLimit: FREE_CHAPTER_LIMIT,
+          ...defaultStatus({
+            canStudy: true, canGenerate: true, canProgress: true,
+            hasSubscription: true,
+            subscriptionPlan: user.subscriptionPlan,
+            subscriptionStatus: user.subscriptionStatus,
+            subscriptionEndDate: user.subscriptionEndDate?.toISOString(),
+            firstName: user.firstName || undefined,
+            hasCardOnFile: true,
+            showRenewalReminder,
+            renewalDaysRemaining,
+            renewalUrgency,
+            timeRemainingMs,
+            daysUntilExpiry,
+            expiryWarning48h,
+            paywallReason: "subscribed",
+          }),
         });
       }
     }
 
-    // ── 5. GRACE PERIOD (subscription expired/canceled but within GRACE_PERIOD_DAYS) ──
+    // ── GRACE PERIOD ──
     if (user && user.subscriptionEndDate &&
         (user.subscriptionStatus === "expired" || user.subscriptionStatus === "canceled" || user.subscriptionStatus === "past_due")) {
       const endDate = new Date(user.subscriptionEndDate);
@@ -211,171 +201,66 @@ export async function GET(request: NextRequest) {
       const graceRemaining = Math.max(0, Math.ceil(GRACE_PERIOD_DAYS - daysSinceEnd));
 
       if (daysSinceEnd < GRACE_PERIOD_DAYS) {
-        return NextResponse.json<PaywallStatus>({
-          canStudy: true,       // Can read existing courses during grace period
-          canGenerate: false,    // Cannot create new courses
-          canProgress: true,     // Can continue studying
-          inTrial: false,
-          trialCoursesGenerated: 0,
-          trialCoursesMax: FREE_COURSE_LIMIT,
-          hasSubscription: false,
+        return NextResponse.json<PaywallStatus>(defaultStatus({
+          canGenerate: false,
           subscriptionPlan: user.subscriptionPlan,
           subscriptionStatus: user.subscriptionStatus,
           subscriptionEndDate: user.subscriptionEndDate?.toISOString(),
           inGracePeriod: true,
           graceDaysRemaining: graceRemaining,
-          showRenewalReminder: false,
-          renewalUrgency: "none",
-          isOfflineMode: false,
-          showPaywall: false,
-          paywallReason: "grace_period",
           firstName: user.firstName || undefined,
           hasCardOnFile: !!user.hasCardOnFile,
-          requireCard: false,
-          freeChapterLimit: FREE_CHAPTER_LIMIT,
-        });
+          paywallReason: "grace_period",
+          freeCourseUsed: user.freeCourseUsed,
+        }));
       }
 
-      // Grace period expired — fully blocked
-      return NextResponse.json<PaywallStatus>({
-        canStudy: false,
-        canGenerate: false,
-        canProgress: false,
-        inTrial: false,
-        trialCoursesGenerated: 0,
-        trialCoursesMax: FREE_COURSE_LIMIT,
-        hasSubscription: false,
+      // Grace expired
+      return NextResponse.json<PaywallStatus>(defaultStatus({
+        canStudy: false, canGenerate: false, canProgress: false,
         subscriptionPlan: user.subscriptionPlan,
         subscriptionStatus: user.subscriptionStatus,
         subscriptionEndDate: user.subscriptionEndDate?.toISOString(),
-        inGracePeriod: false,
-        graceDaysRemaining: 0,
-        showRenewalReminder: false,
-        renewalUrgency: "none",
-        isOfflineMode: false,
         showPaywall: true,
         paywallReason: "grace_expired",
         firstName: user.firstName || undefined,
         hasCardOnFile: !!user.hasCardOnFile,
-        requireCard: false,
-        freeChapterLimit: FREE_CHAPTER_LIMIT,
-      });
+        freeCourseUsed: user.freeCourseUsed,
+      }));
     }
 
-    // ── 6. FREE PREVIEW CHECK (user exists but no active subscription) ──
+    // ── FREE USER ──
     if (user) {
-      // If free course was already used (even if deleted), block generation
-      if (user.freeCourseUsed) {
-        return NextResponse.json<PaywallStatus>({
-          canStudy: true,
+      // Single source of truth: freeCourseUsed boolean on the User model
+      const freeUsed = !!user.freeCourseUsed;
+
+      if (freeUsed) {
+        // Free course already used → blocked from creating, but can study
+        return NextResponse.json<PaywallStatus>(defaultStatus({
           canGenerate: false,
-          canProgress: true,
-          inTrial: false,
-          trialDaysRemaining: 0,
-          trialCoursesGenerated: 1,
-          trialCoursesMax: FREE_COURSE_LIMIT,
-          hasSubscription: false,
-          inGracePeriod: false,
-          showRenewalReminder: false,
-          renewalUrgency: "none",
-          isOfflineMode: false,
           showPaywall: true,
           paywallReason: "free_limit",
           firstName: user.firstName || undefined,
           hasCardOnFile: !!user.hasCardOnFile,
-          requireCard: false,
-          freeChapterLimit: FREE_CHAPTER_LIMIT,
-        });
+          freeCourseUsed: true,
+        }));
       }
 
-      const courseCount = userId ? await db.course.count({ where: { userId } }) : 0;
-
-      // No courses yet — free to create first course
-      if (courseCount === 0) {
-        return NextResponse.json<PaywallStatus>({
-          canStudy: true,
-          canGenerate: true,
-          canProgress: true,
-          inTrial: false,
-          trialDaysRemaining: 0,
-          trialCoursesGenerated: 0,
-          trialCoursesMax: FREE_COURSE_LIMIT,
-          hasSubscription: false,
-          inGracePeriod: false,
-          showRenewalReminder: false,
-          renewalUrgency: "none",
-          isOfflineMode: false,
-          showPaywall: false,
-          paywallReason: "no_courses",
-          firstName: user.firstName || undefined,
-          hasCardOnFile: !!user.hasCardOnFile,
-          requireCard: false,
-          freeChapterLimit: FREE_CHAPTER_LIMIT,
-        });
-      }
-
-      // Already used free course — blocked from creating more, but can still study/progress
-      const canGenerate = courseCount < FREE_COURSE_LIMIT;
-      return NextResponse.json<PaywallStatus>({
-        canStudy: true,
-        canGenerate,
-        canProgress: true, // Can still progress through the free course
-        inTrial: false,
-        trialDaysRemaining: 0,
-        trialCoursesGenerated: courseCount,
-        trialCoursesMax: FREE_COURSE_LIMIT,
-        hasSubscription: false,
-        inGracePeriod: false,
-        showRenewalReminder: false,
-        renewalUrgency: "none",
-        isOfflineMode: false,
-        showPaywall: !canGenerate,
-        paywallReason: canGenerate ? "free_active" : "free_limit",
+      // New user, free course not yet used → can generate
+      return NextResponse.json<PaywallStatus>(defaultStatus({
+        canGenerate: true,
+        showPaywall: false,
+        paywallReason: "free_available",
         firstName: user.firstName || undefined,
         hasCardOnFile: !!user.hasCardOnFile,
-        requireCard: false,
-        freeChapterLimit: FREE_CHAPTER_LIMIT,
-      });
+        freeCourseUsed: false,
+      }));
     }
 
-    // ── Fallback: no user found ──
-    return NextResponse.json<PaywallStatus>({
-      canStudy: true,
-      canGenerate: true,
-      canProgress: true,
-      inTrial: false,
-      trialCoursesGenerated: 0,
-      trialCoursesMax: FREE_COURSE_LIMIT,
-      hasSubscription: false,
-      inGracePeriod: false,
-      showRenewalReminder: false,
-      renewalUrgency: "none",
-      isOfflineMode: false,
-      showPaywall: false,
-      paywallReason: "no_user",
-      hasCardOnFile: false,
-      requireCard: false,
-      freeChapterLimit: FREE_CHAPTER_LIMIT,
-    });
+    // ── Fallback ──
+    return NextResponse.json<PaywallStatus>(defaultStatus({ paywallReason: "no_user" }));
   } catch (error) {
     console.error("[paywall-status] Error:", error);
-    return NextResponse.json<PaywallStatus>({
-      canStudy: true,
-      canGenerate: true,
-      canProgress: true,
-      inTrial: false,
-      trialCoursesGenerated: 0,
-      trialCoursesMax: FREE_COURSE_LIMIT,
-      hasSubscription: false,
-      inGracePeriod: false,
-      showRenewalReminder: false,
-      renewalUrgency: "none",
-      isOfflineMode: false,
-      showPaywall: false,
-      paywallReason: "error",
-      hasCardOnFile: false,
-      requireCard: false,
-      freeChapterLimit: FREE_CHAPTER_LIMIT,
-    });
+    return NextResponse.json<PaywallStatus>(defaultStatus({ paywallReason: "error" }));
   }
 }

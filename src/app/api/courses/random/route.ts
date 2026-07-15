@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
 import { smartChatCompletion } from "@/lib/openai";
-
-// In-memory cache to avoid repeating recent topics
-const recentTopics: string[] = [];
-const MAX_CACHE = 50;
 
 // Fallback topics when AI is unavailable
 const fallbackTopics = [
@@ -24,7 +21,7 @@ const fallbackTopics = [
   { title: "Les illusions d'optique qui prouvent que ton cerveau te ment", description: "Perception visuelle et neurosciences" },
   { title: "Pourquoi les grands leaders prennent des décisions contre-intuitives", description: "Psychologie du leadership" },
   { title: "Comment ton téléphone détruit ta capacité de concentration", description: "Neuroscience de l'attention" },
-  { title: "Les stratégies mémorisation des champions de mémoire", description: "Techniques de mnémotechnique avancées" },
+  { title: "Les stratégies de mémorisation des champions de mémoire", description: "Techniques de mnémotechnique avancées" },
   { title: "Pourquoi les prix se terminent toujours par 9", description: "Psychologie des prix et économie comportementale" },
   { title: "Comment les parfums influencent tes émotions et tes souvenirs", description: "Neuroscience de l'olfaction" },
   { title: "Le phénomène étrange de la synchronisation humaine", description: "Quand les foules se mettent à pulser ensemble" },
@@ -33,27 +30,75 @@ const fallbackTopics = [
   { title: "Les mathématiques cachées dans la nature", description: "Nombre d'or, fractales et suites de Fibonacci" },
   { title: "Pourquoi certaines personnes attirent tout le monde sans effort", description: "Psychologie du charisme magnétique" },
   { title: "Comment les films de Pixar manipulent tes émotions scientifiquement", description: "Narratologie et neuroscience" },
-  { title: "Le secret des octonaires qui travaillent 4 heures par jour", description: "Productivité et gestion de l'énergie" },
+  { title: "Le secret des octogénaires qui travaillent 4 heures par jour", description: "Productivité et gestion de l'énergie" },
   { title: "Pourquoi ton cerveau ne peut pas résister aux stories Instagram", description: "Dopamine et design addictif" },
   { title: "Les techniques militaires pour prendre des décisions sous pression", description: "Prise de décision et stress" },
   { title: "Comment les supermarchés te font acheter plus sans que tu le saches", description: "Design d'espace et marketing sensoriel" },
+  { title: "Pourquoi les États-Unis n'ont jamais adopté le système métrique", description: "Histoire des sciences et politique" },
+  { title: "Comment les deepfakes changent la vérité en 2025", description: "IA et éthique numérique" },
+  { title: "Le paradoxe du choix : pourquoi plus d'options rend plus difficile de choisir", description: "Psychologie de la décision" },
+  { title: "Comment les abeilles résolvent des problèmes que les superordinateurs peinent à résoudre", description: "Intelligence animale et informatique" },
+  { title: "Pourquoi les musées te fatiguent sans que tu t'en rendes compte", description: "Neuroscience et design d'exposition" },
+  { title: "La science derrière les rires en groupe et pourquoi c'est contagieux", description: "Psychologie sociale et évolution" },
+  { title: "Comment les algorithmes de recommandation créent des bulles de filtres", description: "Technologie et société" },
+  { title: "Pourquoi certains bruits (comme la pluie) te rendent plus productif", description: "Psychoacoustique et concentration" },
+  { title: "Les stratégies d'espionnage utilisées dans le commerce moderne", description: "Intelligence économique" },
+  { title: "Comment ton odorat influence tes choix sans que tu le saches", description: "Neuroscience sensorielle" },
+  { title: "Pourquoi les meilleurs athlètes visualisent avant de performer", description: "Psychologie du sport et imagerie mentale" },
+  { title: "Les effets insoupçonnés de la musique sur la productivité", description: "Neuroscience appliquée" },
+  { title: "Comment les architectes utilisent la psychologie pour influencer ton comportement", description: "Psychologie environnementale" },
+  { title: "Pourquoi le silence est devenu un luxe en 2025", description: "Sociologie et bien-être" },
+  { title: "Les méthodes de persuasion utilisées par les plus grandes marques", description: "Marketing et psychologie" },
+  { title: "Comment la couleur de ta chambre affecte la qualité de ton sommeil", description: "Chronobiologie et environnement" },
+  { title: "Pourquoi les investisseurs riches lisent la fiction", description: "Psychologie de l'investissement" },
+  { title: "Les phénomènes de foule expliqués par la physique", description: "Physique sociale et mouvements collectifs" },
+  { title: "Comment les bateaux autonomes changent le commerce mondial", description: "Technologie et économie maritime" },
+  { title: "Pourquoi certaines langues n'ont pas de mots pour les couleurs", description: "Linguistique et perception" },
+  { title: "Les secrets de fabrication des instruments de musique les plus chers", description: "Acoustique et artisanat" },
 ];
 
-function getRandomFallback() {
+/**
+ * Get recently used topic titles from the database (persistent, not in-memory).
+ * Returns the last 50 used topics.
+ */
+async function getRecentlyUsedTopics(): Promise<string[]> {
+  try {
+    const used = await db.usedTopic.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: { title: true },
+    });
+    return used.map((u) => u.title);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Persist a topic title to the database so it's never suggested again.
+ */
+async function markTopicUsed(title: string): Promise<void> {
+  try {
+    await db.usedTopic.create({ data: { title } });
+  } catch {
+    // Unique constraint violation — topic already tracked, that's fine
+  }
+}
+
+function getRandomFallback(usedTitles: string[]) {
   // Filter out recently used topics
-  const available = fallbackTopics.filter(t => !recentTopics.includes(t.title));
+  const available = fallbackTopics.filter((t) => !usedTitles.includes(t.title));
   const pool = available.length > 5 ? available : fallbackTopics;
   const t = pool[Math.floor(Math.random() * pool.length)];
-  // Track usage
-  recentTopics.push(t.title);
-  if (recentTopics.length > MAX_CACHE) recentTopics.shift();
   return t;
 }
 
 export async function POST(request: NextRequest) {
   try {
+    // Get persistently tracked used topics from DB
+    const recentTopics = await getRecentlyUsedTopics();
     const cacheHint = recentTopics.length > 0
-      ? `\n\nSUJETS DÉJÀ PROPOSÉS (NE PROPOSE AUCUN DE CES SUJETS) :\n${recentTopics.slice(-20).map(t => `- ${t}`).join("\n")}`
+      ? `\n\nSUJETS DÉJÀ PROPOSÉS (NE PROPOSE AUCUN DE CES SUJETS) :\n${recentTopics.slice(0, 20).map((t) => `- ${t}`).join("\n")}`
       : "";
 
     let topic: { title: string; description: string } | null = null;
@@ -128,8 +173,8 @@ N'utilise pas de guillemets doubles dans les valeurs des champs.`,
 
       if (topic && typeof topic === "object" && "title" in topic) {
         const t = topic as { title: string; description: string };
-        recentTopics.push(t.title);
-        if (recentTopics.length > MAX_CACHE) recentTopics.shift();
+        // Persist to DB so this topic is never suggested again
+        await markTopicUsed(t.title);
         return NextResponse.json({ success: true, topic: t });
       }
     } catch (aiError) {
@@ -138,12 +183,14 @@ N'utilise pas de guillemets doubles dans les valeurs des champs.`,
 
     // Fallback: return a random topic from predefined list
     usedFallback = true;
-    const t = getRandomFallback();
+    const t = getRandomFallback(recentTopics);
+    // Persist to DB
+    await markTopicUsed(t.title);
     return NextResponse.json({ success: true, topic: t, fallback: true });
   } catch (error: unknown) {
     console.error("Random course error:", error);
     // Even on total failure, return a fallback topic
-    const t = getRandomFallback();
+    const t = getRandomFallback([]);
     return NextResponse.json({ success: true, topic: t, fallback: true });
   }
 }

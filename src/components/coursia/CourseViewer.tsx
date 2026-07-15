@@ -58,6 +58,10 @@ export default function CourseViewer() {
   const [completedLevel, setCompletedLevel] = useState(-1);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [showAllMastered, setShowAllMastered] = useState(false);
+  // Level quiz states
+  const [showLevelQuiz, setShowLevelQuiz] = useState(false);
+  const [levelQuizLevel, setLevelQuizLevel] = useState(0);
+  const [levelQuizSecondAttempt, setLevelQuizSecondAttempt] = useState(false);
 
   const selectedCourseId = useAppStore((s) => s.selectedCourseId);
   const currentChapterIndex = useAppStore((s) => s.currentChapterIndex);
@@ -385,7 +389,7 @@ export default function CourseViewer() {
     setIsCompleting(false);
   }, [course, currentChapter?.progress?.completed, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, startStudySession, setCurrentChapterIndex]);
 
-  // ── Complete last chapter of a level → celebration + level-up prompt ──
+  // ── Complete last chapter of a level → show level quiz → celebration + level-up prompt ──
   const handleCompleteLevel = useCallback(async () => {
     if (!course || isCompletingRef.current) return;
     isCompletingRef.current = true;
@@ -419,38 +423,29 @@ export default function CourseViewer() {
     const courseRes = await fetch(`/api/courses/${selectedCourseId}`);
     if (courseRes.ok) setCourse(await courseRes.json());
 
+    // Show chapter completion celebration first
     const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
-    const levelEmojis = ["🌱", "⚡", "🔥"];
-    const levelBonus = [50, 100, 150];
-    const bonusPts = levelBonus[Math.min(completedLvl, 2)] || 50;
-
-    // Show celebration
     setShowConfetti(true);
     setShowCelebration(true);
-    if (lang === "fr") {
-      setCelebrationMessage(`Niveau ${getLevelName(completedLvl)} terminé ${userName} ! ${levelEmojis[Math.min(completedLvl, 2)]} +${bonusPts} 🔥`);
-    } else {
-      setCelebrationMessage(`${getLevelName(completedLvl)} level complete ${userName}! ${levelEmojis[Math.min(completedLvl, 2)]} +${bonusPts} 🔥`);
-    }
+    setCelebrationMessage(lang === "fr"
+      ? `Chapitre terminé ${userName} ! 🎉`
+      : `Chapter done ${userName}! 🎉`);
 
-    // After celebration, show level-up screen
     if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
     celebrationTimerRef.current = setTimeout(() => {
       setShowCelebration(false);
       setShowConfetti(false);
-      setCompletedLevel(completedLvl);
 
-      // Check if this was the last level (advanced = 2)
-      if (completedLvl >= 2) {
-        setShowAllMastered(true);
-      } else {
-        setShowReviewScreen(true);
-      }
-    }, 4000);
+      // Now show the LEVEL QUIZ before proceeding to next level
+      setCompletedLevel(completedLvl);
+      setLevelQuizLevel(completedLvl);
+      setLevelQuizSecondAttempt(false);
+      setShowLevelQuiz(true);
+    }, 2000);
 
     isCompletingRef.current = false;
     setIsCompleting(false);
-  }, [course, currentChapter, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, selectedCourseId, getLevelName]);
+  }, [course, currentChapter, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, selectedCourseId]);
 
   const goToPrev = useCallback(() => {
     if (currentChapterIndex === 0 || !course) return;
@@ -489,6 +484,48 @@ export default function CourseViewer() {
       fetchCourse();
     }, 4000);
   }, [course, user?.firstName, lang, endStudySession, fetchCourse]);
+
+  // ── Level Quiz Complete handler ──
+  const handleLevelQuizComplete = useCallback((passed: boolean, pointsEarned: number, canRetry: boolean) => {
+    if (passed) {
+      const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
+      setShowConfetti(true);
+      setShowCelebration(true);
+      const levelEmojis = ["🌱", "⚡", "🔥"];
+      const lvl = completedLevel;
+      setCelebrationMessage(lang === "fr"
+        ? `Quiz réussi ${userName} ! ${levelEmojis[Math.min(lvl, 2)]} +${pointsEarned}pts 🔥`
+        : `Quiz passed ${userName}! ${levelEmojis[Math.min(lvl, 2)]} +${pointsEarned}pts 🔥`);
+      setShowLevelQuiz(false);
+
+      if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+      celebrationTimerRef.current = setTimeout(() => {
+        setShowCelebration(false);
+        setShowConfetti(false);
+
+        if (lvl >= 2) {
+          setShowAllMastered(true);
+        } else {
+          setShowReviewScreen(true);
+        }
+        fetchCourse();
+      }, 3000);
+    } else if (canRetry) {
+      // Failed but can retry with different questions
+      setLevelQuizSecondAttempt(true);
+      // The LevelQuizPanel will regenerate questions
+    } else {
+      // Failed second attempt — still allow proceeding (user always moves on)
+      setShowLevelQuiz(false);
+      const lvl = completedLevel;
+      if (lvl >= 2) {
+        setShowAllMastered(true);
+      } else {
+        setShowReviewScreen(true);
+      }
+      fetchCourse();
+    }
+  }, [user?.firstName, lang, completedLevel, fetchCourse]);
 
   // ── Continue to next level ──
   const handleContinueToNextLevel = useCallback(async () => {
@@ -848,6 +885,42 @@ export default function CourseViewer() {
   }
 
   // ══════════════════════════════════════════════════════════════════
+  // LEVEL QUIZ MODE
+  // ══════════════════════════════════════════════════════════════════
+  if (showLevelQuiz) {
+    return (
+      <div className="h-screen flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-night-light flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <CoursiaLogo size={32} className="rounded-lg" />
+            <div>
+              <p className="text-sm text-muted-foreground">{course?.title}</p>
+              <p className="font-bold gradient-text">
+                {lang === "fr" ? "Quiz" : "Quiz"} {getLevelName(levelQuizLevel)} {LEVEL_EMOJIS[Math.min(levelQuizLevel, 2)]}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => { setShowLevelQuiz(false); if (completedLevel >= 2) setShowAllMastered(true); else setShowReviewScreen(true); }}
+            className="p-2 rounded-xl hover:bg-white/10 transition-all cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          <LevelQuizPanel
+            courseId={selectedCourseId}
+            level={levelQuizLevel}
+            isSecondAttempt={levelQuizSecondAttempt}
+            onComplete={(passed, pointsEarned, canRetry) => handleLevelQuizComplete(passed, pointsEarned, canRetry)}
+            onBack={() => { setShowLevelQuiz(false); if (completedLevel >= 2) setShowAllMastered(true); else setShowReviewScreen(true); }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════
   // FINAL QUIZ MODE
   // ══════════════════════════════════════════════════════════════════
   if (showFinalQuiz) {
@@ -915,7 +988,7 @@ export default function CourseViewer() {
                   <p className="text-lg text-foreground/80 leading-relaxed">{currentChapter.summary}</p>
                 </div>
               )}
-              <div className="prose prose-invert max-w-none text-[18px] leading-8 animate-fade-in-slide-right prose-p:text-[1.175rem] prose-p:leading-[2] prose-p:mb-6 prose-h2:text-[1.6rem] prose-h2:mt-12 prose-h2:mb-6 prose-h3:text-[1.4rem] prose-h3:mt-10 prose-h3:mb-5 prose-li:text-[1.175rem] prose-li:my-2 prose-li:leading-[2] prose-ul:my-6 prose-ol:my-6 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
+              <div key={`fs-chapter-${currentChapter.id}-${currentChapterIndex}`} className="prose prose-invert max-w-none text-[18px] leading-8 animate-fade-in-slide-right prose-p:text-[1.175rem] prose-p:leading-[2] prose-p:mb-6 prose-h2:text-[1.6rem] prose-h2:mt-12 prose-h2:mb-6 prose-h3:text-[1.4rem] prose-h3:mt-10 prose-h3:mb-5 prose-li:text-[1.175rem] prose-li:my-2 prose-li:leading-[2] prose-ul:my-6 prose-ol:my-6 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
                 <ReactMarkdown>{currentChapter.content || ""}</ReactMarkdown>
               </div>
             </div>
@@ -1164,7 +1237,7 @@ export default function CourseViewer() {
 
           {/* Content area */}
           <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <div key={`chapter-${currentChapter.id}`} className="max-w-3xl mx-auto px-4 sm:px-5 md:px-6 py-5 sm:py-6 md:py-8 animate-fade-in-slide-right">
+            <div key={`chapter-${currentChapter.id}-${currentChapterIndex}`} className="max-w-3xl mx-auto px-4 sm:px-5 md:px-6 py-5 sm:py-6 md:py-8 animate-fade-in-slide-right">
               <div className="md:hidden flex justify-end mb-4">
                 <button onClick={() => setIsFullscreen(true)} className="p-2 rounded-xl glass text-xs font-bold hover:bg-white/10 transition-all cursor-pointer"><Maximize2 className="w-4 h-4 text-muted-foreground" /></button>
               </div>
@@ -1237,6 +1310,210 @@ export default function CourseViewer() {
         </div>
       )}
     </>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   Level Quiz Panel — shown at the end of each level (7 questions, 4/7 to pass)
+   ════════════════════════════════════════════════════════════════════ */
+
+function LevelQuizPanel({
+  courseId,
+  level,
+  isSecondAttempt,
+  onComplete,
+  onBack,
+}: {
+  courseId: string;
+  level: number;
+  isSecondAttempt: boolean;
+  onComplete: (passed: boolean, pointsEarned: number, canRetry: boolean) => void;
+  onBack: () => void;
+}) {
+  const lang = useAppStore((s) => s.lang);
+  const tx = t(lang);
+
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<{ score: number; correct: number; total: number; passed: boolean; pointsEarned: number; canRetry: boolean } | null>(null);
+
+  useEffect(() => {
+    const fetchQuiz = async () => {
+      setLoading(true);
+      setResult(null);
+      setAnswers({});
+      try {
+        const res = await fetch(`/api/courses/${courseId}/level-quiz`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ level, regenerate: true }),
+        });
+        const data = await res.json();
+        if (res.ok && data.quiz) {
+          setQuestions(data.quiz.questions);
+        }
+      } catch { /* ignore */ }
+      setLoading(false);
+    };
+    fetchQuiz();
+  }, [courseId, level, isSecondAttempt]); // regenerate on second attempt
+
+  const handleSubmit = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+
+    // Calculate score locally
+    let correct = 0;
+    questions.forEach((q, i) => {
+      if (answers[i] === q.correctIndex) correct++;
+    });
+
+    const total = questions.length;
+    const passed = correct >= 4;
+    const pointsEarned = correct;
+
+    try {
+      await fetch(`/api/courses/${courseId}/level-quiz`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ level, answers, isSecondAttempt, score: Math.round((correct / total) * 100), correct, total, questions }),
+      });
+    } catch { /* non-critical */ }
+
+    setResult({ score: Math.round((correct / total) * 100), correct, total, passed, pointsEarned, canRetry: !passed && !isSecondAttempt });
+    setSubmitting(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center animate-pulse">
+          <div className="text-4xl mb-4">🧠</div>
+          <p className="text-muted-foreground font-medium">{lang === "fr" ? "Préparation du quiz..." : "Preparing quiz..."}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+      {/* Header */}
+      <div className="text-center mb-8 animate-fade-in">
+        <div className="text-4xl mb-3">📝</div>
+        <h2 className="text-2xl font-extrabold gradient-text mb-2">
+          {isSecondAttempt
+            ? (lang === "fr" ? "Deuxième chance !" : "Second chance!")
+            : (lang === "fr" ? `Quiz du niveau ${["Débutant", "Intermédiaire", "Avancé"][Math.min(level, 2)]}` : `Level ${["Beginner", "Intermediate", "Advanced"][Math.min(level, 2)]} Quiz`)}
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          {lang === "fr"
+            ? `${questions.length} questions — ${4} bonnes réponses minimum pour réussir`
+            : `${questions.length} questions — ${4} correct answers needed to pass`}
+        </p>
+        {isSecondAttempt && (
+          <p className="text-xs text-amber-400 mt-2">
+            {lang === "fr" ? "Les questions sont différentes cette fois-ci !" : "The questions are different this time!"}
+          </p>
+        )}
+      </div>
+
+      {/* Questions */}
+      <div className="space-y-6">
+        {questions.map((q, qi) => (
+          <div key={qi} className="p-5 rounded-2xl glass animate-fade-in" style={{ animationDelay: `${qi * 100}ms` }}>
+            <p className="font-bold text-foreground mb-3">
+              <span className="text-mauve-light">{qi + 1}.</span> {q.question}
+            </p>
+            <div className="space-y-2">
+              {q.options.map((opt, oi) => {
+                const isSelected = answers[qi] === oi;
+                const isCorrect = result && oi === q.correctIndex;
+                const isWrong = result && isSelected && oi !== q.correctIndex;
+                return (
+                  <button
+                    key={oi}
+                    onClick={() => !result && setAnswers((prev) => ({ ...prev, [qi]: oi }))}
+                    disabled={!!result}
+                    className={`w-full text-left px-4 py-3 rounded-xl border transition-all text-sm cursor-pointer
+                      ${result
+                        ? isCorrect
+                          ? "border-green-500/50 bg-green-500/10 text-green-300"
+                          : isWrong
+                            ? "border-red-500/50 bg-red-500/10 text-red-300"
+                            : "border-border/50 text-muted-foreground"
+                        : isSelected
+                          ? "border-mauve/50 bg-mauve/10 text-mauve-light"
+                          : "border-border/50 hover:border-mauve/30 hover:bg-white/5 text-foreground"
+                      }`}
+                  >
+                    <span className="font-medium">{String.fromCharCode(97 + oi)})</span> {opt}
+                    {isCorrect && <Check className="inline w-4 h-4 ml-2 text-green-400" />}
+                    {isWrong && <X className="inline w-4 h-4 ml-2 text-red-400" />}
+                  </button>
+                );
+              })}
+            </div>
+            {result && q.explanation && (
+              <p className="mt-3 text-xs text-muted-foreground bg-white/5 rounded-lg p-3">
+                💡 {q.explanation}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Submit / Result */}
+      <div className="mt-8 text-center">
+        {!result ? (
+          <button
+            onClick={handleSubmit}
+            disabled={Object.keys(answers).length < questions.length || submitting}
+            className="px-8 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (lang === "fr" ? "Valider mes réponses" : "Submit answers")}
+          </button>
+        ) : (
+          <div className="animate-fade-in">
+            <div className={`text-3xl font-extrabold mb-2 ${result.passed ? "text-green-400" : "text-red-400"}`}>
+              {result.correct}/{result.total}
+            </div>
+            <p className="text-lg font-bold mb-1">
+              {result.passed
+                ? (lang === "fr" ? "Quiz réussi ! 🎉" : "Quiz passed! 🎉")
+                : (lang === "fr" ? "Quiz non réussi" : "Quiz not passed")}
+            </p>
+            <p className="text-sm text-muted-foreground mb-1">
+              {lang === "fr" ? `+${result.pointsEarned} points de flamme` : `+${result.pointsEarned} flame points`}
+            </p>
+            {result.canRetry && (
+              <p className="text-xs text-amber-400 mb-4">
+                {lang === "fr" ? "Tu as une deuxième chance avec des questions différentes !" : "You get a second chance with different questions!"}
+              </p>
+            )}
+            <div className="flex items-center justify-center gap-3">
+              {result.canRetry ? (
+                <button
+                  onClick={() => { setResult(null); setAnswers({}); }}
+                  className="px-6 py-3 rounded-full bg-gradient-to-r from-amber-500 to-gold text-night text-sm font-bold hover:from-amber-400 hover:to-gold-light transition-all cursor-pointer"
+                >
+                  {lang === "fr" ? "Réessayer" : "Retry"}
+                </button>
+              ) : null}
+              <button
+                onClick={() => onComplete(result.passed, result.pointsEarned, result.canRetry)}
+                className="px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold hover:from-mauve-light hover:to-mauve transition-all cursor-pointer"
+              >
+                {result.passed
+                  ? (lang === "fr" ? "Continuer" : "Continue")
+                  : (lang === "fr" ? "Continuer quand même" : "Continue anyway")}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -132,6 +132,12 @@ interface AppState {
   // Pending course generation (saved before payment, resumed after)
   pendingGeneration: { topic: string; courseLang: string; level: number; isRandom: boolean } | null;
   setPendingGeneration: (v: { topic: string; courseLang: string; level: number; isRandom: boolean } | null) => void;
+  // Free course tracking (from database — single source of truth)
+  freeCourseUsed: boolean;
+  setFreeCourseUsed: (v: boolean) => void;
+  // 48h expiry warning
+  expiryWarning48h: boolean;
+  setExpiryWarning48h: (v: boolean) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -240,7 +246,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Pending course generation
   pendingGeneration: null,
   setPendingGeneration: (v) => {
-    // Persist to localStorage for cross-page resume
     if (typeof window !== "undefined") {
       if (v) {
         localStorage.setItem("coursia-pending-generation", JSON.stringify(v));
@@ -250,4 +255,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     set({ pendingGeneration: v });
   },
+  // Free course tracking (from database — single source of truth)
+  freeCourseUsed: false,
+  setFreeCourseUsed: (v) => set({ freeCourseUsed: v }),
+  // 48h expiry warning
+  expiryWarning48h: false,
+  setExpiryWarning48h: (v) => set({ expiryWarning48h: v }),
 }));

@@ -17,11 +17,12 @@ export default function Sidebar() {
   const setUser = useAppStore((s) => s.setUser);
   const setAuthToken = useAppStore((s) => s.setAuthToken);
   const hasNotification = useAppStore((s) => s.hasNotification);
+  const expiryWarning48h = useAppStore((s) => s.expiryWarning48h);
 
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
 
-  // Show dot when there's a notification and user is NOT on offers page
-  const showDot = hasNotification && view !== "offers";
+  // Show dot when there's a notification or 48h expiry warning and user is NOT on offers page
+  const showDot = (hasNotification || expiryWarning48h) && view !== "offers";
 
   const NAV_ITEMS = useMemo(() => [
     { view: "create" as const, label: tx.nav.create, icon: BookOpen },
