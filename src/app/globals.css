@@ -614,33 +614,29 @@
 .hero-dot-2 { animation: dot-wave-2 1.8s ease-in-out infinite; }
 .hero-dot-3 { animation: dot-wave-3 1.8s ease-in-out infinite; }
 
-/* Premium CTA button with shimmer + glow */
-@keyframes hero-btn-shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
+/* Premium CTA button — solid purple */
 .hero-premium-btn {
-  background-size: 200% auto;
-  background-image: linear-gradient(90deg, #7c5cbf 0%, #9b7fd4 20%, #c4b5fd 35%, #a78bfa 50%, #9b7fd4 65%, #7c5cbf 80%, #5a3d8f 100%);
-  animation: hero-btn-shimmer 3s linear infinite;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background-color: #7c3aed;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+  transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
   position: relative;
-  overflow: hidden;
 }
-.hero-premium-btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.15) 0%, transparent 50%, rgba(255,255,255,0.05) 100%);
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-.hero-premium-btn:hover::before { opacity: 1; }
 .hero-premium-btn:hover {
-  transform: translateY(-2px) scale(1.03);
+  background-color: #6d28d9;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.45);
 }
 .hero-premium-btn:active {
-  transform: translateY(0) scale(0.97);
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.3);
   transition-duration: 0.1s;
+}
+
+/* Spinning circle loader for AI card */
+@keyframes hero-circle-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.hero-circle-loader {
+  animation: hero-circle-spin 1.4s linear infinite;
 }

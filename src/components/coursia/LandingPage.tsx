@@ -254,21 +254,33 @@ export default function LandingPage() {
                     <h3 className="text-sm font-bold text-foreground leading-tight">{card.title}</h3>
                   </div>
 
-                  {/* Progress bar */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-muted-foreground/60 font-medium">
-                        {lang === "fr" ? "Progression" : "Progress"}
-                      </span>
-                      <span className="text-[11px] text-mauve-light font-bold">{card.progress}%</span>
+                  {/* Progress bar (not for generating card) */}
+                  {!card.isGenerating && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] text-muted-foreground/60 font-medium">
+                          {lang === "fr" ? "Progression" : "Progress"}
+                        </span>
+                        <span className="text-[11px] text-mauve-light font-bold">{card.progress}%</span>
+                      </div>
+                      <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-mauve to-mauve-light transition-all duration-1000"
+                          style={{ width: heroVisible ? `${card.progress}%` : "0%", transitionDelay: `${0.8 + i * 0.15}s` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-mauve to-mauve-light transition-all duration-1000"
-                        style={{ width: heroVisible ? `${card.progress}%` : "0%", transitionDelay: `${0.8 + i * 0.15}s` }}
-                      />
+                  )}
+
+                  {/* Spinning circle loader (for generating card) */}
+                  {card.isGenerating && (
+                    <div className="flex items-center justify-center pt-1">
+                      <svg className="hero-circle-loader w-8 h-8" viewBox="0 0 36 36">
+                        <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="3" />
+                        <circle cx="18" cy="18" r="14" fill="none" stroke="#a78bfa" strokeWidth="3" strokeLinecap="round" strokeDasharray="66 22" />
+                      </svg>
                     </div>
-                  </div>
+                  )}
                 </div>
               </motion.div>
             ))}
