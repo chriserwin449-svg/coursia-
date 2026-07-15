@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Yes, the layout is properly stacked, text is readable, and there are no visual issues.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1784134013,
+  "id": "20260716004650d4df5d4d51b94385",
+  "model": "glm-4.6v",
+  "object": "chat.completion",
+  "request_id": "20260716004650d4df5d4d51b94385",
+  "usage": {
+    "completion_tokens": 22,
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "prompt_tokens": 3817,
+    "prompt_tokens_details": {
+      "cached_tokens": 5
+    },
+    "total_tokens": 3839
+  }
+}

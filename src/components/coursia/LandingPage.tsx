@@ -1,28 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import {
-  Sparkles,
-  BookOpen,
-  ArrowRight,
-  Check,
-  Crown,
-  Zap,
-  ChevronDown,
-  LogIn,
-  GraduationCap,
-  Briefcase,
-  Lightbulb,
-  BarChart3,
-  Star,
-  Settings,
-  Globe,
-  X,
-  Flame,
-  Trophy,
-  Layers,
-  MessageSquare,
-  Lock,
+  Brain, Cpu, Palette, TrendingUp, Mail,  // NEW
+  Sparkles, BookOpen, ArrowRight, Check, Crown, Zap, ChevronDown,
+  LogIn, GraduationCap, Briefcase, Lightbulb, BarChart3, Star,
+  Settings, Globe, X, Flame, Trophy, Layers, MessageSquare, Lock,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -48,6 +32,7 @@ export default function LandingPage() {
   const [ctaVisible, setCtaVisible] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [legalModal, setLegalModal] = useState<"privacy" | "terms" | null>(null);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -70,6 +55,12 @@ export default function LandingPage() {
       if (el) observer.observe(el);
     });
     return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   const scrollTo = (id: string) => {
@@ -97,142 +88,209 @@ export default function LandingPage() {
     return { ...badge, icon: icons[i] };
   });
 
+  // Floating cards data
+  const floatingCards = [
+    {
+      title: lang === "fr" ? "Intelligence Artificielle" : "Artificial Intelligence",
+      icon: Brain,
+      progress: 78,
+      isGenerating: true,
+      floatClass: "hero-float-1",
+      style: { top: "0px", left: "5%", width: "280px" },
+    },
+    {
+      title: "Machine Learning",
+      icon: Cpu,
+      progress: 92,
+      isGenerating: false,
+      floatClass: "hero-float-2",
+      style: { top: "180px", left: "55%", width: "240px" },
+    },
+    {
+      title: lang === "fr" ? "Design UX/UI" : "UX/UI Design",
+      icon: Palette,
+      progress: 65,
+      isGenerating: false,
+      floatClass: "hero-float-3",
+      style: { top: "320px", left: "0%", width: "240px" },
+    },
+    {
+      title: lang === "fr" ? "Marketing Digital" : "Digital Marketing",
+      icon: TrendingUp,
+      progress: 84,
+      isGenerating: false,
+      floatClass: "hero-float-4",
+      style: { top: "410px", left: "50%", width: "200px" },
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-night flex flex-col">
       {/* ===== NAVBAR ===== */}
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-night/80 border-b border-muted-foreground/10">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 py-3">
+      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? "bg-night/70 backdrop-blur-2xl border-b border-white/[0.06] shadow-xl shadow-black/10" : "bg-transparent border-b border-transparent"}`}>
+        <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 py-4">
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <CoursiaLogo size={32} className="rounded-lg" />
-            <span className="font-extrabold text-foreground text-lg">{tx.app.name}</span>
+          <div className="flex items-center gap-2.5">
+            <CoursiaLogo size={34} className="rounded-lg" />
+            <span className="font-extrabold text-foreground text-lg tracking-tight">{tx.app.name}</span>
           </div>
 
-          {/* Nav links (desktop) */}
-          <div className="hidden md:flex items-center gap-6">
-            <button onClick={() => scrollTo("hero")} className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-              {tx.landing.navHome}
-            </button>
-            <button onClick={() => scrollTo("features")} className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+          {/* Center nav links (desktop) */}
+          <div className="hidden md:flex items-center gap-8">
+            <button onClick={() => scrollTo("features")} className="text-sm text-muted-foreground/70 hover:text-foreground transition-colors duration-200 cursor-pointer">
               {tx.landing.navFeatures}
             </button>
-            <button onClick={() => scrollTo("audience")} className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
-              {tx.landing.navAbout}
+            <button onClick={() => scrollTo("audience")} className="text-sm text-muted-foreground/70 hover:text-foreground transition-colors duration-200 cursor-pointer">
+              {tx.landing.heroNavHow}
             </button>
-            <button onClick={() => scrollTo("pricing")} className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+            <button onClick={() => scrollTo("pricing")} className="text-sm text-muted-foreground/70 hover:text-foreground transition-colors duration-200 cursor-pointer">
               {tx.landing.navPricing}
             </button>
           </div>
 
-          {/* CTA buttons + Language toggle */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Language toggle */}
+          {/* Right: lang toggle + CTA */}
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => setLang(lang === "fr" ? "en" : "fr")}
               title={lang === "fr" ? "Switch to English" : "Passer en Français"}
-              className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all duration-200 cursor-pointer text-sm font-bold"
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-muted-foreground/70 hover:text-foreground hover:bg-white/5 transition-all duration-200 cursor-pointer text-sm font-semibold"
             >
               <Globe className="w-4 h-4" />
-              <span>{lang.toUpperCase()}</span>
-            </button>
-
-            <button
-              onClick={() => user ? setView("create") : setView("auth")}
-              className="hidden sm:inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            >
-              <LogIn className="w-4 h-4" />
-              <span>{tx.landing.navLogin}</span>
+              <span className="hidden sm:inline">{lang.toUpperCase()}</span>
             </button>
             <button
               onClick={() => user ? setView("create") : setView("auth")}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold transition-all duration-200 cursor-pointer hover:opacity-90"
+              className="hero-premium-btn px-5 py-2.5 rounded-xl text-white text-sm font-bold cursor-pointer"
             >
-              <span>{tx.landing.startFree}</span>
+              <span className="relative z-10">{tx.landing.startFree}</span>
             </button>
           </div>
         </div>
       </nav>
 
       {/* ===== HERO SECTION ===== */}
-      <section id="hero" className="relative overflow-hidden flex items-start justify-center min-h-screen px-4 pt-28 pb-12">
-        {/* Background orbs */}
+      <section id="hero" className="relative overflow-hidden min-h-screen flex items-center px-4 pt-24 pb-20">
+        {/* Grid + Halos */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-mauve/8 rounded-full blur-[120px]" />
-          <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-mauve-dark/10 rounded-full blur-[120px]" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gold/5 rounded-full blur-[120px]" />
-          <div
-            className="absolute inset-0 opacity-[0.03]"
-            style={{
-              backgroundImage: "linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)",
-              backgroundSize: "60px 60px",
-            }}
-          />
+          <div className="absolute inset-0 hero-grid"></div>
+          <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-purple-600/20" style={{ filter: "blur(150px)" }}></div>
+          <div className="absolute -top-20 -right-40 w-80 h-80 rounded-full bg-orange-400/15" style={{ filter: "blur(150px)" }}></div>
+          <div className="absolute top-1/3 left-1/4 w-56 h-56 rounded-full bg-violet-500/10" style={{ filter: "blur(120px)" }}></div>
+          <div className="absolute bottom-1/4 right-1/3 w-40 h-40 rounded-full bg-amber-500/8" style={{ filter: "blur(100px)" }}></div>
+          <div className="absolute top-2/3 right-1/5 w-28 h-28 rounded-full bg-pink-500/7" style={{ filter: "blur(80px)" }}></div>
         </div>
 
-        <div
-          ref={heroRef}
-          className="relative z-10 text-center max-w-5xl mx-auto transition-all duration-1000 ease-out"
-          style={{
-            opacity: heroVisible ? 1 : 0,
-            transform: heroVisible ? "translateY(0)" : "translateY(40px)",
-          }}
-        >
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass text-sm text-mauve-light font-semibold mb-10">
-            <Sparkles className="w-4 h-4" />
-            <span>{tx.landing.poweredBy}</span>
-          </div>
-
-          {/* Hero heading */}
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold mb-8 leading-tight max-w-5xl mx-auto">
-            <span className="text-foreground">{tx.landing.heroHeading1}</span>{" "}
-            <span className="gradient-text">{tx.landing.heroHeading2}</span>
-          </h1>
-
-          {/* Subheading */}
-          <p className="text-xl sm:text-2xl md:text-3xl text-muted-foreground mb-12 max-w-3xl mx-auto leading-relaxed">
-            {tx.landing.heroSubtitleAlt}
-          </p>
-
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-            <button
-              onClick={() => user ? setView("create") : setView("auth")}
-              className="group inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg sm:text-xl font-bold hover:opacity-90 transition-all duration-200 cursor-pointer shadow-[0_0_20px_rgba(124,92,191,0.2)]"
-            >
-              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
-              <span>{tx.landing.startFree}</span>
-              <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
-            </button>
-            <button
-              onClick={() => scrollTo("pricing")}
-              className="inline-flex items-center gap-2 px-6 sm:px-8 py-3 sm:py-4 rounded-full border border-border text-foreground font-semibold transition-colors duration-200 cursor-pointer text-sm sm:text-lg"
-            >
-              {tx.landing.pricing.title}
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Hero feature badges */}
-          <div className="mt-16 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
-            {heroBadges.map((badge) => (
-              <div key={badge.label} className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="w-5 h-5 rounded-full bg-mauve/20 flex items-center justify-center flex-shrink-0">
-                  <badge.icon className="w-3 h-3 text-mauve-light" />
-                </div>
-                <div className="text-left">
-                  <p className="text-foreground font-semibold text-xs">{badge.label}</p>
-                  <p className="text-muted-foreground/60 text-xs">{badge.sub}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Scroll indicator */}
-          <div className="mt-14 flex justify-center animate-bounce">
-            <div className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex justify-center pt-2">
-              <div className="w-1.5 h-3 rounded-full bg-muted-foreground/50" />
+        <div className="relative z-10 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-8 items-center">
+          {/* LEFT COLUMN */}
+          <div
+            ref={heroRef}
+            className="transition-all duration-1000 ease-out"
+            style={{
+              opacity: heroVisible ? 1 : 0,
+              transform: heroVisible ? "translateY(0)" : "translateY(30px)",
+            }}
+          >
+            {/* AI Badge */}
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-mauve/10 border border-mauve/20 text-sm text-mauve-light font-semibold mb-8">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{tx.landing.poweredBy}</span>
             </div>
+
+            {/* Title */}
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[3.5rem] xl:text-7xl font-extrabold leading-[1.1] mb-6 tracking-tight">
+              <span className="text-foreground">{tx.landing.heroHeading1}</span>
+              <br />
+              <span className="hero-gradient-text">{tx.landing.heroHeading2}</span>
+            </h1>
+
+            {/* Description */}
+            <p className="text-lg sm:text-xl text-muted-foreground/80 mb-8 max-w-lg leading-relaxed">
+              {tx.landing.heroSubtitleAlt}
+            </p>
+
+            {/* Email + CTA */}
+            <div className="flex flex-col sm:flex-row gap-3 max-w-md mb-8">
+              <div className="relative flex-1">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40 pointer-events-none" />
+                <input
+                  type="email"
+                  placeholder={tx.landing.heroEmailPlaceholder}
+                  className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-mauve/40 focus:ring-1 focus:ring-mauve/20 transition-all duration-200 text-sm"
+                />
+              </div>
+              <button
+                onClick={() => user ? setView("create") : setView("auth")}
+                className="hero-premium-btn inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-white font-bold text-sm whitespace-nowrap cursor-pointer"
+              >
+                <span className="relative z-10 flex items-center gap-2">
+                  {tx.landing.startFree}
+                  <ArrowRight className="w-4 h-4" />
+                </span>
+              </button>
+            </div>
+
+            {/* Social Proof */}
+            <div className="flex items-center gap-3">
+              <div className="flex -space-x-2.5">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 border-2 border-night flex items-center justify-center text-[10px] font-bold text-white">M</div>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 to-rose-600 border-2 border-night flex items-center justify-center text-[10px] font-bold text-white">S</div>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-amber-600 border-2 border-night flex items-center justify-center text-[10px] font-bold text-white">A</div>
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-mauve to-mauve-dark border-2 border-night flex items-center justify-center text-[10px] font-bold text-white">+</div>
+              </div>
+              <p className="text-sm text-muted-foreground/60">{tx.landing.heroSocialProof}</p>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN — Floating Cards (desktop only) */}
+          <div className="relative hidden lg:block h-[520px]">
+            {floatingCards.map((card, i) => (
+              <motion.div
+                key={card.title}
+                className={`absolute ${card.floatClass}`}
+                style={card.style}
+                initial={{ opacity: 0, y: 40 }}
+                animate={heroVisible ? { opacity: 1, y: 0 } : { opacity: 0, y: 40 }}
+                transition={{ duration: 0.7, delay: 0.4 + i * 0.12, ease: "easeOut" }}
+              >
+                <div className="bg-night-light/80 backdrop-blur-sm border border-mauve/[0.15] rounded-2xl p-5 shadow-[0_8px_32px_rgba(0,0,0,0.3),0_0_1px_rgba(124,92,191,0.2)]">
+                  {/* Generating badge (only for first card) */}
+                  {card.isGenerating && (
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-mauve/10 border border-mauve/20 text-[11px] text-mauve-light font-semibold mb-3">
+                      <span>{tx.landing.heroAiGenerating}</span>
+                      <span className="flex items-center gap-0.5 ml-1">
+                        <span className="hero-dot-1 w-1.5 h-1.5 rounded-full bg-mauve-light inline-block" />
+                        <span className="hero-dot-2 w-1.5 h-1.5 rounded-full bg-mauve-light inline-block" />
+                        <span className="hero-dot-3 w-1.5 h-1.5 rounded-full bg-mauve-light inline-block" />
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Card header */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-9 h-9 rounded-xl bg-mauve/10 flex items-center justify-center flex-shrink-0">
+                      <card.icon className="w-4.5 h-4.5 text-mauve-light" />
+                    </div>
+                    <h3 className="text-sm font-bold text-foreground leading-tight">{card.title}</h3>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-muted-foreground/60 font-medium">
+                        {lang === "fr" ? "Progression" : "Progress"}
+                      </span>
+                      <span className="text-[11px] text-mauve-light font-bold">{card.progress}%</span>
+                    </div>
+                    <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-mauve to-mauve-light transition-all duration-1000"
+                        style={{ width: heroVisible ? `${card.progress}%` : "0%", transitionDelay: `${0.8 + i * 0.15}s` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
           </div>
         </div>
       </section>
@@ -876,6 +934,7 @@ export default function LandingPage() {
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
         .animate-fade-in-slide-up { animation: fade-in-slide-up 0.35s ease-out; }
+
       `}</style>
     </div>
   );
