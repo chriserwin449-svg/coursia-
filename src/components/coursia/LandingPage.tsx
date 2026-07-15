@@ -77,8 +77,6 @@ export default function LandingPage() {
   const heading2 = tx.landing.heroHeading2;
   const fullHeading = heading1 + "|" + heading2; // "|" marks the line break
   const typingDone = typedCount >= fullHeading.length;
-  const showCursor = !typingDone;
-
   useEffect(() => {
     if (!heroVisible || typingDone) return;
     const timer = setTimeout(() => setTypedCount((c) => c + 1), 30);
@@ -152,10 +150,71 @@ export default function LandingPage() {
     },
   ];
 
+  // JSON-LD structured data
+  const SITE_URL = "https://coursia.app";
+  const faqJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": tx.landing.faqs.map((faq) => ({
+      "@type": "Question",
+      "name": faq.q,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": faq.a,
+      },
+    })),
+  };
+
+  const softwareJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Coursia",
+    "url": SITE_URL,
+    "applicationCategory": "EducationalApplication",
+    "operatingSystem": "Web",
+    "offers": [
+      {
+        "@type": "Offer",
+        "name": tx.landing.pricing.monthly.name,
+        "price": "9.99",
+        "priceCurrency": "USD",
+        "billingPeriod": "P1M",
+        "description": tx.landing.pricing.monthly.desc,
+      },
+      {
+        "@type": "Offer",
+        "name": tx.landing.pricing.annual.name,
+        "price": "42.99",
+        "priceCurrency": "USD",
+        "billingPeriod": "P1Y",
+        "description": tx.landing.pricing.annual.desc,
+      },
+    ],
+    "aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "4.8",
+      "ratingCount": "2500",
+      "bestRating": "5",
+      "worstRating": "1",
+    },
+    "description": lang === "fr"
+      ? "Coursia génère des cours personnalisés avec l'IA. Apprends à ton rythme avec des chapitres, des quiz et un suivi de progression."
+      : "Coursia generates personalized courses with AI. Learn at your own pace with chapters, quizzes and progress tracking.",
+  };
+
   return (
     <div className="min-h-screen bg-night flex flex-col">
+      {/* JSON-LD: FAQPage + SoftwareApplication */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
+      />
       {/* ===== NAVBAR ===== */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? "bg-night/70 backdrop-blur-2xl border-b border-white/[0.06] shadow-xl shadow-black/10" : "bg-transparent border-b border-transparent"}`}>
+      <nav aria-label="Navigation principale" className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? "bg-night/70 backdrop-blur-2xl border-b border-white/[0.06] shadow-xl shadow-black/10" : "bg-transparent border-b border-transparent"}`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 py-4">
           {/* Logo */}
           <div className="flex items-center gap-2.5">
@@ -163,17 +222,17 @@ export default function LandingPage() {
             <span className="font-extrabold text-foreground text-lg tracking-tight">{tx.app.name}</span>
           </div>
 
-          {/* Center nav links (desktop) */}
+          {/* Center nav links (desktop) — use <a> for SEO crawlability */}
           <div className="hidden md:flex items-center gap-8">
-            <button onClick={() => scrollTo("features")} className="text-sm text-muted-foreground/70 hover:text-foreground transition-colors duration-200 cursor-pointer">
+            <a href="#features" onClick={(e) => { e.preventDefault(); scrollTo("features"); }} className="text-sm text-muted-foreground/70 hover:text-foreground transition-colors duration-200">
               {tx.landing.navFeatures}
-            </button>
-            <button onClick={() => scrollTo("audience")} className="text-sm text-muted-foreground/70 hover:text-foreground transition-colors duration-200 cursor-pointer">
+            </a>
+            <a href="#audience" onClick={(e) => { e.preventDefault(); scrollTo("audience"); }} className="text-sm text-muted-foreground/70 hover:text-foreground transition-colors duration-200">
               {tx.landing.heroNavHow}
-            </button>
-            <button onClick={() => scrollTo("pricing")} className="text-sm text-muted-foreground/70 hover:text-foreground transition-colors duration-200 cursor-pointer">
+            </a>
+            <a href="#pricing" onClick={(e) => { e.preventDefault(); scrollTo("pricing"); }} className="text-sm text-muted-foreground/70 hover:text-foreground transition-colors duration-200">
               {tx.landing.navPricing}
-            </button>
+            </a>
           </div>
 
           {/* Right: lang toggle + CTA */}

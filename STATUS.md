@@ -1,6 +1,6 @@
 # Coursia — État du projet
 
-> Dernière mise à jour : 16 juillet 2025 (session 3)
+> Dernière mise à jour : 17 juillet 2025 (session 4)
 
 ## Vue d'ensemble
 
@@ -19,7 +19,7 @@
 | Paiement | PayPal |
 | State client | Zustand |
 | Hébergement | Vercel |
-| Domaine | En cours d'achat (`coursia.app`) |
+| Domaine | `coursia.app` (à acheter via Vercel) |
 
 ## Architecture des vues (App Shell)
 
@@ -97,6 +97,28 @@ Le routing est géré par un store Zustand (`useAppStore().view`) dans `src/app/
 - **Crash page Offres** : `<style jsx global>` causait une erreur côté client sur Vercel (App Router). Styles déplacés dans `globals.css`
 - **Barre de flammes à 0** : `Math.max(..., 8)` forçait 8% min → retiré, affiche maintenant 0% correctement
 
+### SEO (session 4)
+- **metadataBase** configuré avec `https://coursia.app` dans `app/layout.tsx`
+- **title.template** : `%s | Coursia` pour cohérence sur toutes les pages
+- **Open Graph** complet (title, description, image, locale fr_FR + en_US)
+- **Twitter Card** (summary_large_image)
+- **URL canonique** : `https://coursia.app`
+- **hreflang** : `<link>` tags + `alternates.languages` (fr, en, x-default)
+- **Sitemap** : `app/sitemap.ts` (auto-généré, 1 page publique)
+- **robots.ts** : autorise tout sauf `/api/`, bloque GPTBot
+- **JSON-LD Organization** : nom, logo, URL, description
+- **JSON-LD WebSite** : nom, URL, éditeur, langues
+- **JSON-LD SoftwareApplication** : nom, catégorie EducationalApplication, prix (2 offres), rating
+- **JSON-LD FAQPage** : 6 questions/réponses de la FAQ réelle (rich results Google)
+- **Nav liens** : convertis de `<button onClick>` à `<a href>` pour crawlabilité
+- **aria-label** ajouté sur la nav principale
+- **next/font** : `display: "swap"` ajouté pour éviter FOIT
+- **Polices** : déjà via next/font (Geist + Geist_Mono) ✓
+- **Images** : déjà via next/image (CoursiaLogo) ✓, aucune balise `<img>` dans le code
+- **`public/robots.txt`** supprimé (remplacé par `app/robots.ts`)
+- **`<html lang="fr">`** comme langue par défaut
+- **Note i18n SEO** : le switch FR/EN est client-side (même URL). Pour un SEO i18n optimal, envisager un routage par langue (`/fr`, `/en`) à l'avenir
+
 ## Fonctionnalités implémentées
 
 ### Authentification
@@ -146,7 +168,7 @@ Le routing est géré par un store Zustand (`useAppStore().view`) dans `src/app/
 ### Basse priorité
 - [ ] Améliorer la qualité de la génération de cours (prompt engineering)
 - [ ] Espacement PayPal sur la page offres
-- [ ] Optimisation SEO pour le domaine `coursia.app`
+- [x] Optimisation SEO pour le domaine `coursia.app`
 
 ## Fichiers clés
 
@@ -165,4 +187,6 @@ Le routing est géré par un store Zustand (`useAppStore().view`) dans `src/app/
 | `src/lib/db.ts` | Client Prisma |
 | `src/lib/supabase.ts` | Client Supabase |
 | `src/app/globals.css` | Styles globaux + animations |
+| `src/app/sitemap.ts` | Sitemap auto-généré |
+| `src/app/robots.ts` | Robots.txt auto-généré |
 | `prisma/schema.prisma` | Schéma de base de données |
