@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
-  Brain, Cpu, Palette, TrendingUp, Mail,  // NEW
+  Brain, Cpu, Palette, TrendingUp,  // NEW
   Sparkles, BookOpen, ArrowRight, Check, Crown, Zap, ChevronDown,
   LogIn, GraduationCap, Briefcase, Lightbulb, BarChart3, Star,
   Settings, Globe, X, Flame, Trophy, Layers, MessageSquare, Lock,
@@ -208,36 +208,17 @@ export default function LandingPage() {
               {tx.landing.heroSubtitleAlt}
             </p>
 
-            {/* Email + CTA */}
-            <div className="flex flex-col sm:flex-row gap-3 max-w-md mb-8">
-              <div className="relative flex-1">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40 pointer-events-none" />
-                <input
-                  type="email"
-                  placeholder={tx.landing.heroEmailPlaceholder}
-                  className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-mauve/40 focus:ring-1 focus:ring-mauve/20 transition-all duration-200 text-sm"
-                />
-              </div>
+            {/* CTA Button */}
+            <div className="max-w-md mb-8">
               <button
                 onClick={() => user ? setView("create") : setView("auth")}
-                className="hero-premium-btn inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-white font-bold text-sm whitespace-nowrap cursor-pointer"
+                className="hero-premium-btn w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-white font-bold text-base whitespace-nowrap cursor-pointer"
               >
                 <span className="relative z-10 flex items-center gap-2">
                   {tx.landing.startFree}
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-5 h-5" />
                 </span>
               </button>
-            </div>
-
-            {/* Social Proof */}
-            <div className="flex items-center gap-3">
-              <div className="flex -space-x-2.5">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 border-2 border-night flex items-center justify-center text-[10px] font-bold text-white">M</div>
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 to-rose-600 border-2 border-night flex items-center justify-center text-[10px] font-bold text-white">S</div>
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-amber-600 border-2 border-night flex items-center justify-center text-[10px] font-bold text-white">A</div>
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-mauve to-mauve-dark border-2 border-night flex items-center justify-center text-[10px] font-bold text-white">+</div>
-              </div>
-              <p className="text-sm text-muted-foreground/60">{tx.landing.heroSocialProof}</p>
             </div>
           </div>
 
