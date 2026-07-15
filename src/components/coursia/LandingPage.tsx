@@ -26,10 +26,17 @@ export default function LandingPage() {
   const [featuresVisible, setFeaturesVisible] = useState(false);
   const audienceRef = useRef<HTMLDivElement>(null);
   const [audienceVisible, setAudienceVisible] = useState(false);
+  const diffRef = useRef<HTMLDivElement>(null);
+  const [diffVisible, setDiffVisible] = useState(false);
   const pricingRef = useRef<HTMLDivElement>(null);
   const [pricingVisible, setPricingVisible] = useState(false);
+  const faqRef = useRef<HTMLDivElement>(null);
+  const [faqVisible, setFaqVisible] = useState(false);
   const ctaRef = useRef<HTMLDivElement>(null);
   const [ctaVisible, setCtaVisible] = useState(false);
+
+  // Typewriter state
+  const [typedCount, setTypedCount] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [legalModal, setLegalModal] = useState<"privacy" | "terms" | null>(null);
   const [scrolled, setScrolled] = useState(false);
@@ -43,14 +50,16 @@ export default function LandingPage() {
             if (id === "hero") setHeroVisible(true);
             if (id === "features") setFeaturesVisible(true);
             if (id === "audience") setAudienceVisible(true);
+            if (id === "diff") setDiffVisible(true);
             if (id === "pricing") setPricingVisible(true);
+            if (id === "faq") setFaqVisible(true);
             if (id === "final-cta") setCtaVisible(true);
           }
         });
       },
       { threshold: 0.15 }
     );
-    ["hero", "features", "audience", "pricing", "final-cta"].forEach((id) => {
+    ["hero", "features", "audience", "diff", "pricing", "faq", "final-cta"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) observer.observe(el);
     });
@@ -62,6 +71,25 @@ export default function LandingPage() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  // Typewriter logic
+  const heading1 = tx.landing.heroHeading1;
+  const heading2 = tx.landing.heroHeading2;
+  const fullHeading = heading1 + "|" + heading2; // "|" marks the line break
+  const typingDone = typedCount >= fullHeading.length;
+  const showCursor = !typingDone;
+
+  useEffect(() => {
+    if (!heroVisible || typingDone) return;
+    const timer = setTimeout(() => setTypedCount((c) => c + 1), 30);
+    return () => clearTimeout(timer);
+  }, [heroVisible, typedCount, fullHeading.length, typingDone]);
+
+  const typedPart = fullHeading.slice(0, typedCount);
+  const splitIdx = typedPart.indexOf("|");
+  const line1 = splitIdx === -1 ? typedPart : typedPart.slice(0, splitIdx);
+  const line2 = splitIdx === -1 ? "" : typedPart.slice(splitIdx + 1);
+  const showCursor = !typingDone;
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -196,11 +224,16 @@ export default function LandingPage() {
               <span>{tx.landing.poweredBy}</span>
             </div>
 
-            {/* Title */}
-            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[3.5rem] xl:text-7xl font-extrabold leading-[1.1] mb-6 tracking-tight">
-              <span className="text-foreground">{tx.landing.heroHeading1}</span>
-              <br />
-              <span className="hero-gradient-text">{tx.landing.heroHeading2}</span>
+            {/* Title — typewriter */}
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[3.5rem] xl:text-7xl font-extrabold leading-[1.1] mb-6 tracking-tight min-h-[2.4em] sm:min-h-[2.2em]">
+              <span className="text-foreground">{line1}</span>
+              {line2 && (
+                <>
+                  <br />
+                  <span className="hero-gradient-text">{line2}</span>
+                </>
+              )}
+              {showCursor && <span className="hero-typewriter-cursor" />}
             </h1>
 
             {/* Description */}
@@ -374,11 +407,18 @@ export default function LandingPage() {
       </section>
 
       {/* ===== DIFFERENTIATION SECTION ===== */}
-      <section className="relative py-24 px-4">
+      <section id="diff" className="relative py-24 px-4">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-mauve/5 rounded-full blur-[120px]" />
         </div>
-        <div className="relative z-10 max-w-5xl mx-auto">
+        <div
+          ref={diffRef}
+          className="relative z-10 max-w-5xl mx-auto transition-all duration-1000 ease-out"
+          style={{
+            opacity: diffVisible ? 1 : 0,
+            transform: diffVisible ? "translateY(0)" : "translateY(40px)",
+          }}
+        >
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
               <span className="gradient-text">{(tx.landing as Record<string, unknown>).diffTitle as string}</span>
@@ -506,11 +546,18 @@ export default function LandingPage() {
       </section>
 
       {/* ===== FAQ SECTION ===== */}
-      <section className="relative py-24 px-4">
+      <section id="faq" className="relative py-24 px-4">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-mauve/5 rounded-full blur-[120px]" />
         </div>
-        <div className="relative z-10 max-w-3xl mx-auto">
+        <div
+          ref={faqRef}
+          className="relative z-10 max-w-3xl mx-auto transition-all duration-1000 ease-out"
+          style={{
+            opacity: faqVisible ? 1 : 0,
+            transform: faqVisible ? "translateY(0)" : "translateY(40px)",
+          }}
+        >
           <div className="text-center mb-14">
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
               <span className="gradient-text">{tx.landing.faqTitle}</span>

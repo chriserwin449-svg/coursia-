@@ -640,3 +640,19 @@
 .hero-circle-loader {
   animation: hero-circle-spin 1.4s linear infinite;
 }
+
+/* Typewriter cursor */
+@keyframes hero-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.hero-typewriter-cursor {
+  display: inline-block;
+  width: 3px;
+  height: 0.85em;
+  background: #a78bfa;
+  margin-left: 3px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  animation: hero-cursor-blink 0.7s step-end infinite;
+}
