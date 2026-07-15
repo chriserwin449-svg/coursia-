@@ -1,6 +1,6 @@
 # Coursia — État du projet
 
-> Dernière mise à jour : 16 juillet 2025
+> Dernière mise à jour : 16 juillet 2025 (session 2)
 
 ## Vue d'ensemble
 
@@ -62,11 +62,11 @@ Le routing est géré par un store Zustand (`useAppStore().view`) dans `src/app/
 ### Hero Section
 - Fond sombre avec grille fine CSS + halos lumineux (violet, orange, rose)
 - Badge IA "Propulsé par l'Intelligence Artificielle"
-- **Titre avec animation typewriter** (s'écrit à l'arrivée, 30ms/char)
+- **Titre avec animation typewriter** (s'écrit à l'arrivée, 30ms/char, curseur clignotant)
 - Description sous le titre
-- Bouton CTA "Commencer gratuitement" plein width, violet uni (#7c3aed)
+- Bouton CTA "Commencer gratuitement" plein width, violet uni (#7c3aed), sans glow/shimmer
 - Cartes flottantes desktop (Machine Learning, UX/UI, Marketing Digital, Intelligence Artificielle)
-- Carte IA : spinner circulaire animé (au lieu de barre de progression)
+- Carte IA : spinner circulaire animé SVG (au lieu de barre de progression)
 - Cartes avec animations float CSS + délais décalés
 
 ### Sections (toutes avec fade-in au scroll)
@@ -79,12 +79,13 @@ Le routing est géré par un store Zustand (`useAppStore().view`) dans `src/app/
 7. **Footer** — Logo, liens légaux (modals), copyright
 
 ### Animations
-- Typewriter sur le titre hero
-- Fade-in + slide-up sur toutes les sections au scroll (IntersectionObserver)
+- Typewriter sur le titre hero (curseur clignotant violet, disparaît à la fin)
+- Fade-in + slide-up sur **toutes** les sections au scroll (IntersectionObserver, 7 sections)
 - Float animation sur les cartes hero (4 variantes CSS)
 - Spinner circulaire SVG sur la carte IA
 - Aurora arc en bas de page (3 couches + particules)
 - Shimmer sur les cartes pricing
+- **CreateCourse** : bannière sujet suggéré + pill niveau avec `animate-fade-in-slide-up`
 
 ## Fonctionnalités implémentées
 

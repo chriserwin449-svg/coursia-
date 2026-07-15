@@ -765,7 +765,7 @@ export default function CreateCourse() {
           </div>
         )}
         {isRandomTopic && (
-          <div className="mb-8 flex items-center gap-2">
+          <div className="mb-8 flex items-center gap-2 animate-fade-in-slide-up">
             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{tx.create.level}</span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-mauve/15 border border-mauve/25 text-xs font-bold text-mauve-light">
               {tx.create.levels[0]}
@@ -846,7 +846,7 @@ export default function CreateCourse() {
 
         {/*  Suggested topic banner  */}
         {showSuggested && suggestedTopic && (
-          <div className="mb-6 p-4 rounded-2xl glass text-center transition-all duration-300">
+          <div className="mb-6 p-4 rounded-2xl glass text-center animate-fade-in-slide-up">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
               ✨ {tx.create.suggested}
             </p>
