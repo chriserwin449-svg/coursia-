@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useCallback, useRef } from "react";
-import { BookOpen, Library, Route, Tag } from "lucide-react";
-import { useAppStore } from "@/lib/store";
+import { useEffect, useCallback, useRef, useState } from "react";
+import { BookOpen, Library, Route, Tag, Menu, X, LogOut, User, AlertTriangle } from "lucide-react";
+import { useAppStore, type AppView } from "@/lib/store";
 import { trackEvent } from "@/lib/analytics";
 import { t } from "@/lib/i18n";
 import { useSession } from "@/hooks/useSession";
 import Sidebar from "@/components/coursia/Sidebar";
+import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 import LandingPage from "@/components/coursia/LandingPage";
 import AuthPage from "@/components/coursia/AuthPage";
 import CreateCourse from "@/components/coursia/CreateCourse";
@@ -16,6 +17,152 @@ import Journey from "@/components/coursia/Journey";
 import OffersPage from "@/components/coursia/OffersPage";
 import TopBar from "@/components/coursia/TopBar";
 
+
+function MobileSlideOver({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const view = useAppStore((s) => s.view);
+  const setView = useAppStore((s) => s.setView);
+  const lang = useAppStore((s) => s.lang);
+  const tx = t(lang);
+  const user = useAppStore((s) => s.user);
+  const setUser = useAppStore((s) => s.setUser);
+  const setAuthToken = useAppStore((s) => s.setAuthToken);
+
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+
+  const NAV_ITEMS = [
+    { view: "create" as const, label: tx.nav.create, icon: BookOpen },
+    { view: "library" as const, label: tx.nav.library, icon: Library },
+    { view: "journey" as const, label: tx.nav.journey, icon: Route },
+    { view: "offers" as const, label: tx.nav.offers, icon: Tag },
+  ];
+
+  const handleNavClick = (viewName: string) => {
+    setView(viewName as AppView);
+    onClose();
+  };
+
+  const confirmLogout = () => {
+    setShowLogoutDialog(false);
+    setUser(null);
+    setAuthToken(null);
+    setView("landing");
+    onClose();
+  };
+
+  if (!open) return null;
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden animate-fade-in"
+        onClick={onClose}
+      />
+      {/* Panel */}
+      <aside className="fixed left-0 top-0 h-full w-[280px] max-w-[80vw] z-50 bg-night-light border-r border-border flex flex-col md:hidden animate-slide-in-left overflow-hidden">
+        {/* Header with logo + close */}
+        <div className="flex items-center justify-between px-4 py-4 border-b border-border">
+          <div className="flex items-center gap-2.5">
+            <CoursiaLogo size={32} className="flex-shrink-0" />
+            <span className="text-lg font-extrabold gradient-text whitespace-nowrap">
+              {tx.app.name}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 -mr-1 rounded-xl hover:bg-white/10 transition-all cursor-pointer"
+          >
+            <X className="w-5 h-5 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* Nav Items */}
+        <nav className="flex-1 py-3 px-2 space-y-1">
+          {NAV_ITEMS.map((item) => {
+            const isActive = view === item.view;
+            return (
+              <button
+                key={item.view}
+                onClick={() => handleNavClick(item.view)}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-200 cursor-pointer ${
+                  isActive
+                    ? "bg-mauve/20 text-mauve-light glow-mauve"
+                    : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+                }`}
+              >
+                <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? "text-mauve-light" : ""}`} />
+                <span className="text-base font-semibold truncate">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Bottom section */}
+        <div className="px-2 py-3 border-t border-border space-y-1">
+          {user && (
+            <div className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-muted-foreground/70">
+              <div className="w-8 h-8 rounded-xl bg-mauve/15 flex items-center justify-center flex-shrink-0">
+                <User className="w-4 h-4 text-mauve-light" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-foreground truncate">
+                  {user.firstName} {(user.lastName || "").charAt(0) || ""}.
+                </p>
+                <p className="text-[10px] text-muted-foreground/50 truncate">{user.email}</p>
+              </div>
+            </div>
+          )}
+          <button
+            onClick={() => setShowLogoutDialog(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive transition-all duration-200 cursor-pointer"
+          >
+            <LogOut className="w-5 h-5 flex-shrink-0" />
+            <span className="text-sm font-semibold truncate">{tx.nav.logout}</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Logout confirmation dialog */}
+      {showLogoutDialog && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-night/80 backdrop-blur-sm animate-fade-in md:hidden"
+          onClick={() => setShowLogoutDialog(false)}
+        >
+          <div
+            className="bg-night-light border border-border rounded-3xl w-full max-w-sm mx-4 p-8 animate-fade-in-slide-up text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle className="w-8 h-8 text-destructive" />
+            </div>
+            <h3 className="text-xl font-extrabold text-foreground mb-3">
+              {tx.nav.logoutConfirm}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-8">
+              {lang === "fr"
+                ? "Ta progression est sauvegardée. Tu pourras te reconnecter plus tard."
+                : "Your progress is saved. You can log back in later."}
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={confirmLogout}
+                className="w-full py-3.5 rounded-full bg-gradient-to-r from-destructive to-red-600 text-white font-bold text-sm hover:from-red-500 hover:to-red-700 transition-all duration-300 cursor-pointer shadow-lg shadow-destructive/20"
+              >
+                {tx.nav.logoutYes}
+              </button>
+              <button
+                onClick={() => setShowLogoutDialog(false)}
+                className="w-full py-3.5 rounded-full glass text-foreground font-bold text-sm hover:bg-white/10 transition-all duration-300 cursor-pointer"
+              >
+                {tx.nav.logoutNo}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 function MobileBottomNav() {
   const view = useAppStore((s) => s.view);
@@ -71,6 +218,7 @@ export default function AppShell() {
   const userId = useAppStore((s) => s.userId);
   const setHasNotification = useAppStore((s) => s.setHasNotification);
   const notificationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Restore session (validates token with server and restores user data)
   useSession();
@@ -282,9 +430,18 @@ export default function AppShell() {
       ) : (
         <div className="min-h-screen">
           <Sidebar />
+          {/* Mobile hamburger button */}
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="md:hidden fixed top-0 left-0 z-30 p-3 hover:bg-white/5 transition-all cursor-pointer"
+            aria-label="Open menu"
+          >
+            <Menu className="w-6 h-6 text-foreground" />
+          </button>
           {view !== "viewer" && <TopBar />}
+          <MobileSlideOver open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
           <main
-            className={`min-h-screen transition-all duration-300 ease-in-out pb-16 md:pb-0 ${
+            className={`min-h-screen transition-all duration-300 ease-in-out pb-20 md:pb-0 ${
               collapsed
                 ? "ml-0 md:ml-[72px]"
                 : "ml-0 md:ml-[72px] lg:ml-64"

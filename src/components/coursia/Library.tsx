@@ -120,17 +120,17 @@ export default function Library() {
 
       {/* Empty state — no courses at all */}
       {courses.length === 0 && (
-        <div className="text-center py-24">
-          <div className="w-24 h-24 rounded-3xl bg-mauve/10 flex items-center justify-center mx-auto mb-8">
-            <LibraryIcon className="w-12 h-12 text-mauve-light/50" />
+        <div className="text-center py-12 sm:py-24">
+          <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-3xl bg-mauve/10 flex items-center justify-center mx-auto mb-6 sm:mb-8">
+            <LibraryIcon className="w-8 h-8 sm:w-12 sm:h-12 text-mauve-light/50" />
           </div>
-          <h3 className="text-3xl font-extrabold mb-3">{tx.library.empty}</h3>
-          <p className="text-lg font-semibold text-muted-foreground mb-8">{tx.library.emptyDesc}</p>
+          <h3 className="text-xl sm:text-3xl font-extrabold mb-3">{tx.library.empty}</h3>
+          <p className="text-base sm:text-lg font-semibold text-muted-foreground mb-6 sm:mb-8">{tx.library.emptyDesc}</p>
           <button
             onClick={() => setView("create")}
-            className="inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-xl font-bold hover:from-mauve-light hover:to-mauve transition-all cursor-pointer glow-mauve"
+            className="inline-flex items-center gap-3 px-8 py-4 sm:px-10 sm:py-5 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-base sm:text-xl font-bold hover:from-mauve-light hover:to-mauve transition-all cursor-pointer glow-mauve min-h-[44px]"
           >
-            <BookOpen className="w-6 h-6" />
+            <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
             {tx.library.createFirst}
           </button>
         </div>
@@ -153,7 +153,7 @@ export default function Library() {
 
       {/* Course Grid */}
       {filteredCourses.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {filteredCourses.map((course) => (
             <div
               key={course.id}

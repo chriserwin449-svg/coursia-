@@ -534,11 +534,9 @@ export default function OffersPage() {
           {/* ANNUAL PLAN — highlighted */}
           <div className="pricing-card-float annual-card-shimmer relative glass rounded-3xl p-5 sm:p-8 flex flex-col border-2 border-gold/50 hover:border-gold/70 transition-all duration-300 shadow-[0_0_40px_rgba(234,179,8,0.1)]">
             {/* Popular badge */}
-            <span className="annual-badge-pulse absolute -top-4 left-1/2 -translate-x-1/2 px-5 py-1.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-xs font-extrabold uppercase tracking-wider z-10">
-              <span className="flex items-center gap-1.5">
-                <Crown className="w-3.5 h-3.5" />
-                {tx.landing.pricing.annual.badge}
-              </span>
+            <span className="annual-badge-pulse absolute -top-4 left-1/2 -translate-x-1/2 px-3 sm:px-5 py-1.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-[10px] sm:text-xs font-extrabold uppercase tracking-wider z-10 flex items-center gap-1 sm:gap-1.5 overflow-hidden">
+              <Crown className="w-3 sm:w-3.5 h-3 sm:h-3.5 flex-shrink-0" />
+              <span className="truncate">{tx.landing.pricing.annual.badge}</span>
             </span>
 
             {tx.landing.pricing.annual.save && (
@@ -640,75 +638,6 @@ export default function OffersPage() {
         </div>
       </div>
     </div>
-
-    {/* ===== ANIMATIONS ===== */}
-    <style jsx global>{`
-      @keyframes shimmer-sweep {
-        0% { transform: translateX(-100%) skewX(-15deg); opacity: 0; }
-        20% { opacity: 1; }
-        80% { opacity: 1; }
-        100% { transform: translateX(200%) skewX(-15deg); opacity: 0; }
-      }
-      .annual-card-shimmer { position: relative; overflow: hidden; }
-      .annual-card-shimmer::before {
-        content: '';
-        position: absolute; top: 0; left: 0;
-        width: 60%; height: 100%;
-        background: linear-gradient(90deg, transparent 0%, rgba(234,179,8,0.06) 20%, rgba(255,255,255,0.12) 40%, rgba(234,179,8,0.06) 60%, transparent 100%);
-        z-index: 1; pointer-events: none; border-radius: inherit;
-        animation: shimmer-sweep 3s ease-in-out infinite;
-      }
-      .annual-card-shimmer > * { position: relative; z-index: 2; }
-
-      @keyframes float-card {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-8px); }
-      }
-      .pricing-card-float {
-        transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-      }
-      .pricing-card-float:hover {
-        animation: float-card 1.8s ease-in-out infinite;
-        box-shadow: 0 25px 60px -12px rgba(0,0,0,0.4), 0 0 30px rgba(168,85,247,0.08);
-      }
-
-      @keyframes pulse-glow-gold {
-        0%, 100% { box-shadow: 0 0 8px rgba(234,179,8,0.3), 0 0 16px rgba(234,179,8,0.15); }
-        50% { box-shadow: 0 0 16px rgba(234,179,8,0.5), 0 0 32px rgba(234,179,8,0.25), 0 0 48px rgba(234,179,8,0.1); }
-      }
-      .annual-badge-pulse { animation: pulse-glow-gold 2.5s ease-in-out infinite; }
-
-      @keyframes btn-shimmer {
-        0% { background-position: -200% center; }
-        100% { background-position: 200% center; }
-      }
-      .annual-btn-shimmer {
-        background-size: 200% auto;
-        background-image: linear-gradient(90deg, #eab308 0%, #f59e0b 25%, #fde68a 40%, #f59e0b 55%, #eab308 75%, #f59e0b 100%);
-        animation: btn-shimmer 2.5s linear infinite;
-      }
-
-      @keyframes monthly-glow {
-        0%, 100% { box-shadow: 0 0 10px rgba(168,85,247,0.1), 0 0 20px rgba(168,85,247,0.05); }
-        50% { box-shadow: 0 0 20px rgba(168,85,247,0.25), 0 0 40px rgba(168,85,247,0.12), 0 0 60px rgba(168,85,247,0.06); }
-      }
-      .monthly-card-glow:hover {
-        border-color: rgba(168,85,247,0.45) !important;
-        animation: monthly-glow 2s ease-in-out infinite;
-      }
-
-      @keyframes fade-in {
-        from { opacity: 0; transform: translateY(-8px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      .animate-fade-in { animation: fade-in 0.4s ease-out; }
-      @keyframes fade-in-slide-up {
-        from { opacity: 0; transform: translateY(20px) scale(0.97); }
-        to { opacity: 1; transform: translateY(0) scale(1); }
-      }
-      .animate-fade-in-slide-up { animation: fade-in-slide-up 0.35s ease-out; }
-
-    `}</style>
     </>
   );
 }

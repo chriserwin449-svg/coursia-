@@ -1,6 +1,6 @@
 # Coursia — État du projet
 
-> Dernière mise à jour : 16 juillet 2025 (session 2)
+> Dernière mise à jour : 16 juillet 2025 (session 3)
 
 ## Vue d'ensemble
 
@@ -86,6 +86,16 @@ Le routing est géré par un store Zustand (`useAppStore().view`) dans `src/app/
 - Aurora arc en bas de page (3 couches + particules)
 - Shimmer sur les cartes pricing
 - **CreateCourse** : bannière sujet suggéré + pill niveau avec `animate-fade-in-slide-up`
+
+### Responsive (mobile-first)
+- **Mobile (<768px)** : sidebar masquée, hamburger menu + slide-over, contenu pleine largeur, grilles 1 colonne, boutons pleine largeur, touch targets ≥44px
+- **Tablette (768-1024px)** : sidebar réduite (icônes seules), grilles 2 colonnes
+- **Desktop (1024px+)** : sidebar complète, grilles 3-4 colonnes, layout inchangé
+
+### Bug fixes (session 3)
+- **Cours d'essai gratuit** : le bouton Générer était cliquable AVANT que le statut paywall soit chargé → redirectait vers offres. Fix : disabled tant que `paywallLoaded` est false + early return dans `generateCourse()`
+- **Crash page Offres** : `<style jsx global>` causait une erreur côté client sur Vercel (App Router). Styles déplacés dans `globals.css`
+- **Barre de flammes à 0** : `Math.max(..., 8)` forçait 8% min → retiré, affiche maintenant 0% correctement
 
 ## Fonctionnalités implémentées
 

@@ -87,7 +87,7 @@ export default function TopBar() {
 
   return (
     <div
-      className={`fixed top-0 right-0 z-30 flex items-center gap-2 py-2 md:py-3 pr-4 transition-all duration-300 ease-in-out ${
+      className={`fixed top-0 right-0 z-30 flex items-center gap-2 py-2 md:py-3 pr-4 pl-12 sm:pl-4 transition-all duration-300 ease-in-out ${
         collapsed
           ? "ml-0 md:ml-[72px]"
           : "ml-0 md:ml-[72px] lg:ml-64"

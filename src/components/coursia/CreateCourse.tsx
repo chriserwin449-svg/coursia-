@@ -371,7 +371,11 @@ export default function CreateCourse() {
       return;
     }
 
-    // Free limit check — save pending generation for auto-resume after payment
+    // Free limit check — wait for paywall status to load first
+    if (!paywallLoaded) {
+      console.log("[generate] Blocked: paywall status not loaded yet");
+      return;
+    }
     if (!hasSubscription && !canCreateCourse) {
       console.log("[generate] Paywall hit — saving pending generation for auto-resume");
       useAppStore.getState().setPendingGeneration({
@@ -594,13 +598,13 @@ export default function CreateCourse() {
 
   return (
     <>
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 md:px-10 pt-14 sm:pt-20 pb-8 md:pt-24 md:pb-16">
+    <div className="w-full max-w-2xl mx-auto px-4 pt-14 sm:pt-20 pb-8 md:pt-24 md:pb-16">
       {/* ═══════════ Personalized Greeting ═══════════ */}
       {user && (
         <div className="mb-6 sm:mb-8">
           <div className="glass rounded-2xl sm:rounded-3xl p-5 sm:p-6 md:p-8 text-center">
             <div className="text-4xl sm:text-5xl mb-3 animate-bounce" role="img" aria-label="waving hand">👋</div>
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-2">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold mb-2">
               <span className="gradient-text">{greeting.greeting} {greeting.name} !</span>
             </h1>
             <p className="text-muted-foreground text-sm sm:text-base md:text-lg">
@@ -623,7 +627,7 @@ export default function CreateCourse() {
               value={title}
               onChange={(e) => handleTitleChange(e.target.value)}
               placeholder=""
-              className="w-full px-6 py-5 rounded-2xl bg-night border border-border text-foreground text-lg font-bold placeholder:text-muted-foreground/50 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300"
+              className="w-full px-4 py-3.5 sm:px-6 sm:py-5 rounded-2xl bg-night border border-border text-foreground text-base sm:text-lg font-bold placeholder:text-muted-foreground/50 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300 min-h-[44px]"
               onKeyDown={(e) => e.key === "Enter" && generateCourse()}
               disabled={loading}
             />
@@ -855,11 +859,11 @@ export default function CreateCourse() {
         )}
 
         {/*  Generate button  */}
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-center sm:justify-center">
           <button
             onClick={generateCourse}
-            disabled={!title.trim() || loading}
-            className="flex items-center justify-center gap-3 px-8 py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-lg font-extrabold hover:from-mauve-light hover:to-mauve transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-mauve/25 hover:shadow-mauve/40 hover:scale-[1.02] active:scale-[0.98]"
+            disabled={!title.trim() || loading || !paywallLoaded}
+            className="w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-base sm:text-lg font-extrabold hover:from-mauve-light hover:to-mauve transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-mauve/25 hover:shadow-mauve/40 hover:scale-[1.02] active:scale-[0.98] min-h-[44px]"
           >
             {loading ? (
               <>
@@ -882,7 +886,7 @@ export default function CreateCourse() {
       {/* ═══════════ Recent courses ═══════════ */}
       <div className="mt-10 md:mt-14">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl md:text-2xl font-extrabold flex items-center gap-3">
+          <h2 className="text-lg sm:text-xl md:text-2xl font-extrabold flex items-center gap-3">
             <BookOpen className="w-6 h-6 text-mauve-light" />
             {tx.create.myCourses}
           </h2>

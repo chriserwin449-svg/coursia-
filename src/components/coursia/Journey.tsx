@@ -166,12 +166,12 @@ export default function Journey() {
   const isMaxFlame = flameType.minPoints === flameType.maxPoints;
 
   const flameBarClass = isActivityActive
-    ? "rounded-2xl px-5 pt-4 pb-5 mb-2 relative overflow-hidden cursor-pointer transition-all duration-700 flame-card-border-pulse hover:scale-105"
-    : "rounded-2xl px-5 pt-4 pb-5 mb-2 relative overflow-hidden cursor-pointer transition-all duration-700 hover:scale-105";
+    ? "rounded-2xl px-3 sm:px-5 pt-3 sm:pt-4 pb-4 sm:pb-5 mb-2 relative overflow-hidden cursor-pointer transition-all duration-700 flame-card-border-pulse hover:scale-[1.02] sm:hover:scale-105"
+    : "rounded-2xl px-3 sm:px-5 pt-3 sm:pt-4 pb-4 sm:pb-5 mb-2 relative overflow-hidden cursor-pointer transition-all duration-700 hover:scale-[1.02] sm:hover:scale-105";
 
   const flameIconClass = isActivityActive
-    ? "w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center transition-all duration-700 animate-pulse-glow scale-110"
-    : "w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center transition-all duration-700 scale-100";
+    ? "w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center transition-all duration-700 animate-pulse-glow scale-110"
+    : "w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-red-500/20 to-orange-500/20 flex items-center justify-center transition-all duration-700 scale-100";
 
   const formatTime = (minutes: number) => {
     if (minutes < 1) return `0 ${tx.journey.min}`;
@@ -219,13 +219,13 @@ export default function Journey() {
           <div className="flame-orb-1 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-16 rounded-full blur-[40px]" style={{ background: "rgba(249, 115, 22, 0.12)" }} />
         </div>
         <div className="relative z-10">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <div className="flex items-center gap-2 sm:gap-3">
               <div className={flameIconClass}>
-                <span className="text-2xl">{flameType.emoji}</span>
+                <span className="text-xl sm:text-2xl">{flameType.emoji}</span>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-red-400">
+                <h3 className="text-base sm:text-lg font-bold text-red-400">
                   {lang === "fr" ? flameType.name : flameType.nameEn}
                 </h3>
                 <p className="text-sm text-muted-foreground">
@@ -249,8 +249,8 @@ export default function Journey() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Flame className="w-5 h-5 text-red-400" />
-              <span className="text-2xl font-extrabold text-red-400">
+              <Flame className="w-4 h-4 sm:w-5 sm:h-5 text-red-400" />
+              <span className="text-xl sm:text-2xl font-extrabold text-red-400">
                 {flameType.emoji} {formatFlamePoints(flamePoints)}
               </span>
             </div>
@@ -290,7 +290,7 @@ export default function Journey() {
               <div
                 className={`h-full rounded-full transition-all duration-1000 ease-out relative ${flamePoints > 0 ? "flame-bar-fill" : ""}`}
                 style={{
-                  width: mounted ? `${isMaxFlame ? 100 : Math.max(Math.min(flameProg.percentage, 100), 8)}%` : "0%",
+                  width: mounted ? `${isMaxFlame ? 100 : Math.min(flameProg.percentage, 100)}%` : "0%",
                   background: flamePoints === 0 ? "linear-gradient(90deg, #ef4444, #f87171, #fb923c)" : undefined,
                   boxShadow: flamePoints > 0 ? "0 0 15px rgba(239, 68, 68, 0.4), 0 0 30px rgba(249, 115, 22, 0.2)" : "none",
                 }}
@@ -325,14 +325,14 @@ export default function Journey() {
             }
           </p>
           {/* Points earned / lost summary */}
-          <div className="flex items-center justify-center gap-6 mt-3">
-            <div className="flex items-center gap-1.5 text-xs">
+          <div className="flex items-center justify-center gap-3 sm:gap-6 mt-2 sm:mt-3">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs">
               <span className="text-emerald-400 font-bold">+</span>
               <span className="text-muted-foreground">{lang === "fr" ? "Gagnés" : "Earned"}:</span>
               <span className="text-emerald-400 font-bold">{formatFlamePoints(flameData?.totalEarned ?? 0)}</span>
             </div>
             <div className="w-px h-3 bg-border" />
-            <div className="flex items-center gap-1.5 text-xs">
+            <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs">
               <span className="text-red-400 font-bold">-</span>
               <span className="text-muted-foreground">{lang === "fr" ? "Perdus" : "Lost"}:</span>
               <span className="text-red-400 font-bold">{formatFlamePoints(Math.abs(flameData?.totalSpent ?? 0))}</span>
@@ -419,12 +419,12 @@ export default function Journey() {
           </div>
 
           {/* Time period tabs */}
-          <div className="flex gap-2 mb-4">
+          <div className="flex gap-1.5 sm:gap-2 mb-4 overflow-x-auto -mx-1 px-1 scrollbar-none">
             {(["today", "last3", "week", "month"] as StudyTimePeriod[]).map((period) => (
               <button
                 key={period}
                 onClick={() => setSelectedPeriod(period)}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all duration-300 cursor-pointer ${
+                className={`flex-shrink-0 py-2 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all duration-300 cursor-pointer min-w-[44px] ${
                   selectedPeriod === period
                     ? "bg-blue-500/15 text-blue-400 border border-blue-500/20"
                     : "bg-night/50 text-muted-foreground hover:text-foreground border border-transparent"
@@ -506,22 +506,22 @@ export default function Journey() {
           <Award className="w-6 h-6 text-gold" />
           <h2 className="text-2xl font-extrabold">{tx.journey.myBadges}</h2>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
           {BADGE_DEFINITIONS.map((badge, i) => {
             const earned = (stats?.completedCourses ?? 0) >= badge.threshold;
             return (
               <div
                 key={badge.id}
-                className={`rounded-3xl p-5 text-center transition-all duration-300 fade-in-up card-hover-glow ${
+                className={`rounded-2xl sm:rounded-3xl p-3 sm:p-5 text-center transition-all duration-300 fade-in-up card-hover-glow ${
                   earned
                     ? "glass border border-gold/20"
                     : "bg-night/50 border border-border opacity-50"
                 }`}
                 style={{ animationDelay: mounted ? `${300 + i * 40}ms` : "0ms", "--glow-color": earned ? "rgba(212, 168, 67, 0.3)" : "rgba(124, 92, 191, 0.2)" } as React.CSSProperties}
               >
-                <div className={`text-4xl mb-3 ${earned ? "" : "grayscale opacity-40"}`}>{badge.emoji}</div>
-                <h4 className={`text-sm font-bold mb-1 ${earned ? "text-foreground" : "text-muted-foreground"}`}>{badge.name}</h4>
-                <p className={`text-xs mb-2 ${earned ? "text-muted-foreground" : "text-muted-foreground/50"}`}>
+                <div className={`text-3xl sm:text-4xl mb-2 sm:mb-3 ${earned ? "" : "grayscale opacity-40"}`}>{badge.emoji}</div>
+                <h4 className={`text-xs sm:text-sm font-bold mb-0.5 sm:mb-1 ${earned ? "text-foreground" : "text-muted-foreground"}`}>{badge.name}</h4>
+                <p className={`text-[10px] sm:text-xs mb-1 sm:mb-2 ${earned ? "text-muted-foreground" : "text-muted-foreground/50"}`}>
                   {badge.threshold} {tx.journey.courses}
                 </p>
                 {earned && (
