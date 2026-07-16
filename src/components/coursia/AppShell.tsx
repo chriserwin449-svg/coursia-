@@ -6,6 +6,7 @@ import { useAppStore, type AppView } from "@/lib/store";
 import { trackEvent } from "@/lib/analytics";
 import { t } from "@/lib/i18n";
 import { useSession } from "@/hooks/useSession";
+import { toast } from "sonner";
 import Sidebar from "@/components/coursia/Sidebar";
 import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 import LandingPage from "@/components/coursia/LandingPage";
@@ -320,16 +321,18 @@ export default function AppShell() {
             const data = await res.json();
 
             if (res.ok && data.success) {
-              const paymentTx = t(lang);
-              const message = paymentTx.payment.success;
-              useAppStore.getState().setShowCelebration(true);
-              useAppStore.getState().setCelebrationMessage(message);
               trackEvent({ name: "payment_success", properties: { method: "redirect" } });
               console.log("[payment] Redirect capture successful, plan:", data.plan);
 
               // Update store subscription state
               useAppStore.getState().setHasSubscription(true);
               useAppStore.getState().setSubscriptionStatus("active");
+
+              // Show toast notification (visible feedback)
+              toast.success(
+                lang === "fr" ? "Paiement réussi ! Ton abonnement est maintenant actif." : "Payment successful! Your subscription is now active.",
+                { duration: 6000, description: lang === "fr" ? "Tu peux maintenant créer des cours illimités." : "You can now create unlimited courses." }
+              );
             } else {
               console.warn("[payment] Redirect capture returned:", data.error || res.status);
               // Even if capture fails, the webhook may have handled it
@@ -342,31 +345,29 @@ export default function AppShell() {
                   });
                   const pwData = await pwRes.json();
                   if (pwData.hasSubscription && pwData.subscriptionStatus === "active") {
-                    const paymentTx = t(lang);
-                    const message = paymentTx.payment.success;
-                    useAppStore.getState().setShowCelebration(true);
-                    useAppStore.getState().setCelebrationMessage(message);
                     useAppStore.getState().setHasSubscription(true);
                     useAppStore.getState().setSubscriptionStatus("active");
                     console.log("[payment] Subscription confirmed via paywall-status check");
-                  }
-                } catch { /* non-critical */ }
+                    toast.success(
+                      lang === "fr" ? "Paiement réussi ! Ton abonnement est actif." : "Payment successful! Your subscription is active.",
+                      { duration: 5000 }
+                    );
               }
             }
           } else {
             // No requestId — just show success (webhook might handle it)
-            const paymentTx = t(lang);
-            const message = paymentTx.payment.success;
-            useAppStore.getState().setShowCelebration(true);
-            useAppStore.getState().setCelebrationMessage(message);
             trackEvent({ name: "payment_success", properties: { method: "webhook_fallback" } });
+            toast.success(
+              lang === "fr" ? "Paiement reçu ! Ton abonnement s'active." : "Payment received! Your subscription is activating.",
+              { duration: 5000, description: lang === "fr" ? "Si l'activation prend du temps, recharge la page." : "If activation takes time, refresh the page." }
+            );
           }
         } catch (err) {
           console.error("[payment] Redirect capture error:", err);
-          const paymentTx = t(lang);
-          const message = paymentTx.payment.connectionError;
-          useAppStore.getState().setShowCelebration(true);
-          useAppStore.getState().setCelebrationMessage(message);
+          toast.error(
+            lang === "fr" ? "Erreur de connexion. Vérifie ton Wi-Fi et réessaie." : "Connection error. Check your Wi-Fi and retry.",
+            { duration: 6000 }
+          );
         }
       };
 
@@ -395,9 +396,7 @@ export default function AppShell() {
     // Handle card verification success
     const cardVerified = params.get("card_verified");
     if (cardVerified === "success") {
-      const lang = useAppStore.getState().lang;
-      const paymentTx = t(lang);
-      const message = paymentTx.payment.cardVerified;
+      const message = lang === "fr" ? "Carte vérifiée avec succès !" : "Card verified successfully!";
 
       const reqId = params.get("request_id");
       if (reqId) {
@@ -408,8 +407,7 @@ export default function AppShell() {
         }).catch(() => {});
       }
 
-      useAppStore.getState().setShowCelebration(true);
-      useAppStore.getState().setCelebrationMessage(message);
+      toast.success(message, { duration: 5000 });
       window.history.replaceState({}, "", window.location.pathname);
 
       const isAuthenticated = useAppStore.getState().isAuthenticated;
