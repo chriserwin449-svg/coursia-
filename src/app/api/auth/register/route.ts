@@ -169,6 +169,8 @@ async function ensureDatabaseReady(): Promise<void> {
         ["subscriptionStartDate", "TIMESTAMP(3)"],
         ["subscriptionEndDate", "TIMESTAMP(3)"],
         ["trialStartDate", "TIMESTAMP(3)"],
+        ["hasCardOnFile", "BOOLEAN NOT NULL DEFAULT false"],
+        ["freeCourseUsed", "BOOLEAN NOT NULL DEFAULT false"],
       ];
       for (const [col, def] of userColumns) {
         try {

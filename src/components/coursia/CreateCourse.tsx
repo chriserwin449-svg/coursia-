@@ -203,7 +203,7 @@ export default function CreateCourse() {
     }
   }, [charIndex, placeholderPhase, placeholderIndex, placeholders, title]);
 
-  //  Fetch courses & subscription status 
+  //  Fetch courses & subscription status
   const fetchCourses = useCallback(async () => {
     try {
       const res = await fetch(`/api/courses?userId=${useAppStore.getState().userId || ''}`);
@@ -220,17 +220,25 @@ export default function CreateCourse() {
       const pwRes = await fetch("/api/courses/paywall-status", { headers });
       if (pwRes.ok) {
         const pw = await pwRes.json();
-        setHasSubscription(pw.hasSubscription);
-        setCanCreateCourse(pw.canGenerate);
+        setHasSubscription(!!pw.hasSubscription);
         setInGracePeriod(!!pw.inGracePeriod);
+        // canGenerate: default to true if missing (fail-open for new users)
+        const canGenerate = pw.canGenerate === true || pw.canGenerate === undefined;
+        setCanCreateCourse(canGenerate);
         // Sync freeCourseUsed from database (single source of truth)
         setLocalFreeCourseUsed(!!pw.freeCourseUsed);
         useAppStore.getState().setFreeCourseUsed(!!pw.freeCourseUsed);
         // Sync 48h expiry warning
         useAppStore.getState().setExpiryWarning48h(!!pw.expiryWarning48h);
+      } else {
+        // API returned non-OK — fail-open: allow generation, the generate API will do the real check
+        console.warn("[fetchCourses] Paywall status returned", pwRes.status, "— defaulting canCreateCourse to true");
+        setCanCreateCourse(true);
       }
-    } catch {
-      // silently ignore
+    } catch (err) {
+      // Network error / timeout — fail-open so new users aren't blocked
+      console.warn("[fetchCourses] Paywall status fetch failed — defaulting canCreateCourse to true", err);
+      setCanCreateCourse(true);
     } finally {
       setPaywallLoaded(true);
     }
