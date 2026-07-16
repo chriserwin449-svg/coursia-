@@ -97,6 +97,10 @@ Le routing est géré par un store Zustand (`useAppStore().view`) dans `src/app/
 - **Crash page Offres** : `<style jsx global>` causait une erreur côté client sur Vercel (App Router). Styles déplacés dans `globals.css`
 - **Barre de flammes à 0** : `Math.max(..., 8)` forçait 8% min → retiré, affiche maintenant 0% correctement
 
+### Bug fixes (session 4)
+- **Cours gratuit redirige vers offres (NOUVEAU)** : quand l'API paywall-status échouait (timeout, erreur réseau), `canCreateCourse` restait à `false` (valeur initiale) mais `paywallLoaded` devenait `true` → le bouton s'activait mais `!canCreateCourse` bloquait la génération. Fix : fail-open (défaut `true` si l'API échoue) + parsing sûr de `canGenerate` (undefined → true)
+- **Register route** : ajout de `freeCourseUsed` + `hasCardOnFile` dans la migration PostgreSQL `ensureDatabaseReady`
+
 ### SEO (session 4)
 - **metadataBase** configuré avec `https://coursia.app` dans `app/layout.tsx`
 - **title.template** : `%s | Coursia` pour cohérence sur toutes les pages
