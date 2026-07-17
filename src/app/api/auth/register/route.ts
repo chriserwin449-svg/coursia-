@@ -200,6 +200,51 @@ async function ensureDatabaseReady(): Promise<void> {
         } catch { /* ignore */ }
       }
 
+      // PaymentRequest table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "PaymentRequest" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "userId" TEXT NOT NULL,
+          "plan" TEXT NOT NULL,
+          "amount" INTEGER NOT NULL,
+          "currency" TEXT NOT NULL DEFAULT 'USD',
+          "status" TEXT NOT NULL DEFAULT 'pending',
+          "paymentProof" TEXT,
+          "txRef" TEXT,
+          "adminNote" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // Feedback table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "Feedback" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "userId" TEXT,
+          "type" TEXT NOT NULL DEFAULT 'general',
+          "subject" TEXT NOT NULL,
+          "message" TEXT NOT NULL,
+          "email" TEXT,
+          "page" TEXT,
+          "metadata" TEXT NOT NULL DEFAULT '{}',
+          "status" TEXT NOT NULL DEFAULT 'new',
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // UsedTopic table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "UsedTopic" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "title" TEXT NOT NULL,
+          "userId" TEXT,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT "UsedTopic_title_key" UNIQUE ("title")
+        );
+      `);
+
       console.log("✅ PostgreSQL database ensured ready");
     }
     // SQLite: Prisma handles it via schema.prisma — no action needed

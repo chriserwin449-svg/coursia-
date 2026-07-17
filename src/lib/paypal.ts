@@ -131,7 +131,7 @@ const PLAN_CONFIG = {
 
 export async function createPayPalOrder(params: CreateOrderParams): Promise<CreateOrderResult> {
   const config = PLAN_CONFIG[params.plan];
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://coursia-8oi4.vercel.app";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://coursia.app";
 
   const token = await getAccessToken();
 

@@ -2,6 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { capturePayPalOrder, getPayPalConfig } from "@/lib/paypal";
 
+// Ensure all required columns exist (PostgreSQL safety)
+async function ensureColumns(): Promise<void> {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl || dbUrl.startsWith("file:")) return;
+  try {
+    const cols: [string, string][] = [
+      ["hasCardOnFile", "BOOLEAN NOT NULL DEFAULT false"],
+      ["subscriptionPlan", "TEXT NOT NULL DEFAULT 'free'"],
+      ["subscriptionStatus", "TEXT NOT NULL DEFAULT 'none'"],
+      ["subscriptionStartDate", "TIMESTAMP(3)"],
+      ["subscriptionEndDate", "TIMESTAMP(3)"],
+      ["creemSubscriptionId", "TEXT"],
+    ];
+    for (const [col, def] of cols) {
+      try {
+        await db.$executeRawUnsafe(
+          `DO $$ BEGIN ALTER TABLE "User" ADD COLUMN "${col}" ${def}; EXCEPTION WHEN duplicate_column THEN null; END $$;`
+        );
+      } catch { /* non-critical */ }
+    }
+  } catch { /* non-critical */ }
+}
+
 // ─── Security headers ────────────────────────────────────────────────────
 function securityHeaders(): HeadersInit {
   return {
@@ -102,6 +125,8 @@ async function activateSubscription(
 // ─── POST handler: Capture a PayPal order ───────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    await ensureColumns();
+
     // 0. Check PayPal configuration
     try {
       getPayPalConfig();

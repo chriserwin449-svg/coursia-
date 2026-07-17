@@ -352,6 +352,8 @@ export default function AppShell() {
                       lang === "fr" ? "Paiement réussi ! Ton abonnement est actif." : "Payment successful! Your subscription is active.",
                       { duration: 5000 }
                     );
+                  }
+                } catch { /* paywall-status check failed — non-critical */ }
               }
             }
           } else {
@@ -403,7 +405,7 @@ export default function AppShell() {
         fetch("/api/subscription/capture", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ requestId: reqId, plan: "monthly" }),
+          body: JSON.stringify({ requestId: reqId, plan: "card_verify" }),
         }).catch(() => {});
       }
 
