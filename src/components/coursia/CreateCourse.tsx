@@ -379,22 +379,9 @@ export default function CreateCourse() {
       return;
     }
 
-    // Free limit check — wait for paywall status to load first
-    if (!paywallLoaded) {
-      console.log("[generate] Blocked: paywall status not loaded yet");
-      return;
-    }
-    if (!hasSubscription && !canCreateCourse) {
-      console.log("[generate] Paywall hit — saving pending generation for auto-resume");
-      useAppStore.getState().setPendingGeneration({
-        topic: title.trim(),
-        courseLang,
-        level: effectiveLevel,
-        isRandom: !!isRandomTopic,
-      });
-      setView("offers");
-      return;
-    }
+    // NOTE: No client-side paywall pre-check here.
+    // The server (generate API) is the single source of truth for quota.
+    // If the server returns FREE_LIMIT, the error handler below will redirect to offers.
 
     const generatingTitle = title.trim();
     const payload = {
