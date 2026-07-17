@@ -1,9 +1,5 @@
 "use client";
 
-declare global {
-  interface Window { __coursiaLimitTimestamp?: number }
-}
-
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { trackEvent } from "@/lib/analytics";
 import {
@@ -68,17 +64,21 @@ export default function CreateCourse() {
 
   //  Daily limit countdown timer 
   const [countdown, setCountdown] = useState("");
+  const limitTimestampRef = useRef<number>(0);
   useEffect(() => {
     if (!dailyLimitReached || dailyResetInMs <= 0) {
       setCountdown("");
       return;
     }
+    if (!limitTimestampRef.current) {
+      limitTimestampRef.current = Date.now();
+    }
     const update = () => {
-      const remaining = Math.max(0, dailyResetInMs - (Date.now() - (window.__coursiaLimitTimestamp || Date.now())));
+      const remaining = Math.max(0, dailyResetInMs - (Date.now() - limitTimestampRef.current));
       if (remaining <= 0) {
         setCountdown("");
         setDailyLimitReached(false);
-        fetchCourses(); // Refresh to get updated limits
+        limitTimestampRef.current = 0;
         return;
       }
       const h = Math.floor(remaining / 3600000);
@@ -92,14 +92,10 @@ export default function CreateCourse() {
         setCountdown(`${s}s`);
       }
     };
-    // Store timestamp when limit was set for accurate countdown
-    if (!window.__coursiaLimitTimestamp) {
-      (window as unknown as Record<string, number>).__coursiaLimitTimestamp = Date.now();
-    }
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
-  }, [dailyLimitReached, dailyResetInMs, fetchCourses]);
+  }, [dailyLimitReached, dailyResetInMs]);
 
   //  React to random topic changes from TopBar (instant, no reload) 
   useEffect(() => {
