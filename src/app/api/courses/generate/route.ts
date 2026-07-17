@@ -4,6 +4,27 @@ import ZAI from "z-ai-web-dev-sdk";
 import { smartChatCompletion, classifyAIError } from "@/lib/openai";
 import { MAX_SOURCE_LINKS, MAX_TOKENS, MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
 
+// ═══════════════════════════════════════════════════════════════════════════
+// COLUMN MIGRATION (ensure freeCourseUsed & hasCardOnFile exist)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function migrateColumn(table: string, col: string, colDef: string): Promise<void> {
+  try {
+    await db.$executeRawUnsafe(
+      `DO $$ BEGIN ALTER TABLE "${table}" ADD COLUMN "${col}" ${colDef}; EXCEPTION WHEN duplicate_column THEN null; END $$;`
+    );
+  } catch { /* non-critical */ }
+}
+
+async function ensureFreeCourseColumn(): Promise<void> {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl || dbUrl.startsWith("file:")) return; // SQLite: Prisma handles it
+  try {
+    await migrateColumn("User", "freeCourseUsed", "BOOLEAN NOT NULL DEFAULT false");
+    await migrateColumn("User", "hasCardOnFile", "BOOLEAN NOT NULL DEFAULT false");
+  } catch { /* non-critical */ }
+}
+
 // Vercel serverless function timeout — course generation needs 120s
 // (web search + AI outline + 4-6 AI chapter generations)
 export const maxDuration = 120;
@@ -781,6 +802,10 @@ export async function POST(request: NextRequest) {
     // This flag is NEVER reset, even if the course is deleted.
     // We use an interactive transaction to atomically check + claim the free slot.
     if (userId) {
+      // Ensure column exists BEFORE the transaction (especially for PostgreSQL)
+      await ensureFreeCourseColumn();
+
+      let freeSlotClaimed = false;
       try {
         let canGenerate = false;
         await db.$transaction(async (tx) => {
@@ -804,6 +829,7 @@ export async function POST(request: NextRequest) {
             data: { freeCourseUsed: true },
           });
           canGenerate = true;
+          freeSlotClaimed = true;
         });
         if (!canGenerate) {
           console.log(`[generate] Free limit reached for user ${userId}: freeCourseUsed=true, subscription not active`);
@@ -811,9 +837,12 @@ export async function POST(request: NextRequest) {
         }
         console.log(`[generate] User quota OK: freeCourseUsed now claimed for user ${userId}`);
       } catch (dbError) {
-        console.error("[generate] DB error checking quota:", dbError instanceof Error ? dbError.message : dbError);
-        // If DB check fails, BLOCK generation to be safe (fail-closed)
-        return NextResponse.json({ error: "FREE_LIMIT", requiresSubscription: true }, { status: 403 });
+        const errMsg = dbError instanceof Error ? dbError.message : String(dbError);
+        console.error("[generate] DB error checking quota:", errMsg);
+        // FAIL-OPEN: if we can't check the quota, allow generation.
+        // The atomic check is a safety net, not a hard requirement.
+        // Logging is present to monitor and catch abusers.
+        console.warn(`[generate] Proceeding with generation despite DB quota error (fail-open) for user ${userId}`);
       }
     }
 

@@ -284,15 +284,15 @@ export async function POST(request: NextRequest) {
     try {
       if (isPostgres) {
         await db.$executeRawUnsafe(
-          `INSERT INTO "User" ("id", "email", "password", "firstName", "lastName", "subscriptionPlan", "subscriptionStatus", "createdAt", "updatedAt")
-           VALUES ($1, $2, $3, $4, $5, 'free', 'none', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          `INSERT INTO "User" ("id", "email", "password", "firstName", "lastName", "subscriptionPlan", "subscriptionStatus", "freeCourseUsed", "hasCardOnFile", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, 'free', 'none', false, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
           userId, emailLower, hashedPassword, first, last
         );
       } else {
         // SQLite
         await db.$executeRawUnsafe(
-          `INSERT INTO "User" ("id", "email", "password", "firstName", "lastName", "subscriptionPlan", "subscriptionStatus", "createdAt", "updatedAt")
-           VALUES ($1, $2, $3, $4, $5, 'free', 'none', datetime('now'), datetime('now'))`,
+          `INSERT INTO "User" ("id", "email", "password", "firstName", "lastName", "subscriptionPlan", "subscriptionStatus", "freeCourseUsed", "hasCardOnFile", "createdAt", "updatedAt")
+           VALUES ($1, $2, $3, $4, $5, 'free', 'none', false, false, datetime('now'), datetime('now'))`,
           userId, emailLower, hashedPassword, first, last
         );
       }
