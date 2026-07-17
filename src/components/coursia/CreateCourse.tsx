@@ -938,15 +938,7 @@ export default function CreateCourse() {
         )}
 
         {/*  Generate button  */}
-        <div className="flex flex-col items-center justify-center sm:justify-center">
-          {/* Daily course counter for subscribers */}
-          {paywallLoaded && hasSubscription && !dailyLimitReached && (
-            <p className="text-xs text-muted-foreground mb-2 text-center">
-              {lang === "fr"
-                ? `${dailyCoursesToday}/${dailyLimitTotal} cours générés aujourd'hui`
-                : `${dailyCoursesToday}/${dailyLimitTotal} courses generated today`}
-            </p>
-          )}
+        <div className="flex items-center justify-center sm:justify-center">
           <button
             onClick={generateCourse}
             disabled={!title.trim() || loading || !paywallLoaded || dailyLimitReached}
