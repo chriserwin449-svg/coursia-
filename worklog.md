@@ -158,3 +158,24 @@ Stage Summary:
 - JSON response format (`{title, content, summary}`) preserved exactly — only the ## headings inside `content` and instruction text language changed
 - No logic changes — only prompt text strings were modified
 - File modified: src/app/api/courses/generate/route.ts (+224 lines for helper, net +225/-204)
+---
+Task ID: 5
+Agent: Main
+Task: Fix language mismatch + free course enforcement + daily limit (4/day)
+
+Work Log:
+- Identified 3 issues: (1) language mismatch in AI prompts, (2) free course not enforced, (3) no daily limit
+- Dispatched sub-agents 1-a (language) and 1-b (daily limit + free course fix) in parallel
+- Sub-agent 1-a: Created getPromptStrings(lang) helper, updated all 5 prompt functions (outline, chapter, emergency, single-call, generateChapter) with full bilingual support
+- Sub-agent 1-b: Added daily limit check (4/day subscribers, 1/day free), improved fail-open catch to use course count fallback, added getDailyLimitInfo to paywall-status
+- Main agent: Updated CreateCourse.tsx — added DAILY_LIMIT error handling, countdown timer, daily counter, updated UI messages, disabled generate button on limit
+- All lint checks passed, dev server compiles clean
+- Pushed as commit 90e850d
+
+Stage Summary:
+- Language: All AI prompts now fully bilingual (fr/en) via getPromptStrings() helper
+- Free course: Fallback check counts existing courses if atomic transaction fails
+- Daily limit: 4/day subscribers, 1/day free, HTTP 429 with reset metadata
+- UI: Countdown timer, daily counter (X/4), "Tu as utilisé ton cours gratuit" message
+- Files changed: generate/route.ts, paywall-status/route.ts, CreateCourse.tsx
+- Commit: 90e850d pushed to main
