@@ -73,3 +73,26 @@ Stage Summary:
 - The previous session fixed the CLIENT-SIDE fail-close, but missed the SERVER-SIDE fail-close in generate API
 - Both sides are now fail-open: if we can't determine quota status, allow generation
 - Files modified: generate/route.ts, register/route.ts
+
+---
+Task ID: 4
+Agent: Main
+Task: Payment flow audit (PayPal, offers page, checkout, capture, webhook)
+
+Work Log:
+- Read all 8 payment-related files: OffersPage.tsx, PayPalProvider.tsx, paypal.ts, checkout/route.ts, capture/route.ts, webhook/route.ts, verify-card/route.ts, paypal/config/route.ts, AppShell.tsx
+- Found 5 bugs:
+  1. CRITICAL: paypal.ts line 134 — fallback URL was `coursia-8oi4.vercel.app` instead of `coursia.app`. After PayPal payment, user redirected to WRONG URL
+  2. AppShell.tsx line 406 — card verification capture sent `plan: "monthly"` instead of `plan: "card_verify"`
+  3. AppShell.tsx line 342-356 — pre-existing parsing error: missing `catch` block and missing closing brace for `if (uid)` in payment redirect handler
+  4. register/route.ts — missing PostgreSQL tables (PaymentRequest, Feedback, UsedTopic) in ensureDatabaseReady. Payments would FAIL on PostgreSQL deployment
+  5. checkout/route.ts and capture/route.ts — no ensureColumns() for PostgreSQL safety
+- All 5 bugs fixed
+- Lint passed (also fixed pre-existing AppShell parsing error), pushed (commit 6de9ba0)
+
+Stage Summary:
+- Most critical: PayPal redirect URL was pointing to old Vercel preview URL
+- Added 3 missing PostgreSQL tables to ensureDatabaseReady
+- Added ensureColumns() to checkout and capture APIs
+- Fixed pre-existing syntax error in AppShell payment handler
+- Files modified: paypal.ts, AppShell.tsx, register/route.ts, checkout/route.ts, capture/route.ts
