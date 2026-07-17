@@ -96,3 +96,22 @@ Stage Summary:
 - Added ensureColumns() to checkout and capture APIs
 - Fixed pre-existing syntax error in AppShell payment handler
 - Files modified: paypal.ts, AppShell.tsx, register/route.ts, checkout/route.ts, capture/route.ts
+---
+Task ID: 4
+Agent: Main
+Task: Fix free course generation redirect to offers (3rd fix)
+
+Work Log:
+- Identified root cause: client-side paywall pre-check (line 387) was blocking the generate API call before it reached the server
+- Two-layer defense was causing false positives: client checked canCreateCourse → redirected to offers, server never got a chance to do the atomic fail-open check
+- Previous fixes (sessions 4 and 5) only fixed the server side; the client-side pre-check was still blocking
+- Removed the entire client-side paywall pre-check block (lines 382-397)
+- The server is now the single source of truth for quota enforcement
+- Server-side FREE_LIMIT error handler (line 496) still handles the redirect when genuinely needed
+- Pushed as commit 8c661ac
+
+Stage Summary:
+- Root cause: Duplicate paywall check where client-side check ran first and blocked the request
+- Fix: Remove client-side pre-check, let server (generate API) be the sole decision maker
+- File changed: src/components/coursia/CreateCourse.tsx (removed 13 lines, added 3)
+- Commit: 8c661ac pushed to main
