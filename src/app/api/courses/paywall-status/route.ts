@@ -89,6 +89,16 @@ interface PaywallStatus {
   freeChapterLimit: number;
   /** Whether the user has already claimed their one-time free course */
   freeCourseUsed: boolean;
+  /** Daily generation limit for this user */
+  dailyLimit: number;
+  /** How many courses generated today */
+  coursesToday: number;
+  /** ISO timestamp when the daily limit resets (next midnight UTC) */
+  dailyResetAt?: string;
+  /** Milliseconds until the daily limit resets */
+  dailyResetInMs?: number;
+  /** Whether the user has hit their daily limit */
+  dailyLimitReached: boolean;
 }
 
 function defaultStatus(overrides: Partial<PaywallStatus> = {}): PaywallStatus {
@@ -100,7 +110,40 @@ function defaultStatus(overrides: Partial<PaywallStatus> = {}): PaywallStatus {
     isOfflineMode: false, showPaywall: false, paywallReason: "no_user",
     hasCardOnFile: false, requireCard: false, freeChapterLimit: 9999,
     expiryWarning48h: false,
+    dailyLimit: 9999, coursesToday: 0, dailyLimitReached: false,
     ...overrides,
+  } as PaywallStatus;
+}
+
+async function getDailyLimitInfo(userId: string | null, isActiveSubscriber: boolean): Promise<{
+  dailyLimit: number;
+  coursesToday: number;
+  dailyResetAt: string;
+  dailyResetInMs: number;
+  dailyLimitReached: boolean;
+}> {
+  const dailyLimit = isActiveSubscriber ? 4 : 1;
+  const todayStart = new Date();
+  todayStart.setUTCHours(0, 0, 0, 0);
+  const tomorrow = new Date();
+  tomorrow.setUTCHours(24, 0, 0, 0);
+
+  let coursesToday = 0;
+  try {
+    coursesToday = await db.course.count({
+      where: {
+        userId: userId || null,
+        createdAt: { gte: todayStart },
+      },
+    });
+  } catch { /* non-critical */ }
+
+  return {
+    dailyLimit,
+    coursesToday,
+    dailyResetAt: tomorrow.toISOString(),
+    dailyResetInMs: tomorrow.getTime() - Date.now(),
+    dailyLimitReached: coursesToday >= dailyLimit,
   };
 }
 
@@ -119,7 +162,10 @@ export async function GET(request: NextRequest) {
 
     // ── No user → full free access ──
     if (!userId) {
-      return NextResponse.json<PaywallStatus>(defaultStatus());
+      const dailyInfo = await getDailyLimitInfo(null, false);
+      return NextResponse.json<PaywallStatus>(defaultStatus({
+        ...dailyInfo,
+      }));
     }
 
     // ── Fetch user data ──
@@ -171,9 +217,10 @@ export async function GET(request: NextRequest) {
           expiryWarning48h = (endDate.getTime() - now.getTime()) <= EXPIRY_WARNING_MS;
         }
 
+        const dailyInfo = await getDailyLimitInfo(userId, true);
         return NextResponse.json<PaywallStatus>({
           ...defaultStatus({
-            canStudy: true, canGenerate: true, canProgress: true,
+            canStudy: true, canGenerate: !dailyInfo.dailyLimitReached, canProgress: true,
             hasSubscription: true,
             subscriptionPlan: user.subscriptionPlan,
             subscriptionStatus: user.subscriptionStatus,
@@ -186,7 +233,8 @@ export async function GET(request: NextRequest) {
             timeRemainingMs,
             daysUntilExpiry,
             expiryWarning48h,
-            paywallReason: "subscribed",
+            paywallReason: dailyInfo.dailyLimitReached ? "daily_limit" : "subscribed",
+            ...dailyInfo,
           }),
         });
       }
@@ -201,6 +249,7 @@ export async function GET(request: NextRequest) {
       const graceRemaining = Math.max(0, Math.ceil(GRACE_PERIOD_DAYS - daysSinceEnd));
 
       if (daysSinceEnd < GRACE_PERIOD_DAYS) {
+        const dailyInfo = await getDailyLimitInfo(userId, false);
         return NextResponse.json<PaywallStatus>(defaultStatus({
           canGenerate: false,
           subscriptionPlan: user.subscriptionPlan,
@@ -212,10 +261,12 @@ export async function GET(request: NextRequest) {
           hasCardOnFile: !!user.hasCardOnFile,
           paywallReason: "grace_period",
           freeCourseUsed: user.freeCourseUsed,
+          ...dailyInfo,
         }));
       }
 
       // Grace expired
+      const dailyInfoExpired = await getDailyLimitInfo(userId, false);
       return NextResponse.json<PaywallStatus>(defaultStatus({
         canStudy: false, canGenerate: false, canProgress: false,
         subscriptionPlan: user.subscriptionPlan,
@@ -226,6 +277,7 @@ export async function GET(request: NextRequest) {
         firstName: user.firstName || undefined,
         hasCardOnFile: !!user.hasCardOnFile,
         freeCourseUsed: user.freeCourseUsed,
+        ...dailyInfoExpired,
       }));
     }
 
@@ -236,6 +288,7 @@ export async function GET(request: NextRequest) {
 
       if (freeUsed) {
         // Free course already used → blocked from creating, but can study
+        const dailyInfoUsed = await getDailyLimitInfo(userId, false);
         return NextResponse.json<PaywallStatus>(defaultStatus({
           canGenerate: false,
           showPaywall: true,
@@ -243,10 +296,12 @@ export async function GET(request: NextRequest) {
           firstName: user.firstName || undefined,
           hasCardOnFile: !!user.hasCardOnFile,
           freeCourseUsed: true,
+          ...dailyInfoUsed,
         }));
       }
 
       // New user, free course not yet used → can generate
+      const dailyInfoNew = await getDailyLimitInfo(userId, false);
       return NextResponse.json<PaywallStatus>(defaultStatus({
         canGenerate: true,
         showPaywall: false,
@@ -254,6 +309,7 @@ export async function GET(request: NextRequest) {
         firstName: user.firstName || undefined,
         hasCardOnFile: !!user.hasCardOnFile,
         freeCourseUsed: false,
+        ...dailyInfoNew,
       }));
     }
 

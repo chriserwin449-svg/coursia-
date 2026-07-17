@@ -1,5 +1,9 @@
 "use client";
 
+declare global {
+  interface Window { __coursiaLimitTimestamp?: number }
+}
+
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { trackEvent } from "@/lib/analytics";
 import {
@@ -14,6 +18,7 @@ import {
   Crown,
   Gift,
   GraduationCap,
+  Clock,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -43,6 +48,10 @@ export default function CreateCourse() {
   const [paywallLoaded, setPaywallLoaded] = useState(false);
   const [inGracePeriod, setInGracePeriod] = useState(false);
   const [localFreeCourseUsed, setLocalFreeCourseUsed] = useState(false);
+  const [dailyLimitReached, setDailyLimitReached] = useState(false);
+  const [dailyResetInMs, setDailyResetInMs] = useState(0);
+  const [dailyCoursesToday, setDailyCoursesToday] = useState(0);
+  const [dailyLimitTotal, setDailyLimitTotal] = useState(4);
   const [selectedLevel, setSelectedLevel] = useState(0);
   const [isRandomTopic, setIsRandomTopic] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
@@ -56,6 +65,41 @@ export default function CreateCourse() {
   const storeRandomCourseLang = useAppStore((s) => s.randomCourseLang);
   const setStoreRandomTopic = useAppStore((s) => s.setRandomTopic);
   const prevRandomRef = useRef<string | null>(null);
+
+  //  Daily limit countdown timer 
+  const [countdown, setCountdown] = useState("");
+  useEffect(() => {
+    if (!dailyLimitReached || dailyResetInMs <= 0) {
+      setCountdown("");
+      return;
+    }
+    const update = () => {
+      const remaining = Math.max(0, dailyResetInMs - (Date.now() - (window.__coursiaLimitTimestamp || Date.now())));
+      if (remaining <= 0) {
+        setCountdown("");
+        setDailyLimitReached(false);
+        fetchCourses(); // Refresh to get updated limits
+        return;
+      }
+      const h = Math.floor(remaining / 3600000);
+      const m = Math.floor((remaining % 3600000) / 60000);
+      const s = Math.floor((remaining % 60000) / 1000);
+      if (h > 0) {
+        setCountdown(`${h}h ${m.toString().padStart(2, "0")}m ${s.toString().padStart(2, "0")}s`);
+      } else if (m > 0) {
+        setCountdown(`${m}m ${s.toString().padStart(2, "0")}s`);
+      } else {
+        setCountdown(`${s}s`);
+      }
+    };
+    // Store timestamp when limit was set for accurate countdown
+    if (!window.__coursiaLimitTimestamp) {
+      (window as unknown as Record<string, number>).__coursiaLimitTimestamp = Date.now();
+    }
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [dailyLimitReached, dailyResetInMs, fetchCourses]);
 
   //  React to random topic changes from TopBar (instant, no reload) 
   useEffect(() => {
@@ -230,6 +274,11 @@ export default function CreateCourse() {
         useAppStore.getState().setFreeCourseUsed(!!pw.freeCourseUsed);
         // Sync 48h expiry warning
         useAppStore.getState().setExpiryWarning48h(!!pw.expiryWarning48h);
+        // Sync daily limit info
+        setDailyLimitReached(!!pw.dailyLimitReached);
+        setDailyResetInMs(pw.dailyResetInMs || 0);
+        setDailyCoursesToday(pw.coursesToday || 0);
+        setDailyLimitTotal(pw.dailyLimit || 4);
       } else {
         // API returned non-OK — fail-open: allow generation, the generate API will do the real check
         console.warn("[fetchCourses] Paywall status returned", pwRes.status, "— defaulting canCreateCourse to true");
@@ -490,6 +539,16 @@ export default function CreateCourse() {
                 isRandom: !!isRandomTopic,
               });
               setView("offers");
+              return;
+            }
+
+            if (errorData.error === "DAILY_LIMIT") {
+              console.log("[generate] Daily limit reached from API");
+              setDailyLimitReached(true);
+              setDailyResetInMs(errorData.resetInMs || 0);
+              setDailyCoursesToday(errorData.coursesToday || 0);
+              setDailyLimitTotal(errorData.dailyLimit || 4);
+              setError(""); // Clear any other error
               return;
             }
 
@@ -802,7 +861,9 @@ export default function CreateCourse() {
               <GraduationCap className="w-7 h-7 text-mauve-light" />
             </div>
             <p className="text-sm font-bold text-foreground mb-1">
-              {lang === "fr" ? "Tu as utilisé ton cours d'essai" : "You've used your free trial course"}
+              {lang === "fr"
+                ? "Tu as utilisé ton cours gratuit"
+                : "You've used your free course"}
             </p>
             <p className="text-xs text-muted-foreground mb-4">
               {lang === "fr"
@@ -836,6 +897,29 @@ export default function CreateCourse() {
           </div>
         )}
 
+        {/*  Daily limit reached (subscribers only)  */}
+        {dailyLimitReached && countdown && (
+          <div className="mb-6 p-5 rounded-2xl glass text-center animate-fade-in">
+            <div className="w-14 h-14 rounded-2xl bg-mauve/10 flex items-center justify-center mx-auto mb-3">
+              <Clock className="w-7 h-7 text-mauve-light" />
+            </div>
+            <p className="text-sm font-bold text-foreground mb-1">
+              {lang === "fr"
+                ? "Limite de génération atteinte pour aujourd'hui"
+                : "Daily generation limit reached"}
+            </p>
+            <p className="text-xs text-muted-foreground mb-3">
+              {lang === "fr"
+                ? `Tu as créé tes ${dailyCoursesToday}/${dailyLimitTotal} cours aujourd'hui. Reviens bientôt !`
+                : `You've created ${dailyCoursesToday}/${dailyLimitTotal} courses today. Come back soon!`}
+            </p>
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-mauve/10 text-mauve-light text-lg font-extrabold tabular-nums">
+              <Clock className="w-4 h-4" />
+              {countdown}
+            </div>
+          </div>
+        )}
+
         {/*  Error  */}
         {error && (
           <div className="mb-6 p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-sm font-semibold animate-[fadeIn_0.3s_ease-out]">
@@ -854,10 +938,18 @@ export default function CreateCourse() {
         )}
 
         {/*  Generate button  */}
-        <div className="flex items-center justify-center sm:justify-center">
+        <div className="flex flex-col items-center justify-center sm:justify-center">
+          {/* Daily course counter for subscribers */}
+          {paywallLoaded && hasSubscription && !dailyLimitReached && (
+            <p className="text-xs text-muted-foreground mb-2 text-center">
+              {lang === "fr"
+                ? `${dailyCoursesToday}/${dailyLimitTotal} cours générés aujourd'hui`
+                : `${dailyCoursesToday}/${dailyLimitTotal} courses generated today`}
+            </p>
+          )}
           <button
             onClick={generateCourse}
-            disabled={!title.trim() || loading || !paywallLoaded}
+            disabled={!title.trim() || loading || !paywallLoaded || dailyLimitReached}
             className="w-full sm:w-auto flex items-center justify-center gap-3 px-8 py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-base sm:text-lg font-extrabold hover:from-mauve-light hover:to-mauve transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-mauve/25 hover:shadow-mauve/40 hover:scale-[1.02] active:scale-[0.98] min-h-[44px]"
           >
             {loading ? (

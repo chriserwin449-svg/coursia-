@@ -115,3 +115,46 @@ Stage Summary:
 - Fix: Remove client-side pre-check, let server (generate API) be the sole decision maker
 - File changed: src/components/coursia/CreateCourse.tsx (removed 13 lines, added 3)
 - Commit: 8c661ac pushed to main
+
+---
+Task ID: 1-b
+Agent: general-purpose
+Task: Implement daily course generation limit
+
+Work Log:
+- Updated generate/route.ts catch block (line 839-846): replaced blind fail-open with fail-safe fallback that counts user courses; if count > 0, blocks as FREE_LIMIT; if count also fails, allows as last-resort fail-open
+- Added daily generation limit check in generate/route.ts after free course check block (before Step 0 search): determines limit (4 for active subscribers, 1 for non-subscribers/anonymous), counts today's courses via UTC midnight filter, returns 429 DAILY_LIMIT with reset metadata if exceeded
+- Added 5 new fields to PaywallStatus interface: dailyLimit, coursesToday, dailyResetAt, dailyResetInMs, dailyLimitReached
+- Added default values in defaultStatus(): dailyLimit: 9999, coursesToday: 0, dailyLimitReached: false
+- Created getDailyLimitInfo() helper in paywall-status/route.ts that queries course count and computes reset timestamp
+- Integrated daily limit info into all 6 response branches: no-user, active subscriber (canGenerate toggled by dailyLimitReached), grace period, grace expired, free user (used), free user (new)
+- Fixed TS2322 by adding `as PaywallStatus` assertion on defaultStatus return (spreading Partial over required fields)
+
+Stage Summary:
+- Daily limits enforced server-side: 4/day for active subscribers, 1/day for free/anonymous users
+- Free course atomic transaction logic untouched; only catch block hardened with course-count fallback
+- Paywall status API now exposes daily limit info so frontend can show countdown/reset timers
+- No frontend files modified, no other API routes touched
+- All TS errors in modified files are pre-existing (outline possibly null at lines 964+)
+- Files modified: src/app/api/courses/generate/route.ts, src/app/api/courses/paywall-status/route.ts
+
+---
+Task ID: 1-a
+Agent: general-purpose
+Task: Fix language mismatch in AI course generation prompts
+
+Work Log:
+- Created `getPromptStrings(lang)` helper function (~180 lines) returning all language-dependent prompt text organized into `outline`, `chapter`, `emergency`, and `singleCall` sections
+- Rewrote `buildOutlineSystemPrompt()` to use helper — all instruction text, level descriptions, mission block, JSON format example now bilingual
+- Rewrote `buildChapterSystemPrompt()` to use helper — all 7 ## headings (understanding, whyCrucial, fundamentals, caseStudy, misconceptions, reflect, action), all section instructions, techniques list, style rules, prohibited items, JSON response template now bilingual
+- Updated `generateChapter()` user prompt: "Rédige le chapitre..." → bilingual via helper
+- Updated `generateChapterEmergency()`: system prompt and user prompt now fully bilingual (was English-only before, now properly supports both languages)
+- Updated `generateSingleCall()`: system role, rules, chapter rules, structure description, research block header, JSON format example, and user prompt all now bilingual
+- Fixed remaining hardcoded labels: "Niveau :" → `s.chapter.levelLabel`, "Langue :" → `s.chapter.languageLabel`
+
+Stage Summary:
+- All 5 prompt-generation functions now fully respect `courseLang` parameter ("fr" or "en")
+- Zero new TypeScript errors introduced (14 pre-existing `outline possibly null` errors unchanged)
+- JSON response format (`{title, content, summary}`) preserved exactly — only the ## headings inside `content` and instruction text language changed
+- No logic changes — only prompt text strings were modified
+- File modified: src/app/api/courses/generate/route.ts (+224 lines for helper, net +225/-204)
