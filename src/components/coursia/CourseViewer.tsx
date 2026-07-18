@@ -1007,7 +1007,7 @@ export default function CourseViewer() {
                   <p className="text-lg sm:text-xl text-foreground/80 leading-relaxed">{currentChapter.summary}</p>
                 </div>
               )}
-              <div key={`fs-chapter-${currentChapter.id}-${currentChapterIndex}`} className="prose prose-invert max-w-none text-[24px] leading-[2.8] animate-fade-in-slide-right prose-p:text-[1.6rem] prose-p:leading-[2.5] prose-p:mb-10 prose-h2:text-[2.3rem] prose-h2:mt-14 prose-h2:mb-8 prose-h3:text-[2rem] prose-h3:mt-12 prose-h3:mb-6 prose-li:text-[1.6rem] prose-li:my-3 prose-li:leading-[2.5] prose-ul:my-8 prose-ol:my-8 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-14">
+              <div key={`fs-chapter-${currentChapter.id}-${currentChapterIndex}`} className="prose prose-invert max-w-none text-[24px] leading-[1.75] animate-fade-in-slide-right prose-p:text-[1.6rem] prose-p:leading-[1.75] prose-p:mb-4 prose-h2:text-[2.3rem] prose-h2:mt-10 prose-h2:mb-5 prose-h3:text-[2rem] prose-h3:mt-8 prose-h3:mb-4 prose-li:text-[1.6rem] prose-li:my-1.5 prose-li:leading-[1.75] prose-ul:my-4 prose-ol:my-4 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-8">
                 <ReactMarkdown>{currentChapter.content || ""}</ReactMarkdown>
               </div>
             </div>
@@ -1271,20 +1271,20 @@ export default function CourseViewer() {
                 </div>
               )}
 
-              <div className="prose prose-invert max-w-none text-[20px] sm:text-[24px] leading-10 sm:leading-[2.8]
+              <div className="prose prose-invert max-w-none text-[20px] sm:text-[24px] leading-[1.7] sm:leading-[1.75]
                 prose-headings:font-extrabold
-                prose-h1:text-3xl sm:text-5xl prose-h1:mt-10 sm:mt-14 prose-h1:mb-4 sm:mb-6
-                prose-h2:text-[1.7rem] sm:text-[2.3rem] prose-h2:mt-10 sm:mt-14 prose-h2:mb-6 sm:mb-8
-                prose-h3:text-[1.5rem] sm:text-[2rem] prose-h3:mt-8 sm:mt-12 prose-h3:mb-5 sm:mb-6
-                prose-p:text-[1.3rem] sm:text-[1.6rem] prose-p:leading-[2.2] sm:leading-[2.5] prose-p:text-foreground/90 prose-p:mb-6 sm:mb-10
-                prose-li:text-[1.3rem] sm:text-[1.6rem] prose-li:text-foreground/90 prose-li:leading-[2.2] sm:leading-[2.5] prose-li:my-2 sm:my-3
-                prose-ul:my-6 sm:my-8 prose-ol:my-6 sm:my-8
+                prose-h1:text-3xl sm:text-5xl prose-h1:mt-8 sm:mt-10 prose-h1:mb-3 sm:mb-4
+                prose-h2:text-[1.7rem] sm:text-[2.3rem] prose-h2:mt-8 sm:mt-10 prose-h2:mb-4 sm:mb-5
+                prose-h3:text-[1.5rem] sm:text-[2rem] prose-h3:mt-6 sm:mt-8 prose-h3:mb-3 sm:mb-4
+                prose-p:text-[1.3rem] sm:text-[1.6rem] prose-p:leading-[1.7] sm:leading-[1.75] prose-p:text-foreground/90 prose-p:mb-3 sm:mb-4
+                prose-li:text-[1.3rem] sm:text-[1.6rem] prose-li:text-foreground/90 prose-li:leading-[1.7] sm:leading-[1.75] prose-li:my-1 sm:my-1.5
+                prose-ul:my-4 sm:my-5 prose-ol:my-4 sm:my-5
                 prose-strong:text-gold
                 prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-2 prose-code:py-1 prose-code:rounded-lg prose-code:text-[0.9rem] sm:text-1rem
                 prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-4 sm:py-6 prose-pre:text-[0.9rem] sm:text-1rem
                 prose-a:text-mauve-light
-                prose-blockquote:text-amber-300 prose-blockquote:border-gold/30 prose-blockquote:my-6 sm:my-8
-                prose-hr:border-gold/20 prose-hr:my-8 sm:my-12
+                prose-blockquote:text-amber-300 prose-blockquote:border-gold/30 prose-blockquote:my-4 sm:my-6
+                prose-hr:border-gold/20 prose-hr:my-6 sm:my-8
               ">
                 <ReactMarkdown>{currentChapter.content || ""}</ReactMarkdown>
               </div>
