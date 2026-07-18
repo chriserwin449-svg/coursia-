@@ -270,6 +270,29 @@ export default function AppShell() {
       useAppStore.getState().setTrialDaysRemaining(data.trialDaysRemaining || 0);
       useAppStore.getState().setShowRenewalReminder(hasRenewal);
       useAppStore.getState().setRenewalDaysRemaining(data.renewalDaysRemaining || 0);
+
+      // Smart notification message
+      const currentLang = useAppStore.getState().lang;
+      let msg = "";
+      if (data.paywallReason === "free_available") {
+        msg = currentLang === "fr" ? "🎁 Ton premier cours est offert." : "🎁 Your first course is free.";
+      } else if (data.paywallReason === "free_limit") {
+        msg = currentLang === "fr" ? "🚀 Débloque les cours illimités avec Premium." : "🚀 Unlock unlimited courses with Premium.";
+      } else if (data.paywallReason === "subscribed" && data.showRenewalReminder) {
+        const days = data.renewalDaysRemaining || 0;
+        if (days <= 1) {
+          msg = currentLang === "fr" ? "🚨 Dernier jour avant expiration." : "🚨 Last day before expiration.";
+        } else if (days <= 3) {
+          msg = currentLang === "fr" ? "⚠️ Plus que 3 jours avant la fin." : "⚠️ Only 3 days left.";
+        } else if (days <= 7) {
+          msg = currentLang === "fr" ? "⏳ Ton abonnement expire dans 7 jours." : "⏳ Subscription expires in 7 days.";
+        }
+      } else if (data.paywallReason === "grace_period" || data.paywallReason === "grace_expired") {
+        msg = currentLang === "fr" ? "Ton abonnement est terminé. Réactive Premium." : "Your subscription ended. Reactivate Premium.";
+      } else if (data.paywallReason === "subscribed") {
+        msg = currentLang === "fr" ? "✨ Premium actif." : "✨ Premium active.";
+      }
+      useAppStore.getState().setNotificationMessage(msg);
     } catch {
       // silent
     }

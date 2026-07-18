@@ -43,6 +43,7 @@ export default function OffersPage() {
   const [firstName, setFirstName] = useState<string>("");
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [expiryWarning48h, setExpiryWarning48h] = useState(false);
+  const [localFreeCourseUsed, setLocalFreeCourseUsed] = useState(false);
 
   // Direct checkout: tracks which plan button is currently loading
   const [checkoutLoading, setCheckoutLoading] = useState<"monthly" | "annual" | null>(null);
@@ -159,6 +160,7 @@ export default function OffersPage() {
 
         // Always capture courses generated count
         setTrialCoursesGenerated(data.trialCoursesGenerated || 0);
+        setLocalFreeCourseUsed(!!data.freeCourseUsed);
 
         if (data.firstName) setFirstName(data.firstName);
 
@@ -327,8 +329,11 @@ export default function OffersPage() {
     return null;
   }, [isSubscribed, showRenewalReminder, firstName, lang, tx.offers]);
 
-  // Show "Start for free" if user hasn't generated any course yet
-  const showStartFree = statusLoaded && trialCoursesGenerated === 0 && !isSubscribed;
+  // Show "Start for free" if user hasn't used their free course yet
+  const showStartFree = statusLoaded && !isSubscribed && !localFreeCourseUsed;
+
+  // Show "Manage subscription" for active subscribers not in renewal/grace
+  const showManageSubscription = statusLoaded && isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired;
 
   // Button disabled logic
   const isButtonDisabled = (plan: string) =>
@@ -353,6 +358,22 @@ export default function OffersPage() {
             {tx.offers.subtitle}
           </p>
         </div>
+
+        {/* ===== NOTIFICATION BANNER ===== */}
+        {statusLoaded && (
+          <div className="mb-8 text-center">
+            <p className="text-lg font-bold text-foreground whitespace-pre-line">
+              {localFreeCourseUsed && !isSubscribed
+                ? (lang === "fr" ? "🚀 Tu as déjà utilisé ton cours gratuit.\nPasse à l'abonnement Premium pour continuer à générer des cours illimités." : "🚀 You've already used your free course.\nUpgrade to Premium for unlimited course generation.")
+                : isSubscribed && !showRenewalReminder
+                  ? (lang === "fr" ? "✨ Abonnement Premium actif.\nProfite des générations illimitées." : "✨ Premium active.\nEnjoy unlimited generations.")
+                  : !localFreeCourseUsed && !isSubscribed
+                    ? (lang === "fr" ? "🎁 Ton premier cours est offert !" : "🎁 Your first course is free!")
+                    : ""
+              }
+            </p>
+          </div>
+        )}
 
         {/* ===== STATUS BANNERS ===== */}
         <div className="max-w-2xl mx-auto mb-8 space-y-3">
@@ -486,7 +507,15 @@ export default function OffersPage() {
             </ul>
 
             {/* CTA Button */}
-            {showStartFree ? (
+            {showManageSubscription ? (
+              <button
+                onClick={() => setView("create")}
+                className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Crown className="w-5 h-5" />
+                {lang === "fr" ? "Gérer mon abonnement" : "Manage subscription"}
+              </button>
+            ) : showStartFree ? (
               <button
                 onClick={() => {
                   trackEvent({ name: "start_free_clicked" });
@@ -570,7 +599,15 @@ export default function OffersPage() {
             </ul>
 
             {/* CTA Button */}
-            {showStartFree ? (
+            {showManageSubscription ? (
+              <button
+                onClick={() => setView("create")}
+                className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden cursor-pointer"
+              >
+                <Crown className="w-5 h-5" />
+                {lang === "fr" ? "Gérer mon abonnement" : "Manage subscription"}
+              </button>
+            ) : showStartFree ? (
               <button
                 onClick={() => {
                   trackEvent({ name: "start_free_clicked" });

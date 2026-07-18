@@ -179,3 +179,53 @@ Stage Summary:
 - UI: Countdown timer, daily counter (X/4), "Tu as utilisé ton cours gratuit" message
 - Files changed: generate/route.ts, paywall-status/route.ts, CreateCourse.tsx
 - Commit: 90e850d pushed to main
+
+---
+Task ID: 4-a
+Agent: general-purpose
+Task: Add courses to Zustand store for global sync + secure delete API
+
+Work Log:
+- Added `courses`, `setCourses`, `addCourse`, `removeCourse` to Zustand store interface and implementation (store.ts)
+- CourseData type already defined in store.ts — no new import needed
+- CreateCourse.tsx: removed local `useState<CourseData[]>` for courses, replaced with `useAppStore((s) => s.courses)`
+- CreateCourse.tsx: replaced `setCourses(list)` in fetchCourses with `useAppStore.getState().setCourses(list)`
+- CreateCourse.tsx: replaced both recovery prepend blocks (`setCourses(prev => {...})`) with `useAppStore.getState().addCourse(recovered)`
+- Library.tsx: removed local `useState<CourseData[]>` for courses, replaced with `useAppStore((s) => s.courses)`
+- Library.tsx: replaced `setCourses(data.courses || [])` with `useAppStore.getState().setCourses(data.courses || [])`
+- Library.tsx: replaced `setCourses(courses.filter(...))` with `useAppStore.getState().removeCourse(id)`
+- Library.tsx: removed unused `CourseData` type import
+- Library.tsx: added Authorization header (Bearer userId) to DELETE fetch call
+- DELETE API route: added ownership verification — checks course.userId, compares with Bearer token, returns 403 if mismatch, 404 if not found
+- DELETE API: anonymous courses (no userId) can still be deleted without auth
+- freeCourseUsed is NOT modified on course deletion (explicit comment added)
+- Loading/error states in Library.tsx preserved (local `loading` state untouched)
+- ESLint passed with zero errors on all 4 files
+
+Stage Summary:
+- Courses are now in Zustand store — creating/deleting in CreateCourse view is immediately reflected in Library view and vice versa
+- Delete API secured: ownership check for user-owned courses, anonymous courses still deletable
+- Files modified: src/lib/store.ts, src/components/coursia/CreateCourse.tsx, src/components/coursia/Library.tsx, src/app/api/courses/[id]/route.ts
+
+---
+Task ID: 2-a
+Agent: general-purpose
+Task: Fix OffersPage button logic and smart notifications
+
+Work Log:
+- Fixed `showStartFree` bug: was using `trialCoursesGenerated === 0` (never updated from default 0), replaced with `!localFreeCourseUsed`
+- Added `localFreeCourseUsed` state to OffersPage, populated from `data.freeCourseUsed` in paywall-status fetch
+- Added `showManageSubscription` variable: true when subscribed, no renewal needed, not in grace/expired
+- Added "Gérer mon abonnement" / "Manage subscription" button branch as FIRST condition in both monthly and annual card CTAs (navigates to create view)
+- Added notification banner at top of OffersPage with 3 contextual messages: free course available, free course used (upsell), or active subscriber
+- Added `notificationMessage` and `setNotificationMessage` to Zustand store (interface + implementation)
+- Added smart notification messages in AppShell `checkPaywallStatus`: free_available, free_limit, renewal urgency tiers (1d/3d/7d), grace/expired, active subscriber
+- ESLint passed with zero errors on all 3 files
+
+Stage Summary:
+- Button logic now correctly uses `freeCourseUsed` from API instead of stale `trialCoursesGenerated`
+- Active subscribers see "Gérer mon abonnement" instead of "Plan Actuel" (disabled)
+- Users who used their free course see "Choisir Mensuel/Annuel" (no free button)
+- New users still see "Commencer gratuitement"
+- Smart notification messages stored in Zustand, set by AppShell periodic check
+- Files modified: src/lib/store.ts, src/components/coursia/OffersPage.tsx, src/components/coursia/AppShell.tsx

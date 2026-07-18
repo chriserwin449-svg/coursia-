@@ -36,7 +36,7 @@ export default function CreateCourse() {
   const [error, setError] = useState("");
   const [courseLang, setCourseLang] = useState("fr"); // "fr" or "en"
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [courses, setCourses] = useState<CourseData[]>([]);
+  const courses = useAppStore((s) => s.courses);
   const [showSuggested, setShowSuggested] = useState(false);
   const [suggestedTopic, setSuggestedTopic] = useState("");
   const [hasSubscription, setHasSubscription] = useState(false);
@@ -250,7 +250,7 @@ export default function CreateCourse() {
       if (res.ok) {
         const data = await res.json();
         const list = (data.courses as CourseData[]) || [];
-        setCourses(list);
+        useAppStore.getState().setCourses(list);
       }
 
       // Check subscription & trial status via paywall-status API
@@ -495,10 +495,7 @@ export default function CreateCourse() {
           const recovered = await pollDbForCourse(2, 2000);
           if (recovered) {
             console.log(`[generate] Course found in DB after failed attempt, recovering: "${recovered.title}"`);
-            setCourses(prev => {
-              const exists = prev.some(c => c.id === recovered.id);
-              return exists ? prev : [recovered, ...prev];
-            });
+            useAppStore.getState().addCourse(recovered);
             setSelectedCourseId(recovered.id);
             setView("viewer");
             trackEvent({ name: "course_created_recovery", properties: { title: generatingTitle, attempt: attempt + 1 } });
@@ -600,10 +597,7 @@ export default function CreateCourse() {
       const recovered = await pollDbForCourse(5, 3000);
       if (recovered) {
         console.log(`[generate] Final recovery: course "${recovered.title}" found in DB`);
-        setCourses(prev => {
-          const exists = prev.some(c => c.id === recovered.id);
-          return exists ? prev : [recovered, ...prev];
-        });
+        useAppStore.getState().addCourse(recovered);
         setSelectedCourseId(recovered.id);
         setView("viewer");
         trackEvent({ name: "course_created_recovery", properties: { title: generatingTitle } });

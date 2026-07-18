@@ -74,11 +74,32 @@ export async function GET(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+
+    // Verify the course exists and belongs to the user
+    const course = await db.course.findUnique({
+      where: { id },
+      select: { userId: true },
+    });
+
+    if (!course) {
+      return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+    }
+
+    // If course has an owner, verify the requester is the owner
+    if (course.userId) {
+      const authHeader = request.headers.get("Authorization");
+      const requestUserId = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
+      if (requestUserId !== course.userId) {
+        return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+      }
+    }
+    // Note: NEVER modify freeCourseUsed on course deletion
+
     await db.course.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {

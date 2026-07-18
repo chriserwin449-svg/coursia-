@@ -127,11 +127,18 @@ interface AppState {
   // Notification dot
   hasNotification: boolean;
   setHasNotification: (v: boolean) => void;
+  notificationMessage: string;
+  setNotificationMessage: (v: string) => void;
   notificationDismissed: boolean;
   setNotificationDismissed: (v: boolean) => void;
   // Pending course generation (saved before payment, resumed after)
   pendingGeneration: { topic: string; courseLang: string; level: number; isRandom: boolean } | null;
   setPendingGeneration: (v: { topic: string; courseLang: string; level: number; isRandom: boolean } | null) => void;
+  // Courses list (global sync between views)
+  courses: CourseData[];
+  setCourses: (courses: CourseData[]) => void;
+  addCourse: (course: CourseData) => void;
+  removeCourse: (courseId: string) => void;
   // Free course tracking (from database — single source of truth)
   freeCourseUsed: boolean;
   setFreeCourseUsed: (v: boolean) => void;
@@ -241,6 +248,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Notification dot
   hasNotification: false,
   setHasNotification: (v) => set({ hasNotification: v }),
+  notificationMessage: "",
+  setNotificationMessage: (v) => set({ notificationMessage: v }),
   notificationDismissed: false,
   setNotificationDismissed: (v) => set({ notificationDismissed: v }),
   // Pending course generation
@@ -255,6 +264,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
     set({ pendingGeneration: v });
   },
+  // Courses list (global sync between views)
+  courses: [],
+  setCourses: (courses) => set({ courses }),
+  addCourse: (course) => set((s) => ({ courses: [course, ...s.courses] })),
+  removeCourse: (courseId) => set((s) => ({ courses: s.courses.filter(c => c.id !== courseId) })),
   // Free course tracking (from database — single source of truth)
   freeCourseUsed: false,
   setFreeCourseUsed: (v) => set({ freeCourseUsed: v }),

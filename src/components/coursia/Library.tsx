@@ -9,7 +9,7 @@ import {
   Loader2,
   Search,
 } from "lucide-react";
-import { useAppStore, type CourseData } from "@/lib/store";
+import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import {
   AlertDialog,
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function Library() {
-  const [courses, setCourses] = useState<CourseData[]>([]);
+  const courses = useAppStore((s) => s.courses);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -40,7 +40,7 @@ export default function Library() {
       const userId = useAppStore.getState().userId;
       const res = await fetch(`/api/courses?userId=${userId || ''}`);
       const data = await res.json();
-      if (res.ok) setCourses(data.courses || []);
+      if (res.ok) useAppStore.getState().setCourses(data.courses || []);
     } catch { /* */ }
     finally { setLoading(false); }
   };
@@ -51,8 +51,11 @@ export default function Library() {
     setDeleting(id);
     setDeleteTarget(null);
     try {
-      await fetch(`/api/courses/${id}`, { method: "DELETE" });
-      setCourses(courses.filter((c) => c.id !== id));
+      const userId = useAppStore.getState().userId;
+      const headers: Record<string, string> = {};
+      if (userId) headers["Authorization"] = `Bearer ${userId}`;
+      await fetch(`/api/courses/${id}`, { method: "DELETE", headers });
+      useAppStore.getState().removeCourse(id);
     } catch { /* */ }
     finally { setDeleting(null); }
   };
