@@ -996,10 +996,10 @@ export default function CourseViewer() {
                     <FileText className="w-4 h-4 text-mauve-light" />
                     <span className="text-xs font-bold text-mauve-light uppercase tracking-wider">{tx.viewer.summary}</span>
                   </div>
-                  <p className="text-lg text-foreground/80 leading-relaxed">{currentChapter.summary}</p>
+                  <p className="text-lg sm:text-xl text-foreground/80 leading-relaxed">{currentChapter.summary}</p>
                 </div>
               )}
-              <div key={`fs-chapter-${currentChapter.id}-${currentChapterIndex}`} className="prose prose-invert max-w-none text-[20px] leading-9 animate-fade-in-slide-right prose-p:text-[1.3rem] prose-p:leading-[2.1] prose-p:mb-6 prose-h2:text-[1.8rem] prose-h2:mt-12 prose-h2:mb-6 prose-h3:text-[1.6rem] prose-h3:mt-10 prose-h3:mb-5 prose-li:text-[1.3rem] prose-li:my-2 prose-li:leading-[2.1] prose-ul:my-6 prose-ol:my-6 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
+              <div key={`fs-chapter-${currentChapter.id}-${currentChapterIndex}`} className="prose prose-invert max-w-none text-[22px] leading-10 animate-fade-in-slide-right prose-p:text-[1.45rem] prose-p:leading-[2.2] prose-p:mb-8 prose-h2:text-[2rem] prose-h2:mt-14 prose-h2:mb-8 prose-h3:text-[1.8rem] prose-h3:mt-12 prose-h3:mb-6 prose-li:text-[1.45rem] prose-li:my-2 prose-li:leading-[2.2] prose-ul:my-8 prose-ol:my-8 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-14">
                 <ReactMarkdown>{currentChapter.content || ""}</ReactMarkdown>
               </div>
             </div>
@@ -1263,14 +1263,14 @@ export default function CourseViewer() {
                 </div>
               )}
 
-              <div className="prose prose-invert max-w-none text-[16px] sm:text-[20px] leading-8 sm:leading-9
+              <div className="prose prose-invert max-w-none text-[18px] sm:text-[22px] leading-9 sm:leading-10
                 prose-headings:font-extrabold
                 prose-h1:text-3xl sm:text-4xl prose-h1:mt-10 sm:mt-14 prose-h1:mb-4 sm:mb-6
-                prose-h2:text-[1.4rem] sm:text-[1.8rem] prose-h2:mt-8 sm:mt-12 prose-h2:mb-4 sm:mb-6
-                prose-h3:text-[1.25rem] sm:text-[1.6rem] prose-h3:mt-6 sm:mt-10 prose-h3:mb-3 sm:mb-5
-                prose-p:text-[1.05rem] sm:text-[1.3rem] prose-p:leading-[1.9] sm:leading-[2.1] prose-p:text-foreground/90 prose-p:mb-4 sm:mb-5
-                prose-li:text-[1.05rem] sm:text-[1.3rem] prose-li:text-foreground/90 prose-li:leading-[1.9] sm:leading-[2.1] prose-li:my-1 sm:my-2
-                prose-ul:my-4 sm:my-6 prose-ol:my-4 sm:my-6
+                prose-h2:text-[1.5rem] sm:text-[2rem] prose-h2:mt-10 sm:mt-14 prose-h2:mb-6 sm:mb-8
+                prose-h3:text-[1.35rem] sm:text-[1.8rem] prose-h3:mt-8 sm:mt-12 prose-h3:mb-5 sm:mb-6
+                prose-p:text-[1.15rem] sm:text-[1.45rem] prose-p:leading-[2] sm:leading-[2.2] prose-p:text-foreground/90 prose-p:mb-5 sm:mb-8
+                prose-li:text-[1.15rem] sm:text-[1.45rem] prose-li:text-foreground/90 prose-li:leading-[2] sm:leading-[2.2] prose-li:my-2 sm:my-2
+                prose-ul:my-6 sm:my-8 prose-ol:my-6 sm:my-8
                 prose-strong:text-gold
                 prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-2 prose-code:py-1 prose-code:rounded-lg prose-code:text-[0.85rem] sm:text-[0.95rem]
                 prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-4 sm:py-6 prose-pre:text-[0.85rem] sm:text-[0.95rem]

@@ -43,7 +43,7 @@ export default function OffersPage() {
   const [firstName, setFirstName] = useState<string>("");
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [expiryWarning48h, setExpiryWarning48h] = useState(false);
-  const [localFreeCourseUsed, setLocalFreeCourseUsed] = useState(false);
+  const [localFreeCourseUsed, setLocalFreeCourseUsed] = useState(() => useAppStore.getState().freeCourseUsed);
 
   // Direct checkout: tracks which plan button is currently loading
   const [checkoutLoading, setCheckoutLoading] = useState<"monthly" | "annual" | null>(null);

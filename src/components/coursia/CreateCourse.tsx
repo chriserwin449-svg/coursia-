@@ -43,7 +43,7 @@ export default function CreateCourse() {
   const [canCreateCourse, setCanCreateCourse] = useState(false);
   const [paywallLoaded, setPaywallLoaded] = useState(false);
   const [inGracePeriod, setInGracePeriod] = useState(false);
-  const [localFreeCourseUsed, setLocalFreeCourseUsed] = useState(false);
+  const [localFreeCourseUsed, setLocalFreeCourseUsed] = useState(() => useAppStore.getState().freeCourseUsed);
   const [dailyLimitReached, setDailyLimitReached] = useState(false);
   const [dailyResetInMs, setDailyResetInMs] = useState(0);
   const [dailyCoursesToday, setDailyCoursesToday] = useState(0);
@@ -854,12 +854,12 @@ export default function CreateCourse() {
             <div className="w-14 h-14 rounded-2xl bg-mauve/10 flex items-center justify-center mx-auto mb-3">
               <GraduationCap className="w-7 h-7 text-mauve-light" />
             </div>
-            <p className="text-sm font-bold text-foreground mb-1">
+            <p className="text-base font-bold text-foreground mb-1">
               {lang === "fr"
-                ? "Tu as utilisé ton cours gratuit"
+                ? "Vous avez utilisé votre cours gratuit"
                 : "You've used your free course"}
             </p>
-            <p className="text-xs text-muted-foreground mb-4">
+            <p className="text-sm text-muted-foreground mb-4">
               {lang === "fr"
                 ? "Passe à un abonnement pour continuer à créer des cours personnalisés."
                 : "Upgrade to a subscription to keep creating personalized courses."}
