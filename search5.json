@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://www.payselect.ae/providers/flutterwave",
+    "name": "Flutterwave - PaySelect",
+    "snippet": "Flutterwave is fully licensed and regulated across multiple countries, allowing businesses to accept and send payments securely throughout Africa and beyond.",
+    "host_name": "www.payselect.ae",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://flutterwave.com/mw/support/payment-methods/payment-channels",
+    "name": "Payment channels | Flutterwave Help Center",
+    "snippet": "Flutterwave is supported in Nigeria, Ghana, Kenya, South Africa, Uganda, Tanzania, the United Kingdom, the United States, and Europe. Missing: Congo DRC recurring",
+    "host_name": "flutterwave.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://flutterwave.com/rw/support/payment-methods/pay-with-mobile-money",
+    "name": "Payer avec Mobile Money | Flutterwave Help Center",
+    "snippet": "Flutterwave supports payments via the following network operators in each country: Burkina Faso: Orange Money, Mobicash. Cameroon (Central African Republic, ... Missing: DRC recurring",
+    "host_name": "flutterwave.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://flutterwave.com/mu/support/general/what-are-the-currencies-accepted-on-flutterwave",
+    "name": "What are the currencies accepted on Flutterwave",
+    "snippet": "Flutterwave allows you to accept card payments in a wide range of currencies. Below is a comprehensive list of the currencies currently supported for card ... Missing: countries Congo DRC recurring",
+    "host_name": "flutterwave.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://liners.com/compare/flutterwave-vs-monnify",
+    "name": "Flutterwave vs Monnify: Payments Comparison (2026) - Liners",
+    "snippet": "Flutterwave supports transfers and bulk payouts from its dashboard and via APIs, which helps marketplaces and payroll-like use cases.",
+    "host_name": "liners.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.flutterwave.com/v3.0/docs/introduction-6",
+    "name": "Introduction - Flutterwave Documentation",
+    "snippet": "Supported Countries. You can transfer money to the following countries with Flutterwave: Nigeria, United States, The United Kingdom, SEPA, Ghana, Kenya ... Missing: Congo DRC",
+    "host_name": "developer.flutterwave.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://payatlas.com/countries/congo-the-democratic-republic-of-the-cd",
+    "name": "Accepting Payments in Congo, The Democratic Republic of the - PayAtlas",
+    "snippet": "Recurring payments are rare but possible for subscription services targeting the urban elite. Many PSPs offer proprietary APIs or mobile SDKs, ...",
+    "host_name": "payatlas.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://helloduty.com/blogs/what-is-flutterwave-and-how-to-benefit-from-its-payment-solutions",
+    "name": "What Is Flutterwave in 2026? Payment APIs, Products and the CPaaS",
+    "snippet": "At its core, Flutterwave is an aggregation layer. It connects merchants to dozens of African and international payment rails (Verve, Visa, ...",
+    "host_name": "helloduty.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://flutterwave.com/eu/collect-payments",
+    "name": "Collect payments - Flutterwave",
+    "snippet": "The best way to collect money globally. Collect payments globally in 30+ currencies with Flutterwave's APIs and business tools. Missing: countries Congo DRC",
+    "host_name": "flutterwave.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://capmad.com/post/rlusd-usdt-usdc-flutterwave-ignites-the-stablecoin-war-for-african-payments",
+    "name": "RLUSD, USDT, USDC: Flutterwave ignites the stablecoin war  - Capmad",
+    "snippet": "Direct integration into Flutterwave's API and payment flows could allow RLUSD to move in the background of commercial payments, e‑commerce ...",
+    "host_name": "capmad.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]
