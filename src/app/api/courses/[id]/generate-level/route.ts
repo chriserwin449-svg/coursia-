@@ -94,7 +94,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const { level: nextLevel } = await request.json();
+    const { level: nextLevel, userId } = await request.json();
 
     if (nextLevel === undefined || nextLevel < 0 || nextLevel > 2) {
       return NextResponse.json({ error: "Invalid level" }, { status: 400 });
@@ -115,6 +115,20 @@ export async function POST(
     const currentMaxLevel = course.progress?.maxUnlockedLevel ?? 0;
     if (nextLevel <= currentMaxLevel) {
       return NextResponse.json({ error: "Level already unlocked" }, { status: 400 });
+    }
+
+    // ── SUBSCRIPTION CHECK: only active subscribers can generate additional levels ──
+    // (Free course users can study their existing beginner chapters but cannot unlock higher levels)
+    if (course.userId) {
+      const courseOwner = await db.user.findUnique({
+        where: { id: course.userId },
+        select: { subscriptionStatus: true },
+      });
+
+      if (courseOwner?.subscriptionStatus !== "active") {
+        console.log(`[generate-level] Blocked: user ${course.userId} has no active subscription (status: ${courseOwner?.subscriptionStatus || 'none'})`);
+        return NextResponse.json({ error: "SUBSCRIPTION_REQUIRED", requiresSubscription: true }, { status: 403 });
+      }
     }
 
     // Detect course language from content (French-specific markers)

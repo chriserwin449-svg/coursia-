@@ -363,30 +363,29 @@ export default function CourseViewer() {
     if (currentChapterIndex >= course.chapters.length - 1) return;
 
     isCompletingRef.current = true;
-    setIsCompleting(true);
     const wasJustCompleted = !currentChapter?.progress?.completed;
     const nextIdx = currentChapterIndex + 1;
 
-    // Advance to next chapter immediately so the UI updates on the first click
+    // Navigate IMMEDIATELY — no delay, animation fires on this render
     setCurrentChapterIndex(nextIdx);
-
-    // Complete the previous chapter in the background (don't block navigation)
-    if (wasJustCompleted) {
-      const success = await completeCurrentChapter();
-      if (success) {
-        const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
-        setShowConfetti(true);
-        setShowCelebration(true);
-        setCelebrationMessage(lang === "fr" ? `Chapitre ${currentChapterIndex + 1} terminé ${userName} ! 🎉` : `Chapter ${currentChapterIndex + 1} done ${userName}! 🎉`);
-        if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
-        celebrationTimerRef.current = setTimeout(() => { setShowCelebration(false); setShowConfetti(false); }, 2000);
-      }
-    }
-
     endStudySession();
     startStudySession(course.id, course.chapters[nextIdx]?.id);
+
+    // Complete the previous chapter entirely in the background (don't block UI)
+    if (wasJustCompleted) {
+      completeCurrentChapter().then((success) => {
+        if (success) {
+          const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
+          setShowConfetti(true);
+          setShowCelebration(true);
+          setCelebrationMessage(lang === "fr" ? `Chapitre ${currentChapterIndex + 1} terminé ${userName} ! 🎉` : `Chapter ${currentChapterIndex + 1} done ${userName}! 🎉`);
+          if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+          celebrationTimerRef.current = setTimeout(() => { setShowCelebration(false); setShowConfetti(false); }, 2000);
+        }
+      }).catch(() => { /* non-critical */ });
+    }
+
     isCompletingRef.current = false;
-    setIsCompleting(false);
   }, [course, currentChapter?.progress?.completed, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, startStudySession, setCurrentChapterIndex]);
 
   // ── Complete last chapter of a level → show level quiz → celebration + level-up prompt ──
@@ -543,8 +542,20 @@ export default function CourseViewer() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ level: nextLevel }),
       });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.error === "SUBSCRIPTION_REQUIRED" || data.requiresSubscription) {
+          // Redirect to offers page for subscription
+          setShowReviewScreen(false);
+          setView("offers");
+          return;
+        }
+        throw new Error(data.error || "Failed to generate level");
+      }
+
       const data = await res.json();
-      if (res.ok && data.chapters?.length > 0) {
+      if (data.chapters?.length > 0) {
         // Refetch course to get updated chapters
         const courseRes = await fetch(`/api/courses/${selectedCourseId}`);
         if (courseRes.ok) {
@@ -560,7 +571,7 @@ export default function CourseViewer() {
     } finally {
       setIsGeneratingLevel(false);
     }
-  }, [course, selectedCourseId, maxUnlockedLevel, setCurrentChapterIndex]);
+  }, [course, selectedCourseId, maxUnlockedLevel, setCurrentChapterIndex, setView]);
 
   // ── Stop at current level ──
   const handleStopHere = useCallback(async () => {
@@ -974,7 +985,7 @@ export default function CourseViewer() {
                 </div>
               </div>
               <button onClick={goToPrev} disabled={currentChapterIndex === 0 || isCompleting} className="p-2 rounded-xl hover:bg-white/10 transition-all disabled:opacity-30 cursor-pointer"><ChevronLeft className="w-5 h-5" /></button>
-              <button onClick={goToNext} disabled={currentChapterIndex === course.chapters.length - 1 || isCompleting} className="p-2 rounded-xl hover:bg-white/10 transition-all disabled:opacity-30 cursor-pointer"><ChevronRight className="w-5 h-5" /></button>
+              <button onClick={goToNext} disabled={currentChapterIndex === course.chapters.length - 1} className="p-2 rounded-xl hover:bg-white/10 transition-all disabled:opacity-30 cursor-pointer"><ChevronRight className="w-5 h-5" /></button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -988,7 +999,7 @@ export default function CourseViewer() {
                   <p className="text-lg text-foreground/80 leading-relaxed">{currentChapter.summary}</p>
                 </div>
               )}
-              <div key={`fs-chapter-${currentChapter.id}-${currentChapterIndex}`} className="prose prose-invert max-w-none text-[18px] leading-8 animate-fade-in-slide-right prose-p:text-[1.175rem] prose-p:leading-[2] prose-p:mb-6 prose-h2:text-[1.6rem] prose-h2:mt-12 prose-h2:mb-6 prose-h3:text-[1.4rem] prose-h3:mt-10 prose-h3:mb-5 prose-li:text-[1.175rem] prose-li:my-2 prose-li:leading-[2] prose-ul:my-6 prose-ol:my-6 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
+              <div key={`fs-chapter-${currentChapter.id}-${currentChapterIndex}`} className="prose prose-invert max-w-none text-[20px] leading-9 animate-fade-in-slide-right prose-p:text-[1.3rem] prose-p:leading-[2.1] prose-p:mb-6 prose-h2:text-[1.8rem] prose-h2:mt-12 prose-h2:mb-6 prose-h3:text-[1.6rem] prose-h3:mt-10 prose-h3:mb-5 prose-li:text-[1.3rem] prose-li:my-2 prose-li:leading-[2.1] prose-ul:my-6 prose-ol:my-6 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-12">
                 <ReactMarkdown>{currentChapter.content || ""}</ReactMarkdown>
               </div>
             </div>
@@ -1252,13 +1263,13 @@ export default function CourseViewer() {
                 </div>
               )}
 
-              <div className="prose prose-invert max-w-none text-[15px] sm:text-[18px] leading-8
+              <div className="prose prose-invert max-w-none text-[16px] sm:text-[20px] leading-8 sm:leading-9
                 prose-headings:font-extrabold
                 prose-h1:text-3xl sm:text-4xl prose-h1:mt-10 sm:mt-14 prose-h1:mb-4 sm:mb-6
-                prose-h2:text-[1.25rem] sm:text-[1.6rem] prose-h2:mt-8 sm:mt-12 prose-h2:mb-4 sm:mb-6
-                prose-h3:text-[1.15rem] sm:text-[1.4rem] prose-h3:mt-6 sm:mt-10 prose-h3:mb-3 sm:mb-5
-                prose-p:text-[0.98rem] sm:text-[1.175rem] prose-p:leading-[1.8] sm:leading-[2] prose-p:text-foreground/90 prose-p:mb-4 sm:mb-5
-                prose-li:text-[0.98rem] sm:text-[1.175rem] prose-li:text-foreground/90 prose-li:leading-[1.8] sm:leading-[2] prose-li:my-1 sm:my-2
+                prose-h2:text-[1.4rem] sm:text-[1.8rem] prose-h2:mt-8 sm:mt-12 prose-h2:mb-4 sm:mb-6
+                prose-h3:text-[1.25rem] sm:text-[1.6rem] prose-h3:mt-6 sm:mt-10 prose-h3:mb-3 sm:mb-5
+                prose-p:text-[1.05rem] sm:text-[1.3rem] prose-p:leading-[1.9] sm:leading-[2.1] prose-p:text-foreground/90 prose-p:mb-4 sm:mb-5
+                prose-li:text-[1.05rem] sm:text-[1.3rem] prose-li:text-foreground/90 prose-li:leading-[1.9] sm:leading-[2.1] prose-li:my-1 sm:my-2
                 prose-ul:my-4 sm:my-6 prose-ol:my-4 sm:my-6
                 prose-strong:text-gold
                 prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-2 prose-code:py-1 prose-code:rounded-lg prose-code:text-[0.85rem] sm:text-[0.95rem]
@@ -1277,12 +1288,9 @@ export default function CourseViewer() {
                   <span className="hidden sm:inline">{tx.viewer.previous}</span>
                 </button>
                 {currentChapterIndex < course.chapters.length - 1 ? (
-                  <button onClick={goToNext} disabled={isCompleting} className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold hover:from-mauve-light hover:to-mauve transition-all disabled:opacity-50 cursor-pointer">
-                    {isCompleting ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>{tx.viewer.next}<ChevronRight className="w-4 h-4" /></>
-                    )}
+                  <button onClick={goToNext} className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white text-sm font-bold hover:from-mauve-light hover:to-mauve transition-all cursor-pointer">
+                    {tx.viewer.next}
+                    <ChevronRight className="w-4 h-4" />
                   </button>
                 ) : (
                   <button onClick={handleCompleteLevel} disabled={isCompleting} className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-gold to-gold-dark text-night text-sm font-bold hover:from-gold-light hover:to-gold transition-all cursor-pointer">

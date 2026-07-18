@@ -229,3 +229,30 @@ Stage Summary:
 - New users still see "Commencer gratuitement"
 - Smart notification messages stored in Zustand, set by AppShell periodic check
 - Files modified: src/lib/store.ts, src/components/coursia/OffersPage.tsx, src/components/coursia/AppShell.tsx
+---
+Task ID: 2
+Agent: Main
+Task: Fix free course system, offers page CTAs, chapter animation, level gating, font size
+
+Work Log:
+- Read all relevant files: CreateCourse.tsx, OffersPage.tsx, CourseViewer.tsx, generate/route.ts, paywall-status/route.ts, generate-level/route.ts, [id]/route.ts (delete)
+- Added one-time auto-migration in paywall-status API: if user has courses but freeCourseUsed=false, auto-correct to true and persist to DB
+- Added `showSubscribeNow` state to OffersPage for free-course-used, non-subscribed users
+- Updated both Monthly and Annual CTA buttons: new flow is showStartFree → showSubscribeNow → showManageSubscription → payment buttons
+- showSubscribeNow shows "S'abonner maintenant" button that triggers PayPal checkout
+- Fixed goToNext animation delay: removed setIsCompleting(true/false) blocking calls, made navigation instant with background chapter completion via .then()
+- Removed isCompleting from Suivant button disabled prop
+- Added subscription check to generate-level API: only active subscribers can generate additional levels
+- Added SUBSCRIPTION_REQUIRED error handling in CourseViewer's handleContinueToNextLevel → redirects to offers page
+- Increased course content font size: base text 18px→20px, paragraphs 1.175rem→1.3rem, h2 1.6rem→1.8rem, h3 1.4rem→1.6rem, line-height 2→2.1
+- Updated both fullscreen and non-fullscreen content areas
+- Added Zustand store fallback for freeCourseUsed sync in both CreateCourse and OffersPage
+- Verified delete API already has comment "NEVER modify freeCourseUsed on course deletion"
+
+Stage Summary:
+- All 8 fixes implemented and browser-verified
+- Auto-migration fixed existing users with stale freeCourseUsed=false (test@test.com confirmed)
+- Offers page now shows "S'abonner maintenant" for free-course-used users instead of "Commencer gratuitement"
+- Chapter transitions are instant (no spinner delay)
+- Free users blocked from generating higher levels (SUBSCRIPTION_REQUIRED → redirect to offers)
+- Course content text is larger and more readable

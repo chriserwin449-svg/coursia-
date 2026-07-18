@@ -160,7 +160,10 @@ export default function OffersPage() {
 
         // Always capture courses generated count
         setTrialCoursesGenerated(data.trialCoursesGenerated || 0);
-        setLocalFreeCourseUsed(!!data.freeCourseUsed);
+        // Sync freeCourseUsed: use API value OR Zustand store (set immediately after generation)
+        const apiFreeUsed = !!data.freeCourseUsed;
+        const storeFreeUsed = useAppStore.getState().freeCourseUsed;
+        setLocalFreeCourseUsed(apiFreeUsed || storeFreeUsed);
 
         if (data.firstName) setFirstName(data.firstName);
 
@@ -329,11 +332,14 @@ export default function OffersPage() {
     return null;
   }, [isSubscribed, showRenewalReminder, firstName, lang, tx.offers]);
 
-  // Show "Start for free" if user hasn't used their free course yet
-  const showStartFree = statusLoaded && !isSubscribed && !localFreeCourseUsed;
+  // Show "Start for free" ONLY if user hasn't used their free course yet
+  const showStartFree = statusLoaded && !isSubscribed && !localFreeCourseUsed && !inGracePeriod && !graceExpired;
 
   // Show "Manage subscription" for active subscribers not in renewal/grace
   const showManageSubscription = statusLoaded && isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired;
+
+  // Free course used, no subscription → show "Subscribe now" button (goes to PayPal)
+  const showSubscribeNow = statusLoaded && !isSubscribed && localFreeCourseUsed && !inGracePeriod && !graceExpired;
 
   // Button disabled logic
   const isButtonDisabled = (plan: string) =>
@@ -530,6 +536,19 @@ export default function OffersPage() {
                 <Sparkles className="w-5 h-5" />
                 {tx.offers.startFreeButton}
               </button>
+            ) : showSubscribeNow ? (
+              <button
+                onClick={() => handleChoosePlan("monthly")}
+                disabled={checkoutLoading !== null || paypalConfigured === false}
+                className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-wait shadow-lg shadow-mauve/20"
+              >
+                {checkoutLoading === "monthly" ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : null}
+                {checkoutLoading === "monthly"
+                  ? (lang === "fr" ? "Redirection vers PayPal..." : "Redirecting to PayPal...")
+                  : (lang === "fr" ? "S'abonner maintenant" : "Subscribe now")}
+              </button>
             ) : isButtonDisabled("monthly") ? (
               <button
                 disabled
@@ -621,6 +640,19 @@ export default function OffersPage() {
               >
                 <Sparkles className="w-5 h-5" />
                 {tx.offers.startFreeButton}
+              </button>
+            ) : showSubscribeNow ? (
+              <button
+                onClick={() => handleChoosePlan("annual")}
+                disabled={checkoutLoading !== null || paypalConfigured === false}
+                className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:from-gold-light hover:to-gold transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden cursor-pointer disabled:opacity-70 disabled:cursor-wait shadow-lg shadow-gold/20"
+              >
+                {checkoutLoading === "annual" ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : null}
+                {checkoutLoading === "annual"
+                  ? (lang === "fr" ? "Redirection vers PayPal..." : "Redirecting to PayPal...")
+                  : (lang === "fr" ? "S'abonner maintenant" : "Subscribe now")}
               </button>
             ) : isButtonDisabled("annual") ? (
               <button

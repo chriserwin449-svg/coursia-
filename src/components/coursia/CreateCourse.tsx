@@ -266,8 +266,12 @@ export default function CreateCourse() {
         const canGenerate = pw.canGenerate === true || pw.canGenerate === undefined;
         setCanCreateCourse(canGenerate);
         // Sync freeCourseUsed from database (single source of truth)
-        setLocalFreeCourseUsed(!!pw.freeCourseUsed);
-        useAppStore.getState().setFreeCourseUsed(!!pw.freeCourseUsed);
+        // Also check Zustand store as fallback (set immediately after generation)
+        const apiFreeUsed = !!pw.freeCourseUsed;
+        const storeFreeUsed = useAppStore.getState().freeCourseUsed;
+        const effectiveFreeUsed = apiFreeUsed || storeFreeUsed;
+        setLocalFreeCourseUsed(effectiveFreeUsed);
+        useAppStore.getState().setFreeCourseUsed(effectiveFreeUsed);
         // Sync 48h expiry warning
         useAppStore.getState().setExpiryWarning48h(!!pw.expiryWarning48h);
         // Sync daily limit info

@@ -284,7 +284,21 @@ export async function GET(request: NextRequest) {
     // ── FREE USER ──
     if (user) {
       // Single source of truth: freeCourseUsed boolean on the User model
-      const freeUsed = !!user.freeCourseUsed;
+      let freeUsed = !!user.freeCourseUsed;
+
+      // ── ONE-TIME MIGRATION: fix stale freeCourseUsed for existing users ──
+      // If user has courses but freeCourseUsed is still false (e.g. created before
+      // the atomic transaction was implemented), auto-correct the flag now.
+      if (!freeUsed && userId) {
+        try {
+          const courseCount = await db.course.count({ where: { userId } });
+          if (courseCount > 0) {
+            await db.user.update({ where: { id: userId }, data: { freeCourseUsed: true } });
+            freeUsed = true;
+            console.log(`[paywall-status] Auto-migrated freeCourseUsed=true for user ${userId} (${courseCount} existing courses)`);
+          }
+        } catch { /* non-critical */ }
+      }
 
       if (freeUsed) {
         // Free course already used → blocked from creating, but can study
