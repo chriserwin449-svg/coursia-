@@ -10,7 +10,6 @@ import {
   ShieldAlert,
   Gift,
   Lock,
-  Sparkles,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -43,7 +42,6 @@ export default function OffersPage() {
   const [firstName, setFirstName] = useState<string>("");
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [expiryWarning48h, setExpiryWarning48h] = useState(false);
-  const [localFreeCourseUsed, setLocalFreeCourseUsed] = useState(() => useAppStore.getState().freeCourseUsed);
 
   // Direct checkout: tracks which plan button is currently loading
   const [checkoutLoading, setCheckoutLoading] = useState<"monthly" | "annual" | null>(null);
@@ -160,10 +158,6 @@ export default function OffersPage() {
 
         // Always capture courses generated count
         setTrialCoursesGenerated(data.trialCoursesGenerated || 0);
-        // Sync freeCourseUsed: use API value OR Zustand store (set immediately after generation)
-        const apiFreeUsed = !!data.freeCourseUsed;
-        const storeFreeUsed = useAppStore.getState().freeCourseUsed;
-        setLocalFreeCourseUsed(apiFreeUsed || storeFreeUsed);
 
         if (data.firstName) setFirstName(data.firstName);
 
@@ -332,14 +326,8 @@ export default function OffersPage() {
     return null;
   }, [isSubscribed, showRenewalReminder, firstName, lang, tx.offers]);
 
-  // Show "Start for free" ONLY if user hasn't used their free course yet
-  const showStartFree = statusLoaded && !isSubscribed && !localFreeCourseUsed && !inGracePeriod && !graceExpired;
-
   // Show "Manage subscription" for active subscribers not in renewal/grace
   const showManageSubscription = statusLoaded && isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired;
-
-  // Free course used, no subscription → show "Subscribe now" button (goes to PayPal)
-  const showSubscribeNow = statusLoaded && !isSubscribed && localFreeCourseUsed && !inGracePeriod && !graceExpired;
 
   // Button disabled logic
   const isButtonDisabled = (plan: string) =>
@@ -366,17 +354,10 @@ export default function OffersPage() {
         </div>
 
         {/* ===== NOTIFICATION BANNER ===== */}
-        {statusLoaded && (
+        {statusLoaded && isSubscribed && !showRenewalReminder && (
           <div className="mb-8 text-center">
             <p className="text-lg font-bold text-foreground whitespace-pre-line">
-              {localFreeCourseUsed && !isSubscribed
-                ? (lang === "fr" ? "🚀 Tu as déjà utilisé ton cours gratuit.\nPasse à l'abonnement Premium pour continuer à générer des cours illimités." : "🚀 You've already used your free course.\nUpgrade to Premium for unlimited course generation.")
-                : isSubscribed && !showRenewalReminder
-                  ? (lang === "fr" ? "✨ Abonnement Premium actif.\nProfite des générations illimitées." : "✨ Premium active.\nEnjoy unlimited generations.")
-                  : !localFreeCourseUsed && !isSubscribed
-                    ? (lang === "fr" ? "🎁 Ton premier cours est offert !" : "🎁 Your first course is free!")
-                    : ""
-              }
+              {lang === "fr" ? "✨ Abonnement Premium actif.\nProfite des générations illimitées." : "✨ Premium active.\nEnjoy unlimited generations."}
             </p>
           </div>
         )}
@@ -521,34 +502,6 @@ export default function OffersPage() {
                 <Crown className="w-5 h-5" />
                 {lang === "fr" ? "Gérer mon abonnement" : "Manage subscription"}
               </button>
-            ) : showStartFree ? (
-              <button
-                onClick={() => {
-                  trackEvent({ name: "start_free_clicked" });
-                  if (!isAuthenticated) {
-                    setView("auth");
-                  } else {
-                    setView("create");
-                  }
-                }}
-                className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(124,92,191,0.2)]"
-              >
-                <Sparkles className="w-5 h-5" />
-                {tx.offers.startFreeButton}
-              </button>
-            ) : showSubscribeNow ? (
-              <button
-                onClick={() => handleChoosePlan("monthly")}
-                disabled={checkoutLoading !== null || paypalConfigured === false}
-                className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 disabled:cursor-wait shadow-lg shadow-mauve/20"
-              >
-                {checkoutLoading === "monthly" ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : null}
-                {checkoutLoading === "monthly"
-                  ? (lang === "fr" ? "Redirection vers PayPal..." : "Redirecting to PayPal...")
-                  : (lang === "fr" ? "S'abonner maintenant" : "Subscribe now")}
-              </button>
             ) : isButtonDisabled("monthly") ? (
               <button
                 disabled
@@ -574,7 +527,7 @@ export default function OffersPage() {
                 ) : null}
                 {checkoutLoading === "monthly"
                   ? (lang === "fr" ? "Redirection vers PayPal..." : "Redirecting to PayPal...")
-                  : (lang === "fr" ? "Choisir Mensuel" : "Choose Monthly")}
+                  : (lang === "fr" ? "Choisir ce plan" : "Choose this plan")}
               </button>
             )}
           </div>
@@ -626,34 +579,6 @@ export default function OffersPage() {
                 <Crown className="w-5 h-5" />
                 {lang === "fr" ? "Gérer mon abonnement" : "Manage subscription"}
               </button>
-            ) : showStartFree ? (
-              <button
-                onClick={() => {
-                  trackEvent({ name: "start_free_clicked" });
-                  if (!isAuthenticated) {
-                    setView("auth");
-                  } else {
-                    setView("create");
-                  }
-                }}
-                className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden cursor-pointer shadow-[0_0_20px_rgba(124,92,191,0.2)]"
-              >
-                <Sparkles className="w-5 h-5" />
-                {tx.offers.startFreeButton}
-              </button>
-            ) : showSubscribeNow ? (
-              <button
-                onClick={() => handleChoosePlan("annual")}
-                disabled={checkoutLoading !== null || paypalConfigured === false}
-                className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold hover:from-gold-light hover:to-gold transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden cursor-pointer disabled:opacity-70 disabled:cursor-wait shadow-lg shadow-gold/20"
-              >
-                {checkoutLoading === "annual" ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : null}
-                {checkoutLoading === "annual"
-                  ? (lang === "fr" ? "Redirection vers PayPal..." : "Redirecting to PayPal...")
-                  : (lang === "fr" ? "S'abonner maintenant" : "Subscribe now")}
-              </button>
             ) : isButtonDisabled("annual") ? (
               <button
                 disabled
@@ -679,7 +604,7 @@ export default function OffersPage() {
                 ) : null}
                 {checkoutLoading === "annual"
                   ? (lang === "fr" ? "Redirection vers PayPal..." : "Redirecting to PayPal...")
-                  : (lang === "fr" ? "Choisir Annuel" : "Choose Annual")}
+                  : (lang === "fr" ? "Choisir ce plan" : "Choose this plan")}
               </button>
             )}
           </div>

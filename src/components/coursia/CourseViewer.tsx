@@ -51,6 +51,7 @@ export default function CourseViewer() {
   const [inGracePeriod, setInGracePeriod] = useState(false);
   const [graceDaysRemaining, setGraceDaysRemaining] = useState(0);
   const [graceExpired, setGraceExpired] = useState(false);
+  const [isFreeUser, setIsFreeUser] = useState(false);
 
   // Level system states
   const [isGeneratingLevel, setIsGeneratingLevel] = useState(false);
@@ -250,6 +251,7 @@ export default function CourseViewer() {
           setInGracePeriod(!!pw.inGracePeriod);
           setGraceDaysRemaining(pw.graceDaysRemaining || 0);
           setGraceExpired(pw.showPaywall && pw.paywallReason === "grace_expired");
+          setIsFreeUser(!pw.hasSubscription);
         }
 
         if (courseRes.ok && data.chapters?.length > 0) {
@@ -365,24 +367,26 @@ export default function CourseViewer() {
     isCompletingRef.current = true;
     const wasJustCompleted = !currentChapter?.progress?.completed;
     const nextIdx = currentChapterIndex + 1;
+    const chapterNum = currentChapterIndex + 1;
 
-    // Navigate IMMEDIATELY — no delay, animation fires on this render
+    // Show chapter completion celebration IMMEDIATELY (before any async work)
+    if (wasJustCompleted) {
+      const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
+      setShowConfetti(true);
+      setShowCelebration(true);
+      setCelebrationMessage(lang === "fr" ? `Chapitre ${chapterNum} terminé ${userName} ! 🎉` : `Chapter ${chapterNum} done ${userName}! 🎉`);
+      if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
+      celebrationTimerRef.current = setTimeout(() => { setShowCelebration(false); setShowConfetti(false); }, 2000);
+    }
+
+    // Navigate IMMEDIATELY
     setCurrentChapterIndex(nextIdx);
     endStudySession();
     startStudySession(course.id, course.chapters[nextIdx]?.id);
 
-    // Complete the previous chapter entirely in the background (don't block UI)
+    // Complete the previous chapter entirely in the background (don't block UI, no celebration here)
     if (wasJustCompleted) {
-      completeCurrentChapter().then((success) => {
-        if (success) {
-          const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
-          setShowConfetti(true);
-          setShowCelebration(true);
-          setCelebrationMessage(lang === "fr" ? `Chapitre ${currentChapterIndex + 1} terminé ${userName} ! 🎉` : `Chapter ${currentChapterIndex + 1} done ${userName}! 🎉`);
-          if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
-          celebrationTimerRef.current = setTimeout(() => { setShowCelebration(false); setShowConfetti(false); }, 2000);
-        }
-      }).catch(() => { /* non-critical */ });
+      completeCurrentChapter().catch(() => { /* non-critical */ });
     }
 
     isCompletingRef.current = false;
@@ -391,6 +395,7 @@ export default function CourseViewer() {
   // ── Complete last chapter of a level → show level quiz → celebration + level-up prompt ──
   const handleCompleteLevel = useCallback(async () => {
     if (!course || isCompletingRef.current) return;
+    if (isStopped) return; // Already stopped — cannot re-take quiz
     isCompletingRef.current = true;
     setIsCompleting(true);
 
@@ -422,13 +427,14 @@ export default function CourseViewer() {
     const courseRes = await fetch(`/api/courses/${selectedCourseId}`);
     if (courseRes.ok) setCourse(await courseRes.json());
 
-    // Show chapter completion celebration first
+    // Show LEVEL completion celebration with level name
     const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
+    const levelName = getLevelName(completedLvl);
     setShowConfetti(true);
     setShowCelebration(true);
     setCelebrationMessage(lang === "fr"
-      ? `Chapitre terminé ${userName} ! 🎉`
-      : `Chapter done ${userName}! 🎉`);
+      ? `Niveau ${levelName} terminé ${userName} ! 🎉`
+      : `${levelName} level done ${userName}! 🎉`);
 
     if (celebrationTimerRef.current) clearTimeout(celebrationTimerRef.current);
     celebrationTimerRef.current = setTimeout(() => {
@@ -440,11 +446,11 @@ export default function CourseViewer() {
       setLevelQuizLevel(completedLvl);
       setLevelQuizSecondAttempt(false);
       setShowLevelQuiz(true);
-    }, 2000);
+    }, 2500);
 
     isCompletingRef.current = false;
     setIsCompleting(false);
-  }, [course, currentChapter, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, selectedCourseId]);
+  }, [course, currentChapter, currentChapterIndex, completeCurrentChapter, user?.firstName, lang, endStudySession, selectedCourseId, isStopped, getLevelName]);
 
   const goToPrev = useCallback(() => {
     if (currentChapterIndex === 0 || !course) return;
@@ -912,8 +918,9 @@ export default function CourseViewer() {
             </div>
           </div>
           <button
-            onClick={() => { setShowLevelQuiz(false); if (completedLevel >= 2) setShowAllMastered(true); else setShowReviewScreen(true); }}
+            onClick={() => { setShowLevelQuiz(false); }}
             className="p-2 rounded-xl hover:bg-white/10 transition-all cursor-pointer"
+            title={lang === "fr" ? "Retourner à l'étude" : "Back to study"}
           >
             <X className="w-5 h-5" />
           </button>
@@ -923,8 +930,9 @@ export default function CourseViewer() {
             courseId={selectedCourseId}
             level={levelQuizLevel}
             isSecondAttempt={levelQuizSecondAttempt}
+            isFreeUser={isFreeUser}
             onComplete={(passed, pointsEarned, canRetry) => handleLevelQuizComplete(passed, pointsEarned, canRetry)}
-            onBack={() => { setShowLevelQuiz(false); if (completedLevel >= 2) setShowAllMastered(true); else setShowReviewScreen(true); }}
+            onBack={() => { setShowLevelQuiz(false); }}
           />
         </div>
       </div>
@@ -999,7 +1007,7 @@ export default function CourseViewer() {
                   <p className="text-lg sm:text-xl text-foreground/80 leading-relaxed">{currentChapter.summary}</p>
                 </div>
               )}
-              <div key={`fs-chapter-${currentChapter.id}-${currentChapterIndex}`} className="prose prose-invert max-w-none text-[22px] leading-10 animate-fade-in-slide-right prose-p:text-[1.45rem] prose-p:leading-[2.2] prose-p:mb-8 prose-h2:text-[2rem] prose-h2:mt-14 prose-h2:mb-8 prose-h3:text-[1.8rem] prose-h3:mt-12 prose-h3:mb-6 prose-li:text-[1.45rem] prose-li:my-2 prose-li:leading-[2.2] prose-ul:my-8 prose-ol:my-8 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-14">
+              <div key={`fs-chapter-${currentChapter.id}-${currentChapterIndex}`} className="prose prose-invert max-w-none text-[24px] leading-[2.8] animate-fade-in-slide-right prose-p:text-[1.6rem] prose-p:leading-[2.5] prose-p:mb-10 prose-h2:text-[2.3rem] prose-h2:mt-14 prose-h2:mb-8 prose-h3:text-[2rem] prose-h3:mt-12 prose-h3:mb-6 prose-li:text-[1.6rem] prose-li:my-3 prose-li:leading-[2.5] prose-ul:my-8 prose-ol:my-8 prose-strong:text-gold prose-hr:border-gold/20 prose-hr:my-14">
                 <ReactMarkdown>{currentChapter.content || ""}</ReactMarkdown>
               </div>
             </div>
@@ -1263,17 +1271,17 @@ export default function CourseViewer() {
                 </div>
               )}
 
-              <div className="prose prose-invert max-w-none text-[18px] sm:text-[22px] leading-9 sm:leading-10
+              <div className="prose prose-invert max-w-none text-[20px] sm:text-[24px] leading-10 sm:leading-[2.8]
                 prose-headings:font-extrabold
-                prose-h1:text-3xl sm:text-4xl prose-h1:mt-10 sm:mt-14 prose-h1:mb-4 sm:mb-6
-                prose-h2:text-[1.5rem] sm:text-[2rem] prose-h2:mt-10 sm:mt-14 prose-h2:mb-6 sm:mb-8
-                prose-h3:text-[1.35rem] sm:text-[1.8rem] prose-h3:mt-8 sm:mt-12 prose-h3:mb-5 sm:mb-6
-                prose-p:text-[1.15rem] sm:text-[1.45rem] prose-p:leading-[2] sm:leading-[2.2] prose-p:text-foreground/90 prose-p:mb-5 sm:mb-8
-                prose-li:text-[1.15rem] sm:text-[1.45rem] prose-li:text-foreground/90 prose-li:leading-[2] sm:leading-[2.2] prose-li:my-2 sm:my-2
+                prose-h1:text-3xl sm:text-5xl prose-h1:mt-10 sm:mt-14 prose-h1:mb-4 sm:mb-6
+                prose-h2:text-[1.7rem] sm:text-[2.3rem] prose-h2:mt-10 sm:mt-14 prose-h2:mb-6 sm:mb-8
+                prose-h3:text-[1.5rem] sm:text-[2rem] prose-h3:mt-8 sm:mt-12 prose-h3:mb-5 sm:mb-6
+                prose-p:text-[1.3rem] sm:text-[1.6rem] prose-p:leading-[2.2] sm:leading-[2.5] prose-p:text-foreground/90 prose-p:mb-6 sm:mb-10
+                prose-li:text-[1.3rem] sm:text-[1.6rem] prose-li:text-foreground/90 prose-li:leading-[2.2] sm:leading-[2.5] prose-li:my-2 sm:my-3
                 prose-ul:my-6 sm:my-8 prose-ol:my-6 sm:my-8
                 prose-strong:text-gold
-                prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-2 prose-code:py-1 prose-code:rounded-lg prose-code:text-[0.85rem] sm:text-[0.95rem]
-                prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-4 sm:py-6 prose-pre:text-[0.85rem] sm:text-[0.95rem]
+                prose-code:text-gold-light prose-code:bg-mauve/10 prose-code:px-2 prose-code:py-1 prose-code:rounded-lg prose-code:text-[0.9rem] sm:text-1rem
+                prose-pre:bg-night prose-pre:border prose-pre:border-border prose-pre:rounded-2xl prose-pre:py-4 sm:py-6 prose-pre:text-[0.9rem] sm:text-1rem
                 prose-a:text-mauve-light
                 prose-blockquote:text-amber-300 prose-blockquote:border-gold/30 prose-blockquote:my-6 sm:my-8
                 prose-hr:border-gold/20 prose-hr:my-8 sm:my-12
@@ -1292,7 +1300,7 @@ export default function CourseViewer() {
                     {tx.viewer.next}
                     <ChevronRight className="w-4 h-4" />
                   </button>
-                ) : (
+                ) : !isStopped ? (
                   <button onClick={handleCompleteLevel} disabled={isCompleting} className="flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-gold to-gold-dark text-night text-sm font-bold hover:from-gold-light hover:to-gold transition-all cursor-pointer">
                     {isCompleting ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -1300,7 +1308,7 @@ export default function CourseViewer() {
                       <><Trophy className="w-4 h-4" />{currentChapter.progress?.completed ? (lang === "fr" ? "Niveau suivant" : "Next level") : (lang === "fr" ? "Terminer le niveau" : "Complete level")}</>
                     )}
                   </button>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
@@ -1329,12 +1337,14 @@ function LevelQuizPanel({
   courseId,
   level,
   isSecondAttempt,
+  isFreeUser: isFreeUserProp,
   onComplete,
   onBack,
 }: {
   courseId: string;
   level: number;
   isSecondAttempt: boolean;
+  isFreeUser?: boolean;
   onComplete: (passed: boolean, pointsEarned: number, canRetry: boolean) => void;
   onBack: () => void;
 }) {
@@ -1364,12 +1374,31 @@ function LevelQuizPanel({
         }
       } catch { /* ignore */ }
       setLoading(false);
+      // Restore saved answers (e.g., after returning from payment page)
+      const savedKey = `coursia-quiz-answers-${courseId}-level-${level}`;
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem(savedKey);
+        if (saved) {
+          try { setAnswers(JSON.parse(saved)); } catch { /* ignore */ }
+        }
+      }
     };
     fetchQuiz();
   }, [courseId, level, isSecondAttempt]); // regenerate on second attempt
 
   const handleSubmit = async () => {
     if (submitting) return;
+
+    // Free user: save answers and redirect to offers
+    if (isFreeUserProp) {
+      const key = `coursia-quiz-answers-${courseId}-level-${level}`;
+      if (typeof window !== "undefined") {
+        localStorage.setItem(key, JSON.stringify(answers));
+      }
+      useAppStore.getState().setView("offers");
+      return;
+    }
+
     setSubmitting(true);
 
     // Calculate score locally

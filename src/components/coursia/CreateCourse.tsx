@@ -12,7 +12,6 @@ import {
   ChevronRight,
   Globe,
   Crown,
-  Gift,
   GraduationCap,
   Clock,
 } from "lucide-react";
@@ -428,9 +427,18 @@ export default function CreateCourse() {
       return;
     }
 
-    // NOTE: No client-side paywall pre-check here.
-    // The server (generate API) is the single source of truth for quota.
-    // If the server returns FREE_LIMIT, the error handler below will redirect to offers.
+    // ═══ FREE COURSE PRE-CHECK: block second course generation immediately ═══
+    if (localFreeCourseUsed && !hasSubscription && !inGracePeriod) {
+      console.log("[generate] Blocked: free course already used, redirecting to offers");
+      useAppStore.getState().setPendingGeneration({
+        topic: title.trim(),
+        courseLang,
+        level: effectiveLevel,
+        isRandom: !!isRandomTopic,
+      });
+      setView("offers");
+      return;
+    }
 
     const generatingTitle = title.trim();
     const payload = {
@@ -871,23 +879,6 @@ export default function CreateCourse() {
               <Crown className="w-4 h-4" />
               {lang === "fr" ? "Voir les offres" : "See plans"}
             </button>
-          </div>
-        )}
-
-        {/*  First course free badge (only when freeCourseUsed is false)  */}
-        {paywallLoaded && !hasSubscription && !inGracePeriod && !localFreeCourseUsed && (
-          <div className="mb-6 p-4 rounded-2xl glass text-center animate-fade-in">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <Gift className="w-5 h-5 text-gold" />
-              <span className="text-sm font-bold text-gold">
-                {lang === "fr" ? "Ton premier cours est gratuit !" : "Your first course is free!"}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {lang === "fr"
-                ? "Découvre la puissance de l'IA pour créer ton premier cours. Ensuite, choisis un abonnement."
-                : "Discover the power of AI to create your first course. Then choose a subscription."}
-            </p>
           </div>
         )}
 

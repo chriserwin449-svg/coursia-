@@ -256,3 +256,28 @@ Stage Summary:
 - Chapter transitions are instant (no spinner delay)
 - Free users blocked from generating higher levels (SUBSCRIPTION_REQUIRED → redirect to offers)
 - Course content text is larger and more readable
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix multiple Coursia bugs - quiz X button, level stop, celebration timing, font sizes, free course flow, offers page
+
+Work Log:
+- Read and analyzed CourseViewer.tsx, OffersPage.tsx, CreateCourse.tsx, generate-level API, stop-level API
+- Fixed Quiz X button: now just closes quiz (returns to study mode) instead of auto-passing
+- Fixed "Non" next level: handleCompleteLevel checks isStopped, "Terminer le niveau" button hidden when isStopped
+- Fixed celebration animation: moved from async .then() to synchronous execution in goToNext
+- Fixed level completion message: "Chapitre terminé" → "Niveau Débutant/Intermédiaire/Avancé terminé"
+- Removed "Ton premier cours est gratuit/offert" from CreateCourse and OffersPage
+- Added pre-generation blocking in CreateCourse: free users redirected to offers immediately
+- Added free user quiz blocking: LevelQuizPanel saves answers to localStorage, redirects to offers
+- Added answer restoration from localStorage when returning after payment
+- Removed "Commencer gratuitement" from OffersPage, always shows "Choisir ce plan" payment button
+- Increased font sizes significantly (normal: 20→24px, fullscreen: 24px, h2: 1.7→2.3rem, p: 1.3→1.6rem)
+- Added isFreeUser state tracking in CourseViewer from paywall-status API
+- Cleaned up unused imports (Gift from CreateCourse, Sparkles from OffersPage, localFreeCourseUsed from OffersPage)
+
+Stage Summary:
+- All 9 issues fixed across 3 files (CourseViewer.tsx, OffersPage.tsx, CreateCourse.tsx)
+- Zero new lint errors introduced
+- App compiles and dev server responds normally
