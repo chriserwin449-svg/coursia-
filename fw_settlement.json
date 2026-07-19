@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://flutterwave.com/us/support/payments/settlement-frequently-asked-questions",
+    "name": "Settlement Frequently Asked Questions (FAQs) - Flutterwave",
+    "snippet": "Under \"How do you want to get your earnings?\" you can select either your bank account or your payout balance. How long do refunds take? Refunds take 3-15 ... Missing: Rwanda | Show results with: Rwanda",
+    "host_name": "flutterwave.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://flutterwave.com/mu/support/my-account/receiving-payments",
+    "name": "Receiving payments | Flutterwave Help Center",
+    "snippet": "As a merchant, you can set up different methods to receive these payments on Flutterwave, Missing: Rwanda settlement",
+    "host_name": "flutterwave.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.flutterwave.com/v3.0/docs/settlements",
+    "name": "Settlements - Flutterwave Documentation",
+    "snippet": "Typically, after collecting payments from a customer using their preferred payment methods, you'd receive the funds in your settlement account after a holding ...",
+    "host_name": "developer.flutterwave.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://flutterwave.com/ug/support/payments/settlement-in-different-currencies",
+    "name": "Settlement in different currencies | Flutterwave Help Center",
+    "snippet": "Settlement occurs when payment received from your customers is made directly into your bank account or Flutterwave payout balance. Once you receive payments ... Missing: Rwanda | Show results with: Rwanda",
+    "host_name": "flutterwave.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://flutterwave.com/eu/collect-payments",
+    "name": "Collect payments - Flutterwave",
+    "snippet": "Create a free account in minutes, add your bank account (where we'll deposit your funds), and start accepting payments securely today via our SDKs and libraries ... Missing: settlement | Show results with: settlement",
+    "host_name": "flutterwave.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.flutterwave.com/v2.0/reference/rwanda-mobile-money",
+    "name": "Rwanda mobile money - Flutterwave Documentation",
+    "snippet": "This page describes how to collect payments via Rwanda mobile money. Rave currently allows merchants to use two (2) payment methods in Rwanda (card and mobile ... Missing: payout | Show results with: payout",
+    "host_name": "developer.flutterwave.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developer.flutterwave.com/docs/settlements",
+    "name": "Settlements - Flutterwave Documentation",
+    "snippet": "Once settled, funds are transferred to either: Your linked bank account, or Your Flutterwave for Business (F4B) wallet (payout balance).",
+    "host_name": "developer.flutterwave.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://flutterwave.com/mu/support/payment-methods/pay-with-bank-transfer-pwbt",
+    "name": "Pay With Bank Transfer (PWBT) | Flutterwave Help Center",
+    "snippet": "Flutterwave merchants are enabled to receive payments from their customers via multiple payment methods, one of which is Bank Transfer. Missing: Rwanda | Show results with: Rwanda",
+    "host_name": "flutterwave.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=eN8GBYrk7A8",
+    "name": "Flutterwave Payment Methods & How To Enable Them - YouTube",
+    "snippet": "Payment methods are the ways customers can pay Flutterwave merchants, such as bank transfer, credit/debit cards, bank account, USSD and more ...",
+    "host_name": "www.youtube.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://flutterwave.com/ng/blog/why-multi-currency-settlements-matter-for-global-businesses",
+    "name": "Why Multi-Currency Settlements Matter for Global Businesses",
+    "snippet": "Select “bank account” if you want to keep your books unified. Select “payout balance” if you want your funds settled to your Flutterwave balance ... Missing: Rwanda | Show results with: Rwanda",
+    "host_name": "flutterwave.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]
