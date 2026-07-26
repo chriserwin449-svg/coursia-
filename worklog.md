@@ -674,3 +674,30 @@ Stage Summary:
   2. On PayPal page, click "PayPal" tab (NOT "Card")
   3. Login with sandbox Personal account email + password
   4. Click "Subscribe Now"
+
+---
+Task ID: impl-7
+Agent: Main (Claude)
+Task: Push Coursia to GitHub for Vercel deployment
+
+Work Log:
+- User decided to abandon sandbox testing from preview panel and instead
+  deploy to Vercel + test from production-like URL
+- Checked git state: 11 commits ahead of origin/main (auto-committed by system)
+- Found db/custom.db was being tracked (local SQLite DB with user data)
+- Untracked db/custom.db: `git rm --cached db/custom.db`
+- Committed: "chore: stop tracking local SQLite db"
+- Pushed all 12 commits to https://github.com/chriserwin449-svg/coursia-.git
+- Verified .env is properly gitignored (not exposed)
+- Verified vercel.json is configured: buildCommand, installCommand, framework=nextjs
+- Verified scripts/vercel-build.js handles Prisma schema swap (sqlite → postgres)
+
+Stage Summary:
+- Coursia is now on GitHub at chriserwin449-svg/coursia-
+- Ready for Vercel import
+- User must add env vars in Vercel dashboard (DATABASE_URL, OPENAI_API_KEY,
+  PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_PRODUCT_ID,
+  PAYPAL_MONTHLY_PLAN_ID, PAYPAL_ANNUAL_PLAN_ID, PAYPAL_MODE=sandbox,
+  NEXT_PUBLIC_APP_URL=<vercel-url>, NEXTAUTH_SECRET, ADMIN_SECRET)
+- PAYPAL_WEBHOOK_ID will be set after webhook creation in PayPal dashboard
+- Next: Vercel deployment → create PayPal webhook → test recurring subscription
