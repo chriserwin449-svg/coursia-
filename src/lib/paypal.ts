@@ -91,7 +91,24 @@ async function getAccessToken(): Promise<string> {
   if (!response.ok) {
     const errorText = await response.text();
     console.error("[paypal] Token request failed:", response.status, errorText);
-    throw new Error(`PayPal token request failed: ${response.status}`);
+    console.error("[paypal] Diagnostic info:", {
+      mode: getPayPalConfig().mode,
+      baseUrl: getBaseUrl(),
+      clientIdLength: clientId.length,
+      clientIdPrefix: clientId.slice(0, 8) + "...",
+      clientIdSuffix: "..." + clientId.slice(-6),
+      secretLength: clientSecret.length,
+    });
+    const { mode } = getPayPalConfig();
+    let hint = "";
+    if (response.status === 401) {
+      if (mode === "live") {
+        hint = " | Hint: PAYPAL_MODE=live but credentials may be SANDBOX. Check that PAYPAL_CLIENT_ID/SECRET are LIVE credentials from https://developer.paypal.com/dashboard/applications/live";
+      } else {
+        hint = " | Hint: PAYPAL_MODE=sandbox but credentials may be LIVE. Check that PAYPAL_CLIENT_ID/SECRET are SANDBOX credentials from https://developer.paypal.com/dashboard/applications/sandbox";
+      }
+    }
+    throw new Error(`PayPal token request failed: ${response.status}${hint}`);
   }
 
   const data = (await response.json()) as {
