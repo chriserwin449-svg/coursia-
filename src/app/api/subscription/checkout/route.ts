@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { createPayPalOrder, getPayPalConfig } from "@/lib/paypal";
+import {
+  createPayPalSubscription,
+  getPayPalConfig,
+  isSubscriptionConfigured,
+} from "@/lib/paypal";
 
 // Ensure all required columns exist (PostgreSQL safety)
 async function ensureColumns(): Promise<void> {
@@ -57,9 +61,11 @@ setInterval(() => {
 }, 300_000);
 
 // ─── Price configuration (server-side, tamper-proof) ────────────────────
+// Used only for the DB record (PaymentRequest.amount). The actual charge amount
+// is defined by the PayPal Plan, so these values must match the Plan price.
 const PLAN_CONFIG = {
-  monthly: { amount: 999, currency: "USD" },
-  annual: { amount: 4299, currency: "USD" },
+  monthly: { amount: 999, currency: "USD" },   // $9.99
+  annual: { amount: 4299, currency: "USD" },   // $42.99
 } as const;
 
 type PlanType = keyof typeof PLAN_CONFIG;
@@ -95,6 +101,14 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json(
         { error: "PayPal is not configured yet. Please configure PayPal credentials to enable payments.", code: "PAYPAL_NOT_CONFIGURED" },
+        { status: 503, headers: securityHeaders() }
+      );
+    }
+
+    // 0b. Check that subscription plan IDs are configured
+    if (!isSubscriptionConfigured()) {
+      return NextResponse.json(
+        { error: "Recurring subscription plans are not configured. Set PAYPAL_MONTHLY_PLAN_ID and PAYPAL_ANNUAL_PLAN_ID.", code: "PAYPAL_PLANS_NOT_CONFIGURED" },
         { status: 503, headers: securityHeaders() }
       );
     }
@@ -170,7 +184,7 @@ export async function POST(request: NextRequest) {
         amount: planConfig.amount,
         currency: planConfig.currency,
         status: "pending",
-        txRef: `paypal_init_${Date.now()}`,
+        txRef: `paypal_sub_init_${Date.now()}`,
       },
     });
 
@@ -181,8 +195,8 @@ export async function POST(request: NextRequest) {
       requestId: paymentRequest.id,
     });
 
-    // 7. Create PayPal order
-    const paypalResult = await createPayPalOrder({
+    // 7. Create PayPal SUBSCRIPTION (recurring) — not a one-time order
+    const paypalResult = await createPayPalSubscription({
       plan,
       userId,
       userEmail: user?.email || undefined,
@@ -190,29 +204,32 @@ export async function POST(request: NextRequest) {
       locale: typeof locale === "string" ? locale : undefined,
     });
 
-    // 8. Update payment request with PayPal order ID
+    // 8. Update payment request with PayPal subscription ID
     await db.paymentRequest.update({
       where: { id: paymentRequest.id },
       data: {
-        txRef: paypalResult.orderId, // Store PayPal order ID as txRef
+        txRef: paypalResult.subscriptionId, // Store PayPal subscription ID as txRef
       },
     });
 
-    console.log("[checkout] PayPal order created:", {
-      orderId: paypalResult.orderId,
+    console.log("[checkout] PayPal subscription created:", {
+      subscriptionId: paypalResult.subscriptionId,
+      status: paypalResult.status,
       requestId: paymentRequest.id,
     });
 
-    // 9. Return PayPal order details to frontend
+    // 9. Return PayPal subscription details to frontend
     return NextResponse.json(
       {
         success: true,
-        orderId: paypalResult.orderId,
+        subscriptionId: paypalResult.subscriptionId,
         approveUrl: paypalResult.approveUrl,
+        status: paypalResult.status,
         requestId: paymentRequest.id,
         amount: planConfig.amount,
         currency: planConfig.currency,
         plan,
+        mode: "subscription", // tells frontend this is a recurring subscription
       },
       { headers: securityHeaders() }
     );
@@ -228,7 +245,7 @@ export async function POST(request: NextRequest) {
     if (errorCode.includes("PAYPAL_AUTH")) {
       console.error("[checkout] PayPal credentials invalid — check PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET");
     } else if (errorCode.includes("PAYPAL_VALIDATION")) {
-      console.error("[checkout] PayPal order validation failed:", errMsg);
+      console.error("[checkout] PayPal subscription validation failed:", errMsg);
     }
 
     return NextResponse.json(

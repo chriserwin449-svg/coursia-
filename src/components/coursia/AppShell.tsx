@@ -329,12 +329,75 @@ export default function AppShell() {
 
     if (paymentStatus === "success") {
       const lang = useAppStore.getState().lang;
+      const subscriptionId = params.get("subscription_id");
 
       // Clean URL immediately
       window.history.replaceState({}, "", window.location.pathname);
 
       const capturePayment = async () => {
         try {
+          // ─── NEW: Subscription flow ───
+          // If subscription_id is present, use /api/subscription/activate
+          // which fetches live subscription details from PayPal and activates the plan.
+          if (subscriptionId) {
+            const uid = useAppStore.getState().userId;
+            if (!uid) {
+              console.warn("[payment] No userId for subscription activation");
+              return;
+            }
+            const res = await fetch("/api/subscription/activate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                subscriptionId,
+                userId: uid,
+                requestId: requestId || undefined,
+              }),
+            });
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+              trackEvent({ name: "payment_success", properties: { method: "subscription", plan: data.plan } });
+              console.log("[payment] Subscription activated, plan:", data.plan, "alreadyActive:", data.alreadyActive);
+
+              // Update store subscription state
+              useAppStore.getState().setHasSubscription(true);
+              useAppStore.getState().setSubscriptionStatus("active");
+
+              // Show toast notification (visible feedback)
+              toast.success(
+                lang === "fr" ? "Abonnement activé ! Bienvenue dans Coursia Premium." : "Subscription activated! Welcome to Coursia Premium.",
+                { duration: 6000, description: lang === "fr" ? "Tu peux maintenant créer des cours illimités." : "You can now create unlimited courses." }
+              );
+            } else {
+              console.warn("[payment] Subscription activate returned:", data.error || res.status);
+              // Even if activate fails, the webhook may have handled it
+              // Check subscription status
+              try {
+                const pwRes = await fetch("/api/courses/paywall-status", {
+                  headers: { Authorization: `Bearer ${uid}` },
+                });
+                const pwData = await pwRes.json();
+                if (pwData.hasSubscription && pwData.subscriptionStatus === "active") {
+                  useAppStore.getState().setHasSubscription(true);
+                  useAppStore.getState().setSubscriptionStatus("active");
+                  console.log("[payment] Subscription confirmed via paywall-status check");
+                  toast.success(
+                    lang === "fr" ? "Paiement réussi ! Ton abonnement est actif." : "Payment successful! Your subscription is active.",
+                    { duration: 5000 }
+                  );
+                } else {
+                  toast.warning(
+                    lang === "fr" ? "Paiement en cours de traitement." : "Payment is being processed.",
+                    { duration: 6000, description: lang === "fr" ? "Recharge la page dans quelques secondes." : "Refresh the page in a few seconds." }
+                  );
+                }
+              } catch { /* paywall-status check failed — non-critical */ }
+            }
+            return;
+          }
+
+          // ─── LEGACY: One-time order flow ───
           if (requestId) {
             const res = await fetch("/api/subscription/capture", {
               method: "POST",

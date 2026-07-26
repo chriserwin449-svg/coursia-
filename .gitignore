@@ -58,3 +58,11 @@ server.log
 
 # Tool results (temporary analysis files)
 tool-results/
+
+# Scraped web pages / research dumps — these contain raw HTML with invalid
+# Tailwind class names that crash the v4 build. Do NOT commit or scan.
+/*.json
+!/package.json
+!/bun.lock
+!/tsconfig.json
+!/components.json

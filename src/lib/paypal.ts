@@ -123,6 +123,211 @@ export interface CreateOrderResult {
   approveUrl?: string;
 }
 
+// ─── Subscription Plan IDs (server-side, tamper-proof) ────────────────────
+// These are the recurring billing plan IDs created in the PayPal dashboard.
+// They are read from environment variables to keep them out of the client.
+
+function getPlanId(plan: "monthly" | "annual"): string {
+  const envVar = plan === "monthly" ? "PAYPAL_MONTHLY_PLAN_ID" : "PAYPAL_ANNUAL_PLAN_ID";
+  const id = process.env[envVar];
+  if (!id || id.startsWith("YOUR_")) {
+    throw new Error(`${envVar} is not configured`);
+  }
+  return id;
+}
+
+/** Returns true if recurring subscriptions are configured (plan IDs set). */
+export function isSubscriptionConfigured(): boolean {
+  try {
+    getPlanId("monthly");
+    getPlanId("annual");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ─── Create Subscription (recurring) ─────────────────────────────────────
+// Creates a PayPal Billing Subscription using a pre-defined Plan ID.
+// Returns the subscription ID + the PayPal approval link the user must visit.
+
+export interface CreateSubscriptionParams {
+  plan: "monthly" | "annual";
+  userId: string;
+  userEmail?: string;
+  requestId: string;
+  locale?: string;
+}
+
+export interface CreateSubscriptionResult {
+  subscriptionId: string;
+  approveUrl?: string;
+  status: string;
+}
+
+export async function createPayPalSubscription(
+  params: CreateSubscriptionParams
+): Promise<CreateSubscriptionResult> {
+  const planId = getPlanId(params.plan);
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://coursia.app";
+  const token = await getAccessToken();
+
+  // Custom_id carries our internal metadata so the webhook can find the user
+  const customId = JSON.stringify({
+    userId: params.userId,
+    plan: params.plan,
+    requestId: params.requestId,
+  });
+
+  const response = await fetch(`${getBaseUrl()}/v1/billing/subscriptions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      "PayPal-Request-Id": params.requestId,
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({
+      plan_id: planId,
+      custom_id: customId,
+      application_context: {
+        brand_name: "Coursia",
+        locale: (params.locale || "fr_FR").replace("_", "-"),
+        shipping_preference: "NO_SHIPPING",
+        user_action: "SUBSCRIBE_NOW",
+        payment_method: {
+          payer_selected: "PAYPAL",
+          payee_preferred: "IMMEDIATE_PAYMENT_REQUIRED",
+        },
+        return_url: `${appUrl}/?payment=success&plan=${params.plan}&subscription_id={subscription_id}&request_id=${encodeURIComponent(params.requestId)}`,
+        cancel_url: `${appUrl}/?payment=cancelled&plan=${params.plan}`,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("[paypal] Create subscription failed:", response.status, errorText);
+    let errorType = "PAYPAL_SUBSCRIPTION_FAILED";
+    let userMessage = `PayPal subscription creation failed: ${response.status}`;
+    if (response.status === 401) {
+      errorType = "PAYPAL_AUTH";
+      userMessage = "PayPal authentication failed. Check API credentials.";
+    } else if (response.status === 422) {
+      errorType = "PAYPAL_VALIDATION";
+      userMessage = "PayPal subscription validation failed. Check plan ID and details.";
+    }
+    const err = new Error(userMessage) as Error & { code: string };
+    err.code = errorType;
+    throw err;
+  }
+
+  const data = (await response.json()) as {
+    id: string;
+    status: string;
+    links: Array<{ href: string; rel: string }>;
+  };
+
+  const approveLink = data.links.find((l) => l.rel === "approve");
+
+  return {
+    subscriptionId: data.id,
+    approveUrl: approveLink?.href,
+    status: data.status,
+  };
+}
+
+// ─── Get Subscription Details ─────────────────────────────────────────────
+// Used to verify a subscription's status after the user returns from PayPal.
+
+export interface SubscriptionDetails {
+  id: string;
+  status: string;
+  planId?: string;
+  customId?: string;
+  startTime?: string;
+  nextBillingTime?: string;
+  payer?: {
+    email?: string;
+    payerId?: string;
+  };
+}
+
+export async function getSubscriptionDetails(subscriptionId: string): Promise<SubscriptionDetails> {
+  const token = await getAccessToken();
+
+  const response = await fetch(`${getBaseUrl()}/v1/billing/subscriptions/${subscriptionId}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("[paypal] Get subscription failed:", response.status, errorText);
+    const err = new Error(`PayPal get subscription failed: ${response.status}`) as Error & { code: string };
+    err.code = "PAYPAL_GET_SUBSCRIPTION_FAILED";
+    throw err;
+  }
+
+  const data = (await response.json()) as {
+    id: string;
+    status: string;
+    plan_id?: string;
+    custom_id?: string;
+    start_time?: string;
+    billing_info?: {
+      next_billing_time?: string;
+    };
+    subscriber?: {
+      email_address?: string;
+      payer_id?: string;
+    };
+  };
+
+  return {
+    id: data.id,
+    status: data.status,
+    planId: data.plan_id,
+    customId: data.custom_id,
+    startTime: data.start_time,
+    nextBillingTime: data.billing_info?.next_billing_time,
+    payer: {
+      email: data.subscriber?.email_address,
+      payerId: data.subscriber?.payer_id,
+    },
+  };
+}
+
+// ─── Cancel Subscription ──────────────────────────────────────────────────
+// Allows a user to cancel their recurring subscription via the API.
+
+export async function cancelPayPalSubscription(
+  subscriptionId: string,
+  reason: string = "User requested cancellation"
+): Promise<boolean> {
+  const token = await getAccessToken();
+
+  const response = await fetch(`${getBaseUrl()}/v1/billing/subscriptions/${subscriptionId}/cancel`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ reason }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("[paypal] Cancel subscription failed:", response.status, errorText);
+    return false;
+  }
+
+  return true;
+}
+
 const PLAN_CONFIG = {
   monthly: { amount: "9.99", currency: "USD", description: "Coursia Monthly Plan" },
   annual: { amount: "42.99", currency: "USD", description: "Coursia Annual Plan" },
