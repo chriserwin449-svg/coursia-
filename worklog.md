@@ -615,3 +615,34 @@ Stage Summary:
 - Remaining: webhook ID creation in PayPal dashboard, then test checkout flow
 - All prices consistent across UI (landing + offers), i18n (FR + EN), backend (constants, paypal.ts, checkout route), JSON-LD structured data
 - Code changes verified: no remaining "42.99" or "4299" or "64%" references in src/ or scripts/
+
+---
+Task ID: impl-5 (fix)
+Agent: Main (Claude)
+Task: Fix PayPal subscription creation 400 error (INVALID_PARAMETER_SYNTAX)
+
+Work Log:
+- User reported error: "PayPal subscription creation failed: 400"
+- Inspected dev.log and found PayPal response:
+  - Error: INVALID_REQUEST / INVALID_PARAMETER_SYNTAX
+  - Field: /application_context/return_url
+  - Value: https://coursia.app/?payment=success&plan=monthly&subscription_id={subscription_id}&request_id=xxx
+  - Issue: literal `{subscription_id}` placeholder is invalid URL syntax (curly braces)
+- Root cause: PayPal Subscriptions v1/billing/subscriptions API does NOT auto-substitute
+  `{subscription_id}` in return_url. That placeholder convention was from the older
+  v1/billing-agreements API.
+- Fix 1: Removed `{subscription_id}` placeholder from return_url in src/lib/paypal.ts
+  - PayPal appends `subscription_id` automatically as a query param on redirect
+- Fix 2: Added dynamic app URL derivation in checkout route
+  - Was using hardcoded NEXT_PUBLIC_APP_URL ("https://coursia.app") which breaks
+    sandbox/preview testing (PayPal would redirect to coursia.app instead of preview URL)
+  - Now reads x-forwarded-proto + x-forwarded-host headers from request
+  - Passes dynamic URL via new `appUrl` param to createPayPalSubscription
+- Verified no lint errors introduced in modified files
+
+Stage Summary:
+- Two fixes applied:
+  1. paypal.ts: removed invalid `{subscription_id}` placeholder
+  2. checkout/route.ts: dynamic app URL from request headers
+- createPayPalSubscription signature now accepts optional `appUrl` param
+- Dev server will recompile on next request — user should retry checkout

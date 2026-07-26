@@ -196,12 +196,20 @@ export async function POST(request: NextRequest) {
     });
 
     // 7. Create PayPal SUBSCRIPTION (recurring) — not a one-time order
+    // Dynamically derive the public app URL from the incoming request so that
+    // sandbox/preview deployments redirect back to the correct origin (not the
+    // hardcoded production URL).
+    const proto = request.headers.get("x-forwarded-proto") || request.nextUrl.protocol.replace(":", "");
+    const host = request.headers.get("x-forwarded-host") || request.headers.get("host") || request.nextUrl.host;
+    const dynamicAppUrl = `${proto}://${host}`;
+
     const paypalResult = await createPayPalSubscription({
       plan,
       userId,
       userEmail: user?.email || undefined,
       requestId: paymentRequest.id,
       locale: typeof locale === "string" ? locale : undefined,
+      appUrl: dynamicAppUrl,
     });
 
     // 8. Update payment request with PayPal subscription ID

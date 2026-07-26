@@ -157,6 +157,9 @@ export interface CreateSubscriptionParams {
   userEmail?: string;
   requestId: string;
   locale?: string;
+  /** Optional override for the public app URL (return/cancel URLs).
+   *  If omitted, falls back to NEXT_PUBLIC_APP_URL env var. */
+  appUrl?: string;
 }
 
 export interface CreateSubscriptionResult {
@@ -169,7 +172,7 @@ export async function createPayPalSubscription(
   params: CreateSubscriptionParams
 ): Promise<CreateSubscriptionResult> {
   const planId = getPlanId(params.plan);
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://coursia.app";
+  const appUrl = params.appUrl || process.env.NEXT_PUBLIC_APP_URL || "https://coursia.app";
   const token = await getAccessToken();
 
   // Custom_id carries our internal metadata so the webhook can find the user
@@ -199,7 +202,7 @@ export async function createPayPalSubscription(
           payer_selected: "PAYPAL",
           payee_preferred: "IMMEDIATE_PAYMENT_REQUIRED",
         },
-        return_url: `${appUrl}/?payment=success&plan=${params.plan}&subscription_id={subscription_id}&request_id=${encodeURIComponent(params.requestId)}`,
+        return_url: `${appUrl}/?payment=success&plan=${params.plan}&request_id=${encodeURIComponent(params.requestId)}`,
         cancel_url: `${appUrl}/?payment=cancelled&plan=${params.plan}`,
       },
     }),
