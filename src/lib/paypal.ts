@@ -193,6 +193,13 @@ export async function createPayPalSubscription(
     body: JSON.stringify({
       plan_id: planId,
       custom_id: customId,
+      ...(params.userEmail
+        ? {
+            subscriber: {
+              email_address: params.userEmail,
+            },
+          }
+        : {}),
       application_context: {
         brand_name: "Coursia",
         locale: (params.locale || "fr_FR").replace("_", "-"),

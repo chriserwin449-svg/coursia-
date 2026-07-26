@@ -646,3 +646,31 @@ Stage Summary:
   2. checkout/route.ts: dynamic app URL from request headers
 - createPayPalSubscription signature now accepts optional `appUrl` param
 - Dev server will recompile on next request — user should retry checkout
+
+---
+Task ID: impl-5 (fix 2)
+Agent: Main (Claude)
+Task: Fix PayPal sandbox checkout page error "Un problème est survenu"
+
+Work Log:
+- User uploaded screenshot showing PayPal sandbox checkout page displays
+  generic error "Un problème est survenu. Réessayez." with only button
+  "Retourner sur le site du marchand"
+- Diagnosed via API: subscription is APPROVAL_PENDING, but subscriber is NONE
+  (user never completed the login on PayPal page)
+- Root cause: User was clicking "Pay with Card" on PayPal sandbox page,
+  which is notoriously broken in sandbox mode and fails immediately
+- Fix 1: Added `subscriber.email_address` field in createPayPalSubscription
+  body to pre-fill the buyer's email on PayPal page (improves UX + reliability)
+- Fix 2: User needs to use the PayPal login flow (Personal sandbox account)
+  instead of the card payment option
+
+Stage Summary:
+- paypal.ts now passes subscriber.email_address in subscription creation
+- Server recompiled successfully, new subscription created (I-2RMJU77T90SM)
+- User needs to:
+  1. Get the Personal sandbox account credentials from
+     https://developer.paypal.com/dashboard/applications/sandbox → Accounts
+  2. On PayPal page, click "PayPal" tab (NOT "Card")
+  3. Login with sandbox Personal account email + password
+  4. Click "Subscribe Now"
