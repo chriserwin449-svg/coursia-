@@ -585,3 +585,33 @@ RECOMMENDED INTEGRATION POINTS FOR PAYPAL SUBSCRIPTIONS
    - No prisma migrations — all schema changes happen via ensureColumns() raw SQL at runtime
    - Consider adding a Subscription model (separate from User) if you need to track
      multiple historical subscriptions, upgrades/downgrades, or proration credits
+
+---
+Task ID: impl-1, impl-2, impl-3
+Agent: Main (Claude)
+Task: Configure PayPal Sandbox credentials, create Product + Plans, update annual price to $52.99
+
+Work Log:
+- Read existing .env and located PayPal placeholders
+- Updated PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET with real sandbox credentials provided by user
+- User requested changing annual price from $42.99 → $52.99 (keep monthly at $9.99)
+- Searched entire codebase for "42.99" and "4299" — found 7 occurrences across 6 files:
+  - scripts/paypal-create-plans.ts (line 187-188)
+  - src/lib/paypal.ts (line 333)
+  - src/lib/constants.ts (line 9)
+  - src/lib/i18n.ts (lines 54 FR price, 62 FR save %, 465 EN price, 473 EN save %)
+  - src/app/api/subscription/checkout/route.ts (line 68)
+  - src/components/coursia/LandingPage.tsx (line 187, JSON-LD)
+- Updated ALL occurrences: $42.99 → $52.99, 4299 → 5299, "Save 64%" → "Save 56%", "Économise 64%" → "Économise 56%"
+- Recalculated savings: $9.99 × 12 = $119.88, $119.88 - $52.99 = $66.89 → 55.8% ≈ 56%
+- Ran `bun run scripts/paypal-create-plans.ts` — SUCCESS
+  - PayPal Product created: PROD-9XC16653DX015123E
+  - Monthly Plan ($9.99/30 days) created: P-4UE32567FN9307709NJTHNIY
+  - Annual Plan ($52.99/12 months) created: P-5JE36226J1163045XNJTHNJA
+- Pasted all 3 IDs into .env
+
+Stage Summary:
+- PayPal Sandbox is now FULLY CONFIGURED for credentials + product + plans
+- Remaining: webhook ID creation in PayPal dashboard, then test checkout flow
+- All prices consistent across UI (landing + offers), i18n (FR + EN), backend (constants, paypal.ts, checkout route), JSON-LD structured data
+- Code changes verified: no remaining "42.99" or "4299" or "64%" references in src/ or scripts/

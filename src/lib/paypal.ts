@@ -330,7 +330,7 @@ export async function cancelPayPalSubscription(
 
 const PLAN_CONFIG = {
   monthly: { amount: "9.99", currency: "USD", description: "Coursia Monthly Plan" },
-  annual: { amount: "42.99", currency: "USD", description: "Coursia Annual Plan" },
+  annual: { amount: "52.99", currency: "USD", description: "Coursia Annual Plan" },
   card_verify: { amount: "0.01", currency: "USD", description: "Coursia Card Verification" },
 } as const;
 

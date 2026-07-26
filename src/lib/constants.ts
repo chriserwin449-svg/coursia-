@@ -6,7 +6,7 @@
 // ─── Subscription & Pricing ──────────────────────────────────────────────
 export const PLAN_PRICES = {
   monthly: { dollars: 9.99, cents: 999, currency: "USD" as const },
-  annual: { dollars: 42.99, cents: 4299, currency: "USD" as const },
+  annual: { dollars: 52.99, cents: 5299, currency: "USD" as const },
 } as const;
 
 export const PLAN_DURATIONS = {

@@ -184,7 +184,7 @@ export default function LandingPage() {
       {
         "@type": "Offer",
         "name": tx.landing.pricing.annual.name,
-        "price": "42.99",
+        "price": "52.99",
         "priceCurrency": "USD",
         "billingPeriod": "P1Y",
         "description": tx.landing.pricing.annual.desc,

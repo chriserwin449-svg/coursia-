@@ -184,8 +184,8 @@ async function main() {
   const monthlyPlanId = await createPlan(token, productId, "Coursia Monthly", "9.99", 1);
   console.log("");
 
-  console.log("4️⃣  Creating Annual plan ($42.99 / 12 months)...");
-  const annualPlanId = await createPlan(token, productId, "Coursia Annual", "42.99", 12);
+  console.log("4️⃣  Creating Annual plan ($52.99 / 12 months)...");
+  const annualPlanId = await createPlan(token, productId, "Coursia Annual", "52.99", 12);
   console.log("");
 
   console.log("═══════════════════════════════════════════════════════════");

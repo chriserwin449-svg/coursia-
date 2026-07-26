@@ -65,7 +65,7 @@ setInterval(() => {
 // is defined by the PayPal Plan, so these values must match the Plan price.
 const PLAN_CONFIG = {
   monthly: { amount: 999, currency: "USD" },   // $9.99
-  annual: { amount: 4299, currency: "USD" },   // $42.99
+  annual: { amount: 5299, currency: "USD" },   // $52.99
 } as const;
 
 type PlanType = keyof typeof PLAN_CONFIG;
