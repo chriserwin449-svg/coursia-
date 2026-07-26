@@ -281,3 +281,307 @@ Stage Summary:
 - All 9 issues fixed across 3 files (CourseViewer.tsx, OffersPage.tsx, CreateCourse.tsx)
 - Zero new lint errors introduced
 - App compiles and dev server responds normally
+
+---
+Task ID: prep-1
+Agent: Explore
+Task: Audit Coursia codebase for PayPal integration points
+
+Work Log:
+- Read /home/z/my-project/worklog.md to review prior agent work (10+ prior sessions on PayPal bug fixes, SEO, daily limits, i18n, etc.)
+- Listed project structure: confirmed Next.js 16 + Prisma + SQLite/PostgreSQL + NextAuth + Zustand stack
+- Read prisma/schema.prisma — captured all 11 models
+- Read package.json — confirmed `@paypal/react-paypal-js@^10.1.1` already installed; no other PayPal SDK
+- Read .env — captured full env var list (NO .env.example file exists)
+- Read src/lib/paypal.ts (607 lines) — full PayPal Subscriptions + Orders API client (custom fetch, no SDK)
+- Read src/lib/db.ts — confirmed `db` is the Prisma client singleton exported from `@/lib/db`
+- Read src/lib/auth.ts + src/app/api/auth/[...nextauth]/route.ts + src/hooks/useSession.ts — two parallel auth systems
+- Read src/lib/get-user-id.ts — Bearer-token userId extraction helper
+- Read all 11 files under src/app/api/subscription/* — full subscription flow
+- Read src/app/api/paypal/config/route.ts — public client-id endpoint for frontend
+- Read scripts/paypal-create-plans.ts — idempotent Product + 2 Plans creation script
+- Read src/components/coursia/PayPalProvider.tsx — confirmed DEFINED but NOT MOUNTED anywhere in the app
+- Read src/components/coursia/OffersPage.tsx (grep) — confirmed REDIRECT-based checkout flow (not inline PayPalButtons)
+- Read src/components/coursia/AppShell.tsx lines 320-508 — confirmed post-PayPal-redirect handler
+- Read src/lib/store.ts + src/hooks/useSubscriptionStatus.ts + src/hooks/usePlan.ts — confirmed Zustand subscription state
+- Read src/lib/constants.ts — confirmed PLAN_PRICES, rate-limit, and timer constants
+- Grep'd for `PayPalProviderWrapper` / `PayPalScriptProvider` usage — only defined, never rendered
+- Grep'd for `getServerSession` — only used in /api/auth/session route (not used by subscription APIs)
+
+Stage Summary:
+
+═══════════════════════════════════════════════════════════════════════════
+1. PRISMA SCHEMA (prisma/schema.prisma) — 11 models, SQLite datasource (but runtime
+   uses PostgreSQL via DATABASE_URL — schema is provider=sqlite but Supabase PG in prod;
+   login route raw-CREATEs the "User" table in PG with matching columns)
+═══════════════════════════════════════════════════════════════════════════
+
+Models:
+  • User                 — subscription state lives HERE (not a separate table)
+  • PaymentRequest       — tracks every checkout/capture attempt (status: pending/approved/rejected/failed)
+  • AppSettings          — single-row global app state (flame points)
+  • FlameTransaction     — gamification currency ledger
+  • Course               — generated courses (userId optional = anonymous)
+  • Chapter              — course chapters (cascade delete)
+  • Quiz                 — per-chapter quiz (1:1 with Chapter)
+  • ChapterProgress      — per-chapter completion (1:1 with Chapter)
+  • CourseQuiz           — final course quiz (1:1 with Course)
+  • CourseProgress       — course-level progress + level gating
+  • Feedback             — user feedback/bug reports
+  • StudySession         — analytics time-tracking
+  • UsedTopic            — global per-topic dedupe
+
+User model fields (subscription-relevant):
+  id                      String   @id @default(cuid())
+  email                   String   @unique
+  password                String
+  firstName               String
+  lastName                String
+  subscriptionPlan        String   @default("free")    // "free" | "monthly" | "annual"
+  subscriptionStatus      String   @default("none")    // "none" | "active" | "canceled" | "past_due" | "expired"
+  creemSubscriptionId     String?                       // ⚠️ misnamed — actually stores "paypal_<subscriptionId>"
+  creemCustomerId         String?                       // ⚠️ misnamed — currently unused (was for Creem)
+  hasCardOnFile           Boolean  @default(false)
+  subscriptionStartDate   DateTime?
+  subscriptionEndDate     DateTime?
+  trialStartDate          DateTime?
+  freeCourseUsed          Boolean  @default(false)
+  createdAt, updatedAt
+  paymentRequests         PaymentRequest[]
+
+NOTE: No separate Subscription/UserSubscription/Plan model — everything is denormalized onto User.
+NOTE: Field names `creemSubscriptionId` / `creemCustomerId` are legacy from a previous "Creem" provider —
+      they actually store PayPal subscription IDs prefixed with "paypal_". Recommend renaming to
+      `paypalSubscriptionId` in a future migration (the existing code already works around this).
+
+═══════════════════════════════════════════════════════════════════════════
+2. EXISTING PAYPAL INFRASTRUCTURE — ALREADY FULLY BUILT (server-side, redirect flow)
+═══════════════════════════════════════════════════════════════════════════
+
+✅ src/lib/paypal.ts (607 lines) — Custom PayPal REST API client (no SDK dependency):
+   - getPayPalConfig()          — reads env vars, throws on placeholder
+   - getAccessToken()           — OAuth2 client_credentials, cached with 5min buffer
+   - createPayPalSubscription() — POST /v1/billing/subscriptions (recurring)
+   - getSubscriptionDetails()   — GET /v1/billing/subscriptions/{id}
+   - cancelPayPalSubscription() — POST /v1/billing/subscriptions/{id}/cancel
+   - createPayPalOrder()        — POST /v2/checkout/orders (one-time, used for card_verify $0.01)
+   - capturePayPalOrder()       — POST /v2/checkout/orders/{id}/capture
+   - verifyWebhookSignature()   — POST /v1/notifications/verify-webhook-signature
+                                   (mandatory in live mode; sandbox skips if no WEBHOOK_ID)
+   - getPlanId()                — reads PAYPAL_MONTHLY_PLAN_ID / PAYPAL_ANNUAL_PLAN_ID from env
+   - isSubscriptionConfigured() — feature-flag check
+   - getClientId() / getPayPalMode() — for frontend
+   - Custom metadata embedded in subscription.custom_id as JSON {userId, plan, requestId}
+
+✅ scripts/paypal-create-plans.ts (212 lines) — Idempotent setup script:
+   - Creates "Coursia Premium" Product (or reuses existing)
+   - Creates Monthly Plan ($9.99 / 1 month, infinite cycles)
+   - Creates Annual Plan ($42.99 / 12 months, infinite cycles)
+   - Prints IDs to paste into .env
+   - Run with: `bun run scripts/paypal-create-plans.ts`
+
+═══════════════════════════════════════════════════════════════════════════
+3. API ROUTES STRUCTURE (src/app/api/)
+═══════════════════════════════════════════════════════════════════════════
+
+PAYMENT/SUBSCRIPTION ROUTES (11 endpoints, all under /api/subscription + /api/paypal):
+
+  /api/paypal/config              GET   — returns public clientId + mode (no auth)
+  /api/subscription               GET   — minimal plan/status lookup by userId (Bearer)
+  /api/subscription/status        GET   — proxy → /api/courses/paywall-status
+  /api/subscription/checkout      POST  — create PayPal subscription, return approveUrl
+                                            • rate-limited 3/min per user
+                                            • creates PaymentRequest row (status=pending)
+                                            • stores PayPal subscription ID in txRef
+  /api/subscription/activate      POST  — fast-path: after redirect, fetch live sub from PayPal
+                                            and activate in DB (idempotent). Used for recurring.
+  /api/subscription/capture       POST  — capture a one-time ORDER (used by card_verify flow
+                                            and legacy order flow)
+  /api/subscription/confirm       POST  — manual payment proof submission (status=pending_verification)
+  /api/subscription/verify-card   POST  — create $0.01 PayPal order to verify card on file
+  /api/subscription/webhook       POST  — PayPal webhook receiver. Handles:
+                                            • BILLING.SUBSCRIPTION.ACTIVATED → activateSubscription()
+                                            • PAYMENT.SALE.COMPLETED → extendSubscription() (recurring!)
+                                            • BILLING.SUBSCRIPTION.CANCELLED → markSubscriptionStatus("canceled")
+                                            • BILLING.SUBSCRIPTION.EXPIRED → markSubscriptionStatus("expired")
+                                            • BILLING.SUBSCRIPTION.SUSPENDED → markSubscriptionStatus("suspended")
+                                            • BILLING.SUBSCRIPTION.UPDATED → log only
+                                            • PAYMENT.CAPTURE.COMPLETED → legacy one-time activation
+                                            • PAYMENT.CAPTURE.DENIED/DECLINED → mark failed
+                                            Webhook URL: https://coursia.app/api/subscription/webhook
+  /api/subscription/admin/approve   POST — admin manual approval (requires ADMIN_SECRET Bearer)
+  /api/subscription/admin/reject    POST — admin manual rejection (requires ADMIN_SECRET Bearer)
+  /api/subscription/admin/pending   GET  — list pending payment requests (requires ADMIN_SECRET)
+
+OTHER ROUTES:
+  /api/auth/login, register, me, signout, session, [...nextauth], google-link
+  /api/courses/* (generate, list, [id], chapters, quizzes, levels, paywall-status, random)
+  /api/api-keys (validate, list), /api/feedback, /api/flames, /api/study-time
+  /api/ai-status, /api/test-ai, /api/badges, /api/init-db, /api/setup-db, /api/db-status, /api/debug-db, /api/test-db, /api/log-error
+
+═══════════════════════════════════════════════════════════════════════════
+4. PRICING/SUBSCRIPTION UI
+═══════════════════════════════════════════════════════════════════════════
+
+  ✅ src/components/coursia/OffersPage.tsx — pricing page with monthly ($9.99) + annual ($42.99) cards
+      • Checks /api/paypal/config before enabling buttons
+      • On subscribe click → POST /api/subscription/checkout → window.location = approveUrl (REDIRECT flow)
+      • Shows "Gérer mon abonnement" for active subscribers
+      • Shows contextual notification banner (free available / used / active sub)
+      • Bilingual fr/en via tx.offers strings
+
+  ✅ src/components/coursia/PayPalProvider.tsx — DEFINED but ⚠️ NOT MOUNTED anywhere
+      • Wraps children in <PayPalScriptProvider> with clientId, currency=USD, intent=capture
+      • Components: "buttons" only (no card-fields)
+      • "enable-funding": "card" so card payments show
+      • Fetches config from /api/paypal/config on mount
+      • ⚠️ If you want inline PayPalButtons (no redirect), you'd need to mount this in layout.tsx or AppShell.tsx
+
+  ✅ src/components/coursia/AppShell.tsx — post-PayPal-redirect handler (lines 320-508)
+      • useEffect on mount checks URL params: ?payment=success&subscription_id=xxx&request_id=yyy
+      • Calls /api/subscription/activate (subscription flow) or /api/subscription/capture (legacy)
+      • Updates Zustand store: setHasSubscription(true), setSubscriptionStatus("active")
+      • Shows success toast + navigates to "create" or "offers" view
+      • Also handles ?card_verified=success for the verify-card flow
+
+  ✅ src/components/coursia/PaywallModal.tsx — modal shown when free user hits limit
+  ✅ src/components/coursia/CreateCourse.tsx — redirects free users to /offers before generating
+  ✅ src/components/coursia/CourseViewer.tsx — blocks level generation for non-subscribers (SUBSCRIPTION_REQUIRED)
+
+═══════════════════════════════════════════════════════════════════════════
+5. ENVIRONMENT VARIABLES (.env) — ⚠️ NO .env.example FILE EXISTS
+═══════════════════════════════════════════════════════════════════════════
+
+DATABASE_URL          = "postgresql://...supabase.co:5432/postgres"  (Supabase PG — schema says SQLite but runtime is PG)
+NEXT_PUBLIC_SUPABASE_URL = "https://vbsrliluwytuyulpvflr.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY = "<JWT>"
+OPENAI_API_KEY        = "sk-svcacct-..."
+
+# PayPal (all currently placeholder values — NOT yet configured):
+PAYPAL_MODE             = "sandbox"
+PAYPAL_CLIENT_ID        = "YOUR_PAYPAL_SANDBOX_CLIENT_ID"
+PAYPAL_CLIENT_SECRET    = "YOUR_PAYPAL_SANDBOX_CLIENT_SECRET"
+PAYPAL_WEBHOOK_ID       = "YOUR_PAYPAL_SANDBOX_WEBHOOK_ID"
+PAYPAL_PRODUCT_ID       = "YOUR_PAYPAL_PRODUCT_ID"
+PAYPAL_MONTHLY_PLAN_ID  = "YOUR_PAYPAL_MONTHLY_PLAN_ID"
+PAYPAL_ANNUAL_PLAN_ID   = "YOUR_PAYPAL_ANNUAL_PLAN_ID"
+NEXT_PUBLIC_APP_URL     = "https://coursia.app"
+
+⚠️ MISSING env vars (referenced in code but not in .env):
+  - NEXTAUTH_SECRET          (auth.ts line 69 — would throw; falls back to hardcoded string in [...nextauth] line 81)
+  - ADMIN_SECRET             (subscription/admin/* routes need this; if unset, admin routes return 401)
+  - NEXT_PUBLIC_PAYPAL_CLIENT_ID (optional — paypal.ts getClientId() falls back to PAYPAL_CLIENT_ID)
+
+═══════════════════════════════════════════════════════════════════════════
+6. AUTH SYSTEM — DUAL AUTH (NextAuth + custom Bearer-token)
+═══════════════════════════════════════════════════════════════════════════
+
+Two parallel auth systems exist (likely an in-progress migration):
+
+  SYSTEM A: NextAuth v4 (CredentialsProvider, JWT strategy)
+    - src/lib/auth.ts — authOptions (bcrypt password verification)
+    - src/app/api/auth/[...nextauth]/route.ts — DUPLICATE authOptions (SHA-256 legacy hashing ⚠️)
+      ⚠️ These two files have DIFFERENT password verification logic (bcrypt vs SHA-256)
+    - src/app/api/auth/session/route.ts — getServerSession(authOptions)
+    - Session shape: { user: { id, name, email } } (JWT contains id)
+    - To get user ID server-side via NextAuth:
+        import { getServerSession } from "next-auth";
+        import { authOptions } from "@/lib/auth";
+        const session = await getServerSession(authOptions);
+        const userId = session?.user?.id;
+
+  SYSTEM B: Custom Bearer-token (the system ACTUALLY USED by subscription & course APIs)
+    - POST /api/auth/login → returns { user: {id, email, firstName, lastName}, token }
+      (token is just `crypto.randomBytes(32).toString("hex")` — NOT a JWT, NOT stored in DB)
+    - Frontend stores token in localStorage["coursia-auth-token"], userId in localStorage["coursia-user-data"]
+    - src/hooks/useSession.ts — on mount, reads token+userId from localStorage, POSTs to /api/auth/me to validate
+    - /api/auth/me — accepts {token, userId}, looks up user by ID (token is NOT actually checked against DB!)
+    - src/lib/get-user-id.ts — helper: reads userId from `Authorization: Bearer <userId>` header OR ?userId= query
+
+  ⚠️ SECURITY NOTE: The "token" in System B is decorative — the actual auth is just the userId being
+     passed in the header. The token is generated but never validated. This is fine for a low-stakes
+     MVP but should be tightened before going fully live.
+
+  TO GET USER ID SERVER-SIDE (current pattern in subscription routes):
+    import { getUserIdFromRequest } from "@/lib/get-user-id";
+    const userId = getUserIdFromRequest(request, body.userId);
+    // Then validate user exists in DB: const user = await db.user.findUnique({where:{id:userId}})
+
+═══════════════════════════════════════════════════════════════════════════
+7. DATABASE ACCESS
+═══════════════════════════════════════════════════════════════════════════
+
+  - Prisma client singleton: src/lib/db.ts
+    export const db = globalForPrisma.prisma ?? new PrismaClient({ log: ["error"] });
+  - Import everywhere as: `import { db } from "@/lib/db";`
+  - Provider in schema.prisma is `sqlite` but DATABASE_URL points to Supabase PostgreSQL.
+    ⚠️ This is intentional — many routes use raw SQL ($executeRawUnsafe / $queryRawUnsafe) with
+    PostgreSQL syntax (DO $$ ... EXCEPTION WHEN duplicate_column, "CamelCase" quoted identifiers)
+    to add columns on-the-fly. Pattern: every API route calls `ensureColumns()` at the top.
+  - This means Prisma migrations are NOT used — schema drift is handled at runtime via ensureColumns().
+    The schema.prisma file is mostly documentation; the actual production PG schema is shaped by
+    raw SQL migrations embedded in route handlers.
+
+═══════════════════════════════════════════════════════════════════════════
+8. PACKAGE.JSON — PAYPAL DEPENDENCY
+═══════════════════════════════════════════════════════════════════════════
+
+  Only one PayPal-related package installed:
+    "@paypal/react-paypal-js": "^10.1.1"   — React wrapper for the PayPal JS SDK
+
+  NO @paypal/paypal-server-sdk, NO @paypal/checkout-server-sdk.
+  The entire server-side PayPal integration is hand-rolled using fetch() against
+  https://api-m.sandbox.paypal.com / https://api-m.paypal.com — see src/lib/paypal.ts.
+
+  Other relevant deps: next@16.1.1, prisma@6.11, @prisma/client@6.11, @prisma/adapter-libsql@6.11,
+  next-auth@4.24.11, bcryptjs@3.0.3, zustand@5.0.6, zod@4.0.2, react@19, react-hook-form@7.60.
+
+═══════════════════════════════════════════════════════════════════════════
+RECOMMENDED INTEGRATION POINTS FOR PAYPAL SUBSCRIPTIONS
+═══════════════════════════════════════════════════════════════════════════
+
+✅ The PayPal Subscriptions API integration is ALREADY COMPLETE on the server side. No new server
+   code is needed unless requirements change. To go live:
+
+1. CONFIGURE ENV VARS (mandatory before any payment works):
+   - Replace the 7 PAYPAL_* placeholder values in .env with real sandbox/live credentials
+   - Run `bun run scripts/paypal-create-plans.ts` to create Product + 2 Plans
+   - Paste the 3 returned IDs (PRODUCT_ID, MONTHLY_PLAN_ID, ANNUAL_PLAN_ID) into .env
+   - Set up webhook in PayPal dashboard → URL: https://coursia.app/api/subscription/webhook
+     Events: BILLING.SUBSCRIPTION.ACTIVATED, PAYMENT.SALE.COMPLETED,
+             BILLING.SUBSCRIPTION.CANCELLED, BILLING.SUBSCRIPTION.EXPIRED,
+             BILLING.SUBSCRIPTION.SUSPENDED, BILLING.SUBSCRIPTION.UPDATED,
+             PAYMENT.CAPTURE.COMPLETED, PAYMENT.CAPTURE.DENIED
+   - Copy Webhook ID (starts with WH-) → PAYPAL_WEBHOOK_ID
+   - Set NEXTAUTH_SECRET and ADMIN_SECRET (currently missing!)
+   - Switch PAYPAL_MODE from "sandbox" to "live" when ready
+
+2. CURRENT FLOW (redirect-based, fully working once env configured):
+   OffersPage "Subscribe" button → POST /api/subscription/checkout →
+   PayPal returns approveUrl → window.location = approveUrl →
+   User pays on PayPal → PayPal redirects to /?payment=success&subscription_id=xxx →
+   AppShell useEffect → POST /api/subscription/activate → DB updated → toast → navigate
+
+   Parallel webhook fires → /api/subscription/webhook → activateSubscription() (idempotent)
+   Recurring billing → PAYMENT.SALE.COMPLETED → extendSubscription() → updates subscriptionEndDate
+
+3. OPTIONAL UPGRADE: Inline PayPalButtons (no redirect)
+   - The `@paypal/react-paypal-js` package is installed but PayPalProvider is NOT mounted
+   - To enable: wrap app in <PayPalProviderWrapper> in src/app/layout.tsx (around {children})
+   - Then use <PayPalButtons> inside OffersPage to create subscription inline
+   - Currently OffersPage uses pure redirect flow (window.location = approveUrl)
+   - This is a UX preference, not a functional gap — redirect flow works fine
+
+4. OPTIONAL: Switch from hand-rolled fetch to official `@paypal/paypal-server-sdk`
+   - Would reduce src/lib/paypal.ts from 607 lines to ~150
+   - Adds a dependency but provides types, retries, and PayPal-maintained endpoints
+   - Not required — current implementation is well-tested and feature-complete
+
+5. KNOWN GAPS / THINGS TO VERIFY:
+   - creemSubscriptionId field name is misleading (it stores paypal_<id>) — consider rename in future migration
+   - Two parallel authOptions files (src/lib/auth.ts uses bcrypt, [...nextauth]/route.ts uses SHA-256) —
+     pick one and delete the other to avoid confusion
+   - Custom "token" in System B is not actually validated against DB — fine for MVP, tighten later
+   - No prisma migrations — all schema changes happen via ensureColumns() raw SQL at runtime
+   - Consider adding a Subscription model (separate from User) if you need to track
+     multiple historical subscriptions, upgrades/downgrades, or proration credits
