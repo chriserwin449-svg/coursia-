@@ -266,7 +266,8 @@ export async function createPayPalSubscription(
       const details = parsedError?.details;
       if (Array.isArray(details) && details.length > 0) {
         const issues = details.map((d: Record<string, string>) => `${d.field || ''}: ${d.issue || ''} – ${d.description || ''}`).join('; ');
-        userMessage = `PayPal error (annual plan): ${issues}`;
+        const planLabel = params.plan === "monthly" ? "mensuel" : "annuel";
+        userMessage = `PayPal error (${planLabel}): ${issues}`;
       } else if (parsedError?.message) {
         userMessage = `PayPal error: ${parsedError.message}`;
       }

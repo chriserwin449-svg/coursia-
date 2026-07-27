@@ -60,6 +60,7 @@ type StudyTimePeriod = "today" | "last3" | "week" | "month";
 
 export default function Journey() {
   const lang = useAppStore((s) => s.lang);
+  const view = useAppStore((s) => s.view);
   const tx = t(lang);
   const [stats, setStats] = useState<Stats | null>(null);
   const [badgeState, setBadgeState] = useState<BadgeState | null>(null);
@@ -104,6 +105,20 @@ export default function Journey() {
     };
     fetchData();
   }, []);
+
+  // ── Refetch flame data when user returns to Journey ──
+  useEffect(() => {
+    if (view === "journey" && !loading) {
+      const refetchFlames = async () => {
+        try {
+          const userId = useAppStore.getState().userId;
+          const flamesRes = await fetch("/api/flames", userId ? { headers: { Authorization: `Bearer ${userId}` } } : undefined);
+          if (flamesRes.ok) setFlameData(await flamesRes.json());
+        } catch { /* silent */ }
+      };
+      refetchFlames();
+    }
+  }, [view, loading]);
 
   useEffect(() => {
     const timer = requestAnimationFrame(() => setMounted(true));
