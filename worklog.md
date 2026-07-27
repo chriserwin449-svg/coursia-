@@ -733,3 +733,30 @@ Stage Summary:
 - Vercel will auto-redeploy
 - Next step: user adds PayPal env vars on Vercel ONE BY ONE
   Each var added correctly → redeploy → verify with /api/paypal/diagnose
+
+---
+Task ID: paypal-sandbox-integration
+Agent: Main (Claude)
+Task: Full PayPal Subscriptions Sandbox integration - Product + Plans creation
+
+Work Log:
+- Restored .env with all credentials (DATABASE_URL, Supabase, OpenAI, PayPal)
+- Enhanced scripts/paypal-create-plans.ts for FULL idempotency:
+  - Product: checks for existing "Coursia Premium" before creating
+  - Plans: lists existing plans filtered by product_id + name before creating
+  - Token caching for efficiency
+  - Auto-updates .env file with obtained IDs
+- Ran script successfully against PayPal Sandbox API:
+  - Product "Coursia Premium" reused (already existed): PROD-9XC16653DX015123E
+  - Monthly plan created ($9.99/mo): P-3P531060D6355200UNJT3QDY
+  - Annual plan created ($52.99/yr): P-1CE83349KV045630XNJT3QEA
+- .env auto-updated with all 3 IDs
+- Pushed to GitHub (commit 700f686)
+
+Stage Summary:
+- PayPal Sandbox resources fully provisioned
+- Product ID: PROD-9XC16653DX015123E
+- Monthly Plan ID: P-3P531060D6355200UNJT3QDY
+- Annual Plan ID: P-1CE83349KV045630XNJT3QEA
+- Script is fully idempotent - safe to re-run
+- Next: User adds ALL env vars on Vercel correctly (PAYPAL_MODE=sandbox!)
