@@ -701,3 +701,35 @@ Stage Summary:
   NEXT_PUBLIC_APP_URL=<vercel-url>, NEXTAUTH_SECRET, ADMIN_SECRET)
 - PAYPAL_WEBHOOK_ID will be set after webhook creation in PayPal dashboard
 - Next: Vercel deployment → create PayPal webhook → test recurring subscription
+
+---
+Task ID: fix-paypal-config
+Agent: Main (Claude)
+Task: Fix PayPal config check + race condition causing "Le paiement n'est pas encore configuré"
+
+Work Log:
+- Full flow analysis: traced message origin from OffersPage.tsx line 95
+  through /api/subscription/checkout (route.ts line 103) back to getPayPalConfig()
+- Bug 1 found: Race condition in OffersPage
+  - paypalConfigured starts as null (useState default)
+  - isButtonDisabled() only checked `paypalConfigured === false`
+  - While null (loading), buttons were ENABLED and clickable
+  - User could click before config check returned → checkout → 503 → error toast
+- Bug 2 found: /api/paypal/config was superficial
+  - Only checked if PAYPAL_CLIENT_ID existed and wasn't a placeholder
+  - Did NOT check CLIENT_SECRET, MONTHLY_PLAN_ID, ANNUAL_PLAN_ID
+  - Could return { configured: true } even when PayPal was completely broken
+- Fix 1: OffersPage.tsx
+  - isButtonDisabled: added `paypalConfigured === null` condition
+  - handleChoosePlan guard: changed to `paypalConfigured !== true`
+  - Now buttons show loading spinner during config check, not clickable
+- Fix 2: /api/paypal/config/route.ts
+  - Now checks ALL 4 required vars: CLIENT_ID, CLIENT_SECRET, MONTHLY_PLAN_ID, ANNUAL_PLAN_ID
+  - Returns `missing` array for debugging
+  - Reduced cache from 300s to 60s for faster propagation
+
+Stage Summary:
+- Code pushed to GitHub (commit 9c6b3ff)
+- Vercel will auto-redeploy
+- Next step: user adds PayPal env vars on Vercel ONE BY ONE
+  Each var added correctly → redeploy → verify with /api/paypal/diagnose
