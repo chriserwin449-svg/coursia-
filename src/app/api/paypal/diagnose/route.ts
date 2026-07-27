@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 
 // ─── PayPal Diagnostic Endpoint ───────────────────────────────────────────
-// Tests both sandbox and live PayPal endpoints with the configured credentials
-// to identify which environment they belong to.
-//
+// Tests PayPal credentials AND validates plan IDs.
 // This endpoint is read-only and exposes only safe diagnostic info (no secrets).
 // Usage: GET /api/paypal/diagnose
 
@@ -61,6 +59,67 @@ async function testEndpoint(
   }
 }
 
+interface PlanCheckResult {
+  id: string;
+  valid: boolean;
+  status?: string;
+  price?: string;
+  interval?: string;
+  error?: string;
+}
+
+async function checkPlan(
+  baseUrl: string,
+  accessToken: string,
+  planId: string
+): Promise<PlanCheckResult> {
+  try {
+    const res = await fetch(`${baseUrl}/v1/billing/plans/${planId}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      let hint = `HTTP ${res.status}`;
+      if (res.status === 404) hint = "Plan not found — wrong ID or belongs to different PayPal account";
+      else if (res.status === 401) hint = "Auth failed — credentials mismatch";
+      return { id: planId, valid: false, error: hint, status: `HTTP ${res.status}` };
+    }
+
+    const plan = (await res.json()) as {
+      id: string;
+      status: string;
+      billing_cycles?: Array<{
+        pricing_scheme?: { fixed_price?: { value?: string; currency_code?: string } };
+        frequency?: { interval_unit?: string; interval_count?: number };
+      }>;
+    };
+
+    const cycle = plan.billing_cycles?.[0];
+    return {
+      id: planId,
+      valid: plan.status === "ACTIVE",
+      status: plan.status,
+      price: cycle?.pricing_scheme?.fixed_price
+        ? `${cycle.pricing_scheme.fixed_price.currency_code} ${cycle.pricing_scheme.fixed_price.value}`
+        : undefined,
+      interval: cycle?.frequency
+        ? `${cycle.frequency.interval_count} ${cycle.frequency.interval_unit?.toLowerCase()}`
+        : undefined,
+    };
+  } catch (err) {
+    return {
+      id: planId,
+      valid: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 export async function GET() {
   const clientId = process.env.PAYPAL_CLIENT_ID || "";
   const clientSecret = process.env.PAYPAL_CLIENT_SECRET || "";
@@ -114,6 +173,61 @@ export async function GET() {
     (correctEnv === "live" && configuredMode === "live") ||
     correctEnv === "both";
 
+  // Now also validate plan IDs (using the working endpoint)
+  let planChecks: Record<string, PlanCheckResult> = {};
+  let accessToken = "";
+
+  const workingUrl = correctEnv === "live" ? LIVE_URL : SANDBOX_URL;
+  if (sandboxResult.ok || liveResult.ok) {
+    try {
+      const tokenRes = await fetch(`${workingUrl}/v1/oauth2/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+        },
+        body: "grant_type=client_credentials",
+        signal: AbortSignal.timeout(10000),
+      });
+      if (tokenRes.ok) {
+        const tokenData = (await tokenRes.json()) as { access_token: string };
+        accessToken = tokenData.access_token;
+
+        // Check both plans in parallel
+        const [monthlyCheck, annualCheck] = await Promise.all([
+          monthlyPlanId && !monthlyPlanId.startsWith("YOUR_")
+            ? checkPlan(workingUrl, accessToken, monthlyPlanId)
+            : Promise.resolve({ id: monthlyPlanId || "(not set)", valid: false, error: "Not configured" }),
+          annualPlanId && !annualPlanId.startsWith("YOUR_")
+            ? checkPlan(workingUrl, accessToken, annualPlanId)
+            : Promise.resolve({ id: annualPlanId || "(not set)", valid: false, error: "Not configured" }),
+        ]);
+
+        planChecks = { monthly: monthlyCheck, annual: annualCheck };
+      }
+    } catch {
+      // Plan check failed — not critical
+    }
+  }
+
+  // Build overall assessment
+  const plansOk = planChecks.monthly?.valid && planChecks.annual?.valid;
+  const monthlyOk = planChecks.monthly?.valid;
+  const annualOk = planChecks.annual?.valid;
+
+  let recommendation: string;
+  if (!modeMatchesCredentials) {
+    recommendation = `⚠️ Credentials are valid for ${correctEnv.toUpperCase()} but PAYPAL_MODE is "${configuredMode}". Change PAYPAL_MODE to "${correctEnv}" in Vercel.`;
+  } else if (!plansOk && monthlyOk && !annualOk) {
+    recommendation = `❌ Annual plan is invalid! The PAYPAL_ANNUAL_PLAN_ID on Vercel is wrong or belongs to a different account. Current value: ${annualPlanId}`;
+  } else if (!plansOk && !monthlyOk && annualOk) {
+    recommendation = `❌ Monthly plan is invalid! The PAYPAL_MONTHLY_PLAN_ID on Vercel is wrong.`;
+  } else if (!plansOk) {
+    recommendation = `❌ Plan IDs are invalid. They may belong to a different PayPal account than the configured credentials.`;
+  } else {
+    recommendation = `✅ All good! Credentials and both plan IDs are valid.`;
+  }
+
   return NextResponse.json(
     {
       configured: true,
@@ -130,8 +244,8 @@ export async function GET() {
       webhookIdPrefix: webhookId ? webhookId.slice(0, 4) + "..." : "(not set)",
       webhookIdLength: webhookId.length,
       hasProductId: !!productId,
-      hasMonthlyPlanId: !!monthlyPlanId,
-      hasAnnualPlanId: !!annualPlanId,
+      monthlyPlanId,
+      annualPlanId,
 
       // Test results
       tests: {
@@ -139,17 +253,15 @@ export async function GET() {
         live: liveResult,
       },
 
+      // Plan validation
+      plans: planChecks,
+
       // Diagnosis
       correctEnv,
       modeMatchesCredentials,
 
       // Recommendation
-      recommendation:
-        correctEnv === "neither"
-          ? "❌ Credentials are invalid in BOTH sandbox and live. Re-copy them from PayPal dashboard."
-          : !modeMatchesCredentials
-          ? `⚠️ Credentials are valid for ${correctEnv.toUpperCase()} but PAYPAL_MODE is "${configuredMode}". Change PAYPAL_MODE to "${correctEnv}" in Vercel.`
-          : `✅ All good! Credentials work with PAYPAL_MODE="${configuredMode}".`,
+      recommendation,
     },
     { headers: { "Cache-Control": "no-store" } }
   );

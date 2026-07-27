@@ -199,6 +199,39 @@ export async function createPayPalSubscription(
     requestId: params.requestId,
   });
 
+  const requestBody = {
+    plan_id: planId,
+    custom_id: customId,
+    ...(params.userEmail
+      ? {
+          subscriber: {
+            email_address: params.userEmail,
+          },
+        }
+      : {}),
+    application_context: {
+      brand_name: "Coursia",
+      locale: (params.locale || "fr_FR").replace("_", "-"),
+      shipping_preference: "NO_SHIPPING",
+      user_action: "SUBSCRIBE_NOW",
+      payment_method: {
+        payer_selected: "PAYPAL",
+        payee_preferred: "IMMEDIATE_PAYMENT_REQUIRED",
+      },
+      return_url: `${appUrl}/?payment=success&plan=${params.plan}&request_id=${encodeURIComponent(params.requestId)}`,
+      cancel_url: `${appUrl}/?payment=cancelled&plan=${params.plan}`,
+    },
+  };
+
+  console.log("[paypal] Creating subscription request:", {
+    plan: params.plan,
+    planId,
+    appUrl,
+    subscriberEmail: params.userEmail || "(none)",
+    return_url: requestBody.application_context.return_url,
+    cancel_url: requestBody.application_context.cancel_url,
+  });
+
   const response = await fetch(`${getBaseUrl()}/v1/billing/subscriptions`, {
     method: "POST",
     headers: {
@@ -207,34 +240,18 @@ export async function createPayPalSubscription(
       "PayPal-Request-Id": params.requestId,
       Prefer: "return=representation",
     },
-    body: JSON.stringify({
-      plan_id: planId,
-      custom_id: customId,
-      ...(params.userEmail
-        ? {
-            subscriber: {
-              email_address: params.userEmail,
-            },
-          }
-        : {}),
-      application_context: {
-        brand_name: "Coursia",
-        locale: (params.locale || "fr_FR").replace("_", "-"),
-        shipping_preference: "NO_SHIPPING",
-        user_action: "SUBSCRIBE_NOW",
-        payment_method: {
-          payer_selected: "PAYPAL",
-          payee_preferred: "IMMEDIATE_PAYMENT_REQUIRED",
-        },
-        return_url: `${appUrl}/?payment=success&plan=${params.plan}&request_id=${encodeURIComponent(params.requestId)}`,
-        cancel_url: `${appUrl}/?payment=cancelled&plan=${params.plan}`,
-      },
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
     console.error("[paypal] Create subscription failed:", response.status, errorText);
+    // Parse structured PayPal error for detailed diagnostics
+    let parsedError: Record<string, unknown> | null = null;
+    try {
+      parsedError = JSON.parse(errorText);
+      console.error("[paypal] Subscription error details:", JSON.stringify(parsedError, null, 2));
+    } catch { /* not JSON */ }
     let errorType = "PAYPAL_SUBSCRIPTION_FAILED";
     let userMessage = `PayPal subscription creation failed: ${response.status}`;
     if (response.status === 401) {
@@ -243,9 +260,20 @@ export async function createPayPalSubscription(
     } else if (response.status === 422) {
       errorType = "PAYPAL_VALIDATION";
       userMessage = "PayPal subscription validation failed. Check plan ID and details.";
+    } else if (response.status === 400) {
+      errorType = "PAYPAL_BAD_REQUEST";
+      // Extract the specific PayPal issue
+      const details = parsedError?.details;
+      if (Array.isArray(details) && details.length > 0) {
+        const issues = details.map((d: Record<string, string>) => `${d.field || ''}: ${d.issue || ''} – ${d.description || ''}`).join('; ');
+        userMessage = `PayPal error (annual plan): ${issues}`;
+      } else if (parsedError?.message) {
+        userMessage = `PayPal error: ${parsedError.message}`;
+      }
     }
-    const err = new Error(userMessage) as Error & { code: string };
+    const err = new Error(userMessage) as Error & { code: string; paypalError: Record<string, unknown> | null };
     err.code = errorType;
+    err.paypalError = parsedError;
     throw err;
   }
 
