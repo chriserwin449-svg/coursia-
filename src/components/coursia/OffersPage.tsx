@@ -63,7 +63,7 @@ export default function OffersPage() {
       setView("auth");
       return;
     }
-    if (paypalConfigured === false) return;
+    if (paypalConfigured !== true) return;
     if (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired) return;
     if (checkoutLoading) return; // prevent double-click
 
@@ -121,7 +121,7 @@ export default function OffersPage() {
       setCheckoutError(lang === "fr" ? "Erreur lors de la préparation du paiement." : "Error preparing payment.");
       setCheckoutLoading(null);
     }
-  }, [isAuthenticated, userId, paypalConfigured, isSubscribed, showRenewalReminder, inGracePeriod, graceExpired, setView, checkoutLoading, lang]);
+  }, [isAuthenticated, userId, paypalConfigured, isSubscribed, showRenewalReminder, inGracePeriod, graceExpired, setView, checkoutLoading, lang, trackEvent]);
 
   // Check paywall & subscription status
   useEffect(() => {
@@ -136,7 +136,10 @@ export default function OffersPage() {
         if (res.ok) {
           const data = await res.json();
           setPaypalConfigured(!!data.configured);
-          if (!data.configured) setPaypalNotConfigured(true);
+          if (!data.configured) {
+            setPaypalNotConfigured(true);
+            console.log("[offers] PayPal not configured. Missing:", data.missing);
+          }
         } else {
           setPaypalConfigured(false);
           setPaypalNotConfigured(true);
@@ -330,8 +333,10 @@ export default function OffersPage() {
   const showManageSubscription = statusLoaded && isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired;
 
   // Button disabled logic
+  // While config is loading (null), buttons show loading spinner — not clickable
   const isButtonDisabled = (plan: string) =>
     paypalConfigured === false ||
+    paypalConfigured === null ||
     (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired);
 
   return (
