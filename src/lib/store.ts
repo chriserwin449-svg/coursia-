@@ -145,6 +145,9 @@ interface AppState {
   // 48h expiry warning
   expiryWarning48h: boolean;
   setExpiryWarning48h: (v: boolean) => void;
+  // Legal pages
+  legalPage: null | "privacy" | "terms";
+  setLegalPage: (page: null | "privacy" | "terms") => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -275,4 +278,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // 48h expiry warning
   expiryWarning48h: false,
   setExpiryWarning48h: (v) => set({ expiryWarning48h: v }),
+  // Legal pages
+  legalPage: null,
+  setLegalPage: (page) => set({ legalPage: page }),
 }));

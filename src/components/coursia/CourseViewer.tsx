@@ -276,6 +276,24 @@ export default function CourseViewer() {
           }
           startStudySession(selectedCourseId, data.chapters[restoreIdx >= 0 ? restoreIdx : 0]?.id);
           setHasAttemptedFetch(true);
+
+          // ── Restore quiz state after returning from payment ──
+          // Check if there are saved quiz answers in localStorage (user was blocked mid-quiz)
+          if (typeof window !== "undefined") {
+            for (let i = 0; i < window.localStorage.length; i++) {
+              const key = window.localStorage.key(i);
+              if (key && key.startsWith(`coursia-quiz-answers-${selectedCourseId}-level-`)) {
+                const levelStr = key.replace(`coursia-quiz-answers-${selectedCourseId}-level-`, "");
+                const savedLevel = parseInt(levelStr, 10);
+                if (!isNaN(savedLevel)) {
+                  setLevelQuizLevel(savedLevel);
+                  setShowLevelQuiz(true);
+                }
+                break;
+              }
+            }
+          }
+
           setLoading(false);
           return; // success
         } else if (attempt < maxRetries - 1) {
@@ -1425,9 +1443,9 @@ function LevelQuizPanel({
   const handleSubmit = async () => {
     if (submitting) return;
 
-    // Free user trying to submit Level 2+ quiz: save answers and redirect to offers
-    // Level 1 (Débutant) quiz is allowed for free users
-    if (isFreeUserProp && level > 0) {
+    // Free user trying to submit quiz: save answers and redirect to offers
+    // Blocking happens at ALL levels — free users can study but not get quiz correction
+    if (isFreeUserProp) {
       const key = `coursia-quiz-answers-${courseId}-level-${level}`;
       if (typeof window !== "undefined") {
         localStorage.setItem(key, JSON.stringify(answers));
@@ -1458,6 +1476,12 @@ function LevelQuizPanel({
 
     setResult({ score: Math.round((correct / total) * 100), correct, total, passed, pointsEarned, canRetry: !passed && !isSecondAttempt });
     setSubmitting(false);
+
+    // Clean up saved quiz answers from localStorage (no longer needed after submission)
+    const savedKey = `coursia-quiz-answers-${courseId}-level-${level}`;
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(savedKey);
+    }
   };
 
   if (loading) {
@@ -1540,19 +1564,19 @@ function LevelQuizPanel({
 
       {/* Submit / Result */}
       <div className="mt-8 text-center">
-        {/* Paywall notice for free users on Level 2+ */}
-        {isFreeUserProp && level > 0 && !result && (
+        {/* Paywall notice for free users — quiz correction requires subscription */}
+        {isFreeUserProp && !result && (
           <div className="mb-4 p-4 rounded-2xl bg-gold/10 border border-gold/20">
             <Crown className="w-5 h-5 text-gold mx-auto mb-2" />
             <p className="text-foreground font-bold text-sm mb-1">
               {lang === "fr"
-                ? "Pour continuer au niveau suivant, souscris à un abonnement Premium"
-                : "To continue to the next level, subscribe to Premium"}
+                ? "Pour corriger ton quiz et voir tes résultats, souscris à Premium"
+                : "To grade your quiz and see your results, subscribe to Premium"}
             </p>
             <p className="text-xs text-muted-foreground mb-3">
               {lang === "fr"
-                ? "Tes réponses seront sauvegardées"
-                : "Your answers will be saved"}
+                ? "Tes réponses seront sauvegardées et corrigées après ton abonnement"
+                : "Your answers will be saved and graded after subscribing"}
             </p>
             <button
               onClick={() => setView("offers")}

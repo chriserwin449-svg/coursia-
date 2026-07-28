@@ -40,7 +40,7 @@ const fr = {
     },
     pricing: {
       title: "Choisis ton rythme",
-      subtitle: "Crée ton premier cours gratuitement. Ensuite, choisis le plan qui te correspond pour débloquer tout le potentiel de Coursia.",
+      subtitle: "Choisis le plan qui correspond le mieux à tes objectifs d'apprentissage.",
       monthly: {
         name: "Mensuel",
         price: "$9.99",
@@ -462,7 +462,7 @@ const en = {
     },
     pricing: {
       title: "Pick your pace",
-      subtitle: "Create your first course for free. Then choose a plan that fits your goals and unlock everything Coursia has to offer.",
+      subtitle: "Choose the plan that best matches your learning goals.",
       monthly: {
         name: "Monthly",
         price: "$9.99",

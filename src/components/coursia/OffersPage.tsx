@@ -37,6 +37,7 @@ export default function OffersPage() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscriptionPlan, setSubscriptionPlan] = useState<string>("");
   const [subscriptionEndDate, setSubscriptionEndDate] = useState<string | null>(null);
+  const [subscriptionStartDate, setSubscriptionStartDate] = useState<string | null>(null);
   const [inGracePeriod, setInGracePeriod] = useState(false);
   const [graceDaysRemaining, setGraceDaysRemaining] = useState(0);
   const [graceExpired, setGraceExpired] = useState(false);
@@ -207,6 +208,7 @@ export default function OffersPage() {
           setIsSubscribed(true);
           setSubscriptionPlan(data.subscriptionPlan || "monthly");
           setSubscriptionEndDate(data.subscriptionEndDate || null);
+          setSubscriptionStartDate(data.subscriptionStartDate || null);
           setTrialExpired(false);
 
           if (data.showRenewalReminder) {
@@ -238,18 +240,8 @@ export default function OffersPage() {
     checkStatus();
   }, [userId]);
 
-  // Auto-redirect subscribed users (no renewal/grace) to "create" page
-  // This ensures that if a user manually navigates to offers while subscribed,
-  // they get sent to the create page instead of being stuck on pricing cards
-  useEffect(() => {
-    if (statusLoaded && isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired && !trialExpired) {
-      // Small delay to let the user see the "Premium actif" banner briefly
-      const timer = setTimeout(() => {
-        setView("create");
-      }, 1200);
-      return () => clearTimeout(timer);
-    }
-  }, [statusLoaded, isSubscribed, showRenewalReminder, inGracePeriod, graceExpired, trialExpired, setView]);
+  // Active subscribers stay on the offers page to see their subscription status (Netflix/ChatGPT Plus style).
+  // No auto-redirect — the management banner + single active plan card are shown instead.
 
   // Fetch manage URL when subscribed and no renewal reminder
   useEffect(() => {
@@ -383,7 +375,7 @@ export default function OffersPage() {
   }, [isSubscribed, showRenewalReminder, firstName, lang, tx.offers]);
 
   // Show "Manage subscription" for active subscribers not in renewal/grace
-  const showManageSubscription = statusLoaded && isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired;
+  const showManageSubscription = statusLoaded && isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired && !trialExpired;
 
   // Button disabled logic
   // While config is loading (null), buttons show loading spinner — not clickable
@@ -392,8 +384,8 @@ export default function OffersPage() {
     paypalConfigured === null ||
     (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired);
 
-  // ─── Format subscription end date for display ────────────────────────
-  const formatEndDate = (dateStr: string | null) => {
+  // ─── Format subscription dates for display ──────────────────────────
+  const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "—";
     try {
       const date = new Date(dateStr);
@@ -464,7 +456,7 @@ export default function OffersPage() {
                   <CalendarDays className="w-4 h-4 text-muted-foreground" />
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-medium">{offersTx.nextRenewal}</p>
-                    <p className="text-sm font-bold text-foreground">{formatEndDate(subscriptionEndDate)}</p>
+                    <p className="text-sm font-bold text-foreground">{formatDate(subscriptionEndDate)}</p>
                   </div>
                 </div>
               </div>
@@ -513,7 +505,7 @@ export default function OffersPage() {
         </div>
 
         {/* ===== SUBSCRIPTION MANAGEMENT BANNER (for active subscribers) ===== */}
-        {/* Shows before auto-redirect — premium experience like ChatGPT Plus */}
+        {/* Netflix/ChatGPT Plus style — shows subscription status with manage button */}
         {showManageSubscription && <SubscriptionManagementBanner />}
 
         {/* ===== NOTIFICATION BANNER (legacy, kept for renewal/grace users) ===== */}
@@ -644,9 +636,120 @@ export default function OffersPage() {
         </div>
 
         {/* ===== PRICING CARDS ===== */}
-        {/* Hide pricing cards entirely for active subscribers without renewal/grace (manage banner shown instead) */}
-        {!showManageSubscription && (
-          <div className={`grid gap-6 lg:gap-8 items-start grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto`}>
+        {showManageSubscription ? (
+          /* Active subscriber: show ONLY the card matching their plan with "Abonnement actif" */
+          <div className="max-w-md mx-auto animate-fade-in">
+            {subscriptionPlan === "monthly" ? (
+              /* ── Active monthly plan card ── */
+              <div className="pricing-card-float monthly-card-glow glass rounded-3xl p-5 sm:p-8 flex flex-col border-2 border-emerald-500/30 transition-all duration-300">
+                <div className="mb-6">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-mauve/10 flex items-center justify-center">
+                      <Zap className="w-6 h-6 text-mauve-light" />
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.monthly.name}</h3>
+                  </div>
+                  <p className="text-muted-foreground text-sm">{tx.landing.pricing.monthly.desc}</p>
+                </div>
+                <div className="mb-6">
+                  <span className="text-3xl sm:text-4xl font-extrabold">{tx.landing.pricing.monthly.price}</span>
+                  <span className="text-lg text-muted-foreground">{tx.landing.pricing.monthly.period}</span>
+                </div>
+                <ul className="flex-1 space-y-2 sm:space-y-3 mb-6">
+                  {tx.landing.pricing.monthly.features.map((f) => (
+                    <li key={f} className="flex items-start gap-3">
+                      <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                      <span className="text-sm text-muted-foreground">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Subscription info */}
+                <div className="space-y-2 mb-6 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/15">
+                  <div className="flex items-center gap-2 text-sm">
+                    <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">{lang === "fr" ? "Abonné depuis" : "Subscribed since"} <span className="text-foreground font-semibold">{formatDate(subscriptionStartDate)}</span></span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">{lang === "fr" ? "Expire le" : "Expires on"} <span className="text-foreground font-semibold">{formatDate(subscriptionEndDate)}</span></span>
+                  </div>
+                </div>
+
+                {/* Active subscription button */}
+                <button
+                  disabled
+                  className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold flex items-center justify-center gap-2 cursor-default"
+                >
+                  <BadgeCheck className="w-5 h-5" />
+                  {lang === "fr" ? "Abonnement actif" : "Subscription active"}
+                </button>
+              </div>
+            ) : (
+              /* ── Active annual plan card ── */
+              <div className="pricing-card-float annual-card-shimmer relative glass rounded-3xl p-5 sm:p-8 flex flex-col border-2 border-gold/50 transition-all duration-300 shadow-[0_0_40px_rgba(234,179,8,0.1)]">
+                {/* Popular badge */}
+                <span className="annual-badge-pulse absolute -top-4 left-1/2 -translate-x-1/2 px-3 sm:px-5 py-1.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-[10px] sm:text-xs font-extrabold uppercase tracking-wider z-10 flex items-center gap-1 sm:gap-1.5 overflow-hidden">
+                  <Crown className="w-3 sm:w-3.5 h-3 sm:h-3.5 flex-shrink-0" />
+                  <span className="truncate">{tx.landing.pricing.annual.badge}</span>
+                </span>
+
+                {tx.landing.pricing.annual.save && (
+                  <div className="flex justify-end mb-2">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-bold">
+                      {tx.landing.pricing.annual.save}
+                    </span>
+                  </div>
+                )}
+
+                <div className="mb-6">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gold/10 flex items-center justify-center">
+                      <Crown className="w-6 h-6 text-gold" />
+                    </div>
+                    <h3 className="text-lg sm:text-xl font-bold">{tx.landing.pricing.annual.name}</h3>
+                  </div>
+                  <p className="text-muted-foreground text-sm">{tx.landing.pricing.annual.desc}</p>
+                </div>
+                <div className="mb-6">
+                  <span className="text-3xl sm:text-4xl font-extrabold text-gold">{tx.landing.pricing.annual.price}</span>
+                  <span className="text-lg text-muted-foreground">{tx.landing.pricing.annual.period}</span>
+                </div>
+                <ul className="flex-1 space-y-2 sm:space-y-3 mb-6">
+                  {tx.landing.pricing.annual.features.map((f) => (
+                    <li key={f} className="flex items-start gap-3">
+                      <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                      <span className="text-sm text-muted-foreground">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Subscription info */}
+                <div className="space-y-2 mb-6 p-3 rounded-xl bg-gold/5 border border-gold/15">
+                  <div className="flex items-center gap-2 text-sm">
+                    <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">{lang === "fr" ? "Abonné depuis" : "Subscribed since"} <span className="text-foreground font-semibold">{formatDate(subscriptionStartDate)}</span></span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">{lang === "fr" ? "Expire le" : "Expires on"} <span className="text-foreground font-semibold">{formatDate(subscriptionEndDate)}</span></span>
+                  </div>
+                </div>
+
+                {/* Active subscription button */}
+                <button
+                  disabled
+                  className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold flex items-center justify-center gap-2 cursor-default relative overflow-hidden"
+                >
+                  <BadgeCheck className="w-5 h-5" />
+                  {lang === "fr" ? "Abonnement actif" : "Subscription active"}
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Non-subscribers / renewal / grace: show both cards as normal */
+          <div className="grid gap-6 lg:gap-8 items-start grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto">
             {/* MONTHLY PLAN */}
             <div className="pricing-card-float monthly-card-glow glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
               <div className="mb-6">
@@ -669,7 +772,7 @@ export default function OffersPage() {
                     <span className="text-sm text-muted-foreground">{f}</span>
                   </li>
                 ))}
-            </ul>
+              </ul>
 
             {/* CTA Button */}
             {isButtonDisabled("monthly") ? (
@@ -772,7 +875,6 @@ export default function OffersPage() {
           </div>
         </div>
         )}
-
         {/* ===== BOTTOM NOTE ===== */}
         <div className="text-center pb-10 mt-16">
           {paypalNotConfigured && (

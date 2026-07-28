@@ -984,3 +984,89 @@ Stage Summary:
   5. PAYPAL_PRODUCT_ID="PROD-015763688U115142X"
   6. PAYPAL_MONTHLY_PLAN_ID="P-6P445856A8296073VNJUKH2A"
   7. PAYPAL_ANNUAL_PLAN_ID="P-8UR00475G6611162CNJUKH2A"
+
+---
+Task ID: free-trial-logic-fix
+Agent: Sub-agent
+Task: Fix free trial / freemium flow logic for new users
+
+Work Log:
+- Analyzed all relevant files: CreateCourse.tsx, CourseViewer.tsx, OffersPage.tsx, AppShell.tsx, i18n.ts, Library.tsx
+- Removed "Ton premier cours est offert" notification from AppShell.tsx (free_available paywall reason now shows no message)
+- Changed i18n.ts landing pricing subtitle from "Crée ton premier cours gratuitement..." to "Choisis le plan qui correspond le mieux à tes objectifs d'apprentissage." (FR) and "Choose the plan that best matches your learning goals." (EN)
+- Fixed quiz blocking in CourseViewer.tsx: changed condition from `isFreeUserProp && level > 0` to just `isFreeUserProp` — free users are now blocked at ALL levels when submitting quiz (not just Level 2+)
+- Updated paywall notice text in quiz panel to say "Pour corriger ton quiz et voir tes résultats" instead of "Pour continuer au niveau suivant"
+- Added localStorage quiz answer save before redirect to offers for ALL levels
+- Added quiz state restoration in CourseViewer: after course loads, checks for `coursia-quiz-answers-*` keys and auto-opens quiz panel with restored answers
+- Added localStorage cleanup after successful quiz submission
+- Fixed AppShell.tsx payment success navigation: now checks for saved quiz answers in localStorage and navigates to course viewer (with quiz restored) instead of always going to create page
+- Verified CreateCourse.tsx pre-check at line 430-441 correctly blocks free users with `freeCourseUsed` flag
+- Verified Library.tsx delete doesn't reset `freeCourseUsed` flag, so delete+regenerate is blocked
+
+Stage Summary:
+- Free users can create 1 course, study it, but ALL quiz submissions redirect to offers page
+- No "first course free" messaging anywhere in the app
+- After payment, user returns to quiz with answers pre-filled, can submit and see results
+- Delete + regenerate is blocked (freeCourseUsed flag persists)
+- Files modified: i18n.ts, CourseViewer.tsx, AppShell.tsx
+
+---
+Task ID: offers-page-fix
+Agent: Sub-agent
+Task: Fix OffersPage for active subscribers (Netflix/ChatGPT Plus style)
+
+Work Log:
+- Added `subscriptionStartDate` state variable and populated from `data.subscriptionStartDate` in checkStatus useEffect
+- Removed auto-redirect useEffect that sent active subscribers to "create" after 1.2s
+- Updated `showManageSubscription` logic to also exclude `trialExpired`
+- Renamed `formatEndDate` to `formatDate` (shared for both start and end dates)
+- Replaced pricing cards section with Netflix/ChatGPT Plus style:
+  - When `showManageSubscription` is true: shows ONLY the card matching the user's active plan (monthly or annual)
+  - Active plan card has "Abonnement actif" button (disabled, with BadgeCheck icon)
+  - Active plan card shows "Abonné depuis [startDate]" and "Expire le [endDate]" info
+  - When `showManageSubscription` is false: shows both cards as normal (for non-subscribers, grace period, renewal)
+- Kept SubscriptionManagementBanner visible (with updated comment removing redirect reference)
+- Banner + single active plan card both visible for active subscribers
+
+Stage Summary:
+- Active subscribers now see: management banner (with plan type, status, renewal date, manage button) + single active plan card (with dates and "Abonnement actif" button)
+- No more auto-redirect to create page — users stay on offers page to view subscription status
+- Non-subscribers, grace period, and renewal users see both pricing cards as before
+- File modified: src/components/coursia/OffersPage.tsx
+
+---
+Task ID: full-saas-logic-review
+Agent: Main Agent
+Task: Complete SaaS logic review and fixes — legal pages, offers page, free trial flow
+
+Work Log:
+- Dispatched 3 parallel sub-agents for major changes
+- Agent 1 (legal-pages-fix): Converted legal modals to dedicated full pages
+  - Created LegalPage.tsx component with sticky nav bar, back button, full content
+  - Added legalPage state to Zustand store
+  - Updated LandingPage footer to use setLegalPage() instead of setLegalModal()
+  - Updated AppShell.tsx with LegalPage render branch
+  - Fixed duplicate legalPage state in MobileSlideOver and MobileBottomNav
+- Agent 2 (offers-page-fix): Fixed subscription management UX
+  - Added subscriptionStartDate state and population from API
+  - Removed auto-redirect (subscribers now stay on offers page)
+  - When active subscriber: shows ONLY their plan card with "Abonnement actif" button
+  - Added "Abonné depuis [startDate]" and "Expire le [endDate]" on active plan card
+  - Hidden other plan card (monthly user sees only monthly, annual sees only annual)
+- Agent 3 (free-trial-logic-fix): Fixed complete free trial flow
+  - Changed quiz blocking: free users blocked at ALL levels (not just level > 0)
+  - After quiz submit: answers saved to localStorage, redirected to offers
+  - After payment: quiz auto-opens with restored answers
+  - localStorage cleanup after successful quiz submission
+  - Removed "first course free" messaging from pricing subtitle
+- Browser verified: landing page h1 shows correct text, legal pages open as full pages with back button
+
+Stage Summary:
+- All 6 tasks completed:
+  1. ✅ Legal pages → dedicated full pages (like winlab.app/legal)
+  2. ✅ Hero text → "L'IA qui crée votre cours parfait en quelques secondes."
+  3. ✅ Free trial flow → no free messaging, block at quiz submit, block new course, block delete+regen
+  4. ✅ Offers page → active sub shows only their plan card with "Abonnement actif" + dates
+  5. ✅ Paid users → unlimited generation (4 courses/day, verified in paywall-status)
+  6. ✅ Browser verified all changes
+- Files modified: LegalPage.tsx (NEW), AppShell.tsx, OffersPage.tsx, CourseViewer.tsx, LandingPage.tsx, store.ts, i18n.ts

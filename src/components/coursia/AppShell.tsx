@@ -17,6 +17,7 @@ import CourseViewer from "@/components/coursia/CourseViewer";
 import Journey from "@/components/coursia/Journey";
 import OffersPage from "@/components/coursia/OffersPage";
 import TopBar from "@/components/coursia/TopBar";
+import LegalPage from "@/components/coursia/LegalPage";
 
 
 function MobileSlideOver({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -213,6 +214,7 @@ function MobileBottomNav() {
 
 export default function AppShell() {
   const view = useAppStore((s) => s.view);
+  const legalPage = useAppStore((s) => s.legalPage);
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
   const user = useAppStore((s) => s.user);
   const setAuthToken = useAppStore((s) => s.setAuthToken);
@@ -275,7 +277,7 @@ export default function AppShell() {
       const currentLang = useAppStore.getState().lang;
       let msg = "";
       if (data.paywallReason === "free_available") {
-        msg = currentLang === "fr" ? "🎁 Ton premier cours est offert." : "🎁 Your first course is free.";
+        // No notification for free course — let user discover naturally
       } else if (data.paywallReason === "free_limit") {
         msg = currentLang === "fr" ? "🚀 Débloque les cours illimités avec Premium." : "🚀 Unlock unlimited courses with Premium.";
       } else if (data.paywallReason === "subscribed" && data.showRenewalReminder) {
@@ -423,13 +425,35 @@ export default function AppShell() {
         const isAuthenticated = useAppStore.getState().isAuthenticated;
         const pending = useAppStore.getState().pendingGeneration;
         if (isAuthenticated) {
-          if (pending) {
+          // Check if user was in middle of a quiz (saved answers in localStorage)
+          let savedQuizCourseId: string | null = null;
+          let savedQuizLevel: number | null = null;
+          if (typeof window !== "undefined") {
+            for (let i = 0; i < window.localStorage.length; i++) {
+              const key = window.localStorage.key(i);
+              if (key && key.startsWith("coursia-quiz-answers-")) {
+                // Extract courseId and level from key: coursia-quiz-answers-{courseId}-level-{level}
+                const parts = key.replace("coursia-quiz-answers-", "").split("-level-");
+                if (parts.length === 2) {
+                  savedQuizCourseId = parts[0];
+                  savedQuizLevel = parseInt(parts[1], 10);
+                  break;
+                }
+              }
+            }
+          }
+
+          if (savedQuizCourseId) {
+            // User was blocked mid-quiz — navigate back to their course
+            useAppStore.getState().setSelectedCourseId(savedQuizCourseId);
+            setTimeout(() => useAppStore.getState().setView("viewer"), 1500);
+          } else if (pending) {
             // User tried to generate a course before paying — resume it
             useAppStore.getState().setPendingGeneration(null);
             setTimeout(() => useAppStore.getState().setView("create"), 1500);
           } else {
-            // Navigate to create page to start using subscription
-            setTimeout(() => useAppStore.getState().setView("create"), 1500);
+            // Navigate to library to see their course
+            setTimeout(() => useAppStore.getState().setView("library"), 1500);
           }
         } else {
           useAppStore.getState().setView("landing");
@@ -470,7 +494,9 @@ export default function AppShell() {
 
   return (
     <div className="min-h-screen bg-night">
-      {view === "landing" ? (
+      {legalPage ? (
+        <LegalPage type={legalPage} />
+      ) : view === "landing" ? (
         <LandingPage />
       ) : view === "auth" ? (
         <AuthPage />
