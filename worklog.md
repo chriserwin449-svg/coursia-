@@ -823,3 +823,98 @@ Stage Summary:
 - Scripts are ready for LIVE mode (just need user's LIVE credentials)
 - 7 Vercel env vars need updating for LIVE: PAYPAL_MODE, CLIENT_ID, SECRET, PRODUCT_ID, MONTHLY_PLAN_ID, ANNUAL_PLAN_ID, WEBHOOK_ID
 - Waiting for user to provide LIVE PayPal credentials
+---
+Task ID: 2
+Agent: Subscription Management Agent
+Task: Rebuild subscription management to prevent double subs + premium UX
+
+Work Log:
+- Read worklog.md and all relevant source files (OffersPage, checkout route, paypal.ts, store, i18n, paywall-status)
+- Enhanced checkout/route.ts: replaced simple `active` check with `active || suspended` guard
+  - Returns 409 Conflict with `DOUBLE_SUBSCRIPTION_BLOCKED` code
+  - Includes `currentStatus` and `currentPlan` in response
+  - Logs every prevented double subscription attempt with userId, status, plan
+- Created src/app/api/subscription/sync/route.ts (POST)
+  - Takes userId, extracts PayPal subscription ID from creemSubscriptionId (strips paypal_ prefix)
+  - Fetches PayPal subscription details via getSubscriptionDetails()
+  - Maps PayPal statuses (ACTIVE, SUSPENDED, CANCELLED, EXPIRED, PAUSED, etc.) to our DB statuses
+  - Updates DB if mismatch found (status, endDate from nextBillingTime, startDate, plan from customId)
+  - Returns { synced, paypalStatus, dbStatus, updatedDbStatus, plan, endDate, nextBillingTime, startTime, reason }
+- Created src/app/api/subscription/manage/route.ts (GET)
+  - Takes userId, returns PayPal management URLs
+  - Constructs specific subscription URL: https://www.paypal.com/billing/subscriptions/{id}
+  - Also provides autopay URL: https://www.paypal.com/myaccount/autopay/
+  - Handles sandbox vs live mode correctly
+  - Returns { hasSubscription, manageUrl, autopayUrl, redirectUrl, subscriptionStatus, subscriptionPlan, subscriptionEndDate }
+- Added i18n translations (FR + EN) for subscription management UI:
+  - subscriptionActiveTitle, subscriptionActiveDesc, planLabel, nextRenewal, statusActive
+  - manageSubscription, manageOnPayPal, openPayPal, monthlyPlan, annualPlan, premiumBadge
+- Rebuilt OffersPage.tsx with premium management UX:
+  - Added `subscriptionEndDate` state for display
+  - Added `manageUrl` and `manageUrlLoading` state for PayPal management link
+  - Created `SubscriptionManagementBanner` component:
+    - ✅ "Abonnement actif" badge with BadgeCheck icon
+    - Crown + "Premium" badge
+    - 3-column detail grid: Plan type (Mensuel/Annuel), Status (Actif), Next renewal date
+    - "Gérer mon abonnement" button linking to PayPal (opens in new tab)
+    - Loading state for manage URL fetch
+  - When showManageSubscription=true (active, no renewal/grace):
+    - Shows premium banner instead of pricing cards
+    - Pricing cards completely hidden (!showManageSubscription guard)
+    - Auto-redirects to create page after 1.2s (preserved)
+  - When renewal approaching: shows renewal reminder + manage button inline
+  - Frontend handles 409 DOUBLE_SUBSCRIPTION_BLOCKED with clear message
+  - Added ExternalLink, CreditCard, CalendarDays, BadgeCheck imports
+
+Stage Summary:
+- 3 files modified: checkout/route.ts, i18n.ts, OffersPage.tsx
+- 2 new files: subscription/sync/route.ts, subscription/manage/route.ts
+- Double subscription prevention: blocks both active AND suspended users from creating new subscriptions
+- PayPal sync endpoint ensures DB always reflects real PayPal state
+- Manage endpoint provides direct PayPal subscription management links
+- OffersPage shows premium management banner (ChatGPT Plus / Netflix style) for active subscribers
+- Pricing cards hidden for active subscribers — only management banner visible
+- All lint checks pass on modified files (pre-existing errors in infrastructure .js files only)
+---
+Task ID: 3
+Agent: Payment Flow Agent
+Task: Fix payment flow for new users and quiz progression
+
+Work Log:
+- Read and analyzed all relevant source files (CourseViewer.tsx, paywall-status/route.ts, courses/[id]/route.ts, generate/route.ts, generate-level/route.ts, checkout/route.ts)
+- Fixed LevelQuizPanel.handleSubmit: changed isFreeUserProp check to only block Level 2+ quizzes (isFreeUserProp && level > 0), allowing Level 1 quiz for free users
+- Fixed Review Screen: added conditional rendering for free users showing paywall banner with Crown icon, subscription message, and Premium subscribe button navigating to offers page
+- Added paywall notice banner in LevelQuizPanel for free users on Level 2+ quizzes (safety net with subscribe button before submit)
+- Verified course deletion API does NOT reset freeCourseUsed (explicit comment at line 101)
+- Verified paywall-status API: getDailyLimitInfo returns dailyLimit=4 for active subscribers
+- Verified generate API: atomic transaction correctly checks freeCourseUsed and subscriptionStatus
+- Verified generate-level API: checks subscriptionStatus and returns SUBSCRIPTION_REQUIRED for non-subscribers
+- Ran lint: only pre-existing errors in .js files, no new errors in modified files
+
+Stage Summary:
+- Free user flow now works correctly: can generate 1 free course, study it, complete Level 1 quiz, and review progress
+- When free user completes Level 1, review screen shows paywall banner with Premium subscription CTA instead of Oui button
+- Level 2+ quiz progression blocked for free users with clear subscription messaging
+- Course deletion never resets freeCourseUsed (one-time free trial flag)
+- Active subscribers get 4 courses/day limit
+- File modified: src/components/coursia/CourseViewer.tsx (3 changes in LevelQuizPanel + Review Screen)
+---
+Task ID: 4-5-6
+Agent: Main Agent (UI + Legal)
+Task: Update landing headline, remove random lang selector, create legal pages
+
+Work Log:
+- Verified subscription management agent already updated landing page headline in i18n.ts
+- Verified TopBar random button was already cleaned up (language selector removed)
+- Enhanced legal modals in LandingPage.tsx with comprehensive content:
+  - Privacy Policy: 9 sections (Introduction, Data Collected, Data Usage, Data Sharing, AI, Security, Rights, Retention, Contact)
+  - Terms of Use: 11 sections (Acceptance, Service Description, User Accounts, Subscriptions & Payments, IP, User Content, Liability, Availability, Changes, Governing Law, Contact)
+  - Added Shield and FileText icons for professional header styling
+  - Added icon badges in section headers
+  - Increased modal width to max-w-3xl and height to 85vh
+  - Professional structure with sections and bullet lists
+
+Stage Summary:
+- LandingPage.tsx significantly enhanced with professional legal content
+- Both French and English versions fully populated
+- Legal pages now match professional SaaS standards (similar to winlab.app/legal)

@@ -10,6 +10,10 @@ import {
   ShieldAlert,
   Gift,
   Lock,
+  ExternalLink,
+  CreditCard,
+  CalendarDays,
+  BadgeCheck,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -32,6 +36,7 @@ export default function OffersPage() {
   const [trialCoursesMax] = useState(1);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [subscriptionPlan, setSubscriptionPlan] = useState<string>("");
+  const [subscriptionEndDate, setSubscriptionEndDate] = useState<string | null>(null);
   const [inGracePeriod, setInGracePeriod] = useState(false);
   const [graceDaysRemaining, setGraceDaysRemaining] = useState(0);
   const [graceExpired, setGraceExpired] = useState(false);
@@ -56,6 +61,29 @@ export default function OffersPage() {
   // PayPal configuration check
   const [paypalConfigured, setPaypalConfigured] = useState<boolean | null>(null);
   const [paypalNotConfigured, setPaypalNotConfigured] = useState(false);
+
+  // PayPal management URL (fetched from /api/subscription/manage)
+  const [manageUrl, setManageUrl] = useState<string | null>(null);
+  const [manageUrlLoading, setManageUrlLoading] = useState(false);
+
+  // ─── Fetch PayPal management URL ──────────────────────────────────────
+  const fetchManageUrl = useCallback(async () => {
+    if (!userId) return;
+    setManageUrlLoading(true);
+    try {
+      const res = await fetch(`/api/subscription/manage?userId=${encodeURIComponent(userId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.redirectUrl) {
+          setManageUrl(data.redirectUrl);
+        }
+      }
+    } catch {
+      // silently fail — manage button won't be available
+    } finally {
+      setManageUrlLoading(false);
+    }
+  }, [userId]);
 
   // ─── Direct redirect to PayPal checkout ──────────────────────────────
   const handleChoosePlan = useCallback(async (plan: "monthly" | "annual") => {
@@ -93,6 +121,10 @@ export default function OffersPage() {
         const code = data.code as string | undefined;
         if (code === "PAYPAL_NOT_CONFIGURED") {
           setCheckoutError(lang === "fr" ? "Le paiement n'est pas encore configuré." : "Payments aren't ready yet.");
+        } else if (res.status === 409 || code === "DOUBLE_SUBSCRIPTION_BLOCKED") {
+          setCheckoutError(lang === "fr"
+            ? "Tu as déjà un abonnement actif ! Gère-le depuis tes paramètres."
+            : "You already have an active subscription! Manage it from your settings.");
         } else if (res.status === 404) {
           setCheckoutError(lang === "fr" ? "Compte introuvable. Connecte-toi d'abord." : "Account not found. Please sign in first.");
         } else if (res.status === 429) {
@@ -174,6 +206,7 @@ export default function OffersPage() {
         if (data.hasSubscription && data.subscriptionStatus === "active") {
           setIsSubscribed(true);
           setSubscriptionPlan(data.subscriptionPlan || "monthly");
+          setSubscriptionEndDate(data.subscriptionEndDate || null);
           setTrialExpired(false);
 
           if (data.showRenewalReminder) {
@@ -217,6 +250,13 @@ export default function OffersPage() {
       return () => clearTimeout(timer);
     }
   }, [statusLoaded, isSubscribed, showRenewalReminder, inGracePeriod, graceExpired, trialExpired, setView]);
+
+  // Fetch manage URL when subscribed and no renewal reminder
+  useEffect(() => {
+    if (statusLoaded && isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired && userId) {
+      fetchManageUrl();
+    }
+  }, [statusLoaded, isSubscribed, showRenewalReminder, inGracePeriod, graceExpired, userId, fetchManageUrl]);
 
   // Countdown timer for last 24 hours
   useEffect(() => {
@@ -352,6 +392,107 @@ export default function OffersPage() {
     paypalConfigured === null ||
     (isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired);
 
+  // ─── Format subscription end date for display ────────────────────────
+  const formatEndDate = (dateStr: string | null) => {
+    if (!dateStr) return "—";
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // ─── Subscription management banner component ──────────────────────────
+  const SubscriptionManagementBanner = () => {
+    const offersTx = tx.offers as Record<string, string>;
+    const planLabel = subscriptionPlan === "annual" ? offersTx.annualPlan : offersTx.monthlyPlan;
+
+    return (
+      <div className="animate-fade-in">
+        {/* Active subscription banner — shown briefly before redirect */}
+        <div className="max-w-2xl mx-auto mb-8">
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-500/10 via-mauve/10 to-mauve-dark/10 border border-emerald-500/20 p-6 sm:p-8">
+            {/* Glow effect */}
+            <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/5 rounded-full blur-[80px]" />
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-mauve/5 rounded-full blur-[60px]" />
+
+            <div className="relative z-10">
+              {/* Header with badge */}
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30">
+                  <BadgeCheck className="w-4 h-4 text-emerald-400" />
+                  <span className="text-sm font-bold text-emerald-300">{offersTx.subscriptionActiveTitle}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-mauve/10 border border-mauve/30">
+                  <Crown className="w-3.5 h-3.5 text-mauve-light" />
+                  <span className="text-xs font-bold text-mauve-light">{offersTx.premiumBadge}</span>
+                </div>
+              </div>
+
+              {/* Description */}
+              <p className="text-base text-muted-foreground mb-5">
+                {offersTx.subscriptionActiveDesc}
+              </p>
+
+              {/* Details grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+                {/* Plan type */}
+                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-background/50 border border-border/50">
+                  <CreditCard className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-medium">{offersTx.planLabel}</p>
+                    <p className="text-sm font-bold text-foreground">{planLabel}</p>
+                  </div>
+                </div>
+
+                {/* Status */}
+                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-background/50 border border-border/50">
+                  <Check className="w-4 h-4 text-emerald-400" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-medium">Statut</p>
+                    <p className="text-sm font-bold text-emerald-300">{offersTx.statusActive}</p>
+                  </div>
+                </div>
+
+                {/* Next renewal */}
+                <div className="flex items-center gap-2.5 p-3 rounded-xl bg-background/50 border border-border/50">
+                  <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground/60 font-medium">{offersTx.nextRenewal}</p>
+                    <p className="text-sm font-bold text-foreground">{formatEndDate(subscriptionEndDate)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Manage button */}
+              {manageUrl ? (
+                <a
+                  href={manageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-sm hover:opacity-90 transition-all duration-300 shadow-lg shadow-emerald-500/20 cursor-pointer"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  {offersTx.manageSubscription}
+                </a>
+              ) : manageUrlLoading ? (
+                <div className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-muted text-muted-foreground font-bold text-sm">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {lang === "fr" ? "Chargement..." : "Loading..."}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
     <div className="min-h-screen bg-night px-4 sm:px-6 md:px-10 pt-14 sm:pt-20 pb-4 sm:pb-6 md:pb-10 lg:pb-14 md:pt-24">
@@ -371,8 +512,12 @@ export default function OffersPage() {
           </p>
         </div>
 
-        {/* ===== NOTIFICATION BANNER ===== */}
-        {statusLoaded && isSubscribed && !showRenewalReminder && (
+        {/* ===== SUBSCRIPTION MANAGEMENT BANNER (for active subscribers) ===== */}
+        {/* Shows before auto-redirect — premium experience like ChatGPT Plus */}
+        {showManageSubscription && <SubscriptionManagementBanner />}
+
+        {/* ===== NOTIFICATION BANNER (legacy, kept for renewal/grace users) ===== */}
+        {statusLoaded && isSubscribed && !showRenewalReminder && !showManageSubscription && (
           <div className="mb-8 text-center">
             <p className="text-lg font-bold text-foreground whitespace-pre-line">
               {lang === "fr" ? "✨ Abonnement Premium actif.\nProfite des générations illimitées." : "✨ Premium active.\nEnjoy unlimited generations."}
@@ -395,6 +540,19 @@ export default function OffersPage() {
                   <p className="text-2xl sm:text-3xl font-extrabold mt-2 tabular-nums tracking-wide">
                     {String(countdown.hours).padStart(2, "0")}:{String(countdown.minutes).padStart(2, "0")}:{String(countdown.seconds).padStart(2, "0")}
                   </p>
+                )}
+
+                {/* Manage button for renewal approaching */}
+                {manageUrl && (
+                  <a
+                    href={manageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 mt-3 px-4 py-2 rounded-full bg-foreground/10 text-foreground font-bold text-xs hover:bg-foreground/20 transition-all cursor-pointer"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    {(tx.offers as Record<string, string>).manageSubscription}
+                  </a>
                 )}
               </div>
             </div>
@@ -463,8 +621,8 @@ export default function OffersPage() {
             </div>
           )}
 
-          {/* Already subscribed (not ending) */}
-          {isSubscribed && !showRenewalReminder && (
+          {/* Already subscribed (not ending, non-manage view) */}
+          {isSubscribed && !showRenewalReminder && !showManageSubscription && (
             <div className="flex items-start gap-3 p-4 sm:p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 animate-fade-in">
               <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
               <div>
@@ -486,6 +644,8 @@ export default function OffersPage() {
         </div>
 
         {/* ===== PRICING CARDS ===== */}
+        {/* Hide pricing cards entirely for active subscribers without renewal/grace (manage banner shown instead) */}
+        {!showManageSubscription && (
           <div className={`grid gap-6 lg:gap-8 items-start grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto`}>
             {/* MONTHLY PLAN */}
             <div className="pricing-card-float monthly-card-glow glass rounded-3xl p-5 sm:p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
@@ -512,15 +672,7 @@ export default function OffersPage() {
             </ul>
 
             {/* CTA Button */}
-            {showManageSubscription ? (
-              <button
-                onClick={() => setView("create")}
-                className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Crown className="w-5 h-5" />
-                {lang === "fr" ? "Gérer mon abonnement" : "Manage subscription"}
-              </button>
-            ) : isButtonDisabled("monthly") ? (
+            {isButtonDisabled("monthly") ? (
               <button
                 disabled
                 className="w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2"
@@ -589,15 +741,7 @@ export default function OffersPage() {
             </ul>
 
             {/* CTA Button */}
-            {showManageSubscription ? (
-              <button
-                onClick={() => setView("create")}
-                className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:opacity-90 transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden cursor-pointer"
-              >
-                <Crown className="w-5 h-5" />
-                {lang === "fr" ? "Gérer mon abonnement" : "Manage subscription"}
-              </button>
-            ) : isButtonDisabled("annual") ? (
+            {isButtonDisabled("annual") ? (
               <button
                 disabled
                 className="annual-btn-shimmer w-full py-3.5 sm:py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold opacity-50 cursor-not-allowed flex items-center justify-center gap-2 relative overflow-hidden"
@@ -627,6 +771,7 @@ export default function OffersPage() {
             )}
           </div>
         </div>
+        )}
 
         {/* ===== BOTTOM NOTE ===== */}
         <div className="text-center pb-10 mt-16">

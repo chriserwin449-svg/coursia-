@@ -168,10 +168,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (user?.subscriptionStatus === "active") {
+    // 5b. Block double subscriptions — both active AND suspended status
+    // Suspended subscriptions may still have a recurring billing agreement in PayPal
+    if (user.subscriptionStatus === "active" || user.subscriptionStatus === "suspended") {
+      const statusLabel = user.subscriptionStatus === "active" ? "active" : "suspended";
+      console.warn(`[checkout] DOUBLE SUBSCRIPTION PREVENTED — userId: ${userId.slice(0, 8)}..., status: ${statusLabel}, plan: ${user.subscriptionPlan}`);
       return NextResponse.json(
-        { error: "Already subscribed" },
-        { status: 400, headers: securityHeaders() }
+        {
+          error: statusLabel === "active"
+            ? "You already have an active subscription. Manage it in your account settings."
+            : "You have a suspended subscription. Please reactivate it in your PayPal account instead of creating a new one.",
+          code: "DOUBLE_SUBSCRIPTION_BLOCKED",
+          currentStatus: statusLabel,
+          currentPlan: user.subscriptionPlan,
+        },
+        { status: 409, headers: securityHeaders() }
       );
     }
 

@@ -20,7 +20,6 @@ export default function TopBar() {
   const setTrialCoursesGenerated = useAppStore((s) => s.setTrialCoursesGenerated);
 
   const [loadingRandom, setLoadingRandom] = useState(false);
-  const [randomLang, setRandomLang] = useState<"fr" | "en">(lang);
   const [trialInfo, setTrialInfo] = useState<{ days: number; remaining: number; max: number } | null>(null);
 
   // Fetch paywall-status on mount to get trial info
@@ -52,10 +51,6 @@ export default function TopBar() {
     fetchTrialInfo();
   }, [userId, setInTrial, setTrialDaysRemaining, setTrialCoursesGenerated]);
 
-  const updateLang = (newLang: "fr" | "en") => {
-    setLang(newLang);
-    setRandomLang(newLang);
-  };
 
   const generateRandom = async () => {
     setLoadingRandom(true);
@@ -64,7 +59,7 @@ export default function TopBar() {
       const data = await res.json();
       if (data.success && data.topic?.title) {
         setRandomTopic(data.topic.title);
-        setRandomCourseLang(randomLang);
+        setRandomCourseLang(lang);
         setView("create");
       } else {
         console.error("[TopBar] Random topic generation failed:", data);
@@ -104,27 +99,6 @@ export default function TopBar() {
       {view === "create" && (
       <div className="flex items-center rounded-2xl glass overflow-hidden">
         <button
-          onClick={() => setRandomLang("fr")}
-          className={`px-2.5 py-2.5 text-sm font-bold transition-all cursor-pointer ${
-            randomLang === "fr"
-              ? "bg-mauve/20 text-mauve-light"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          🇫🇷
-        </button>
-        <button
-          onClick={() => setRandomLang("en")}
-          className={`px-2.5 py-2.5 text-sm font-bold transition-all cursor-pointer ${
-            randomLang === "en"
-              ? "bg-mauve/20 text-mauve-light"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          🇬🇧
-        </button>
-        <div className="w-px h-5 bg-border mx-1" />
-        <button
           onClick={generateRandom}
           disabled={loadingRandom}
           title={tx.create.random}
@@ -142,7 +116,7 @@ export default function TopBar() {
 
       {/* UI language toggle */}
       <button
-        onClick={() => updateLang(lang === "fr" ? "en" : "fr")}
+        onClick={() => setLang(lang === "fr" ? "en" : "fr")}
         title={lang === "fr" ? "Switch to English" : "Passer en Français"}
         className="flex items-center gap-2 px-3 py-2.5 rounded-2xl glass text-muted-foreground hover:text-foreground hover:bg-white/10 transition-all duration-200 cursor-pointer text-sm font-bold"
       >

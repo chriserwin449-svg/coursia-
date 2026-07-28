@@ -753,28 +753,64 @@ export default function CourseViewer() {
             </div>
 
             {/* Action buttons */}
-            <div className="text-center mb-4">
-              <p className="text-foreground font-bold text-sm">
-                {lang === "fr"
-                  ? `Veux-tu passer au niveau ${getLevelName(completedLevelData + 1)} ?`
-                  : `Do you want to advance to ${getLevelName(completedLevelData + 1)} level?`}
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={handleContinueToNextLevel}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-sm hover:from-emerald-400 hover:to-emerald-500 transition-all cursor-pointer shadow-lg shadow-emerald-500/20"
-              >
-                <Check className="w-5 h-5" />
-                {lang === "fr" ? "Oui" : "Yes"}
-              </button>
-              <button
-                onClick={handleStopHere}
-                className="flex-1 px-6 py-4 rounded-full glass text-muted-foreground font-bold text-sm hover:bg-white/10 hover:text-foreground transition-all cursor-pointer border border-border/50"
-              >
-                {lang === "fr" ? "Non" : "No"}
-              </button>
-            </div>
+            {isFreeUser ? (
+              <>
+                {/* Paywall banner for free users */}
+                <div className="mb-6 p-4 rounded-2xl bg-gold/10 border border-gold/20 text-center">
+                  <Crown className="w-6 h-6 text-gold mx-auto mb-2" />
+                  <p className="text-foreground font-bold text-sm mb-1">
+                    {lang === "fr"
+                      ? `Pour continuer au niveau ${getLevelName(completedLevelData + 1)}, souscris à un abonnement Premium`
+                      : `To continue to ${getLevelName(completedLevelData + 1)} level, subscribe to Premium`}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {lang === "fr"
+                      ? "Débloque tous les niveaux et crée jusqu'à 4 cours par jour"
+                      : "Unlock all levels and create up to 4 courses per day"}
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setView("offers")}
+                    className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night font-bold text-sm hover:from-amber-400 hover:to-gold transition-all cursor-pointer shadow-lg shadow-gold/25"
+                  >
+                    <Crown className="w-5 h-5" />
+                    {lang === "fr" ? "Souscrire au Premium" : "Subscribe to Premium"}
+                  </button>
+                  <button
+                    onClick={handleStopHere}
+                    className="flex-1 px-6 py-4 rounded-full glass text-muted-foreground font-bold text-sm hover:bg-white/10 hover:text-foreground transition-all cursor-pointer border border-border/50"
+                  >
+                    {lang === "fr" ? "Non" : "No"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-center mb-4">
+                  <p className="text-foreground font-bold text-sm">
+                    {lang === "fr"
+                      ? `Veux-tu passer au niveau ${getLevelName(completedLevelData + 1)} ?`
+                      : `Do you want to advance to ${getLevelName(completedLevelData + 1)} level?`}
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleContinueToNextLevel}
+                    className="flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold text-sm hover:from-emerald-400 hover:to-emerald-500 transition-all cursor-pointer shadow-lg shadow-emerald-500/20"
+                  >
+                    <Check className="w-5 h-5" />
+                    {lang === "fr" ? "Oui" : "Yes"}
+                  </button>
+                  <button
+                    onClick={handleStopHere}
+                    className="flex-1 px-6 py-4 rounded-full glass text-muted-foreground font-bold text-sm hover:bg-white/10 hover:text-foreground transition-all cursor-pointer border border-border/50"
+                  >
+                    {lang === "fr" ? "Non" : "No"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </>
@@ -1389,8 +1425,9 @@ function LevelQuizPanel({
   const handleSubmit = async () => {
     if (submitting) return;
 
-    // Free user: save answers and redirect to offers
-    if (isFreeUserProp) {
+    // Free user trying to submit Level 2+ quiz: save answers and redirect to offers
+    // Level 1 (Débutant) quiz is allowed for free users
+    if (isFreeUserProp && level > 0) {
       const key = `coursia-quiz-answers-${courseId}-level-${level}`;
       if (typeof window !== "undefined") {
         localStorage.setItem(key, JSON.stringify(answers));
@@ -1503,6 +1540,29 @@ function LevelQuizPanel({
 
       {/* Submit / Result */}
       <div className="mt-8 text-center">
+        {/* Paywall notice for free users on Level 2+ */}
+        {isFreeUserProp && level > 0 && !result && (
+          <div className="mb-4 p-4 rounded-2xl bg-gold/10 border border-gold/20">
+            <Crown className="w-5 h-5 text-gold mx-auto mb-2" />
+            <p className="text-foreground font-bold text-sm mb-1">
+              {lang === "fr"
+                ? "Pour continuer au niveau suivant, souscris à un abonnement Premium"
+                : "To continue to the next level, subscribe to Premium"}
+            </p>
+            <p className="text-xs text-muted-foreground mb-3">
+              {lang === "fr"
+                ? "Tes réponses seront sauvegardées"
+                : "Your answers will be saved"}
+            </p>
+            <button
+              onClick={() => setView("offers")}
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-gold to-amber-500 text-night text-sm font-bold hover:from-amber-400 hover:to-gold transition-all cursor-pointer"
+            >
+              <Crown className="w-4 h-4" />
+              {lang === "fr" ? "Souscrire au Premium" : "Subscribe to Premium"}
+            </button>
+          </div>
+        )}
         {!result ? (
           <button
             onClick={handleSubmit}
