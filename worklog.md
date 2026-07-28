@@ -782,3 +782,44 @@ Stage Summary:
 - Flame bar now auto-refreshes when returning from CourseViewer to Journey
 - Error messages now correctly show plan name (mensuel vs annuel)
 - Both payment plans go to the same PayPal account (same product PROD-9XC16653DX015123E)
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix subscription activation flow - paid users redirected to offers instead of create page
+
+Work Log:
+- Investigated full subscription flow: PayPal redirect → AppShell useEffect → activate API → DB update → view change
+- Identified root cause: AppShell.tsx line ~430 was setting view to "offers" immediately (fire-and-forget activation, no await)
+- Identified secondary issue: OffersPage shows pricing cards even to subscribed users (no auto-redirect)
+- Fixed AppShell.tsx payment handler to:
+  1. Await activation API call before navigating
+  2. Redirect to "create" page instead of "offers" after successful payment
+  3. Add paywall-status fallback check if direct activation fails
+  4. Update Zustand store (hasSubscription, subscriptionStatus, userPlan) properly
+  5. Extract plan from URL params for immediate store update
+- Fixed OffersPage.tsx to auto-redirect subscribed users (no renewal/grace) to "create" page after 1.2s delay
+- Verified CreateCourse.tsx already has proper paywall gate checks and fail-open behavior
+
+Stage Summary:
+- Files modified: src/components/coursia/AppShell.tsx, src/components/coursia/OffersPage.tsx
+- Key fix: After PayPal payment, user now goes directly to course creation page with subscription active
+- No more redirect loop to offers page after payment
+- OffersPage auto-redirects already-subscribed users away from pricing to create page
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix subscription activation + prepare LIVE PayPal integration
+
+Work Log:
+- Fixed AppShell.tsx: await activation before navigation, redirect to "create" instead of "offers"
+- Fixed OffersPage.tsx: auto-redirect subscribed users to "create" page
+- Verified webhook handler handles all lifecycle events (ACTIVATED, CANCELLED, EXPIRED, SUSPENDED, SALE.COMPLETED, SALE.DENIED)
+- Verified verifyWebhookSignature enforces webhook ID in live mode (rejects unverified webhooks)
+- Prepared LIVE integration instructions with step-by-step guide
+- Scripts ready: paypal-create-plans.ts and paypal-create-webhook.ts both support LIVE mode
+
+Stage Summary:
+- All code fixes deployed locally, dev server running on port 3000
+- Scripts are ready for LIVE mode (just need user's LIVE credentials)
+- 7 Vercel env vars need updating for LIVE: PAYPAL_MODE, CLIENT_ID, SECRET, PRODUCT_ID, MONTHLY_PLAN_ID, ANNUAL_PLAN_ID, WEBHOOK_ID
+- Waiting for user to provide LIVE PayPal credentials

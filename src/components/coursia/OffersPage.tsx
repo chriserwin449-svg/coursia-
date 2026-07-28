@@ -205,6 +205,19 @@ export default function OffersPage() {
     checkStatus();
   }, [userId]);
 
+  // Auto-redirect subscribed users (no renewal/grace) to "create" page
+  // This ensures that if a user manually navigates to offers while subscribed,
+  // they get sent to the create page instead of being stuck on pricing cards
+  useEffect(() => {
+    if (statusLoaded && isSubscribed && !showRenewalReminder && !inGracePeriod && !graceExpired && !trialExpired) {
+      // Small delay to let the user see the "Premium actif" banner briefly
+      const timer = setTimeout(() => {
+        setView("create");
+      }, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [statusLoaded, isSubscribed, showRenewalReminder, inGracePeriod, graceExpired, trialExpired, setView]);
+
   // Countdown timer for last 24 hours
   useEffect(() => {
     if (renewalUrgency !== "last24hours" || !timeRemainingMs) {

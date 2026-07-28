@@ -325,6 +325,7 @@ export default function AppShell() {
     const params = new URLSearchParams(window.location.search);
     const paymentStatus = params.get("payment");
     const requestId = params.get("request_id");
+    const planFromUrl = params.get("plan");
 
     if (paymentStatus === "success") {
       const lang = useAppStore.getState().lang;
@@ -334,104 +335,109 @@ export default function AppShell() {
       // Clean URL immediately
       window.history.replaceState({}, "", window.location.pathname);
 
-      const activateSubscription = async (subId: string, reqId?: string) => {
+      const activateAndNavigate = async () => {
         const uid = useAppStore.getState().userId;
-        if (!uid) {
-          console.warn("[payment] No userId for subscription activation");
-          // Still show a message so the user knows payment went through
+        let activationSucceeded = false;
+        let activatedPlan = planFromUrl || "monthly";
+
+        if (uid) {
+          // Step 1: Activate subscription via API
+          const subId = subscriptionId || (requestId ? `lookup:${requestId}` : null);
+          if (subId) {
+            try {
+              const res = await fetch("/api/subscription/activate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  subscriptionId: subId,
+                  userId: uid,
+                  requestId: requestId || undefined,
+                }),
+              });
+              const data = await res.json();
+
+              if (res.ok && data.success) {
+                trackEvent({ name: "payment_success", properties: { method: "subscription", plan: data.plan, alreadyActive: data.alreadyActive } });
+                console.log("[payment] Subscription activated, plan:", data.plan, "alreadyActive:", data.alreadyActive);
+
+                // Update store subscription state
+                useAppStore.getState().setHasSubscription(true);
+                useAppStore.getState().setSubscriptionStatus("active");
+                useAppStore.getState().setUserPlan(data.plan || activatedPlan);
+
+                activationSucceeded = true;
+                activatedPlan = data.plan || activatedPlan;
+
+                // Show success toast
+                const msg = data.alreadyActive
+                  ? (lang === "fr" ? "Paiement confirmé ! Ton abonnement est actif." : "Payment confirmed! Your subscription is active.")
+                  : (lang === "fr" ? "Abonnement activé ! 🎉 Bienvenue dans Coursia Premium." : "Subscription activated! 🎉 Welcome to Coursia Premium.");
+                const desc = lang === "fr" ? "Tu peux maintenant créer des cours illimités." : "You can now create unlimited courses.";
+                toast.success(msg, { duration: 6000, description: desc });
+              } else {
+                console.warn("[payment] Activate failed:", data.error || res.status);
+              }
+            } catch (err) {
+              console.error("[payment] Activation error:", err);
+            }
+          }
+
+          // Step 2: If direct activation failed, try paywall-status fallback
+          if (!activationSucceeded) {
+            try {
+              const pwRes = await fetch("/api/courses/paywall-status", {
+                headers: { Authorization: `Bearer ${uid}` },
+              });
+              const pwData = await pwRes.json();
+              if (pwData.hasSubscription && pwData.subscriptionStatus === "active") {
+                activationSucceeded = true;
+                activatedPlan = pwData.subscriptionPlan || activatedPlan;
+                useAppStore.getState().setHasSubscription(true);
+                useAppStore.getState().setSubscriptionStatus("active");
+                useAppStore.getState().setUserPlan(activatedPlan);
+                console.log("[payment] Subscription confirmed via paywall-status");
+                toast.success(
+                  lang === "fr" ? "Paiement réussi ! Ton abonnement est actif. ✅" : "Payment successful! Your subscription is active. ✅",
+                  { duration: 6000 }
+                );
+              }
+            } catch { /* ignore */ }
+          }
+
+          // Step 3: If still not activated, show "verifying" message
+          if (!activationSucceeded) {
+            toast.warning(
+              lang === "fr" ? "Paiement en cours de vérification…" : "Payment is being verified…",
+              { duration: 8000, description: lang === "fr" ? "Ton abonnement s'activera automatiquement." : "Your subscription will activate automatically." }
+            );
+          }
+        } else {
+          // No userId — show message
           toast.info(
             lang === "fr" ? "Paiement reçu ! Connecte-toi pour activer." : "Payment received! Sign in to activate.",
             { duration: 6000 }
           );
-          return;
         }
 
-        try {
-          const res = await fetch("/api/subscription/activate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              subscriptionId: subId,
-              userId: uid,
-              requestId: reqId || undefined,
-            }),
-          });
-          const data = await res.json();
-
-          if (res.ok && data.success) {
-            trackEvent({ name: "payment_success", properties: { method: "subscription", plan: data.plan, alreadyActive: data.alreadyActive } });
-            console.log("[payment] Subscription activated, plan:", data.plan, "alreadyActive:", data.alreadyActive);
-
-            // Update store subscription state
-            useAppStore.getState().setHasSubscription(true);
-            useAppStore.getState().setSubscriptionStatus("active");
-
-            // Show success toast
-            const msg = data.alreadyActive
-              ? (lang === "fr" ? "Paiement confirmé ! Ton abonnement est actif." : "Payment confirmed! Your subscription is active.")
-              : (lang === "fr" ? "Abonnement activé ! 🎉 Bienvenue dans Coursia Premium." : "Subscription activated! 🎉 Welcome to Coursia Premium.");
-            const desc = lang === "fr" ? "Tu peux maintenant créer des cours illimités." : "You can now create unlimited courses.";
-            toast.success(msg, { duration: 6000, description: desc });
+        // Step 4: Navigate to the correct page
+        const isAuthenticated = useAppStore.getState().isAuthenticated;
+        const pending = useAppStore.getState().pendingGeneration;
+        if (isAuthenticated) {
+          if (pending) {
+            // User tried to generate a course before paying — resume it
+            useAppStore.getState().setPendingGeneration(null);
+            setTimeout(() => useAppStore.getState().setView("create"), 1500);
           } else {
-            console.warn("[payment] Activate failed:", data.error || res.status);
-            // Fallback: check paywall status (webhook may have handled it)
-            const pwRes = await fetch("/api/courses/paywall-status", {
-              headers: { Authorization: `Bearer ${uid}` },
-            });
-            const pwData = await pwRes.json();
-            if (pwData.hasSubscription && pwData.subscriptionStatus === "active") {
-              useAppStore.getState().setHasSubscription(true);
-              useAppStore.getState().setSubscriptionStatus("active");
-              console.log("[payment] Subscription confirmed via paywall-status");
-              toast.success(
-                lang === "fr" ? "Paiement réussi ! Ton abonnement est actif. ✅" : "Payment successful! Your subscription is active. ✅",
-                { duration: 6000 }
-              );
-            } else {
-              toast.warning(
-                lang === "fr" ? "Paiement en cours de vérification…" : "Payment is being verified…",
-                { duration: 8000, description: lang === "fr" ? "Ton abonnement s'activera automatiquement." : "Your subscription will activate automatically." }
-              );
-            }
+            // Navigate to create page to start using subscription
+            setTimeout(() => useAppStore.getState().setView("create"), 1500);
           }
-        } catch (err) {
-          console.error("[payment] Activation error:", err);
-          toast.error(
-            lang === "fr" ? "Erreur de connexion. Vérifie ton Wi-Fi." : "Connection error. Check your Wi-Fi.",
-            { duration: 6000 }
-          );
+        } else {
+          useAppStore.getState().setView("landing");
         }
       };
 
-      // If we have a subscription_id (or ba_token), activate directly
-      if (subscriptionId) {
-        activateSubscription(subscriptionId, requestId || undefined);
-      } else if (requestId) {
-        // No subscription_id in URL — look it up from our DB via request_id
-        // The checkout route stored the PayPal subscription ID as txRef in PaymentRequest
-        activateSubscription("lookup:" + requestId, requestId);
-      } else {
-        // No identifiers at all — just show success (webhook should handle it)
-        trackEvent({ name: "payment_success", properties: { method: "webhook_fallback" } });
-        toast.success(
-          lang === "fr" ? "Paiement reçu ! Ton abonnement s'active automatiquement. ✅" : "Payment received! Your subscription is activating automatically. ✅",
-          { duration: 6000 }
-        );
-      }
-
-      // Navigate to offers page after payment
-      const isAuthenticated = useAppStore.getState().isAuthenticated;
-      const pending = useAppStore.getState().pendingGeneration;
-      if (isAuthenticated) {
-        if (pending) {
-          useAppStore.getState().setPendingGeneration(null);
-          setTimeout(() => useAppStore.getState().setView("create"), 2000);
-        } else {
-          useAppStore.getState().setView("offers");
-        }
-      } else {
-        useAppStore.getState().setView("landing");
-      }
+      // Run activation then navigate (awaited)
+      activateAndNavigate();
     } else if (paymentStatus === "cancelled") {
       window.history.replaceState({}, "", window.location.pathname);
     }
