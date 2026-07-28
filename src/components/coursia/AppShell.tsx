@@ -316,11 +316,10 @@ export default function AppShell() {
     };
   }, [checkPaywallStatus]);
 
-  // Handle payment success/redirect from legacy redirect flow (webhook backup)
-  // The primary flow now uses inline PayPalButtons, but this handles:
-  // 1. Webhook-triggered redirects
-  // 2. Legacy redirect flow
-  // 3. Direct URL access with payment params
+  // Handle payment success/redirect from PayPal subscription flow
+  // PayPal redirects back with: ?payment=success&plan=xxx&request_id=xxx
+  // PayPal may also append: subscription_id=I-XXXX or ba_token=BA-XXXX
+  // If neither is present, we look up the subscription via the request_id.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -329,148 +328,104 @@ export default function AppShell() {
 
     if (paymentStatus === "success") {
       const lang = useAppStore.getState().lang;
-      const subscriptionId = params.get("subscription_id");
+      // PayPal may return subscription_id, ba_token, or neither
+      const subscriptionId = params.get("subscription_id") || params.get("ba_token");
 
       // Clean URL immediately
       window.history.replaceState({}, "", window.location.pathname);
 
-      const capturePayment = async () => {
+      const activateSubscription = async (subId: string, reqId?: string) => {
+        const uid = useAppStore.getState().userId;
+        if (!uid) {
+          console.warn("[payment] No userId for subscription activation");
+          // Still show a message so the user knows payment went through
+          toast.info(
+            lang === "fr" ? "Paiement reçu ! Connecte-toi pour activer." : "Payment received! Sign in to activate.",
+            { duration: 6000 }
+          );
+          return;
+        }
+
         try {
-          // ─── NEW: Subscription flow ───
-          // If subscription_id is present, use /api/subscription/activate
-          // which fetches live subscription details from PayPal and activates the plan.
-          if (subscriptionId) {
-            const uid = useAppStore.getState().userId;
-            if (!uid) {
-              console.warn("[payment] No userId for subscription activation");
-              return;
-            }
-            const res = await fetch("/api/subscription/activate", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                subscriptionId,
-                userId: uid,
-                requestId: requestId || undefined,
-              }),
-            });
-            const data = await res.json();
+          const res = await fetch("/api/subscription/activate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              subscriptionId: subId,
+              userId: uid,
+              requestId: reqId || undefined,
+            }),
+          });
+          const data = await res.json();
 
-            if (res.ok && data.success) {
-              trackEvent({ name: "payment_success", properties: { method: "subscription", plan: data.plan } });
-              console.log("[payment] Subscription activated, plan:", data.plan, "alreadyActive:", data.alreadyActive);
+          if (res.ok && data.success) {
+            trackEvent({ name: "payment_success", properties: { method: "subscription", plan: data.plan, alreadyActive: data.alreadyActive } });
+            console.log("[payment] Subscription activated, plan:", data.plan, "alreadyActive:", data.alreadyActive);
 
-              // Update store subscription state
-              useAppStore.getState().setHasSubscription(true);
-              useAppStore.getState().setSubscriptionStatus("active");
+            // Update store subscription state
+            useAppStore.getState().setHasSubscription(true);
+            useAppStore.getState().setSubscriptionStatus("active");
 
-              // Show toast notification (visible feedback)
-              toast.success(
-                lang === "fr" ? "Abonnement activé ! Bienvenue dans Coursia Premium." : "Subscription activated! Welcome to Coursia Premium.",
-                { duration: 6000, description: lang === "fr" ? "Tu peux maintenant créer des cours illimités." : "You can now create unlimited courses." }
-              );
-            } else {
-              console.warn("[payment] Subscription activate returned:", data.error || res.status);
-              // Even if activate fails, the webhook may have handled it
-              // Check subscription status
-              try {
-                const pwRes = await fetch("/api/courses/paywall-status", {
-                  headers: { Authorization: `Bearer ${uid}` },
-                });
-                const pwData = await pwRes.json();
-                if (pwData.hasSubscription && pwData.subscriptionStatus === "active") {
-                  useAppStore.getState().setHasSubscription(true);
-                  useAppStore.getState().setSubscriptionStatus("active");
-                  console.log("[payment] Subscription confirmed via paywall-status check");
-                  toast.success(
-                    lang === "fr" ? "Paiement réussi ! Ton abonnement est actif." : "Payment successful! Your subscription is active.",
-                    { duration: 5000 }
-                  );
-                } else {
-                  toast.warning(
-                    lang === "fr" ? "Paiement en cours de traitement." : "Payment is being processed.",
-                    { duration: 6000, description: lang === "fr" ? "Recharge la page dans quelques secondes." : "Refresh the page in a few seconds." }
-                  );
-                }
-              } catch { /* paywall-status check failed — non-critical */ }
-            }
-            return;
-          }
-
-          // ─── LEGACY: One-time order flow ───
-          if (requestId) {
-            const res = await fetch("/api/subscription/capture", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ requestId }),
-            });
-            const data = await res.json();
-
-            if (res.ok && data.success) {
-              trackEvent({ name: "payment_success", properties: { method: "redirect" } });
-              console.log("[payment] Redirect capture successful, plan:", data.plan);
-
-              // Update store subscription state
-              useAppStore.getState().setHasSubscription(true);
-              useAppStore.getState().setSubscriptionStatus("active");
-
-              // Show toast notification (visible feedback)
-              toast.success(
-                lang === "fr" ? "Paiement réussi ! Ton abonnement est maintenant actif." : "Payment successful! Your subscription is now active.",
-                { duration: 6000, description: lang === "fr" ? "Tu peux maintenant créer des cours illimités." : "You can now create unlimited courses." }
-              );
-            } else {
-              console.warn("[payment] Redirect capture returned:", data.error || res.status);
-              // Even if capture fails, the webhook may have handled it
-              // Check subscription status
-              const uid = useAppStore.getState().userId;
-              if (uid) {
-                try {
-                  const pwRes = await fetch("/api/courses/paywall-status", {
-                    headers: { Authorization: `Bearer ${uid}` },
-                  });
-                  const pwData = await pwRes.json();
-                  if (pwData.hasSubscription && pwData.subscriptionStatus === "active") {
-                    useAppStore.getState().setHasSubscription(true);
-                    useAppStore.getState().setSubscriptionStatus("active");
-                    console.log("[payment] Subscription confirmed via paywall-status check");
-                    toast.success(
-                      lang === "fr" ? "Paiement réussi ! Ton abonnement est actif." : "Payment successful! Your subscription is active.",
-                      { duration: 5000 }
-                    );
-                  }
-                } catch { /* paywall-status check failed — non-critical */ }
-              }
-            }
+            // Show success toast
+            const msg = data.alreadyActive
+              ? (lang === "fr" ? "Paiement confirmé ! Ton abonnement est actif." : "Payment confirmed! Your subscription is active.")
+              : (lang === "fr" ? "Abonnement activé ! 🎉 Bienvenue dans Coursia Premium." : "Subscription activated! 🎉 Welcome to Coursia Premium.");
+            const desc = lang === "fr" ? "Tu peux maintenant créer des cours illimités." : "You can now create unlimited courses.";
+            toast.success(msg, { duration: 6000, description: desc });
           } else {
-            // No requestId — just show success (webhook might handle it)
-            trackEvent({ name: "payment_success", properties: { method: "webhook_fallback" } });
-            toast.success(
-              lang === "fr" ? "Paiement reçu ! Ton abonnement s'active." : "Payment received! Your subscription is activating.",
-              { duration: 5000, description: lang === "fr" ? "Si l'activation prend du temps, recharge la page." : "If activation takes time, refresh the page." }
-            );
+            console.warn("[payment] Activate failed:", data.error || res.status);
+            // Fallback: check paywall status (webhook may have handled it)
+            const pwRes = await fetch("/api/courses/paywall-status", {
+              headers: { Authorization: `Bearer ${uid}` },
+            });
+            const pwData = await pwRes.json();
+            if (pwData.hasSubscription && pwData.subscriptionStatus === "active") {
+              useAppStore.getState().setHasSubscription(true);
+              useAppStore.getState().setSubscriptionStatus("active");
+              console.log("[payment] Subscription confirmed via paywall-status");
+              toast.success(
+                lang === "fr" ? "Paiement réussi ! Ton abonnement est actif. ✅" : "Payment successful! Your subscription is active. ✅",
+                { duration: 6000 }
+              );
+            } else {
+              toast.warning(
+                lang === "fr" ? "Paiement en cours de vérification…" : "Payment is being verified…",
+                { duration: 8000, description: lang === "fr" ? "Ton abonnement s'activera automatiquement." : "Your subscription will activate automatically." }
+              );
+            }
           }
         } catch (err) {
-          console.error("[payment] Redirect capture error:", err);
+          console.error("[payment] Activation error:", err);
           toast.error(
-            lang === "fr" ? "Erreur de connexion. Vérifie ton Wi-Fi et réessaie." : "Connection error. Check your Wi-Fi and retry.",
+            lang === "fr" ? "Erreur de connexion. Vérifie ton Wi-Fi." : "Connection error. Check your Wi-Fi.",
             { duration: 6000 }
           );
         }
       };
 
-      capturePayment();
+      // If we have a subscription_id (or ba_token), activate directly
+      if (subscriptionId) {
+        activateSubscription(subscriptionId, requestId || undefined);
+      } else if (requestId) {
+        // No subscription_id in URL — look it up from our DB via request_id
+        // The checkout route stored the PayPal subscription ID as txRef in PaymentRequest
+        activateSubscription("lookup:" + requestId, requestId);
+      } else {
+        // No identifiers at all — just show success (webhook should handle it)
+        trackEvent({ name: "payment_success", properties: { method: "webhook_fallback" } });
+        toast.success(
+          lang === "fr" ? "Paiement reçu ! Ton abonnement s'active automatiquement. ✅" : "Payment received! Your subscription is activating automatically. ✅",
+          { duration: 6000 }
+        );
+      }
 
-      // Check for pending course generation to auto-resume
-      const pending = useAppStore.getState().pendingGeneration;
+      // Navigate to offers page after payment
       const isAuthenticated = useAppStore.getState().isAuthenticated;
+      const pending = useAppStore.getState().pendingGeneration;
       if (isAuthenticated) {
         if (pending) {
-          console.log("[payment] Found pending generation after redirect — navigating to create");
           useAppStore.getState().setPendingGeneration(null);
-          setTimeout(() => {
-            useAppStore.getState().setView("create");
-          }, 2000);
+          setTimeout(() => useAppStore.getState().setView("create"), 2000);
         } else {
           useAppStore.getState().setView("offers");
         }

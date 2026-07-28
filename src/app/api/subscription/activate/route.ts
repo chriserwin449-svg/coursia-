@@ -49,13 +49,6 @@ export async function POST(request: NextRequest) {
 
     const { subscriptionId, userId, requestId } = body as Record<string, unknown>;
 
-    if (!subscriptionId || typeof subscriptionId !== "string" || subscriptionId.length < 5) {
-      return NextResponse.json(
-        { error: "Subscription ID required" },
-        { status: 400, headers: securityHeaders() }
-      );
-    }
-
     if (!userId || typeof userId !== "string" || !isValidUserId(userId)) {
       return NextResponse.json(
         { error: "User ID required" },
@@ -63,16 +56,65 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ─── Lookup mode: subscriptionId starts with "lookup:" ───
+    // This means PayPal didn't return a subscription_id in the URL.
+    // We look up the PaymentRequest record by requestId to find the
+    // PayPal subscription ID stored as txRef during checkout.
+    let resolvedSubscriptionId = subscriptionId as string;
+    if (typeof subscriptionId === "string" && subscriptionId.startsWith("lookup:")) {
+      const lookupReqId = subscriptionId.replace("lookup:", "");
+      console.log("[activate] Lookup mode — searching PaymentRequest:", lookupReqId.slice(0, 12) + "...");
+      try {
+        const paymentReq = await db.paymentRequest.findUnique({
+          where: { id: lookupReqId },
+          select: { txRef: true, plan: true, userId: true },
+        });
+        if (paymentReq?.txRef && paymentReq.txRef.startsWith("I-")) {
+          resolvedSubscriptionId = paymentReq.txRef;
+          console.log("[activate] Found subscription ID:", resolvedSubscriptionId.slice(0, 12) + "...");
+        } else {
+          // No subscription found — maybe webhook already handled it
+          // Check if user already has an active subscription
+          const existingUser = await db.user.findUnique({
+            where: { id: userId as string },
+            select: { subscriptionStatus: true, subscriptionPlan: true },
+          });
+          if (existingUser?.subscriptionStatus === "active") {
+            console.log("[activate] User already has active subscription — confirming");
+            return NextResponse.json({
+              success: true,
+              alreadyActive: true,
+              plan: existingUser.subscriptionPlan,
+              status: "ACTIVE",
+            }, { headers: securityHeaders() });
+          }
+          return NextResponse.json(
+            { error: "Subscription ID not found in database. The webhook will activate it shortly.", code: "LOOKUP_FAILED" },
+            { status: 404, headers: securityHeaders() }
+          );
+        }
+      } catch (err) {
+        console.error("[activate] Lookup error:", err);
+      }
+    }
+
+    if (!resolvedSubscriptionId || resolvedSubscriptionId.length < 5) {
+      return NextResponse.json(
+        { error: "Subscription ID required" },
+        { status: 400, headers: securityHeaders() }
+      );
+    }
+
     console.log("[activate] Verifying subscription:", {
-      subscriptionId: subscriptionId.slice(0, 12) + "...",
-      userId: userId.slice(0, 8) + "...",
-      requestId: typeof requestId === "string" ? requestId.slice(0, 12) + "..." : "none",
+      subscriptionId: resolvedSubscriptionId.slice(0, 12) + "...",
+      userId: (userId as string).slice(0, 8) + "...",
+      requestId: typeof requestId === "string" ? (requestId as string).slice(0, 12) + "..." : "none",
     });
 
     // 1. Fetch live subscription details from PayPal
     let details;
     try {
-      details = await getSubscriptionDetails(subscriptionId);
+      details = await getSubscriptionDetails(resolvedSubscriptionId);
     } catch (error) {
       console.error("[activate] Failed to fetch subscription details:", error);
       return NextResponse.json(
@@ -81,7 +123,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("[activate] PayPal subscription status:", details.status, "for sub:", subscriptionId.slice(0, 12) + "...");
+    console.log("[activate] PayPal subscription status:", details.status, "for sub:", resolvedSubscriptionId.slice(0, 12) + "...");
 
     // 2. Determine plan from custom_id (preferred) or from payment request
     let plan: string | undefined;
@@ -107,7 +149,7 @@ export async function POST(request: NextRequest) {
         }
       } else {
         const paymentReq = await db.paymentRequest.findFirst({
-          where: { txRef: subscriptionId },
+          where: { txRef: resolvedSubscriptionId },
         });
         if (paymentReq) {
           plan = paymentReq.plan;
@@ -147,7 +189,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const sameSubscription = existingUser?.creemSubscriptionId === `paypal_${subscriptionId}`;
+    const sameSubscription = existingUser?.creemSubscriptionId === `paypal_${resolvedSubscriptionId}`;
     if (existingUser?.subscriptionStatus === "active" && sameSubscription) {
       console.log("[activate] Already active with same subscription — skipping");
       return NextResponse.json(
@@ -185,7 +227,7 @@ export async function POST(request: NextRequest) {
         subscriptionStatus: "active",
         subscriptionStartDate: now,
         subscriptionEndDate: endDate,
-        creemSubscriptionId: `paypal_${subscriptionId}`,
+        creemSubscriptionId: `paypal_${resolvedSubscriptionId}`,
         hasCardOnFile: true,
       },
     });
@@ -195,15 +237,15 @@ export async function POST(request: NextRequest) {
       where: { userId: targetUserId, plan, status: "pending" },
       data: {
         status: "approved",
-        adminNote: `Activated via /activate endpoint. PayPal sub: ${subscriptionId}`,
-        txRef: subscriptionId,
+        adminNote: `Activated via /activate endpoint. PayPal sub: ${resolvedSubscriptionId}`,
+        txRef: resolvedSubscriptionId,
       },
     });
 
     console.log("[activate] ✅ Subscription activated:", {
       userId: targetUserId.slice(0, 8) + "...",
       plan,
-      subscriptionId: subscriptionId.slice(0, 12) + "...",
+      subscriptionId: resolvedSubscriptionId.slice(0, 12) + "...",
       endDate: endDate.toISOString(),
     });
 
