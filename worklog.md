@@ -760,3 +760,25 @@ Stage Summary:
 - Annual Plan ID: P-1CE83349KV045630XNJT3QEA
 - Script is fully idempotent - safe to re-run
 - Next: User adds ALL env vars on Vercel correctly (PAYPAL_MODE=sandbox!)
+
+---
+Task ID: paypal-fix-monthly-400
+Agent: Main
+Task: Fix PayPal 400 error on monthly plan + flame bar not updating
+
+Work Log:
+- Analyzed user screenshots: annual plan works, monthly plan returns 400 INVALID_PARAMETER_SYNTAX
+- Tested both plans directly via PayPal API: both return ACTIVE and work perfectly
+- Identified root cause: PAYPAL_MONTHLY_PLAN_ID on Vercel was incorrect/corrupted
+- Fixed hardcoded "annual plan" error message in paypal.ts to show actual plan name (mensuel/annuel)
+- Created /api/paypal/test-plans endpoint for live Vercel diagnosis (tries real subscription creation for both plans)
+- Created /api/paypal/check-plans endpoint for plan status verification
+- Enhanced /api/paypal/diagnose to also validate plan IDs
+- Fixed flame bar not updating: added useEffect to refetch flame data when user returns to Journey view
+- User confirmed both buttons now redirect to PayPal correctly
+
+Stage Summary:
+- PayPal monthly plan 400 error was caused by incorrect PAYPAL_MONTHLY_PLAN_ID on Vercel (user fixed it)
+- Flame bar now auto-refreshes when returning from CourseViewer to Journey
+- Error messages now correctly show plan name (mensuel vs annuel)
+- Both payment plans go to the same PayPal account (same product PROD-9XC16653DX015123E)
