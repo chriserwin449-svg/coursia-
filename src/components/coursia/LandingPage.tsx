@@ -6,7 +6,7 @@ import {
   Brain, Cpu, Palette, TrendingUp,  // NEW
   Sparkles, BookOpen, ArrowRight, Check, Crown, Zap, ChevronDown,
   LogIn, GraduationCap, Briefcase, Lightbulb, BarChart3, Star,
-  Settings, Globe, X, Flame, Trophy, Layers, MessageSquare, Lock, Shield, FileText,
+  Settings, Globe, X, Flame, Trophy, Layers, MessageSquare, Lock, Shield, FileText, ArrowLeft,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -724,24 +724,34 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* ===== LEGAL MODALS ===== */}
+      {/* ===== LEGAL FULL PAGES ===== */}
       {legalModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setLegalModal(null)} />
-          <div className="relative w-full max-w-3xl max-h-[85vh] glass rounded-3xl p-6 sm:p-8 md:p-10 shadow-2xl overflow-y-auto animate-fade-in-slide-up custom-scrollbar">
+        <div className="fixed inset-0 z-50 flex flex-col bg-background animate-fade-in">
+          {/* Top navigation bar */}
+          <div className="flex items-center gap-3 px-6 py-4 border-b border-muted-foreground/10">
             <button
               onClick={() => setLegalModal(null)}
-              className="absolute top-4 right-4 p-2 rounded-xl hover:bg-white/10 transition-colors cursor-pointer z-10"
+              className="flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5 text-muted-foreground" />
+              <ArrowLeft className="w-4 h-4" />
+              <span>{lang === "fr" ? "Retour" : "Back"}</span>
             </button>
+            <div className="flex-1" />
+            <div className="flex items-center gap-2">
+              <CoursiaLogo size={24} className="rounded-lg" />
+              <span className="font-bold text-sm text-foreground">Coursia</span>
+            </div>
+          </div>
+          {/* Scrollable content */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="max-w-4xl mx-auto px-6 sm:px-10 md:px-16 py-10 sm:py-14">
             {legalModal === "privacy" && (
               <>
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-2xl bg-mauve/15 flex items-center justify-center">
-                    <Shield className="w-5 h-5 text-mauve-light" />
+                  <div className="w-12 h-12 rounded-2xl bg-mauve/15 flex items-center justify-center">
+                    <Shield className="w-6 h-6 text-mauve-light" />
                   </div>
-                  <h2 className="text-2xl font-extrabold text-foreground">{lang === "fr" ? "Politique de confidentialité" : "Privacy Policy"}</h2>
+                  <h1 className="text-3xl font-extrabold text-foreground">{lang === "fr" ? "Politique de confidentialité" : "Privacy Policy"}</h1>
                 </div>
                 <p className="text-xs text-muted-foreground mb-8"><strong className="text-foreground">Dernière mise à jour :</strong> {new Date().toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
                 <div className="space-y-6 text-sm text-muted-foreground leading-relaxed">
@@ -827,10 +837,10 @@ export default function LandingPage() {
             {legalModal === "terms" && (
               <>
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-2xl bg-mauve/15 flex items-center justify-center">
-                    <FileText className="w-5 h-5 text-mauve-light" />
+                  <div className="w-12 h-12 rounded-2xl bg-mauve/15 flex items-center justify-center">
+                    <FileText className="w-6 h-6 text-mauve-light" />
                   </div>
-                  <h2 className="text-2xl font-extrabold text-foreground">{lang === "fr" ? "Conditions d'utilisation" : "Terms of Use"}</h2>
+                  <h1 className="text-3xl font-extrabold text-foreground">{lang === "fr" ? "Conditions d'utilisation" : "Terms of Use"}</h1>
                 </div>
                 <p className="text-xs text-muted-foreground mb-8"><strong className="text-foreground">Dernière mise à jour :</strong> {new Date().toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
                 <div className="space-y-6 text-sm text-muted-foreground leading-relaxed">
@@ -921,6 +931,7 @@ export default function LandingPage() {
                 </div>
               </>
             )}
+            </div>
           </div>
         </div>
       )}

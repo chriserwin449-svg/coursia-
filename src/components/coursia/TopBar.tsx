@@ -95,7 +95,7 @@ export default function TopBar() {
         </div>
       )}
 
-      {/* Random course + language selector — only on create page */}
+      {/* Random course topic — only on create page */}
       {view === "create" && (
       <div className="flex items-center rounded-2xl glass overflow-hidden">
         <button
