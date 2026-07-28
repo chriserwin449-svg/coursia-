@@ -952,3 +952,35 @@ Stage Summary:
   8. ✅ TopBar comment cleaned up
   9. ✅ Browser verification: page renders correctly (200 OK)
 - Files modified: LandingPage.tsx, i18n.ts, TopBar.tsx
+
+---
+Task ID: live-paypal-activation
+Agent: Main Agent
+Task: Activate LIVE PayPal payments with user's credentials
+
+Work Log:
+- Ran LIVE PayPal create-plans script with user's LIVE credentials
+  - Product "Coursia Premium" reused (already existed): PROD-015763688U115142X
+  - Monthly plan created ($9.99/mo): P-6P445856A8296073VNJUKH2A
+  - Annual plan created ($52.99/yr): P-8UR00475G6611162CNJUKH2A
+- Ran LIVE PayPal create-webhook script
+  - Webhook already existed for coursia.app URL: 9AR215534X151970D
+  - 7 events registered: ACTIVATED, CANCELLED, EXPIRED, SUSPENDED, PAYMENT.FAILED, SALE.COMPLETED, SALE.DENIED
+- Updated .env with all LIVE values:
+  - PAYPAL_MODE="live"
+  - PAYPAL_CLIENT_ID + PAYPAL_CLIENT_SECRET (LIVE credentials)
+  - PAYPAL_WEBHOOK_ID="9AR215534X151970D"
+  - PAYPAL_PRODUCT_ID, MONTHLY_PLAN_ID, ANNUAL_PLAN_ID (LIVE)
+  - NEXT_PUBLIC_APP_URL="https://coursia.app"
+- Verified /api/paypal/config returns: configured=true, mode="live"
+
+Stage Summary:
+- LIVE PayPal fully configured and operational
+- User needs to update these 4 env vars on Vercel to switch production to LIVE:
+  1. PAYPAL_MODE="live"
+  2. PAYPAL_CLIENT_ID="BAAfNPbRJIkK590zN0YC8F1rE1GBtGCjVUetPkuG1kWYhCXIi6O07b9Zd7l6ViOJKoSvydPBqUXMniVuL0"
+  3. PAYPAL_CLIENT_SECRET="EGi3kx0J5Za2AA-2Fb8TAWfSbz_u7OvPP3F4kTOLUd0UX0K2CLAWBsLgkm11FRg2JDUtJjnJ_Bjt1C1b"
+  4. PAYPAL_WEBHOOK_ID="9AR215534X151970D"
+  5. PAYPAL_PRODUCT_ID="PROD-015763688U115142X"
+  6. PAYPAL_MONTHLY_PLAN_ID="P-6P445856A8296073VNJUKH2A"
+  7. PAYPAL_ANNUAL_PLAN_ID="P-8UR00475G6611162CNJUKH2A"
