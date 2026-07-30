@@ -79,6 +79,12 @@ export const flashdash = {
   paymentFailed: (userId: string, plan: string, reason: string) =>
     sendEvent("payment_failed", { userId, plan, reason }),
 
+  subscriptionExtended: (userId: string, plan: string, amount?: number, method: string = "paypal") =>
+    sendEvent("payment_success", { userId, plan, amount, method, recurring: true }),
+
+  refund: (userId: string, plan: string, amount: number, reason?: string) =>
+    sendEvent("refund", { userId, plan, amount, reason }),
+
   // ─── Courses ───
   courseGenerated: (userId: string | null, courseId: string, title: string, chapterCount: number, level: number = 0, durationMs: number = 0) =>
     sendEvent("course_generated", { userId, courseId, title, chapterCount, level, durationMs }),

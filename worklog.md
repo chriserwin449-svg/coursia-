@@ -1070,3 +1070,22 @@ Stage Summary:
   5. ✅ Paid users → unlimited generation (4 courses/day, verified in paywall-status)
   6. ✅ Browser verified all changes
 - Files modified: LegalPage.tsx (NEW), AppShell.tsx, OffersPage.tsx, CourseViewer.tsx, LandingPage.tsx, store.ts, i18n.ts
+
+---
+Task ID: Flashdash-Integration-Fix
+Agent: Main
+Task: Fix missing subscriptionExtended method in flashdash.ts
+
+Work Log:
+- Discovered existing flashdash.ts already well-integrated across 10+ API routes
+- Found critical bug: `flashdash.subscriptionExtended()` called in webhook (route.ts line 203) but method did NOT exist in flashdash.ts
+- Added `subscriptionExtended(userId, plan, amount?, method?)` method → sends as `payment_success` with `recurring: true`
+- Added `refund(userId, plan, amount, reason?)` method for completeness
+- Verified all 10+ flashdash tracking calls across routes: auth/register, auth/login, subscription/checkout, subscription/webhook (3 calls), courses/generate, courses/[id]/generate-level, courses/[id]/level-quiz (2 calls)
+- ESLint: no new errors from flashdash changes
+- Dev server restarted and running on port 3000
+
+Stage Summary:
+- Fixed critical runtime bug (subscriptionExtended undefined)
+- Flashdash now fully wired: user_signup, user_login, payment_success (including recurring), course_generated, quiz_created, alerts
+- Key: cms7owjlw0001vb0as37yphx2 → Dashboard: https://flashdash.space-z.ai/
