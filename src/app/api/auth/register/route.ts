@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { flashdash } from "@/lib/flashdash";
 
 function generateToken(userId: string): string {
   return crypto.randomBytes(32).toString("hex");
@@ -366,9 +365,6 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`✅ [register] User created: ${emailLower} (${userId})`);
-
-    // ─── Flashdash analytics ───
-    flashdash.userSignup(userId, emailLower);
 
     return NextResponse.json({
       success: true,

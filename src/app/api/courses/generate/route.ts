@@ -3,7 +3,6 @@ import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 import { smartChatCompletion, classifyAIError } from "@/lib/openai";
 import { MAX_SOURCE_LINKS, MAX_TOKENS, MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
-import { flashdash } from "@/lib/flashdash";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COLUMN MIGRATION (ensure freeCourseUsed & hasCardOnFile exist)
@@ -1159,9 +1158,6 @@ export async function POST(request: NextRequest) {
     logDuration("start", "save_end");
     console.log(`[generate] ═══ COURSE GENERATED SUCCESSFULLY in ${((Date.now() - startTime) / 1000).toFixed(1)}s ═══`);
     console.log(`[generate] Course ID: ${course.id}, Chapters: ${course.chapters.length}`);
-
-    // ─── Flashdash analytics ───
-    flashdash.courseGenerated(userId, course.id, title, course.chapters.length, level, Date.now() - startTime);
 
     return NextResponse.json(buildResponse(course, sourceLinks, scrapedPages.length));
   } catch (error: unknown) {

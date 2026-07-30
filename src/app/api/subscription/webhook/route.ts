@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyWebhookSignature } from "@/lib/paypal";
-import { flashdash } from "@/lib/flashdash";
 
 // ─── Security headers ────────────────────────────────────────────────────
 function securityHeaders(): HeadersInit {
@@ -139,10 +138,6 @@ async function activateSubscription(
       `[webhook] Subscription activated for user ${userId.slice(0, 8)}..., plan=${plan}, subId=${subscriptionId.slice(0, 12)}..., ends=${endDate.toISOString()}`
     );
 
-    // ─── Flashdash analytics ───
-    const planAmount = plan === "annual" ? 5299 : 999; // cents
-    flashdash.paymentSuccess(userId, plan, planAmount);
-
     return { activated: true, wasAlreadyActive: false };
   } catch (error) {
     console.error("[webhook] Failed to activate subscription:", error);
@@ -198,9 +193,6 @@ async function extendSubscription(
     console.log(
       `[webhook] Subscription extended for user ${user.id.slice(0, 8)}..., plan=${user.subscriptionPlan}, new ends=${endDate.toISOString()}`
     );
-
-    // ─── Flashdash analytics ───
-    flashdash.subscriptionExtended(user.id, user.subscriptionPlan);
   } catch (error) {
     console.error("[webhook] Failed to extend subscription:", error);
   }
@@ -230,9 +222,6 @@ async function markSubscriptionStatus(
     console.log(
       `[webhook] Subscription ${status} for user ${user.id.slice(0, 8)}... (sub ${subscriptionId.slice(0, 12)}...)`
     );
-
-    // ─── Flashdash analytics ───
-    flashdash.alert(`Subscription ${status}`, "warning", { userId: user.id, subscriptionId });
   } catch (error) {
     console.error("[webhook] Failed to mark subscription status:", error);
   }
