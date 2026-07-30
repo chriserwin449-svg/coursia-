@@ -5,6 +5,7 @@ import {
   getPayPalConfig,
   isSubscriptionConfigured,
 } from "@/lib/paypal";
+import { flashdash } from "@/lib/flashdash";
 
 // Ensure all required columns exist (PostgreSQL safety)
 async function ensureColumns(): Promise<void> {
@@ -236,6 +237,9 @@ export async function POST(request: NextRequest) {
       status: paypalResult.status,
       requestId: paymentRequest.id,
     });
+
+    // ─── Flashdash analytics ───
+    flashdash.alert("Payment checkout initiated", "info", { userId, plan, amount: planConfig.amount });
 
     // 9. Return PayPal subscription details to frontend
     return NextResponse.json(

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 import { smartChatCompletion } from "@/lib/openai";
 import { MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
+import { flashdash } from "@/lib/flashdash";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -236,6 +237,9 @@ export async function POST(
       where: { courseId: id, level: nextLevel },
       orderBy: { order: "asc" },
     });
+
+    // ─── Flashdash analytics ───
+    flashdash.courseGenerated(userId, id, course.title, createdChapters.length, nextLevel);
 
     return NextResponse.json({
       success: true,

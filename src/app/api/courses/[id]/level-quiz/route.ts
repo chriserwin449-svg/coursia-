@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { smartChatCompletion } from "@/lib/openai";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
+import { flashdash } from "@/lib/flashdash";
 
 const LEVEL_QUIZ_QUESTIONS = 7;
 const PASS_THRESHOLD = 4; // Need 4/7 to pass
@@ -169,6 +170,9 @@ Les questions doivent vérifier si l'étudiant a bien compris les concepts clés
       if (firstKey) recentLevelQuestions.delete(firstKey);
     }
 
+    // ─── Flashdash analytics ───
+    flashdash.quizCreated(id, level);
+
     return NextResponse.json({
       quiz: {
         questions: quizData.questions.slice(0, LEVEL_QUIZ_QUESTIONS).map((q) => ({
@@ -246,6 +250,9 @@ export async function PUT(
         console.error("[level-quiz] Error awarding points:", err);
       }
     }
+
+    // ─── Flashdash analytics ───
+    flashdash.quizCreated(id, level, score, passed);
 
     return NextResponse.json({
       score,
