@@ -13,6 +13,7 @@ model User {
   password                String
   firstName               String
   lastName                String
+  username                String?  @unique         // Coursia username (optional, for sharing)
   subscriptionPlan        String   @default("free") // "free" | "monthly" | "annual"
   subscriptionStatus      String   @default("none") // "none" | "active" | "canceled" | "past_due" | "expired"
   creemSubscriptionId     String?  // Creem subscription ID (sub_xxx)
@@ -73,8 +74,9 @@ model Course {
   finalQuiz   CourseQuiz?
   progress    CourseProgress?
   sessions    StudySession[]
-  shares      CourseShare[]
-  publicListing PublicCourse?
+  shares          CourseShare[]
+  invitationLinks InvitationLink[]
+  publicListing   PublicCourse?
 }
 
 model Chapter {
@@ -173,6 +175,20 @@ model CourseShare {
   message     String?  // optional message
   isRead      Boolean  @default(false)
   createdAt   DateTime @default(now())
+}
+
+model InvitationLink {
+  id          String   @id @default(cuid())
+  code        String   @unique          // e.g. "aB3x9Z" — 6-char alphanumeric
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdBy   String                    // userId who created the link
+  createdAt   DateTime @default(now())
+  maxUses     Int      @default(100)
+  useCount    Int      @default(0)
+
+  @@index([code])
+  @@index([courseId])
 }
 
 model Certificate {

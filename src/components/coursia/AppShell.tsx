@@ -243,8 +243,53 @@ export default function AppShell() {
           console.log("[appshell] Restored pending generation from localStorage:", parsed.topic);
         }
       } catch { /* ignore */ }
+
+      // ── Handle invitation link param ──
+      const params = new URLSearchParams(window.location.search);
+      const inviteCode = params.get("invite");
+      if (inviteCode) {
+        // Store invite code in localStorage for later use
+        localStorage.setItem("coursia-pending-invite", inviteCode);
+        // Clean URL
+        window.history.replaceState({}, "", window.location.pathname);
+      }
     }
   }, [setAuthToken]);
+
+  // ── Handle pending invite: if authenticated user has a pending invite, process it ──
+  useEffect(() => {
+    const pendingInvite = typeof window !== "undefined" ? localStorage.getItem("coursia-pending-invite") : null;
+    if (!pendingInvite || !userId) return;
+
+    const processInvite = async () => {
+      try {
+        // First accept the invitation (creates CourseShare)
+        const acceptRes = await fetch(`/api/invite/${pendingInvite}`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${userId}` },
+        });
+        const acceptData = await acceptRes.json();
+
+        if (acceptRes.ok && acceptData.courseId) {
+          // Clear pending invite
+          localStorage.removeItem("coursia-pending-invite");
+          // Navigate directly to the course viewer
+          useAppStore.getState().setSelectedCourseId(acceptData.courseId);
+          useAppStore.getState().setView("viewer");
+          console.log("[appshell] Invite accepted, opened course:", acceptData.courseId);
+        } else {
+          // Failed to accept — if user not logged in yet, will be handled after auth
+          console.log("[appshell] Invite accept failed or not yet authenticated:", acceptData.error);
+        }
+      } catch (err) {
+        console.error("[appshell] Error processing invite:", err);
+      }
+    };
+
+    // Small delay to ensure session is restored first
+    const timer = setTimeout(processInvite, 1500);
+    return () => clearTimeout(timer);
+  }, [userId]);
 
   // ── Periodic paywall-status check for notification dot ──
   const checkPaywallStatus = useCallback(async () => {

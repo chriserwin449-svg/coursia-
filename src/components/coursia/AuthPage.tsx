@@ -23,6 +23,7 @@ export default function AuthPage() {
   const setView = useAppStore((s) => s.setView);
   const setUser = useAppStore((s) => s.setUser);
   const setAuthToken = useAppStore((s) => s.setAuthToken);
+  const setSelectedCourseId = useAppStore((s) => s.setSelectedCourseId);
 
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -97,7 +98,36 @@ export default function AuthPage() {
         localStorage.setItem("coursia-user-data", JSON.stringify(data.user));
       }
 
-      // Navigate to create page
+      // ── Handle pending invite: redirect to shared course after auth ──
+      const pendingInvite = typeof window !== "undefined"
+        ? localStorage.getItem("coursia-pending-invite")
+        : null;
+
+      if (pendingInvite && data.user) {
+        try {
+          // Accept the invite (creates CourseShare) and get the courseId
+          const inviteRes = await fetch(`/api/invite/${pendingInvite}`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${data.user.id}` },
+          });
+          const inviteData = await inviteRes.json();
+
+          if (inviteRes.ok && inviteData.courseId) {
+            // Clear pending invite
+            localStorage.removeItem("coursia-pending-invite");
+            // Navigate directly to the shared course
+            setSelectedCourseId(inviteData.courseId);
+            setView("viewer");
+            // Track conversion
+            trackEvent({ name: isLogin ? "login" : "signup" });
+            return;
+          }
+        } catch {
+          // If invite fails, fall through to normal navigation
+        }
+      }
+
+      // Default navigation: go to create page
       setView("create");
 
       // Track conversion event

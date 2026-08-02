@@ -245,6 +245,45 @@ async function ensureDatabaseReady(): Promise<void> {
         );
       `);
 
+      // InvitationLink table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "InvitationLink" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "code" TEXT NOT NULL,
+          "courseId" TEXT NOT NULL,
+          "createdBy" TEXT NOT NULL,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "maxUses" INTEGER NOT NULL DEFAULT 100,
+          "useCount" INTEGER NOT NULL DEFAULT 0,
+          CONSTRAINT "InvitationLink_code_key" UNIQUE ("code")
+        );
+      `);
+
+      // CourseShare table
+      await db.$executeRawUnsafe(`
+        CREATE TABLE IF NOT EXISTS "CourseShare" (
+          "id" TEXT NOT NULL PRIMARY KEY,
+          "courseId" TEXT NOT NULL,
+          "sharedBy" TEXT NOT NULL,
+          "sharedWith" TEXT NOT NULL,
+          "message" TEXT,
+          "isRead" BOOLEAN NOT NULL DEFAULT false,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // Username column on User
+      try {
+        await db.$executeRawUnsafe(
+          `DO $$ BEGIN ALTER TABLE "User" ADD COLUMN "username" TEXT; EXCEPTION WHEN duplicate_column THEN null; END $$;`
+        );
+      } catch { /* ignore */ }
+      try {
+        await db.$executeRawUnsafe(
+          `DO $$ BEGIN ALTER TABLE "User" ADD CONSTRAINT "User_username_key" UNIQUE ("username"); EXCEPTION WHEN duplicate_object THEN null; END $$;`
+        );
+      } catch { /* ignore */ }
+
       console.log("✅ PostgreSQL database ensured ready");
     }
     // SQLite: Prisma handles it via schema.prisma — no action needed

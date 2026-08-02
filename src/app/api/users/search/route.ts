@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
               { firstName: { contains: q } },
               { lastName: { contains: q } },
               { email: { contains: q } },
+              { username: { contains: q } },
             ],
           },
           { id: { not: userId } },
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
         firstName: true,
         lastName: true,
         email: true,
+        username: true,
       },
       take: 10,
     });
