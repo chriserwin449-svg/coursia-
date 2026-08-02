@@ -1,40 +1,29 @@
 ---
 Task ID: 1
 Agent: Main Agent
-Task: Implement comprehensive course sharing system for Coursia
+Task: Course sharing fixes — remove "Partager par lien", fix user search, add profile photo upload
 
 Work Log:
-- Explored existing codebase structure: Sidebar, CourseViewer, Library, ShareCourseDialog, API routes
-- Identified that Sidebar had a non-functional "Inviter un ami" placeholder button
-- Identified existing CourseShare model and share API in database/schema
-- Added InvitationLink model to Prisma schema with code, courseId, createdBy, maxUses, useCount fields
-- Added username field to User model for search-by-username support
-- Pushed schema changes to SQLite database
-- Created GET /api/courses/[id]/shares endpoint - lists users who have been shared a course
-- Created POST /api/courses/[id]/invite-link endpoint - generates unique 6-char alphanumeric invite link
-- Created GET /api/invite/[code] endpoint - resolves invite link, returns course info
-- Created POST /api/invite/[code] endpoint - accepts invitation, creates CourseShare record
-- Updated /api/users/search to include username in search (fixed SQLite mode:insensitive issue)
-- Updated /api/auth/register ensureDatabaseReady to include InvitationLink, CourseShare, username column for PostgreSQL
-- Removed "Inviter un ami" button from Sidebar.tsx (removed UserPlus import, showInvite state, and button JSX)
-- Completely rewrote ShareCourseDialog.tsx with 3 sections:
-  1. "Inviter un ami" - real-time search by name/email/username, select user, share course
-  2. "Shared with" - shows list of users who have access to the course
-  3. "Share by link" - generates invite link, copy button, social sharing (WhatsApp, Telegram, X, Facebook, LinkedIn, Email)
-- Updated AppShell.tsx to handle ?invite=CODE URL parameter:
-  - On load: stores invite code in localStorage, cleans URL
-  - After auth: processes pending invite via POST /api/invite/[code], navigates to course viewer
-- Updated AuthPage.tsx to handle pending invite after registration:
-  - After successful auth, checks for pending invite code in localStorage
-  - If invite code exists: accepts invite, navigates to shared course instead of create page
-  - If no invite code: normal navigation to create page
-- Verified freemium compatibility: shared courses don't consume freeCourseUsed flag, paywall only blocks generation not study
+- Analyzed uploaded screenshot to understand current UI state
+- Explored codebase to find all sharing-related files (ShareCourseDialog, search API, shares API, etc.)
+- Read all key files: ShareCourseDialog.tsx, Sidebar.tsx, AppShell.tsx, store.ts, auth routes, Prisma schema
+- Removed entire "Partager par lien" section (Section 3) from ShareCourseDialog.tsx including link copy, social sharing buttons, and all related state/imports
+- Fixed user search API (/api/users/search) to use case-insensitive raw SQL with LOWER() for SQLite compatibility across firstName, lastName, email, username
+- Added avatar field to Prisma User model and ran db:push
+- Created new API route /api/users/avatar for profile photo upload (accepts JPEG/PNG/WebP/GIF, max 2MB)
+- Updated UserData interface in store.ts to include optional avatar field
+- Updated login route to return avatar field in user response
+- Updated auth/me route (POST + GET) to include avatar in buildSafeUser and Prisma/raw SQL queries
+- Updated Sidebar component: replaced generic User icon with avatar image + camera overlay on hover for photo upload
+- Updated AppShell MobileSlideOver: same avatar click-to-upload functionality
+- Updated shares list API to include avatar and username in shared user data
+- Updated ShareCourseDialog to display avatar images in search results, selected friend, and shared-with list
+- Fixed duplicate toast import in AppShell.tsx
 
 Stage Summary:
-- All 7 sharing features implemented
-- API endpoints tested via curl: share, shares list, invite link generation, invite resolution, invite acceptance, duplicate prevention
-- SQLite compatibility fix for search endpoint
-- Zero lint errors on all modified files
-- Sidebar "Inviter un ami" button successfully removed
-- Share dialog completely redesigned with 3 sections
-- Invitation link flow implemented for both existing and new users
+- "Partager par lien" section completely removed from share dialog
+- User search now works with case-insensitive matching across all fields (name, email, pseudo)
+- Profile photo upload working: click avatar in sidebar → file picker → upload → display
+- Avatar shown in search results and shared-with list (falls back to gradient initial)
+- All changes verified via browser testing with agent-browser
+- Files modified: ShareCourseDialog.tsx, Sidebar.tsx, AppShell.tsx, store.ts, schema.prisma, users/search/route.ts, users/avatar/route.ts, courses/[id]/shares/route.ts, auth/login/route.ts, auth/me/route.ts, auth/register/route.ts
