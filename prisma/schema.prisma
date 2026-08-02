@@ -14,6 +14,7 @@ model User {
   firstName               String
   lastName                String
   username                String?  @unique         // Coursia username (optional, for sharing)
+  avatar                  String?                   // Profile photo URL
   subscriptionPlan        String   @default("free") // "free" | "monthly" | "annual"
   subscriptionStatus      String   @default("none") // "none" | "active" | "canceled" | "past_due" | "expired"
   creemSubscriptionId     String?  // Creem subscription ID (sub_xxx)

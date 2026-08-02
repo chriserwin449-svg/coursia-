@@ -284,6 +284,13 @@ async function ensureDatabaseReady(): Promise<void> {
         );
       } catch { /* ignore */ }
 
+      // Avatar column on User
+      try {
+        await db.$executeRawUnsafe(
+          `DO $$ BEGIN ALTER TABLE "User" ADD COLUMN "avatar" TEXT; EXCEPTION WHEN duplicate_column THEN null; END $$;`
+        );
+      } catch { /* ignore */ }
+
       console.log("✅ PostgreSQL database ensured ready");
     }
     // SQLite: Prisma handles it via schema.prisma — no action needed

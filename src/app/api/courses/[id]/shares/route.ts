@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getUserIdFromRequest } from "@/lib/get-user-id";
 
 /**
  * GET /api/courses/[id]/shares
@@ -12,7 +11,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userId = getUserIdFromRequest(request);
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId") || request.headers.get("Authorization")?.replace("Bearer ", "") || "";
+
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -37,18 +38,15 @@ export async function GET(
     const shares = await db.courseShare.findMany({
       where: { courseId: id },
       orderBy: { createdAt: "desc" },
-      include: {
-        course: false,
-      },
     });
 
-    // Get recipient user details
+    // Get recipient user details with avatar
     const recipientIds = shares.map((s) => s.sharedWith);
     const recipients =
       recipientIds.length > 0
         ? await db.user.findMany({
             where: { id: { in: recipientIds } },
-            select: { id: true, firstName: true, lastName: true, email: true },
+            select: { id: true, firstName: true, lastName: true, email: true, username: true, avatar: true },
           })
         : [];
 
@@ -62,6 +60,8 @@ export async function GET(
         firstName: recipient?.firstName || "Unknown",
         lastName: recipient?.lastName || "",
         email: recipient?.email || "",
+        username: recipient?.username || null,
+        avatar: recipient?.avatar || null,
         sharedAt: share.createdAt,
       };
     });

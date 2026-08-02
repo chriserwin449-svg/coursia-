@@ -65,4 +65,4 @@ tool-results/
 !/package.json
 !/bun.lock
 !/tsconfig.json
-!/components.json
+!/components.jsonpublic/uploads/avatars/

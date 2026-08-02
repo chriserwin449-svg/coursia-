@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { BookOpen, Library, Route, PanelLeftClose, PanelLeftOpen, Tag, LogOut, User, AlertTriangle } from "lucide-react";
+import { useState, useMemo, useRef } from "react";
+import { BookOpen, Library, Route, PanelLeftClose, PanelLeftOpen, Tag, LogOut, User, AlertTriangle, Camera, Loader2 } from "lucide-react";
 import { useAppStore, type AppView } from "@/lib/store";
 import { t } from "@/lib/i18n";
+import { toast } from "sonner";
 import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 
 export default function Sidebar() {
@@ -20,6 +21,8 @@ export default function Sidebar() {
   const expiryWarning48h = useAppStore((s) => s.expiryWarning48h);
 
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Show dot when there's a notification or 48h expiry warning and user is NOT on offers page
   const showDot = (hasNotification || expiryWarning48h) && view !== "offers";
@@ -43,6 +46,56 @@ export default function Sidebar() {
 
   const handleOffersClick = () => {
     setView("offers");
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error(lang === "fr" ? "Format non supporté. Utilise JPEG, PNG ou WebP." : "Unsupported format. Use JPEG, PNG or WebP.");
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error(lang === "fr" ? "Fichier trop volumineux. Max 2 Mo." : "File too large. Max 2MB.");
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append("avatar", file);
+      formData.append("userId", user.id);
+
+      const res = await fetch("/api/users/avatar", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // Update user in store with new avatar
+        setUser({ ...user, avatar: data.avatarUrl });
+        toast.success(lang === "fr" ? "Photo de profil mise à jour !" : "Profile photo updated!");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || (lang === "fr" ? "Erreur lors du téléchargement." : "Upload failed."));
+      }
+    } catch {
+      toast.error(lang === "fr" ? "Erreur réseau." : "Network error.");
+    } finally {
+      setUploadingAvatar(false);
+      // Reset file input
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   return (
@@ -88,14 +141,36 @@ export default function Sidebar() {
 
         {/* Bottom section */}
         <div className="px-2 md:px-3 py-3 border-t border-border space-y-1">
-          {/* User info */}
+          {/* User info — clickable avatar for photo upload */}
           {user && (
             <div
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-muted-foreground/70"
-              title={collapsed ? `${user.firstName} ${user.lastName}` : undefined}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-2xl text-muted-foreground/70 cursor-pointer group"
+              title={collapsed
+                ? `${lang === "fr" ? "Changer la photo" : "Change photo"}: ${user.firstName}`
+                : `${lang === "fr" ? "Cliquez pour changer la photo" : "Click to change photo"}`
+              }
+              onClick={handleAvatarClick}
             >
-              <div className="w-8 h-8 rounded-xl bg-mauve/15 flex items-center justify-center flex-shrink-0">
-                <User className="w-4 h-4 text-mauve-light" />
+              <div className="relative flex-shrink-0">
+                {user.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={user.firstName}
+                    className="w-8 h-8 rounded-xl object-cover"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-xl bg-mauve/15 flex items-center justify-center">
+                    <User className="w-4 h-4 text-mauve-light" />
+                  </div>
+                )}
+                {/* Camera overlay on hover */}
+                <div className="absolute inset-0 rounded-xl bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  {uploadingAvatar ? (
+                    <Loader2 className="w-3.5 h-3.5 text-white animate-spin" />
+                  ) : (
+                    <Camera className="w-3.5 h-3.5 text-white" />
+                  )}
+                </div>
               </div>
               {!collapsed && (
                 <div className="hidden md:block min-w-0">
@@ -105,6 +180,15 @@ export default function Sidebar() {
                   <p className="text-[10px] text-muted-foreground/50 truncate">{user.email}</p>
                 </div>
               )}
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={handleAvatarChange}
+                disabled={uploadingAvatar}
+              />
             </div>
           )}
 

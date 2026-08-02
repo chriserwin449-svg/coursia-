@@ -3,15 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Search,
-  Send,
   Loader2,
   UserPlus,
   CheckCircle2,
-  Link2,
-  Copy,
-  Check,
   Users,
-  MessageSquare,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { toast } from "sonner";
@@ -36,6 +31,7 @@ interface SearchResult {
   lastName: string;
   email: string;
   username?: string | null;
+  avatar?: string | null;
 }
 
 interface SharedUser {
@@ -44,6 +40,8 @@ interface SharedUser {
   firstName: string;
   lastName: string;
   email: string;
+  username?: string | null;
+  avatar?: string | null;
   sharedAt: string;
 }
 
@@ -70,18 +68,12 @@ export default function ShareCourseDialog({
   const [sharedWith, setSharedWith] = useState<SharedUser[]>([]);
   const [loadingShared, setLoadingShared] = useState(false);
 
-  // Link sharing state
-  const [inviteLink, setInviteLink] = useState("");
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [loadingLink, setLoadingLink] = useState(false);
-
   const reset = useCallback(() => {
     setQuery("");
     setResults([]);
     setIsSearching(false);
     setSelectedFriend(null);
     setShareState("searching");
-    setLinkCopied(false);
   }, []);
 
   useEffect(() => {
@@ -89,8 +81,6 @@ export default function ShareCourseDialog({
       reset();
       // Fetch shared users list
       fetchSharedWith();
-      // Fetch/generate invite link
-      fetchInviteLink();
     }
   }, [open, reset]);
 
@@ -115,28 +105,6 @@ export default function ShareCourseDialog({
       /* silent */
     } finally {
       setLoadingShared(false);
-    }
-  }, [courseId, authHeaders]);
-
-  // ── Fetch/generate invite link ──
-  const fetchInviteLink = useCallback(async () => {
-    setLoadingLink(true);
-    try {
-      const res = await fetch(`/api/courses/${courseId}/invite-link`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders(),
-        },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setInviteLink(data.url || "");
-      }
-    } catch {
-      /* silent */
-    } finally {
-      setLoadingLink(false);
     }
   }, [courseId, authHeaders]);
 
@@ -173,7 +141,13 @@ export default function ShareCourseDialog({
   const handleQueryChange = (value: string) => {
     setQuery(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => searchUsers(value), 300);
+    // Search immediately if >= 2 chars, with a short debounce for typing
+    if (value.trim().length >= 2) {
+      debounceRef.current = setTimeout(() => searchUsers(value), 200);
+    } else {
+      setResults([]);
+      setIsSearching(false);
+    }
   };
 
   const handleSelectFriend = (friend: SearchResult) => {
@@ -232,77 +206,6 @@ export default function ShareCourseDialog({
     }
   };
 
-  // ── Copy link ──
-  const handleCopyLink = async () => {
-    if (!inviteLink) return;
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setLinkCopied(true);
-      toast.success(
-        lang === "fr" ? "Lien copié !" : "Link copied!"
-      );
-      setTimeout(() => setLinkCopied(false), 2000);
-    } catch {
-      // Fallback
-      const textarea = document.createElement("textarea");
-      textarea.value = inviteLink;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-      setLinkCopied(true);
-      toast.success(
-        lang === "fr" ? "Lien copié !" : "Link copied!"
-      );
-      setTimeout(() => setLinkCopied(false), 2000);
-    }
-  };
-
-  // ── Social sharing ──
-  const getShareText = () =>
-    lang === "fr"
-      ? `Découvre ce cours sur Coursia : ${courseTitle}`
-      : `Check out this course on Coursia: ${courseTitle}`;
-
-  const socialButtons = [
-    {
-      name: "WhatsApp",
-      color: "bg-[#25D366] hover:bg-[#20BD5A]",
-      getUrl: () =>
-        `https://wa.me/?text=${encodeURIComponent(getShareText() + " " + inviteLink)}`,
-    },
-    {
-      name: "Telegram",
-      color: "bg-[#2AABEE] hover:bg-[#229ED9]",
-      getUrl: () =>
-        `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(getShareText())}`,
-    },
-    {
-      name: "X",
-      color: "bg-[#000000] hover:bg-[#333333]",
-      getUrl: () =>
-        `https://twitter.com/intent/tweet?text=${encodeURIComponent(getShareText())}&url=${encodeURIComponent(inviteLink)}`,
-    },
-    {
-      name: "Facebook",
-      color: "bg-[#1877F2] hover:bg-[#166FE5]",
-      getUrl: () =>
-        `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(inviteLink)}`,
-    },
-    {
-      name: "LinkedIn",
-      color: "bg-[#0A66C2] hover:bg-[#004182]",
-      getUrl: () =>
-        `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(inviteLink)}`,
-    },
-    {
-      name: "Email",
-      color: "bg-muted hover:bg-muted/80",
-      getUrl: () =>
-        `mailto:?subject=${encodeURIComponent(courseTitle)}&body=${encodeURIComponent(getShareText() + "\n\n" + inviteLink)}`,
-    },
-  ];
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -322,7 +225,7 @@ export default function ShareCourseDialog({
         </DialogHeader>
 
         {/* ── Scrollable body ── */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-5 pt-4 space-y-6">
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-5 pt-4 space-y-5">
           {/* ═══════════════════════════════════════
               SECTION 1: Invite a friend
               ═══════════════════════════════════════ */}
@@ -355,7 +258,7 @@ export default function ShareCourseDialog({
                 </div>
 
                 {/* Results */}
-                <div className="mt-2 max-h-48 overflow-y-auto custom-scrollbar">
+                <div className="mt-2 max-h-56 overflow-y-auto custom-scrollbar">
                   {isSearching && results.length === 0 && query.length >= 2 && (
                     <div className="flex items-center justify-center py-6">
                       <Loader2 className="w-5 h-5 animate-spin text-purple-400" />
@@ -378,9 +281,17 @@ export default function ShareCourseDialog({
                       onClick={() => handleSelectFriend(user)}
                       className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-150 hover:bg-[rgba(124,92,191,0.12)] cursor-pointer group"
                     >
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
-                        {user.firstName.charAt(0).toUpperCase()}
-                      </div>
+                      {user.avatar ? (
+                        <img
+                          src={user.avatar}
+                          alt={user.firstName}
+                          className="w-9 h-9 rounded-full object-cover flex-shrink-0 border-2 border-purple-500/30"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
+                          {user.firstName.charAt(0).toUpperCase()}
+                        </div>
+                      )}
                       <div className="text-left flex-1 min-w-0">
                         <p className="text-sm font-semibold truncate group-hover:text-purple-300 transition-colors">
                           {user.firstName} {user.lastName}
@@ -414,9 +325,17 @@ export default function ShareCourseDialog({
             {shareState === "selected" && selectedFriend && (
               <div className="space-y-3">
                 <div className="flex items-center gap-3 p-3 rounded-2xl bg-[rgba(124,92,191,0.1)] border border-[rgba(124,92,191,0.2)]">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0 text-white font-bold">
-                    {selectedFriend.firstName.charAt(0).toUpperCase()}
-                  </div>
+                  {selectedFriend.avatar ? (
+                    <img
+                      src={selectedFriend.avatar}
+                      alt={selectedFriend.firstName}
+                      className="w-10 h-10 rounded-full object-cover flex-shrink-0 border-2 border-purple-500/30"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0 text-white font-bold">
+                      {selectedFriend.firstName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm">
                       {selectedFriend.firstName} {selectedFriend.lastName}
@@ -505,9 +424,17 @@ export default function ShareCourseDialog({
                     key={user.id}
                     className="flex items-center gap-3 p-2.5 rounded-xl bg-[rgba(124,92,191,0.06)]"
                   >
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500/70 to-pink-500/70 flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">
-                      {user.firstName.charAt(0).toUpperCase()}
-                    </div>
+                    {user.avatar ? (
+                      <img
+                        src={user.avatar}
+                        alt={user.firstName}
+                        className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-purple-500/20"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500/70 to-pink-500/70 flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">
+                        {user.firstName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">
                         {user.firstName} {user.lastName}
@@ -520,91 +447,6 @@ export default function ShareCourseDialog({
             )}
           </div>
 
-          {/* ═══════════════════════════════════════
-              DIVIDER
-              ═══════════════════════════════════════ */}
-          <div className="border-t border-[rgba(124,92,191,0.15)]" />
-
-          {/* ═══════════════════════════════════════
-              SECTION 3: Share by link
-              ═══════════════════════════════════════ */}
-          <div>
-            <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-              <Link2 className="w-4 h-4 text-purple-400" />
-              {lang === "fr" ? "Partager par lien" : "Share by link"}
-            </h3>
-
-            {loadingLink ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
-              </div>
-            ) : inviteLink ? (
-              <div className="space-y-4">
-                {/* Link + Copy */}
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 px-3 py-2.5 rounded-xl bg-[rgba(124,92,191,0.1)] border border-[rgba(124,92,191,0.2)] text-sm text-[#9b9bb0] truncate font-mono">
-                    {inviteLink}
-                  </div>
-                  <button
-                    onClick={handleCopyLink}
-                    className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-sm transition-all cursor-pointer flex-shrink-0 ${
-                      linkCopied
-                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                        : "bg-purple-500/15 text-purple-300 border border-purple-500/30 hover:bg-purple-500/25"
-                    }`}
-                  >
-                    {linkCopied ? (
-                      <>
-                        <Check className="w-4 h-4" />
-                        {lang === "fr" ? "Copié" : "Copied"}
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4" />
-                        {lang === "fr" ? "Copier" : "Copy"}
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Social buttons */}
-                <div>
-                  <p className="text-xs text-[#9b9bb0]/60 font-semibold mb-2.5">
-                    {lang === "fr"
-                      ? "Partager sur les réseaux"
-                      : "Share on social"}
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {socialButtons.map((social) => (
-                      <a
-                        key={social.name}
-                        href={social.getUrl()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-white text-xs font-bold transition-all cursor-pointer ${social.color}`}
-                      >
-                        {social.name === "WhatsApp" && "💬"}
-                        {social.name === "Telegram" && "✈️"}
-                        {social.name === "X" && "𝕏"}
-                        {social.name === "Facebook" && "f"}
-                        {social.name === "LinkedIn" && "in"}
-                        {social.name === "Email" && (
-                          <MessageSquare className="w-3.5 h-3.5" />
-                        )}
-                        <span>{social.name}</span>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-[#9b9bb0]/60">
-                {lang === "fr"
-                  ? "Impossible de générer un lien."
-                  : "Could not generate a link."}
-              </p>
-            )}
-          </div>
         </div>
       </DialogContent>
     </Dialog>

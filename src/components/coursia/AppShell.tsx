@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useCallback, useRef, useState } from "react";
-import { BookOpen, Library, Route, Tag, Menu, X, LogOut, User, AlertTriangle } from "lucide-react";
+import { BookOpen, Library, Route, Tag, Menu, X, LogOut, User, AlertTriangle, Camera, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { useAppStore, type AppView } from "@/lib/store";
 import { trackEvent } from "@/lib/analytics";
 import { t } from "@/lib/i18n";
 import { useSession } from "@/hooks/useSession";
-import { toast } from "sonner";
 import Sidebar from "@/components/coursia/Sidebar";
 import CoursiaLogo from "@/components/coursia/CoursiaLogo";
 import LandingPage from "@/components/coursia/LandingPage";
@@ -30,6 +30,8 @@ function MobileSlideOver({ open, onClose }: { open: boolean; onClose: () => void
   const setAuthToken = useAppStore((s) => s.setAuthToken);
 
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const NAV_ITEMS = [
     { view: "create" as const, label: tx.nav.create, icon: BookOpen },
@@ -49,6 +51,47 @@ function MobileSlideOver({ open, onClose }: { open: boolean; onClose: () => void
     setAuthToken(null);
     setView("landing");
     onClose();
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error(lang === "fr" ? "Format non supporté." : "Unsupported format.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error(lang === "fr" ? "Fichier trop volumineux. Max 2 Mo." : "File too large. Max 2MB.");
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append("avatar", file);
+      formData.append("userId", user.id);
+
+      const res = await fetch("/api/users/avatar", { method: "POST", body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        setUser({ ...user, avatar: data.avatarUrl });
+        toast.success(lang === "fr" ? "Photo mise à jour !" : "Photo updated!");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || (lang === "fr" ? "Erreur." : "Error."));
+      }
+    } catch {
+      toast.error(lang === "fr" ? "Erreur réseau." : "Network error.");
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   if (!open) return null;
@@ -102,9 +145,22 @@ function MobileSlideOver({ open, onClose }: { open: boolean; onClose: () => void
         {/* Bottom section */}
         <div className="px-2 py-3 border-t border-border space-y-1">
           {user && (
-            <div className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-muted-foreground/70">
-              <div className="w-8 h-8 rounded-xl bg-mauve/15 flex items-center justify-center flex-shrink-0">
-                <User className="w-4 h-4 text-mauve-light" />
+            <div
+              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-muted-foreground/70 cursor-pointer group"
+              onClick={handleAvatarClick}
+              title={lang === "fr" ? "Changer la photo" : "Change photo"}
+            >
+              <div className="relative flex-shrink-0">
+                {user.avatar ? (
+                  <img src={user.avatar} alt={user.firstName} className="w-8 h-8 rounded-xl object-cover" />
+                ) : (
+                  <div className="w-8 h-8 rounded-xl bg-mauve/15 flex items-center justify-center">
+                    <User className="w-4 h-4 text-mauve-light" />
+                  </div>
+                )}
+                <div className="absolute inset-0 rounded-xl bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  {uploadingAvatar ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" /> : <Camera className="w-3.5 h-3.5 text-white" />}
+                </div>
               </div>
               <div className="min-w-0">
                 <p className="text-xs font-bold text-foreground truncate">
@@ -112,6 +168,14 @@ function MobileSlideOver({ open, onClose }: { open: boolean; onClose: () => void
                 </p>
                 <p className="text-[10px] text-muted-foreground/50 truncate">{user.email}</p>
               </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="hidden"
+                onChange={handleAvatarChange}
+                disabled={uploadingAvatar}
+              />
             </div>
           )}
           <button

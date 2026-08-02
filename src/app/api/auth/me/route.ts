@@ -33,6 +33,7 @@ function buildSafeUser(user: Record<string, unknown>) {
     email: user.email,
     firstName: user.firstName,
     lastName: user.lastName,
+    avatar: user.avatar || null,
   };
 }
 
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
       user = await db.user.findUnique({
         where: { id: userId },
         select: {
-          id: true, email: true, firstName: true, lastName: true,
+          id: true, email: true, firstName: true, lastName: true, avatar: true,
           subscriptionPlan: true, subscriptionStatus: true,
           subscriptionStartDate: true, subscriptionEndDate: true, trialStartDate: true,
         },
@@ -72,7 +73,7 @@ export async function POST(request: NextRequest) {
     } catch {
       try {
         const rows = await db.$queryRawUnsafe(
-          `SELECT id, email, "firstName", "lastName", "subscriptionPlan", "subscriptionStatus", "subscriptionStartDate", "subscriptionEndDate", "trialStartDate" FROM "User" WHERE id = $1`,
+          `SELECT id, email, "firstName", "lastName", "avatar", "subscriptionPlan", "subscriptionStatus", "subscriptionStartDate", "subscriptionEndDate", "trialStartDate" FROM "User" WHERE id = $1`,
           userId
         ) as Array<Record<string, unknown>>;
         user = rows[0] || null;
@@ -115,7 +116,7 @@ export async function GET(request: NextRequest) {
       user = await db.user.findUnique({
         where: { id: userId },
         select: {
-          id: true, email: true, firstName: true, lastName: true,
+          id: true, email: true, firstName: true, lastName: true, avatar: true,
           subscriptionPlan: true, subscriptionStatus: true,
           subscriptionStartDate: true, subscriptionEndDate: true, trialStartDate: true,
         },
@@ -123,7 +124,7 @@ export async function GET(request: NextRequest) {
     } catch {
       try {
         const rows = await db.$queryRawUnsafe(
-          `SELECT id, email, "firstName", "lastName", "subscriptionPlan", "subscriptionStatus", "subscriptionStartDate", "subscriptionEndDate", "trialStartDate" FROM "User" WHERE id = $1`,
+          `SELECT id, email, "firstName", "lastName", "avatar", "subscriptionPlan", "subscriptionStatus", "subscriptionStartDate", "subscriptionEndDate", "trialStartDate" FROM "User" WHERE id = $1`,
           userId
         ) as Array<Record<string, unknown>>;
         user = rows[0] || null;

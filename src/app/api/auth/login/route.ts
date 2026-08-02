@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     let userRows: Array<Record<string, unknown>> | null = null;
     try {
       userRows = await db.$queryRawUnsafe(
-        `SELECT "id", "email", "password", "firstName", "lastName" FROM "User" WHERE "email" = $1 LIMIT 1`,
+        `SELECT "id", "email", "password", "firstName", "lastName", "avatar" FROM "User" WHERE "email" = $1 LIMIT 1`,
         emailLower
       ) as Array<Record<string, unknown>>;
     } catch (err) {
@@ -155,6 +155,7 @@ export async function POST(request: NextRequest) {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
+        avatar: user.avatar || null,
       },
       token,
     });

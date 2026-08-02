@@ -1,44 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getUserIdFromRequest } from "@/lib/get-user-id";
 
+/**
+ * GET /api/users/search?q=<query>
+ * Search users by firstName, lastName, email, or username (case-insensitive).
+ * Requires Authorization header with Bearer token.
+ */
 export async function GET(request: NextRequest) {
   try {
-    const userId = getUserIdFromRequest(request);
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q")?.trim();
 
-    if (!q) {
-      return NextResponse.json({ error: "Search query is required" }, { status: 400 });
+    if (!q || q.length < 2) {
+      return NextResponse.json({ error: "Search query must be at least 2 characters" }, { status: 400 });
     }
 
-    if (!userId) {
+    const authHeader = request.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const users = await db.user.findMany({
-      where: {
-        AND: [
-          {
-            OR: [
-              { firstName: { contains: q } },
-              { lastName: { contains: q } },
-              { email: { contains: q } },
-              { username: { contains: q } },
-            ],
-          },
-          { id: { not: userId } },
-        ],
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        username: true,
-      },
-      take: 10,
-    });
+    // Use case-insensitive search for SQLite compatibility
+    const qLower = q.toLowerCase();
+
+    // Build raw SQL query for case-insensitive search across all fields
+    const users = await db.$queryRawUnsafe(
+      `SELECT "id", "firstName", "lastName", "email", "username", "avatar"
+       FROM "User"
+       WHERE (
+         LOWER("firstName") LIKE '%' || $1 || '%'
+         OR LOWER("lastName") LIKE '%' || $1 || '%'
+         OR LOWER("email") LIKE '%' || $1 || '%'
+         OR LOWER("username") LIKE '%' || $1 || '%'
+       )
+       LIMIT 10`,
+      qLower
+    ) as Array<{
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      username: string | null;
+      avatar: string | null;
+    }>;
+
+    console.log(`✅ [users/search] Query "${q}" → ${users.length} results`);
 
     return NextResponse.json({ users });
   } catch (error) {
