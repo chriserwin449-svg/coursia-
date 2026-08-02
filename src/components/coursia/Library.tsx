@@ -8,6 +8,8 @@ import {
   Library as LibraryIcon,
   Loader2,
   Search,
+  Share2,
+  Users,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -28,6 +30,18 @@ export default function Library() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null);
+  const [showShared, setShowShared] = useState(false);
+  const [sharedCourses, setSharedCourses] = useState<Array<{
+    id: string;
+    courseId: string;
+    courseTitle: string;
+    courseDescription: string;
+    sharedByFirstName: string;
+    sharedByLastName: string;
+    createdAt: string;
+    chapterCount: number;
+  }>>([]);
+  const [loadingShared, setLoadingShared] = useState(false);
 
   const lang = useAppStore((s) => s.lang);
   const tx = t(lang);
@@ -46,6 +60,21 @@ export default function Library() {
   };
 
   useEffect(() => { fetchCourses(); }, []);
+
+  const fetchSharedCourses = async () => {
+    setLoadingShared(true);
+    try {
+      const userId = useAppStore.getState().userId;
+      const res = await fetch(`/api/courses/shared?userId=${userId}`);
+      const data = await res.json();
+      if (res.ok) setSharedCourses(data.shares || []);
+    } catch { /* */ }
+    finally { setLoadingShared(false); }
+  };
+
+  useEffect(() => {
+    if (showShared) fetchSharedCourses();
+  }, [showShared]);
 
   const deleteCourse = async (id: string) => {
     setDeleting(id);
@@ -121,6 +150,79 @@ export default function Library() {
         </div>
       )}
 
+      {/* Shared courses toggle */}
+      <div className="flex items-center gap-2 mb-6">
+        <button
+          onClick={() => setShowShared(false)}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer ${
+            !showShared ? "bg-mauve/20 text-mauve-light" : "glass text-muted-foreground hover:bg-white/5"
+          }`}
+        >
+          <LibraryIcon className="w-4 h-4" />
+          {lang === "fr" ? "Mes cours" : "My Courses"}
+        </button>
+        <button
+          onClick={() => setShowShared(true)}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold transition-all cursor-pointer ${
+            showShared ? "bg-mauve/20 text-mauve-light" : "glass text-muted-foreground hover:bg-white/5"
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          {lang === "fr" ? "Cours partagés" : "Shared Courses"}
+          {sharedCourses.length > 0 && (
+            <span className="ml-1 w-5 h-5 rounded-full bg-mauve text-white text-[10px] font-bold flex items-center justify-center">
+              {sharedCourses.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {showShared && (
+        loadingShared ? (
+          <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-mauve" /></div>
+        ) : sharedCourses.length === 0 ? (
+          <div className="text-center py-12">
+            <Users className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
+            <h3 className="text-xl font-extrabold mb-2">{lang === "fr" ? "Aucun cours partagé" : "No shared courses"}</h3>
+            <p className="text-muted-foreground font-semibold">
+              {lang === "fr" ? "Quand un ami te partage un cours, il apparaîtra ici" : "When a friend shares a course with you, it will appear here"}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            {sharedCourses.map((sc) => (
+              <div
+                key={sc.id}
+                className="group glass rounded-3xl overflow-hidden transition-all duration-300 cursor-pointer hover:shadow-xl hover:-translate-y-1 hover:border-mauve/40"
+                onClick={() => openCourse(sc.courseId)}
+              >
+                <div className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-mauve to-purple-600 flex items-center justify-center flex-shrink-0">
+                      <Share2 className="w-6 h-6 text-white" />
+                    </div>
+                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-mauve/10 text-mauve-light">
+                      {lang === "fr" ? "Partagé" : "Shared"}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-extrabold mb-2 line-clamp-2">{sc.courseTitle}</h3>
+                  <p className="text-sm text-muted-foreground font-semibold mb-4">
+                    {lang === "fr"
+                      ? `Par ${sc.sharedByFirstName} ${sc.sharedByLastName?.charAt(0) || ""}.`
+                      : `By ${sc.sharedByFirstName} ${sc.sharedByLastName?.charAt(0) || ""}.`}
+                  </p>
+                  <p className="text-xs text-muted-foreground/60 font-semibold">
+                    {new Date(sc.createdAt).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", { day: "numeric", month: "short", year: "numeric" })}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
+      {!showShared && (
+      <>
       {/* Empty state — no courses at all */}
       {courses.length === 0 && (
         <div className="text-center py-12 sm:py-24">
@@ -225,6 +327,8 @@ export default function Library() {
             </div>
           ))}
         </div>
+      )}
+      </>
       )}
 
       {/* ── Delete Confirmation Dialog ── */}

@@ -19,8 +19,10 @@ import {
   AlertTriangle,
   Rocket,
   Crown,
+  Share2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import ShareCourseDialog from "@/components/coursia/ShareCourseDialog";
 import { useAppStore, type CourseData, type CourseChapter, type QuizQuestion } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import Confetti from "@/components/coursia/Confetti";
@@ -63,6 +65,7 @@ export default function CourseViewer() {
   const [showLevelQuiz, setShowLevelQuiz] = useState(false);
   const [levelQuizLevel, setLevelQuizLevel] = useState(0);
   const [levelQuizSecondAttempt, setLevelQuizSecondAttempt] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
 
   const selectedCourseId = useAppStore((s) => s.selectedCourseId);
   const currentChapterIndex = useAppStore((s) => s.currentChapterIndex);
@@ -479,13 +482,24 @@ export default function CourseViewer() {
   }, [currentChapterIndex, course, endStudySession, startStudySession, setCurrentChapterIndex]);
 
   // ── Level Complete handler ──
-  const handleFinalQuizComplete = useCallback((passed: boolean) => {
+  const handleFinalQuizComplete = useCallback(async (passed: boolean) => {
     if (!passed) return;
     const userName = user?.firstName || (lang === "fr" ? "Champion" : "Champion");
     setShowConfetti(true);
     setShowCelebration(true);
     setCelebrationMessage(lang === "fr" ? `Félicitations ${userName} ! 🏆` : `Congratulations ${userName}! 🏆`);
     setCourseCompleted(true);
+
+    // Generate certificate when course is completed
+    try {
+      const userId = useAppStore.getState().userId;
+      await fetch("/api/certificates/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${userId}` },
+        body: JSON.stringify({ courseId: selectedCourseId }),
+      });
+    } catch { /* non-blocking */ }
+
     if (finalQuizTimerRef.current) clearTimeout(finalQuizTimerRef.current);
     finalQuizTimerRef.current = setTimeout(() => {
       setShowCelebration(false);
@@ -1297,6 +1311,10 @@ export default function CourseViewer() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <button onClick={() => setShowShareDialog(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-full glass text-xs font-bold hover:bg-mauve/10 hover:text-mauve-light transition-all cursor-pointer">
+                <Share2 className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">{lang === "fr" ? "Inviter un ami" : "Invite a Friend"}</span>
+              </button>
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full glass text-[10px] font-bold text-muted-foreground">
                 <span>{LEVEL_EMOJIS[currentChapter.level ?? 0]}</span>
                 <span>{getLevelName(currentChapter.level ?? 0)}</span>
@@ -1379,6 +1397,12 @@ export default function CourseViewer() {
           </div>
         </div>
       )}
+      <ShareCourseDialog
+        courseId={course?.id || ""}
+        courseTitle={course?.title || ""}
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
+      />
     </>
   );
 }

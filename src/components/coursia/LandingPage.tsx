@@ -28,6 +28,8 @@ export default function LandingPage() {
   const [audienceVisible, setAudienceVisible] = useState(false);
   const diffRef = useRef<HTMLDivElement>(null);
   const [diffVisible, setDiffVisible] = useState(false);
+  const exploreRef = useRef<HTMLDivElement>(null);
+  const [exploreVisible, setExploreVisible] = useState(false);
   const pricingRef = useRef<HTMLDivElement>(null);
   const [pricingVisible, setPricingVisible] = useState(false);
   const faqRef = useRef<HTMLDivElement>(null);
@@ -50,6 +52,7 @@ export default function LandingPage() {
             if (id === "features") setFeaturesVisible(true);
             if (id === "audience") setAudienceVisible(true);
             if (id === "diff") setDiffVisible(true);
+            if (id === "explore") setExploreVisible(true);
             if (id === "pricing") setPricingVisible(true);
             if (id === "faq") setFaqVisible(true);
             if (id === "final-cta") setCtaVisible(true);
@@ -69,6 +72,39 @@ export default function LandingPage() {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Fetch Coursia Open public courses
+  useEffect(() => {
+    const fetchOpenCourses = async () => {
+      try {
+        const res = await fetch("/api/courses/open");
+        const data = await res.json();
+        const grid = document.getElementById("open-courses-grid");
+        const empty = document.getElementById("open-courses-empty");
+        if (!grid || !empty) return;
+        const courses = data.courses || [];
+        if (courses.length === 0) {
+          grid.classList.add("hidden");
+          empty.classList.remove("hidden");
+          return;
+        }
+        grid.innerHTML = courses.slice(0, 6).map((c: { courseId: string; title: string; description: string; chapterCount: number; publisherName: string; views: number; publishedAt: string }) => `
+          <a href="/?open=${c.courseId}" class="glass rounded-3xl overflow-hidden p-6 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 hover:border-mauve/40 block">
+            <div class="flex items-center gap-3 mb-4">
+              <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-mauve to-mauve-dark flex items-center justify-center flex-shrink-0">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+              </div>
+              <span class="text-xs font-bold px-3 py-1 rounded-full bg-mauve/10 text-mauve-light">${c.chapterCount} chap.</span>
+            </div>
+            <h3 class="text-base font-extrabold mb-2 line-clamp-2 text-foreground">${c.title}</h3>
+            <p class="text-sm text-muted-foreground font-semibold line-clamp-2 mb-3">${c.description || ""}</p>
+            <p class="text-xs text-muted-foreground/50 font-semibold">Par ${c.publisherName || "Anonyme"} · ${c.views} vues</p>
+          </a>
+        `).join("");
+      } catch { /* */ }
+    };
+    fetchOpenCourses();
   }, []);
 
   // Typewriter logic
@@ -505,6 +541,42 @@ export default function LandingPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== COURSIA OPEN — Explore Public Courses ===== */}
+      <section id="explore" className="relative py-24 px-4">
+        <div
+          ref={exploreRef}
+          className="relative z-10 max-w-5xl mx-auto transition-all duration-1000 ease-out"
+          style={{
+            opacity: exploreVisible ? 1 : 0,
+            transform: exploreVisible ? "translateY(0)" : "translateY(40px)",
+          }}
+        >
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-mauve/10 text-mauve-light text-sm font-bold mb-4">
+              <Globe className="w-4 h-4" />
+              {lang === "fr" ? "Coursia Open" : "Coursia Open"}
+            </div>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
+              {lang === "fr" ? "Explorez des cours créés par la communauté" : "Explore courses created by the community"}
+            </h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              {lang === "fr"
+                ? "Découvrez des cours générés par l'IA et partagés publiquement par nos utilisateurs."
+                : "Discover AI-generated courses shared publicly by our users."}
+            </p>
+          </div>
+          <div id="open-courses-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            {/* Fallback placeholder — will be populated via useEffect */}
+          </div>
+          <div id="open-courses-empty" className="hidden text-center py-8">
+            <BookOpen className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+            <p className="text-sm font-semibold text-muted-foreground">
+              {lang === "fr" ? "Aucun cours public pour le moment" : "No public courses yet"}
+            </p>
           </div>
         </div>
       </section>

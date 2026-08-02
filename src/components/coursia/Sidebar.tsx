@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { BookOpen, Library, Route, PanelLeftClose, PanelLeftOpen, Tag, LogOut, User, AlertTriangle } from "lucide-react";
+import { BookOpen, Library, Route, PanelLeftClose, PanelLeftOpen, Tag, LogOut, User, AlertTriangle, UserPlus } from "lucide-react";
 import { useAppStore, type AppView } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import CoursiaLogo from "@/components/coursia/CoursiaLogo";
@@ -20,6 +20,7 @@ export default function Sidebar() {
   const expiryWarning48h = useAppStore((s) => s.expiryWarning48h);
 
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
 
   // Show dot when there's a notification or 48h expiry warning and user is NOT on offers page
   const showDot = (hasNotification || expiryWarning48h) && view !== "offers";
@@ -136,6 +137,18 @@ export default function Sidebar() {
                 </span>
               </>
             )}
+          </button>
+
+          {/* Inviter un ami */}
+          <button
+            onClick={() => setView("library")}
+            title={collapsed ? (lang === "fr" ? "Inviter un ami" : "Invite a Friend") : undefined}
+            className="w-full flex items-center justify-center md:justify-start gap-3 px-3 py-3 rounded-2xl text-muted-foreground hover:bg-mauve/10 hover:text-mauve-light transition-all duration-200 cursor-pointer"
+          >
+            <UserPlus className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && <span className="hidden md:block text-sm font-semibold truncate">
+              {lang === "fr" ? "Inviter un ami" : "Invite a Friend"}
+            </span>}
           </button>
 
           {/* Offers link — with notification dot */}

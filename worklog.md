@@ -1089,3 +1089,60 @@ Stage Summary:
 - Fixed critical runtime bug (subscriptionExtended undefined)
 - Flashdash now fully wired: user_signup, user_login, payment_success (including recurring), course_generated, quiz_created, alerts
 - Key: cms7owjlw0001vb0as37yphx2 → Dashboard: https://flashdash.space-z.ai/
+
+---
+Task ID: 2
+Agent: Frontend Components Agent
+Task: Create ShareCourseDialog, CertificateCard, CertificateViewer components
+
+Work Log:
+- Created ShareCourseDialog with user search (debounced 300ms), friend selection, share flow (searching → selected → sending → sent states)
+- Created CertificateCard with gradient border (purple to pink), badge, stats row, hover effects
+- Created CertificateViewer with full certificate design (CSS-only decorations, gold/purple theme, QR placeholder, share button, Playfair Display font for signature)
+- All components use "use client", shadcn/ui Dialog, Lucide icons, useAppStore for lang/auth, inline bilingual text (FR/EN)
+- ESLint passed with no errors on all 3 files
+
+Stage Summary:
+- 3 new frontend components created in src/components/coursia/
+- ShareCourseDialog: search users → select friend → confirm → send invitation via POST /api/courses/[id]/share
+- CertificateCard: compact card with gradient border for Journey "Mes certificats" section
+- CertificateViewer: full-screen certificate design with gold/purple decorative border, conic-gradient seal, QR placeholder, share-to-clipboard button
+---
+Task ID: 1-b
+Agent: Backend Agent
+Task: Create all API routes for sharing, certificates, and Coursia Open
+
+Work Log:
+- Created /api/users/search - user search by name/email (case-insensitive, max 10, excludes requester)
+- Created /api/courses/[id]/share - share course with user (validates ownership, recipient, prevents duplicates)
+- Created /api/courses/shared - list received shared courses (includes course details, sharer info, marks as read)
+- Created /api/courses/[id]/publish - publish/unpublish course (creates/deletes PublicCourse, validates ownership)
+- Created /api/courses/open - list public courses (includes publisher name, increments views, no auth required)
+- Created /api/certificates - list user certificates (by userId query param)
+- Created /api/certificates/generate - generate certificate (validates completion, prevents duplicates, generates CRS-XXXX hex ID)
+- Created /api/certificates/[id] - get single certificate (public, includes publisher name)
+- All routes pass ESLint with no new errors
+
+Stage Summary:
+- 8 new API routes created for sharing, certificates, and Coursia Open features
+
+---
+Task ID: 6
+Agent: Main
+Task: Integrate sharing, certificates, and invite features into 5 existing UI files
+
+Work Log:
+- Modified src/components/coursia/Sidebar.tsx: Added UserPlus import, showInvite state, "Inviter un ami" button before Offers link that navigates to library view
+- Modified src/components/coursia/CourseViewer.tsx: Added Share2 import + ShareCourseDialog import, showShareDialog state, share button in content header (before level badge), ShareCourseDialog component at end of return, certificate generation call in handleFinalQuizComplete (async, non-blocking POST to /api/certificates/generate)
+- Modified src/components/coursia/Library.tsx: Added Share2/Users imports, showShared/sharedCourses/loadingShared states, fetchSharedCourses function, useEffect on showShared, shared courses toggle buttons (Mes Cours / Cours partagés) with count badge, shared courses grid with card display (loading/empty/populated states), wrapped existing course content with {!showShared && (...)}  conditional
+- Modified src/components/coursia/Journey.tsx: Added CertificateCard/CertificateViewer imports, user store accessor, certificates/selectedCert/showCertViewer state, fetchCertificates function called in parallel with other fetches, Certificates Section (after badges, before motivational quote) with Award icon, empty state, and CertificateCard grid, CertificateViewer dialog at end of component return
+- Modified src/lib/i18n.ts: Added share and certificate translation sections to both fr and en objects (12 keys each)
+- All edits pass ESLint with no new errors in src/ files
+
+Stage Summary:
+- 5 files modified with targeted edits to integrate sharing, certificates, and invite-a-friend features
+- ShareCourseDialog accessible from CourseViewer content header
+- Certificate auto-generated on course completion
+- Shared courses viewable in Library with toggle
+- Certificates viewable in Journey section
+- i18n translations added for all new UI strings

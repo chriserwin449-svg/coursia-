@@ -17,6 +17,8 @@ import {
   Library,
 } from "lucide-react";
 import { BADGE_DEFINITIONS } from "@/lib/badges";
+import CertificateCard from "@/components/coursia/CertificateCard";
+import CertificateViewer from "@/components/coursia/CertificateViewer";
 import { t } from "@/lib/i18n";
 import { useAppStore } from "@/lib/store";
 import { getCurrentFlameType, getFlameProgress, formatFlamePoints, type FlameReward } from "@/lib/flames";
@@ -61,6 +63,7 @@ type StudyTimePeriod = "today" | "last3" | "week" | "month";
 export default function Journey() {
   const lang = useAppStore((s) => s.lang);
   const view = useAppStore((s) => s.view);
+  const user = useAppStore((s) => s.user);
   const tx = t(lang);
   const [stats, setStats] = useState<Stats | null>(null);
   const [badgeState, setBadgeState] = useState<BadgeState | null>(null);
@@ -76,6 +79,16 @@ export default function Journey() {
   const [loadingCourses, setLoadingCourses] = useState(false);
   const [isActivityActive, setIsActivityActive] = useState(true);
   const activityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [certificates, setCertificates] = useState<Array<{
+    id: string;
+    courseTitle: string;
+    certificateId: string;
+    score: number;
+    totalLevels: number;
+    issuedAt: string;
+  }>>([]);
+  const [selectedCert, setSelectedCert] = useState<typeof certificates[0] | null>(null);
+  const [showCertViewer, setShowCertViewer] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -103,7 +116,18 @@ export default function Journey() {
         setLoading(false);
       }
     };
+    const fetchCertificates = async () => {
+      try {
+        const userId = useAppStore.getState().userId;
+        if (!userId) return;
+        const res = await fetch(`/api/certificates?userId=${userId}`);
+        const data = await res.json();
+        if (res.ok) setCertificates(data.certificates || []);
+      } catch { /* */ }
+    };
+
     fetchData();
+    fetchCertificates();
   }, []);
 
   // ── Refetch flame data when user returns to Journey ──
@@ -561,6 +585,41 @@ export default function Journey() {
         </div>
       </div>
 
+      {/* Certificates Section */}
+      <section className="mb-8">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-xl bg-gold/15 flex items-center justify-center">
+            <Award className="w-5 h-5 text-gold" />
+          </div>
+          <h2 className="text-xl font-extrabold">
+            {lang === "fr" ? "Mes Certificats" : "My Certificates"}
+          </h2>
+          {certificates.length > 0 && (
+            <span className="ml-auto text-sm font-bold text-gold">{certificates.length}</span>
+          )}
+        </div>
+        {certificates.length === 0 ? (
+          <div className="glass rounded-2xl p-6 text-center">
+            <Award className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+            <p className="text-sm font-semibold text-muted-foreground">
+              {lang === "fr"
+                ? "Complète les 3 niveaux d'un cours pour obtenir ton premier certificat"
+                : "Complete all 3 levels of a course to earn your first certificate"}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {certificates.map((cert) => (
+              <CertificateCard
+                key={cert.id}
+                certificate={cert}
+                onClick={() => { setSelectedCert(cert); setShowCertViewer(true); }}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
       {/* Motivational Quote */}
       <div
         className="glass rounded-3xl p-8 text-center fade-in-up"
@@ -850,6 +909,14 @@ export default function Journey() {
           </div>
         </div>
       )}
+      <CertificateViewer
+        certificate={selectedCert ? {
+          ...selectedCert,
+          userName: user ? `${user.firstName} ${user.lastName}` : "",
+        } : null}
+        open={showCertViewer}
+        onOpenChange={setShowCertViewer}
+      />
     </div>
   );
 }
