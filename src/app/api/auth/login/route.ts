@@ -104,11 +104,20 @@ export async function POST(request: NextRequest) {
         emailLower
       ) as Array<Record<string, unknown>>;
     } catch (err) {
-      console.error("[login] User lookup failed:", err);
-      return NextResponse.json(
-        { error: "Connection error" },
-        { status: 500 },
-      );
+      // Fallback: try without avatar column (in case column doesn't exist yet)
+      console.warn("[login] User lookup with avatar failed, trying fallback:", err);
+      try {
+        userRows = await db.$queryRawUnsafe(
+          `SELECT "id", "email", "password", "firstName", "lastName" FROM "User" WHERE "email" = $1 LIMIT 1`,
+          emailLower
+        ) as Array<Record<string, unknown>>;
+      } catch (fallbackErr) {
+        console.error("[login] User lookup fallback also failed:", fallbackErr);
+        return NextResponse.json(
+          { error: "user_not_found" },
+          { status: 404 },
+        );
+      }
     }
 
     const user = userRows?.[0] || null;
