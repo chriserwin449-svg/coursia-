@@ -1,49 +1,39 @@
 /**
- * Coursia Analytics — conversion event tracking.
- * Uses Vercel Analytics custom events.
- * https://vercel.com/docs/analytics/quickstart#tracking-custom-events
+ * Coursia Analytics — facade that re-exports PostHog helpers.
  *
- * Events tracked:
- * - signup         → new user registered
- * - login          → user logged in
- * - course_created → course generated
- * - payment_init   → redirected to PayPal
- * - payment_success → returned from PayPal with payment=success
- * - paywall_hit    → free user reached chapter 2
- * - pricing_viewed → user viewed pricing/offers page
+ * Every component should import { trackEvent } from "@/lib/analytics"
+ * (the original import path stays the same — zero code changes needed).
+ *
+ * PostHog initialization lives in src/lib/posthog.tsx ("use client").
  */
 
-type AnalyticsEventName =
+export {
+  trackEvent,
+  identifyUser,
+  resetUser,
+} from "@/lib/posthog";
+
+/** Backward-compatible type used by existing call-sites. */
+export type AnalyticsEventName =
   | "signup"
   | "login"
   | "course_created"
+  | "course_created_recovery"
   | "payment_init"
   | "payment_success"
+  | "checkout_started"
+  | "pricing_viewed"
   | "paywall_hit"
-  | "pricing_viewed";
+  | "quiz_started"
+  | "quiz_completed"
+  | "quiz_passed"
+  | "course_shared"
+  | "invitation_sent"
+  | "certificate_earned"
+  | "chapter_viewed"
+  | "level_unlocked";
 
-interface AnalyticsEvent {
+export interface AnalyticsEvent {
   name: AnalyticsEventName;
-  /** Optional extra data to attach to the event */
   properties?: Record<string, string | number | boolean>;
-}
-
-/**
- * Track a custom analytics event.
- * Works on Vercel (production) and logs to console locally (dev).
- */
-export function trackEvent(event: AnalyticsEvent): void {
-  // In production on Vercel, the Analytics component captures window.track()
-  if (typeof window !== "undefined" && typeof (window as Record<string, unknown>).track === "function") {
-    try {
-      (window as Record<string, unknown> & { track: (name: string, props?: Record<string, unknown>) => void }).track(event.name, event.properties);
-    } catch {
-      // Silently fail — analytics should never break the app
-    }
-  }
-
-  // Also log locally for dev debugging
-  if (process.env.NODE_ENV === "development") {
-    console.log(`[analytics] ${event.name}`, event.properties || "");
-  }
 }

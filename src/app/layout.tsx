@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
+import { PostHogProvider } from "@/lib/posthog";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -152,9 +152,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-night text-foreground`}
       >
-        {children}
+        <PostHogProvider>
+          {children}
+        </PostHogProvider>
         <Toaster />
-        <Analytics />
         <SpeedInsights />
 
         {/* Tawk.to Live Chat */}

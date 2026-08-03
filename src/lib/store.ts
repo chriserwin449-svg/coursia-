@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { identifyUser, resetUser } from "./posthog";
 
 export type AppView = "landing" | "auth" | "create" | "library" | "viewer" | "journey" | "offers";
 export type AppLang = "fr" | "en";
@@ -162,13 +163,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ lang });
   },
   user: null,
-  setUser: (user) => set({
-    user,
-    isAuthenticated: !!user,
-    userName: user?.firstName ?? null,
-    userId: user?.id ?? null,
-    userEmail: user?.email ?? null,
-  }),
+  setUser: (user) => {
+    if (user) {
+      identifyUser(user.id, {
+        email: user.email,
+        name: `${user.firstName} ${user.lastName}`,
+      });
+    }
+    set({
+      user,
+      isAuthenticated: !!user,
+      userName: user?.firstName ?? null,
+      userId: user?.id ?? null,
+      userEmail: user?.email ?? null,
+    });
+  },
   authToken: null,
   setAuthToken: (token) => {
     if (typeof window !== "undefined") {
@@ -186,6 +195,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   userId: null,
   userEmail: null,
   logout: () => {
+    resetUser();
     get().setUser(null);
     get().setAuthToken(null);
     set({ view: "landing" });
