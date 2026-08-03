@@ -48,6 +48,8 @@ model PaymentRequest {
 model AppSettings {
   id              String   @id @default("main")
   flamePoints     Int      @default(0)
+  posthogKey      String?
+  posthogHost     String?
   updatedAt       DateTime @updatedAt
 }
 

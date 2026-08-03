@@ -2,7 +2,9 @@
 
 /**
  * PostHog Client — analytics initialization and event tracking.
- * This file is the single source of truth for all PostHog client-side operations.
+ * Loads the PostHog key from:
+ *   1. NEXT_PUBLIC_POSTHOG_KEY env var (highest priority)
+ *   2. /api/posthog-public-key endpoint (database-stored config)
  */
 
 import posthog from "posthog-js";
@@ -18,16 +20,18 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // Initialize PostHog
   useEffect(() => {
-    const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-    const host = process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com";
+    const envKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+    const envHost = process.env.NEXT_PUBLIC_POSTHOG_HOST;
 
-    if (key && key !== "phc_YOUR_KEY_HERE") {
+    function doInit(key: string, host: string) {
       posthog.init(key, {
         api_host: host,
-        loaded: (ph) => {
-          if (process.env.NODE_ENV === "development") ph.debug();
+        loaded: () => {
+          if (process.env.NODE_ENV === "development") posthog.debug();
           readyRef.current = true;
+          console.log(`[posthog] ✅ Connected — key=${key.substring(0, 12)}… host=${host}`);
         },
         capture_pageviews: false,
         persistence: "localStorage+cookie",
@@ -37,6 +41,24 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         },
       });
     }
+
+    // If valid key in env, use it directly
+    if (envKey && envKey.startsWith("phc_")) {
+      doInit(envKey, envHost || "https://us.i.posthog.com");
+      return;
+    }
+
+    // Otherwise, fetch from database
+    fetch("/api/posthog-public-key")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.key && typeof data.key === "string" && data.key.startsWith("phc_")) {
+          doInit(data.key, data.host || "https://us.i.posthog.com");
+        }
+      })
+      .catch(() => {
+        // Silently fail — analytics must never break the app
+      });
   }, []);
 
   // Capture pageviews on route change
@@ -70,7 +92,7 @@ export function trackEvent(
     /* analytics must never crash the app */
   }
   if (process.env.NODE_ENV === "development") {
-    console.log(`[posthog] ${name}`, properties ?? "");
+    console.log(`[posthog] 📊 ${name}`, properties ?? "");
   }
 }
 
