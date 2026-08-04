@@ -87,33 +87,33 @@ export default function LandingPage() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Testimonials data — fun/cool comments
+  // Testimonials data — fun/cool comments (emojis only on 2 specific comments)
   const testimonials = lang === "fr" ? [
-    { name: "Aminata K.", region: "Kinshasa", stars: 5, text: "Les cours sont trop stylés, j'ai tout pigé en 20 minutes 😂🔥", emoji: "🔥" },
-    { name: "Lucas M.", region: "Paris", stars: 5, text: "La gestion des points c'est grave addictive, j'peux plus m'arrêter 💀", emoji: "💀" },
-    { name: "Fatou S.", region: "Dakar", stars: 5, text: "J'ai impressionné mon prof avec un cours sur la mécanique quantique 🤯", emoji: "🤯" },
-    { name: "Youssef B.", region: "Casablanca", stars: 4, text: "C'est bien mais j'voudrais plus de cours sur le foot ⚽", emoji: "⚽" },
-    { name: "Chloé D.", region: "Bruxelles", stars: 5, text: "Les quiz sont un game changer, même ma mère l'utilise 😅", emoji: "😅" },
-    { name: "Kofi A.", region: "Abidjan", stars: 5, text: "J'ai généré 47 cours ce mois... oui j'ai un problème 😂", emoji: "😂" },
-    { name: "Inès R.", region: "Tunis", stars: 5, text: "Les chapitres sont bien structurés, style Netflix mais pour apprendre 🎬", emoji: "🎬" },
-    { name: "Jules P.", region: "Lyon", stars: 4, text: "Cours sur la crypto généré en 3 minutes, mon banquier est jaloux 😎", emoji: "😎" },
-    { name: "Aïcha N.", region: "Bamako", stars: 5, text: "Mieux que mes cours à la fac, et c'est pas peu dire 🏆", emoji: "🏆" },
-    { name: "Olivier T.", region: "Genève", stars: 5, text: "J'ai partagé un cours avec tout mon équipe, ils sont addicts aussi 😈", emoji: "😈" },
-    { name: "Mariama F.", region: "Yaoundé", stars: 4, text: "L'IA comprend même quand j'écris mal, c'est magique ✨", emoji: "✨" },
-    { name: "Théo L.", region: "Montréal", stars: 5, text: "10/10 je recommande, même mon chien a appris des trucs 🐕", emoji: "🐕" },
+    { name: "Aminata K.", region: "Kinshasa", stars: 5, text: "Les cours sont trop stylés, j'ai tout pigé en 20 minutes 😂" },
+    { name: "Lucas M.", region: "Paris", stars: 5, text: "La gestion des points c'est grave addictive, j'peux plus m'arrêter" },
+    { name: "Fatou S.", region: "Dakar", stars: 5, text: "J'ai impressionné mon prof avec un cours sur la mécanique quantique" },
+    { name: "Youssef B.", region: "Casablanca", stars: 4, text: "C'est bien mais j'voudrais plus de cours sur le foot" },
+    { name: "Chloé D.", region: "Bruxelles", stars: 5, text: "Les quiz sont un game changer, même ma mère l'utilise 😅" },
+    { name: "Kofi A.", region: "Abidjan", stars: 5, text: "J'ai généré 47 cours ce mois... oui j'ai un problème" },
+    { name: "Inès R.", region: "Tunis", stars: 5, text: "Les chapitres sont bien structurés, style Netflix mais pour apprendre" },
+    { name: "Jules P.", region: "Lyon", stars: 4, text: "Cours sur la crypto généré en 3 minutes, mon banquier est jaloux" },
+    { name: "Aïcha N.", region: "Bamako", stars: 5, text: "Mieux que mes cours à la fac, et c'est pas peu dire" },
+    { name: "Olivier T.", region: "Genève", stars: 5, text: "J'ai partagé un cours avec tout mon équipe, ils sont addicts aussi" },
+    { name: "Mariama F.", region: "Yaoundé", stars: 4, text: "L'IA comprend même quand j'écris mal, c'est magique" },
+    { name: "Théo L.", region: "Montréal", stars: 5, text: "10/10 je recommande, même mon chien a appris des trucs" },
   ] : [
-    { name: "Aminata K.", region: "Kinshasa", stars: 5, text: "The courses are so dope, I got it all in 20 minutes 😂🔥", emoji: "🔥" },
-    { name: "Lucas M.", region: "Paris", stars: 5, text: "The points system is seriously addictive, I can't stop 💀", emoji: "💀" },
-    { name: "Fatou S.", region: "Dakar", stars: 5, text: "Impressed my professor with a quantum mechanics course 🤯", emoji: "🤯" },
-    { name: "Youssef B.", region: "Casablanca", stars: 4, text: "It's cool but I want more football courses ⚽", emoji: "⚽" },
-    { name: "Chloé D.", region: "Brussels", stars: 5, text: "The quizzes are a game changer, even my mom uses it 😅", emoji: "😅" },
-    { name: "Kofi A.", region: "Abidjan", stars: 5, text: "Generated 47 courses this month... yes I have a problem 😂", emoji: "😂" },
-    { name: "Inès R.", region: "Tunis", stars: 5, text: "Chapters are well structured, like Netflix but for learning 🎬", emoji: "🎬" },
-    { name: "Jules P.", region: "Lyon", stars: 4, text: "Crypto course generated in 3 minutes, my banker is jealous 😎", emoji: "😎" },
-    { name: "Aïcha N.", region: "Bamako", stars: 5, text: "Better than my university lectures, and that's saying a lot 🏆", emoji: "🏆" },
-    { name: "Olivier T.", region: "Geneva", stars: 5, text: "Shared a course with my whole team, they're addicted too 😈", emoji: "😈" },
-    { name: "Mariama F.", region: "Yaoundé", stars: 4, text: "The AI understands even when I write badly, it's magic ✨", emoji: "✨" },
-    { name: "Théo L.", region: "Montreal", stars: 5, text: "10/10 I recommend, even my dog learned things 🐕", emoji: "🐕" },
+    { name: "Aminata K.", region: "Kinshasa", stars: 5, text: "The courses are so dope, I got it all in 20 minutes 😂" },
+    { name: "Lucas M.", region: "Paris", stars: 5, text: "The points system is seriously addictive, I can't stop" },
+    { name: "Fatou S.", region: "Dakar", stars: 5, text: "Impressed my professor with a quantum mechanics course" },
+    { name: "Youssef B.", region: "Casablanca", stars: 4, text: "It's cool but I want more football courses" },
+    { name: "Chloé D.", region: "Brussels", stars: 5, text: "The quizzes are a game changer, even my mom uses it 😅" },
+    { name: "Kofi A.", region: "Abidjan", stars: 5, text: "Generated 47 courses this month... yes I have a problem" },
+    { name: "Inès R.", region: "Tunis", stars: 5, text: "Chapters are well structured, like Netflix but for learning" },
+    { name: "Jules P.", region: "Lyon", stars: 4, text: "Crypto course generated in 3 minutes, my banker is jealous" },
+    { name: "Aïcha N.", region: "Bamako", stars: 5, text: "Better than my university lectures, and that's saying a lot" },
+    { name: "Olivier T.", region: "Geneva", stars: 5, text: "Shared a course with my whole team, they're addicted too" },
+    { name: "Mariama F.", region: "Yaoundé", stars: 4, text: "The AI understands even when I write badly, it's magic" },
+    { name: "Théo L.", region: "Montreal", stars: 5, text: "10/10 I recommend, even my dog learned things" },
   ];
   const testimonialsRow1 = testimonials.slice(0, 6);
   const testimonialsRow2 = testimonials.slice(6, 12);
@@ -201,7 +201,7 @@ export default function LandingPage() {
       progress: 84,
       isGenerating: false,
       floatClass: "hero-float-4",
-      style: { top: "430px", left: "42%", width: "200px" },
+      style: { top: "440px", left: "40%", width: "200px" },
     },
   ];
 
@@ -244,9 +244,6 @@ export default function LandingPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-
-      {/* ── Hero Background Mosaic (only in hero section) ── */}
-      {/* Images are inside the hero section, not fixed to the page */}
 
       {/* ===== FLOATING PILL NAVBAR ===== */}
       <nav aria-label="Navigation principale" className={`fixed top-4 left-0 right-0 z-50 transition-all duration-500 px-4 sm:px-6`}>
@@ -293,27 +290,14 @@ export default function LandingPage() {
 
       {/* ===== HERO SECTION ===== */}
       <section id="hero" className="lp-section relative overflow-hidden min-h-screen flex items-center px-4 pt-28 pb-20">
-        {/* Background Mosaic Images — arranged like a grid, scrolling slowly */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="hero-bg-mosaic">
-            <img src="/images/bg/study-books.png" alt="" className="hero-mosaic-img" style={{ gridRow: '1', gridColumn: '1' }} />
-            <img src="/images/bg/study-laptop.png" alt="" className="hero-mosaic-img" style={{ gridRow: '1', gridColumn: '2' }} />
-            <img src="/images/bg/study-coffee.png" alt="" className="hero-mosaic-img" style={{ gridRow: '1', gridColumn: '3' }} />
-            <img src="/images/bg/study-materials.png" alt="" className="hero-mosaic-img" style={{ gridRow: '2', gridColumn: '1' }} />
-            <img src="/images/bg/study-backpack.png" alt="" className="hero-mosaic-img" style={{ gridRow: '2', gridColumn: '2' }} />
-          </div>
-          {/* Dark overlay on top of mosaic */}
-          <div className="absolute inset-0 bg-night/80" />
-        </div>
-
-        {/* Grid + Halos */}
+        {/* Grid + Intensified Halos */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div id="hero-grid" className="absolute inset-0 hero-grid"></div>
-          <div id="hero-glow" className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-purple-600/20" style={{ filter: "blur(150px)", transform: 'translate(-50%, 0)' }}></div>
-          <div className="absolute -top-20 -right-40 w-80 h-80 rounded-full bg-orange-400/15" style={{ filter: "blur(150px)" }}></div>
-          <div className="absolute top-1/3 left-1/4 w-56 h-56 rounded-full bg-violet-500/10" style={{ filter: "blur(120px)" }}></div>
-          <div className="absolute bottom-1/4 right-1/3 w-40 h-40 rounded-full bg-amber-500/8" style={{ filter: "blur(100px)" }}></div>
-          <div className="absolute top-2/3 right-1/5 w-28 h-28 rounded-full bg-pink-500/7" style={{ filter: "blur(80px)" }}></div>
+          <div id="hero-glow" className="absolute -top-40 -left-40 w-[500px] h-[500px] rounded-full bg-purple-600/30" style={{ filter: "blur(130px)", transform: 'translate(-50%, 0)' }}></div>
+          <div className="absolute -top-20 -right-40 w-[450px] h-[450px] rounded-full bg-orange-400/25" style={{ filter: "blur(130px)" }}></div>
+          <div className="absolute top-1/3 left-1/4 w-72 h-72 rounded-full bg-violet-500/20" style={{ filter: "blur(100px)" }}></div>
+          <div className="absolute bottom-1/4 right-1/3 w-56 h-56 rounded-full bg-amber-500/15" style={{ filter: "blur(90px)" }}></div>
+          <div className="absolute top-2/3 right-1/5 w-40 h-40 rounded-full bg-pink-500/12" style={{ filter: "blur(70px)" }}></div>
         </div>
 
         <div className="relative z-10 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-8 items-center">
@@ -356,8 +340,10 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* RIGHT COLUMN — Floating Cards (desktop only) */}
-          <div className="relative hidden lg:block h-[540px] overflow-hidden" style={{ paddingTop: '16px' }}>
+          {/* RIGHT COLUMN — Floating Cards with glow (desktop only) */}
+          <div className="relative hidden lg:block" style={{ paddingTop: '24px', height: '560px', overflow: 'visible' }}>
+            {/* Purple glow behind floating cards */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[400px] rounded-full bg-mauve/15 pointer-events-none" style={{ filter: 'blur(100px)' }}></div>
             {floatingCards.map((card, i) => (
               <motion.div
                 key={card.title}
@@ -367,7 +353,7 @@ export default function LandingPage() {
                 animate={heroVisible ? { opacity: 1, y: 0 } : { opacity: 0, y: 40 }}
                 transition={{ duration: 0.7, delay: 0.4 + i * 0.12, ease: "easeOut" }}
               >
-                <div className="bg-night-light/80 backdrop-blur-sm border border-mauve/[0.15] rounded-2xl p-5 shadow-[0_8px_32px_rgba(0,0,0,0.3),0_0_1px_rgba(124,92,191,0.2)]">
+                <div className="bg-night-light/80 backdrop-blur-sm border border-mauve/[0.15] rounded-2xl p-5 shadow-[0_8px_32px_rgba(0,0,0,0.3),0_0_20px_rgba(124,92,191,0.15)]">
                   {/* Generating badge (only for first card) */}
                   {card.isGenerating && (
                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-mauve/10 border border-mauve/20 text-[11px] text-mauve-light font-semibold mb-3">
@@ -500,12 +486,9 @@ export default function LandingPage() {
         </div>
         <div className="relative z-10">
           <div className="lp-stagger text-center mb-12 px-4" style={{ transitionDelay: '0ms' }}>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-3">
-              {lang === "fr" ? "Ce qu'ils" : "What they"}<span className="gradient-text"> {lang === "fr" ? "en pensent" : "think"}</span> <span className="text-2xl">🤷</span>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold">
+              {lang === "fr" ? "Ce qu'ils" : "What they"}<span className="gradient-text"> {lang === "fr" ? "en pensent" : "think"}</span>
             </h2>
-            <p className="text-muted-foreground text-base max-w-xl mx-auto">
-              {lang === "fr" ? "Des vrais avis de vrais utilisateurs (enfin, presque)" : "Real reviews from real users (well, almost)"}
-            </p>
           </div>
 
           {/* Row 1 — scrolls left */}
@@ -513,20 +496,14 @@ export default function LandingPage() {
             <div className="testimonial-scroll-left">
               <div className="testimonial-track">
                 {[...testimonialsRow1, ...testimonialsRow1].map((t, i) => (
-                  <div key={i} className="testimonial-card glass rounded-2xl p-4 flex-shrink-0" style={{ width: '320px' }}>
-                    <div className="flex items-center gap-1 mb-2">
+                  <div key={i} className="testimonial-card flex-shrink-0" style={{ width: '300px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '20px' }}>
+                    <div className="flex items-center gap-1 mb-3">
                       {Array.from({ length: 5 }).map((_, s) => (
-                        <Star key={s} className={`w-3.5 h-3.5 ${s < t.stars ? 'text-gold fill-gold' : 'text-muted-foreground/30'}`} />
+                        <Star key={s} className={`w-3 h-3 ${s < t.stars ? 'text-gold fill-gold' : 'text-muted-foreground/20'}`} />
                       ))}
                     </div>
-                    <p className="text-sm text-foreground/90 leading-relaxed mb-3">{t.text}</p>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-bold text-foreground">{t.name}</p>
-                        <p className="text-[10px] text-muted-foreground/60">{t.region}</p>
-                      </div>
-                      <span className="text-lg">{t.emoji}</span>
-                    </div>
+                    <p className="text-sm text-foreground/85 leading-relaxed mb-4" style={{ fontStyle: 'italic' }}>&ldquo;{t.text}&rdquo;</p>
+                    <p className="text-xs text-muted-foreground/50 font-semibold tracking-wide uppercase">&mdash; {t.name}, {t.region}</p>
                   </div>
                 ))}
               </div>
@@ -538,20 +515,14 @@ export default function LandingPage() {
             <div className="testimonial-scroll-right">
               <div className="testimonial-track-reverse">
                 {[...testimonialsRow2, ...testimonialsRow2].map((t, i) => (
-                  <div key={i} className="testimonial-card glass rounded-2xl p-4 flex-shrink-0" style={{ width: '320px' }}>
-                    <div className="flex items-center gap-1 mb-2">
+                  <div key={i} className="testimonial-card flex-shrink-0" style={{ width: '300px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '20px' }}>
+                    <div className="flex items-center gap-1 mb-3">
                       {Array.from({ length: 5 }).map((_, s) => (
-                        <Star key={s} className={`w-3.5 h-3.5 ${s < t.stars ? 'text-gold fill-gold' : 'text-muted-foreground/30'}`} />
+                        <Star key={s} className={`w-3 h-3 ${s < t.stars ? 'text-gold fill-gold' : 'text-muted-foreground/20'}`} />
                       ))}
                     </div>
-                    <p className="text-sm text-foreground/90 leading-relaxed mb-3">{t.text}</p>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-bold text-foreground">{t.name}</p>
-                        <p className="text-[10px] text-muted-foreground/60">{t.region}</p>
-                      </div>
-                      <span className="text-lg">{t.emoji}</span>
-                    </div>
+                    <p className="text-sm text-foreground/85 leading-relaxed mb-4" style={{ fontStyle: 'italic' }}>&ldquo;{t.text}&rdquo;</p>
+                    <p className="text-xs text-muted-foreground/50 font-semibold tracking-wide uppercase">&mdash; {t.name}, {t.region}</p>
                   </div>
                 ))}
               </div>
@@ -920,33 +891,6 @@ export default function LandingPage() {
           pointer-events: none;
         }
 
-        /* ── Background Mosaic Grid (hero only) ── */
-        .hero-bg-mosaic {
-          position: absolute;
-          top: -5%;
-          left: -5%;
-          right: -5%;
-          bottom: -5%;
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          grid-template-rows: repeat(2, 1fr);
-          gap: 8px;
-          animation: mosaic-scroll 40s linear infinite;
-          z-index: 0;
-        }
-        .hero-mosaic-img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          filter: blur(8px) saturate(0.3) brightness(0.4) contrast(0.8);
-          opacity: 0.12;
-          border-radius: 8px;
-        }
-        @keyframes mosaic-scroll {
-          0% { transform: translateY(0); }
-          100% { transform: translateY(-30px); }
-        }
-
         /* ── Testimonial scrolling marquee ── */
         .testimonial-scroll-left,
         .testimonial-scroll-right {
@@ -984,8 +928,7 @@ export default function LandingPage() {
         }
         @media (prefers-reduced-motion: reduce) {
           .testimonial-track,
-          .testimonial-track-reverse,
-          .hero-bg-mosaic {
+          .testimonial-track-reverse {
             animation: none;
           }
         }
