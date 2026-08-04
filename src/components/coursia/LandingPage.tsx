@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Brain, Cpu, Palette, TrendingUp,  // NEW
@@ -19,23 +19,8 @@ export default function LandingPage() {
   const setView = useAppStore((s) => s.setView);
   const user = useAppStore((s) => s.user);
 
-  // Scroll-triggered visibility
-  const heroRef = useRef<HTMLDivElement>(null);
+  // Typewriter & floating cards need heroVisible
   const [heroVisible, setHeroVisible] = useState(false);
-  const featuresRef = useRef<HTMLDivElement>(null);
-  const [featuresVisible, setFeaturesVisible] = useState(false);
-  const audienceRef = useRef<HTMLDivElement>(null);
-  const [audienceVisible, setAudienceVisible] = useState(false);
-  const diffRef = useRef<HTMLDivElement>(null);
-  const [diffVisible, setDiffVisible] = useState(false);
-  const exploreRef = useRef<HTMLDivElement>(null);
-  const [exploreVisible, setExploreVisible] = useState(false);
-  const pricingRef = useRef<HTMLDivElement>(null);
-  const [pricingVisible, setPricingVisible] = useState(false);
-  const faqRef = useRef<HTMLDivElement>(null);
-  const [faqVisible, setFaqVisible] = useState(false);
-  const ctaRef = useRef<HTMLDivElement>(null);
-  const [ctaVisible, setCtaVisible] = useState(false);
 
   // Typewriter state
   const [typedCount, setTypedCount] = useState(0);
@@ -43,28 +28,20 @@ export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
+    const sections = document.querySelectorAll('.lp-section');
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            const id = entry.target.id;
-            if (id === "hero") setHeroVisible(true);
-            if (id === "features") setFeaturesVisible(true);
-            if (id === "audience") setAudienceVisible(true);
-            if (id === "diff") setDiffVisible(true);
-            if (id === "explore") setExploreVisible(true);
-            if (id === "pricing") setPricingVisible(true);
-            if (id === "faq") setFaqVisible(true);
-            if (id === "final-cta") setCtaVisible(true);
+            entry.target.classList.add('revealed');
+            if (entry.target.id === 'hero') setHeroVisible(true);
+            observer.unobserve(entry.target);
           }
         });
       },
       { threshold: 0.15 }
     );
-    ["hero", "features", "audience", "diff", "pricing", "faq", "final-cta"].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
-    });
+    sections.forEach((s) => observer.observe(s));
     return () => observer.disconnect();
   }, []);
 
@@ -72,6 +49,26 @@ export default function LandingPage() {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Parallax effect for hero background elements
+  useEffect(() => {
+    let ticking = false;
+    const onScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          const y = window.scrollY;
+          const glow = document.getElementById('hero-glow');
+          if (glow) glow.style.transform = `translate(-50%, ${y * 0.1}px)`;
+          const grid = document.getElementById('hero-grid');
+          if (grid) grid.style.transform = `translateY(${y * 0.04}px)`;
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   // Fetch Coursia Open public courses
@@ -238,7 +235,7 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-night flex flex-col">
+    <div className="min-h-screen bg-night flex flex-col overflow-x-hidden">
       {/* JSON-LD: FAQPage + SoftwareApplication */}
       <script
         type="application/ld+json"
@@ -291,11 +288,11 @@ export default function LandingPage() {
       </nav>
 
       {/* ===== HERO SECTION ===== */}
-      <section id="hero" className="relative overflow-hidden min-h-screen flex items-center px-4 pt-24 pb-20">
+      <section id="hero" className="lp-section relative overflow-hidden min-h-screen flex items-center px-4 pt-24 pb-20">
         {/* Grid + Halos */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 hero-grid"></div>
-          <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-purple-600/20" style={{ filter: "blur(150px)" }}></div>
+          <div id="hero-grid" className="absolute inset-0 hero-grid"></div>
+          <div id="hero-glow" className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-purple-600/20" style={{ filter: "blur(150px)" }}></div>
           <div className="absolute -top-20 -right-40 w-80 h-80 rounded-full bg-orange-400/15" style={{ filter: "blur(150px)" }}></div>
           <div className="absolute top-1/3 left-1/4 w-56 h-56 rounded-full bg-violet-500/10" style={{ filter: "blur(120px)" }}></div>
           <div className="absolute bottom-1/4 right-1/3 w-40 h-40 rounded-full bg-amber-500/8" style={{ filter: "blur(100px)" }}></div>
@@ -304,22 +301,15 @@ export default function LandingPage() {
 
         <div className="relative z-10 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-8 items-center">
           {/* LEFT COLUMN */}
-          <div
-            ref={heroRef}
-            className="transition-all duration-1000 ease-out"
-            style={{
-              opacity: heroVisible ? 1 : 0,
-              transform: heroVisible ? "translateY(0)" : "translateY(30px)",
-            }}
-          >
+          <div>
             {/* AI Badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-mauve/10 border border-mauve/20 text-sm text-mauve-light font-semibold mb-8">
+            <div className="lp-stagger inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-mauve/10 border border-mauve/20 text-sm text-mauve-light font-semibold mb-8" style={{ transitionDelay: '0ms' }}>
               <Sparkles className="w-3.5 h-3.5" />
               <span>{tx.landing.poweredBy}</span>
             </div>
 
             {/* Title — typewriter */}
-            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-[3.5rem] xl:text-7xl font-extrabold leading-[1.1] mb-6 tracking-tight min-h-[2.4em] sm:min-h-[2.2em]">
+            <h1 className="lp-stagger text-4xl sm:text-5xl md:text-6xl lg:text-[3.5rem] xl:text-7xl font-extrabold leading-[1.1] mb-6 tracking-tight min-h-[2.4em] sm:min-h-[2.2em]" style={{ transitionDelay: '150ms' }}>
               <span className="text-foreground">{line1}</span>
               {line2 && (
                 <>
@@ -331,12 +321,12 @@ export default function LandingPage() {
             </h1>
 
             {/* Description */}
-            <p className="text-lg sm:text-xl text-muted-foreground/80 mb-8 max-w-lg leading-relaxed">
+            <p className="lp-stagger text-lg sm:text-xl text-muted-foreground/80 mb-8 max-w-lg leading-relaxed" style={{ transitionDelay: '300ms' }}>
               {tx.landing.heroSubtitleAlt}
             </p>
 
             {/* CTA Button */}
-            <div className="max-w-md mb-8">
+            <div className="lp-stagger max-w-md mb-8" style={{ transitionDelay: '450ms' }}>
               <button
                 onClick={() => user ? setView("create") : setView("auth")}
                 className="hero-premium-btn w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-white font-bold text-base whitespace-nowrap cursor-pointer"
@@ -350,7 +340,7 @@ export default function LandingPage() {
           </div>
 
           {/* RIGHT COLUMN — Floating Cards (desktop only) */}
-          <div className="relative hidden lg:block h-[520px]">
+          <div className="relative hidden lg:block h-[520px] overflow-hidden">
             {floatingCards.map((card, i) => (
               <motion.div
                 key={card.title}
@@ -416,19 +406,12 @@ export default function LandingPage() {
       </section>
 
       {/* ===== WHY CHOOSE SECTION ===== */}
-      <section id="features" className="relative py-24 px-4">
+      <section id="features" className="lp-section relative py-24 px-4">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/3 w-[500px] h-[500px] bg-mauve/5 rounded-full blur-[120px]" />
         </div>
-        <div
-          ref={featuresRef}
-          className="relative z-10 max-w-6xl mx-auto transition-all duration-1000 ease-out"
-          style={{
-            opacity: featuresVisible ? 1 : 0,
-            transform: featuresVisible ? "translateY(0)" : "translateY(40px)",
-          }}
-        >
-          <div className="text-center mb-16">
+        <div className="relative z-10 max-w-6xl mx-auto">
+          <div className="lp-stagger text-center mb-16" style={{ transitionDelay: '0ms' }}>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
               {tx.landing.whyChooseTitle}{" "}
               <span className="gradient-text">{tx.landing.whyChooseHighlight}</span>
@@ -438,7 +421,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="lp-stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" style={{ transitionDelay: '150ms' }}>
             {featureCards.map((card) => (
               <div
                 key={card.title}
@@ -458,19 +441,12 @@ export default function LandingPage() {
       </section>
 
       {/* ===== AUDIENCE SECTION ===== */}
-      <section id="audience" className="relative py-24 px-4">
+      <section id="audience" className="lp-section relative py-24 px-4">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 right-1/3 w-[400px] h-[400px] bg-gold/5 rounded-full blur-[120px]" />
         </div>
-        <div
-          ref={audienceRef}
-          className="relative z-10 max-w-5xl mx-auto transition-all duration-1000 ease-out"
-          style={{
-            opacity: audienceVisible ? 1 : 0,
-            transform: audienceVisible ? "translateY(0)" : "translateY(40px)",
-          }}
-        >
-          <div className="text-center mb-16">
+        <div className="relative z-10 max-w-5xl mx-auto">
+          <div className="lp-stagger text-center mb-16" style={{ transitionDelay: '0ms' }}>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
               {tx.landing.whoForTitle}{" "}
               <span className="gradient-text">{tx.app.name}</span>{" "}
@@ -481,7 +457,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="lp-stagger grid grid-cols-1 md:grid-cols-3 gap-6" style={{ transitionDelay: '150ms' }}>
             {audienceCards.map((card) => (
               <div
                 key={card.title}
@@ -501,19 +477,12 @@ export default function LandingPage() {
       </section>
 
       {/* ===== DIFFERENTIATION SECTION ===== */}
-      <section id="diff" className="relative py-24 px-4">
+      <section id="diff" className="lp-section relative py-24 px-4">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-mauve/5 rounded-full blur-[120px]" />
         </div>
-        <div
-          ref={diffRef}
-          className="relative z-10 max-w-5xl mx-auto transition-all duration-1000 ease-out"
-          style={{
-            opacity: diffVisible ? 1 : 0,
-            transform: diffVisible ? "translateY(0)" : "translateY(40px)",
-          }}
-        >
-          <div className="text-center mb-16">
+        <div className="relative z-10 max-w-5xl mx-auto">
+          <div className="lp-stagger text-center mb-16" style={{ transitionDelay: '0ms' }}>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
               <span className="gradient-text">{(tx.landing as Record<string, unknown>).diffTitle as string}</span>
             </h2>
@@ -521,7 +490,7 @@ export default function LandingPage() {
               {(tx.landing as Record<string, unknown>).diffDesc as string}
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="lp-stagger grid grid-cols-1 md:grid-cols-3 gap-6" style={{ transitionDelay: '150ms' }}>
             {((tx.landing as Record<string, unknown>).diffCards as Array<{ title: string; desc: string }>).map((card, i) => {
               const icons = [Layers, MessageSquare, Flame];
               const Icon = icons[i] || Layers;
@@ -546,16 +515,9 @@ export default function LandingPage() {
       </section>
 
       {/* ===== COURSIA OPEN — Explore Public Courses ===== */}
-      <section id="explore" className="relative py-24 px-4">
-        <div
-          ref={exploreRef}
-          className="relative z-10 max-w-5xl mx-auto transition-all duration-1000 ease-out"
-          style={{
-            opacity: exploreVisible ? 1 : 0,
-            transform: exploreVisible ? "translateY(0)" : "translateY(40px)",
-          }}
-        >
-          <div className="text-center mb-12">
+      <section id="explore" className="lp-section relative py-24 px-4">
+        <div className="relative z-10 max-w-5xl mx-auto">
+          <div className="lp-stagger text-center mb-12" style={{ transitionDelay: '0ms' }}>
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-mauve/10 text-mauve-light text-sm font-bold mb-4">
               <Globe className="w-4 h-4" />
               {lang === "fr" ? "Coursia Open" : "Coursia Open"}
@@ -569,7 +531,7 @@ export default function LandingPage() {
                 : "Discover AI-generated courses shared publicly by our users."}
             </p>
           </div>
-          <div id="open-courses-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div id="open-courses-grid" className="lp-stagger grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 overflow-hidden" style={{ transitionDelay: '150ms' }}>
             {/* Fallback placeholder — will be populated via useEffect */}
           </div>
           <div id="open-courses-empty" className="hidden text-center py-8">
@@ -582,20 +544,13 @@ export default function LandingPage() {
       </section>
 
       {/* ===== PRICING SECTION ===== */}
-      <section id="pricing" className="relative py-24 px-4">
+      <section id="pricing" className="lp-section relative py-24 px-4">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-mauve/5 rounded-full blur-[150px]" />
         </div>
 
-        <div
-          ref={pricingRef}
-          className="relative z-10 max-w-5xl mx-auto transition-all duration-1000 ease-out"
-          style={{
-            opacity: pricingVisible ? 1 : 0,
-            transform: pricingVisible ? "translateY(0)" : "translateY(40px)",
-          }}
-        >
-          <div className="text-center mb-16">
+        <div className="relative z-10 max-w-5xl mx-auto">
+          <div className="lp-stagger text-center mb-16" style={{ transitionDelay: '0ms' }}>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
               {tx.landing.pricing.title}
             </h2>
@@ -604,7 +559,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 items-start max-w-4xl mx-auto">
+          <div className="lp-stagger grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 items-start max-w-4xl mx-auto" style={{ transitionDelay: '150ms' }}>
             {/* MONTHLY PLAN */}
             <div className="landing-pricing-float landing-monthly-shimmer glass rounded-3xl p-8 flex flex-col hover:border-mauve/30 transition-all duration-300">
               <div className="mb-6">
@@ -669,26 +624,19 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <p className="text-center text-xs text-muted-foreground/40 mt-10">
+          <p className="lp-stagger text-center text-xs text-muted-foreground/40 mt-10" style={{ transitionDelay: '300ms' }}>
             {tx.landing.securePayment}
           </p>
         </div>
       </section>
 
       {/* ===== FAQ SECTION ===== */}
-      <section id="faq" className="relative py-24 px-4">
+      <section id="faq" className="lp-section relative py-24 px-4">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-mauve/5 rounded-full blur-[120px]" />
         </div>
-        <div
-          ref={faqRef}
-          className="relative z-10 max-w-3xl mx-auto transition-all duration-1000 ease-out"
-          style={{
-            opacity: faqVisible ? 1 : 0,
-            transform: faqVisible ? "translateY(0)" : "translateY(40px)",
-          }}
-        >
-          <div className="text-center mb-14">
+        <div className="relative z-10 max-w-3xl mx-auto">
+          <div className="lp-stagger text-center mb-14" style={{ transitionDelay: '0ms' }}>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
               <span className="gradient-text">{tx.landing.faqTitle}</span>
             </h2>
@@ -696,7 +644,7 @@ export default function LandingPage() {
               {tx.landing.faqSubtitle}
             </p>
           </div>
-          <div className="space-y-4">
+          <div className="lp-stagger space-y-4" style={{ transitionDelay: '150ms' }}>
             {tx.landing.faqs.map((faq, i) => (
               <div key={i} className="glass rounded-2xl overflow-hidden transition-all duration-300 hover:border-mauve/30">
                 <button
@@ -716,19 +664,12 @@ export default function LandingPage() {
       </section>
 
       {/* ===== FINAL CTA SECTION ===== */}
-      <section id="final-cta" className="py-20 px-4">
-        <div
-          ref={ctaRef}
-          className="max-w-4xl mx-auto text-center glass rounded-3xl p-12 md:p-16 relative overflow-hidden transition-all duration-1000 ease-out"
-          style={{
-            opacity: ctaVisible ? 1 : 0,
-            transform: ctaVisible ? "translateY(0)" : "translateY(40px)",
-          }}
-        >
+      <section id="final-cta" className="lp-section py-20 px-4">
+        <div className="max-w-4xl mx-auto text-center glass rounded-3xl p-12 md:p-16 relative overflow-hidden">
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[400px] h-[400px] bg-mauve/10 rounded-full blur-[100px]" />
           </div>
-          <div className="relative z-10">
+          <div className="lp-stagger relative z-10" style={{ transitionDelay: '0ms' }}>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
               {tx.landing.finalCtaTitle}
               <span className="gradient-text"> ?</span>
@@ -797,6 +738,35 @@ export default function LandingPage() {
 
       {/* ===== GLOBAL STYLES ===== */}
       <style jsx global>{`
+        /* ── Premium Scroll Reveal ── */
+        .lp-stagger {
+          opacity: 0;
+          transform: translateY(50px) scale(0.98);
+          transition: 
+            opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+            transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+          will-change: transform, opacity;
+        }
+        .revealed .lp-stagger {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .lp-stagger {
+            opacity: 1;
+            transform: none;
+            transition: none;
+            will-change: auto;
+          }
+        }
+
+        /* ── Glass Card Micro-interactions ── */
+        .glass {
+          transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                      box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                      border-color 0.35s ease;
+        }
+
         /* ── Landing Pricing Card Effects ── */
         @keyframes landing-float-card {
           0%, 100% { transform: translateY(0); }
