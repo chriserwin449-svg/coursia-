@@ -20,10 +20,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Extract the requesting user's ID to exclude from results
+    const requestUserId = authHeader.replace("Bearer ", "").trim();
+
     // Use case-insensitive search for SQLite compatibility
     const qLower = q.toLowerCase();
 
     // Build raw SQL query for case-insensitive search across all fields
+    // Exclude the requesting user so they can't share with themselves
     const users = await db.$queryRawUnsafe(
       `SELECT "id", "firstName", "lastName", "email", "username", "avatar"
        FROM "User"
@@ -33,8 +37,10 @@ export async function GET(request: NextRequest) {
          OR LOWER("email") LIKE '%' || $1 || '%'
          OR LOWER("username") LIKE '%' || $1 || '%'
        )
+       AND "id" != $2
        LIMIT 10`,
-      qLower
+      qLower,
+      requestUserId
     ) as Array<{
       id: string;
       firstName: string;

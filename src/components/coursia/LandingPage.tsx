@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Brain, Cpu, Palette, TrendingUp,
-  Sparkles, BookOpen, ArrowRight, Check, Crown, Zap, ChevronDown,
+  Sparkles, BookOpen, ArrowRight, Check, Crown, Zap,
   LogIn, GraduationCap, Briefcase, Lightbulb, BarChart3, Star,
   Settings, Globe, X, Flame, Trophy, Layers, MessageSquare, Lock,
   Search, Frown,
@@ -19,6 +19,8 @@ export default function LandingPage() {
   const tx = t(lang);
   const setView = useAppStore((s) => s.setView);
   const user = useAppStore((s) => s.user);
+  const setRandomTopic = useAppStore((s) => s.setRandomTopic);
+  const setRandomCourseLang = useAppStore((s) => s.setRandomCourseLang);
 
   // Typewriter & floating cards need heroVisible
   const [heroVisible, setHeroVisible] = useState(false);
@@ -27,6 +29,9 @@ export default function LandingPage() {
   const [typedCount, setTypedCount] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [scrolled, setScrolled] = useState(false);
+
+  // Topic input for generate CTA
+  const [topicInput, setTopicInput] = useState("");
 
   // Comparison card state
   const [activeComparison, setActiveComparison] = useState<'avec' | 'sans'>('avec');
@@ -74,13 +79,13 @@ export default function LandingPage() {
           if (glow) glow.style.transform = `translate(-50%, ${y * 0.1}px)`;
           const grid = document.getElementById('hero-grid');
           if (grid) grid.style.transform = `translateY(${y * 0.04}px)`;
-          // Background collage parallax
+          // Background collage parallax — use CSS custom properties to preserve rotation
           const collage = document.getElementById('bg-collage');
           if (collage) {
             const imgs = collage.querySelectorAll('.study-bg-img');
             imgs.forEach((img, i) => {
               const speed = 0.03 + (i * 0.015);
-              (img as HTMLElement).style.transform = `translateY(${y * speed}px)`;
+              (img as HTMLElement).style.setProperty('--parallax-y', `${y * speed}px`);
             });
             const halos = collage.querySelectorAll('.bg-halo');
             halos.forEach((h, i) => {
@@ -95,6 +100,17 @@ export default function LandingPage() {
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Initialize --rotate from data-rotate attributes on background images
+  useEffect(() => {
+    const imgs = document.querySelectorAll('.study-bg-img[data-rotate]');
+    imgs.forEach((img) => {
+      const rotate = (img as HTMLElement).getAttribute('data-rotate');
+      if (rotate) {
+        (img as HTMLElement).style.setProperty('--rotate', `${rotate}deg`);
+      }
+    });
   }, []);
 
   // Cycling timer for comparison card
@@ -164,7 +180,7 @@ export default function LandingPage() {
       progress: 92,
       isGenerating: false,
       floatClass: "hero-float-2",
-      style: { top: "180px", left: "55%", width: "240px" },
+      style: { top: "180px", left: "50%", width: "240px" },
     },
     {
       title: lang === "fr" ? "Design UX/UI" : "UX/UI Design",
@@ -180,9 +196,26 @@ export default function LandingPage() {
       progress: 84,
       isGenerating: false,
       floatClass: "hero-float-4",
-      style: { top: "410px", left: "50%", width: "200px" },
+      style: { top: "410px", left: "45%", width: "200px" },
     },
   ];
+
+  // Quick topic tags for generate CTA
+  const quickTopics = lang === "fr"
+    ? ["Python", "Marketing", "Finance", "Design UI", "Anglais", "Business"]
+    : ["Python", "Marketing", "Finance", "UI Design", "English", "Business"];
+
+  const handleGenerateFromLP = () => {
+    if (topicInput.trim()) {
+      useAppStore.getState().setRandomTopic(topicInput.trim());
+      useAppStore.getState().setRandomCourseLang(lang);
+    }
+    if (user) {
+      setView("create");
+    } else {
+      setView("auth");
+    }
+  };
 
   // JSON-LD structured data
   const SITE_URL = "https://coursia.app";
@@ -209,11 +242,11 @@ export default function LandingPage() {
 
       {/* ── Background Study Environment Collage ── */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden" id="bg-collage">
-        <img src="/images/bg/study-books.png" alt="" className="absolute study-bg-img" style={{ top: '5%', left: '-5%', width: '35%', transform: 'rotate(-3deg)' }} />
-        <img src="/images/bg/study-laptop.png" alt="" className="absolute study-bg-img" style={{ top: '15%', right: '-8%', width: '40%', transform: 'rotate(2deg)' }} />
-        <img src="/images/bg/study-coffee.png" alt="" className="absolute study-bg-img" style={{ top: '40%', left: '10%', width: '30%', transform: 'rotate(-1.5deg)' }} />
-        <img src="/images/bg/study-materials.png" alt="" className="absolute study-bg-img" style={{ top: '55%', right: '5%', width: '35%', transform: 'rotate(1deg)' }} />
-        <img src="/images/bg/study-backpack.png" alt="" className="absolute study-bg-img" style={{ top: '75%', left: '25%', width: '30%', transform: 'rotate(-2deg)' }} />
+        <img src="/images/bg/study-books.png" alt="" className="absolute study-bg-img" data-rotate="-3" style={{ top: '5%', left: '-5%', width: '35%' }} />
+        <img src="/images/bg/study-laptop.png" alt="" className="absolute study-bg-img" data-rotate="2" style={{ top: '15%', right: '-8%', width: '40%' }} />
+        <img src="/images/bg/study-coffee.png" alt="" className="absolute study-bg-img" data-rotate="-1.5" style={{ top: '40%', left: '10%', width: '30%' }} />
+        <img src="/images/bg/study-materials.png" alt="" className="absolute study-bg-img" data-rotate="1" style={{ top: '55%', right: '5%', width: '35%' }} />
+        <img src="/images/bg/study-backpack.png" alt="" className="absolute study-bg-img" data-rotate="-2" style={{ top: '75%', left: '25%', width: '30%' }} />
 
         {/* Dark overlay on top of everything */}
         <div className="absolute inset-0 bg-night/85" />
@@ -305,11 +338,11 @@ export default function LandingPage() {
               {tx.landing.heroSubtitleAlt}
             </p>
 
-            {/* CTA Button */}
+            {/* CTA Button — rounded-full to match navbar */}
             <div className="lp-stagger max-w-md mb-8" style={{ transitionDelay: '360ms' }}>
               <button
                 onClick={() => user ? setView("create") : setView("auth")}
-                className="hero-premium-btn w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-white font-bold text-base whitespace-nowrap cursor-pointer"
+                className="hero-premium-btn w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-full text-white font-bold text-base whitespace-nowrap cursor-pointer"
               >
                 <span className="relative z-10 flex items-center gap-2">
                   {tx.landing.startFree}
@@ -494,12 +527,65 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ===== GENERATE CTA SECTION ===== */}
+      <section id="generate-cta" className="lp-section relative z-10 py-24 px-4 sm:px-6">
+        <div className="relative z-10 max-w-2xl mx-auto">
+          <div className="lp-stagger glass rounded-3xl p-8 sm:p-10" style={{ transitionDelay: '0ms' }}>
+            {/* Title */}
+            <div className="text-center mb-8">
+              <h2 className="text-3xl sm:text-4xl font-extrabold mb-3">
+                {lang === "fr" ? "Génère ton premier cours" : "Generate your first course"}
+                <span className="gradient-text"> {lang === "fr" ? "dès maintenant" : "right now"}</span>
+              </h2>
+              <p className="text-muted-foreground">
+                {lang === "fr" ? "Décris ce que tu veux apprendre et l'IA s'occupe du reste." : "Describe what you want to learn and AI does the rest."}
+              </p>
+            </div>
+
+            {/* Topic Input */}
+            <div className="lp-stagger relative mb-6" style={{ transitionDelay: '120ms' }}>
+              <div className="flex items-center gap-3 p-2 rounded-2xl bg-white/[0.04] border border-white/[0.08] focus-within:border-mauve/40 transition-colors">
+                <Sparkles className="w-5 h-5 text-mauve-light flex-shrink-0 ml-2" />
+                <input
+                  type="text"
+                  value={topicInput}
+                  onChange={(e) => setTopicInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleGenerateFromLP(); }}
+                  placeholder={lang === "fr" ? "Apprendre Python pour le développement web..." : "Learn Python for web development..."}
+                  className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground/50 text-sm font-medium focus:outline-none py-3 px-2"
+                />
+                <button
+                  onClick={handleGenerateFromLP}
+                  className="hero-premium-btn flex items-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-bold cursor-pointer whitespace-nowrap"
+                >
+                  <Zap className="w-4 h-4" />
+                  <span className="hidden sm:inline">{lang === "fr" ? "Générer" : "Generate"}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick topic tags */}
+            <div className="lp-stagger flex flex-wrap gap-2 justify-center" style={{ transitionDelay: '240ms' }}>
+              {quickTopics.map((topic) => (
+                <button
+                  key={topic}
+                  onClick={() => { setTopicInput(topic); }}
+                  className="px-4 py-2 rounded-full bg-mauve/10 border border-mauve/20 text-sm text-mauve-light font-medium hover:bg-mauve/20 hover:border-mauve/30 transition-all cursor-pointer"
+                >
+                  {topic}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ===== AVEC / SANS COURSIA ===== */}
       <section id="compare" className="lp-section relative z-10 py-24 px-4 sm:px-6">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-mauve/5 rounded-full blur-[120px]" />
         </div>
-        <div className="relative z-10 max-w-4xl mx-auto">
+        <div className="relative z-10 max-w-5xl mx-auto">
           <div className="lp-stagger text-center mb-12" style={{ transitionDelay: '0ms' }}>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
               <span className="gradient-text">{lang === "fr" ? "La Différence est Claire" : "The Difference is Clear"}</span>
@@ -516,27 +602,27 @@ export default function LandingPage() {
               onMouseEnter={() => setIsHovering(true)}
               onMouseLeave={() => setIsHovering(false)}
             >
-              <div className="p-8 sm:p-10">
+              <div className="p-8 sm:p-12">
                 {/* Header with label */}
                 <div className="flex items-center justify-center mb-8">
-                  <div className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-500 ${activeComparison === 'avec' ? 'bg-mauve/15 text-mauve-light border border-mauve/30' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                  <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-full text-base font-bold transition-all duration-500 ${activeComparison === 'avec' ? 'bg-mauve/15 text-mauve-light border border-mauve/30' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
                     {activeComparison === 'avec' ? <Sparkles className="w-4 h-4" /> : <X className="w-4 h-4" />}
                     {activeComparison === 'avec' ? (lang === "fr" ? "Avec Coursia" : "With Coursia") : (lang === "fr" ? "Sans Coursia" : "Without Coursia")}
                   </div>
                 </div>
 
                 {/* Content area */}
-                <div className="relative min-h-[220px]">
+                <div className="relative min-h-[280px]">
                   {/* Avec Coursia content */}
                   <div className={`comparison-content ${activeComparison === 'avec' ? 'comp-active' : 'comp-exit'}`}>
-                    <div className="space-y-4">
+                    <div className="space-y-5">
                       <div className="flex items-start gap-4">
                         <div className="w-10 h-10 rounded-xl bg-mauve/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                           <Brain className="w-5 h-5 text-mauve-light" />
                         </div>
                         <div>
-                          <h4 className="font-bold text-foreground mb-1">{lang === "fr" ? "Cours personnalisés par IA" : "AI-personalized courses"}</h4>
-                          <p className="text-sm text-muted-foreground">{lang === "fr" ? "L'intelligence artificielle crée un cours unique adapté à votre niveau et vos objectifs." : "AI creates a unique course tailored to your level and goals."}</p>
+                          <h4 className="text-lg font-bold text-foreground mb-1">{lang === "fr" ? "Cours personnalisés par IA" : "AI-personalized courses"}</h4>
+                          <p className="text-base text-muted-foreground">{lang === "fr" ? "L'intelligence artificielle crée un cours unique adapté à votre niveau et vos objectifs." : "AI creates a unique course tailored to your level and goals."}</p>
                         </div>
                       </div>
                       <div className="flex items-start gap-4">
@@ -544,8 +630,8 @@ export default function LandingPage() {
                           <TrendingUp className="w-5 h-5 text-mauve-light" />
                         </div>
                         <div>
-                          <h4 className="font-bold text-foreground mb-1">{lang === "fr" ? "Progression structurée" : "Structured progression"}</h4>
-                          <p className="text-sm text-muted-foreground">{lang === "fr" ? "Des chapitres organisés, des quiz interactifs et un suivi de niveau Débutant → Avancé." : "Organized chapters, interactive quizzes, and Beginner → Advanced tracking."}</p>
+                          <h4 className="text-lg font-bold text-foreground mb-1">{lang === "fr" ? "Progression structurée" : "Structured progression"}</h4>
+                          <p className="text-base text-muted-foreground">{lang === "fr" ? "Des chapitres organisés, des quiz interactifs et un suivi de niveau Débutant → Avancé." : "Organized chapters, interactive quizzes, and Beginner → Advanced tracking."}</p>
                         </div>
                       </div>
                       <div className="flex items-start gap-4">
@@ -553,8 +639,17 @@ export default function LandingPage() {
                           <Zap className="w-5 h-5 text-mauve-light" />
                         </div>
                         <div>
-                          <h4 className="font-bold text-foreground mb-1">{lang === "fr" ? "Résultats en quelques minutes" : "Results in minutes"}</h4>
-                          <p className="text-sm text-muted-foreground">{lang === "fr" ? "Pas besoin de chercher. Décrivez votre sujet et commencez à apprendre immédiatement." : "No need to search. Describe your topic and start learning immediately."}</p>
+                          <h4 className="text-lg font-bold text-foreground mb-1">{lang === "fr" ? "Résultats en quelques minutes" : "Results in minutes"}</h4>
+                          <p className="text-base text-muted-foreground">{lang === "fr" ? "Pas besoin de chercher. Décrivez votre sujet et commencez à apprendre immédiatement." : "No need to search. Describe your topic and start learning immediately."}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-mauve/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Layers className="w-5 h-5 text-mauve-light" />
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-bold text-foreground mb-1">{lang === "fr" ? "Parcours illimité" : "Unlimited learning paths"}</h4>
+                          <p className="text-base text-muted-foreground">{lang === "fr" ? "Générez autant de cours que vous voulez, sur tous les sujets, sans limites." : "Generate as many courses as you want, on any topic, without limits."}</p>
                         </div>
                       </div>
                     </div>
@@ -562,14 +657,14 @@ export default function LandingPage() {
 
                   {/* Sans Coursia content */}
                   <div className={`comparison-content ${activeComparison === 'sans' ? 'comp-active' : 'comp-exit'}`}>
-                    <div className="space-y-4">
+                    <div className="space-y-5">
                       <div className="flex items-start gap-4">
                         <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
                           <Search className="w-5 h-5 text-red-400" />
                         </div>
                         <div>
-                          <h4 className="font-bold text-foreground mb-1">{lang === "fr" ? "Heures de recherche" : "Hours of searching"}</h4>
-                          <p className="text-sm text-muted-foreground">{lang === "fr" ? "Parcourir des centaines de vidéos YouTube et articles sans fil conducteur." : "Browsing hundreds of YouTube videos and articles with no guidance."}</p>
+                          <h4 className="text-lg font-bold text-foreground mb-1">{lang === "fr" ? "Heures de recherche" : "Hours of searching"}</h4>
+                          <p className="text-base text-muted-foreground">{lang === "fr" ? "Parcourir des centaines de vidéos YouTube et articles sans fil conducteur." : "Browsing hundreds of YouTube videos and articles with no guidance."}</p>
                         </div>
                       </div>
                       <div className="flex items-start gap-4">
@@ -577,8 +672,8 @@ export default function LandingPage() {
                           <X className="w-5 h-5 text-red-400" />
                         </div>
                         <div>
-                          <h4 className="font-bold text-foreground mb-1">{lang === "fr" ? "Aucun suivi" : "No tracking"}</h4>
-                          <p className="text-sm text-muted-foreground">{lang === "fr" ? "Pas de progression visible, pas de quiz, pas de validation de vos acquis." : "No visible progression, no quizzes, no validation of your knowledge."}</p>
+                          <h4 className="text-lg font-bold text-foreground mb-1">{lang === "fr" ? "Aucun suivi" : "No tracking"}</h4>
+                          <p className="text-base text-muted-foreground">{lang === "fr" ? "Pas de progression visible, pas de quiz, pas de validation de vos acquis." : "No visible progression, no quizzes, no validation of your knowledge."}</p>
                         </div>
                       </div>
                       <div className="flex items-start gap-4">
@@ -586,8 +681,17 @@ export default function LandingPage() {
                           <Frown className="w-5 h-5 text-red-400" />
                         </div>
                         <div>
-                          <h4 className="font-bold text-foreground mb-1">{lang === "fr" ? "Contenu générique" : "Generic content"}</h4>
-                          <p className="text-sm text-muted-foreground">{lang === "fr" ? "Des cours faits pour tout le monde mais adaptés à personne en particulier." : "Courses made for everyone but tailored to no one in particular."}</p>
+                          <h4 className="text-lg font-bold text-foreground mb-1">{lang === "fr" ? "Contenu générique" : "Generic content"}</h4>
+                          <p className="text-base text-muted-foreground">{lang === "fr" ? "Des cours faits pour tout le monde mais adaptés à personne en particulier." : "Courses made for everyone but tailored to no one in particular."}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Lock className="w-5 h-5 text-red-400" />
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-bold text-foreground mb-1">{lang === "fr" ? "Contenu non structuré" : "Unstructured content"}</h4>
+                          <p className="text-base text-muted-foreground">{lang === "fr" ? "Des informations éparses sans progression logique ni cohérence pédagogique." : "Scattered information with no logical progression or pedagogical coherence."}</p>
                         </div>
                       </div>
                     </div>
@@ -621,13 +725,39 @@ export default function LandingPage() {
                   className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left cursor-pointer"
                 >
                   <span className="font-semibold text-foreground text-sm sm:text-base">{faq.q}</span>
-                  <ChevronDown className={`w-5 h-5 text-muted-foreground flex-shrink-0 transition-transform duration-300 ${openFaq === i ? "rotate-180" : ""}`} />
+                  <div className={`w-6 h-6 rounded-full border border-muted-foreground/30 flex items-center justify-center flex-shrink-0 transition-all duration-300 ${openFaq === i ? 'bg-mauve/15 border-mauve/40' : ''}`}>
+                    <span className={`text-sm font-bold transition-all duration-300 ${openFaq === i ? 'text-mauve-light' : 'text-muted-foreground'}`}>
+                      {openFaq === i ? '−' : '+'}
+                    </span>
+                  </div>
                 </button>
                 <div className={`overflow-hidden transition-all duration-300 ${openFaq === i ? "max-h-96 pb-5" : "max-h-0"}`}>
                   <p className="px-6 text-sm sm:text-base text-muted-foreground leading-relaxed">{faq.a}</p>
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== BOTTOM CTA ===== */}
+      <section id="bottom-cta" className="lp-section relative z-10 py-20 px-4 sm:px-6">
+        <div className="max-w-3xl mx-auto text-center">
+          <div className="lp-stagger" style={{ transitionDelay: '0ms' }}>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">
+              {lang === "fr" ? "Prêt à transformer ton apprentissage" : "Ready to transform your learning"}
+              <span className="gradient-text"> ?</span>
+            </h2>
+            <div className="lp-stagger mt-8" style={{ transitionDelay: '120ms' }}>
+              <button
+                onClick={() => user ? setView("create") : setView("auth")}
+                className="hero-premium-btn inline-flex items-center gap-2 px-8 py-4 rounded-full text-white font-bold text-lg cursor-pointer"
+              >
+                <Sparkles className="w-5 h-5" />
+                <span>{tx.landing.startFree}</span>
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -724,6 +854,8 @@ export default function LandingPage() {
           object-fit: cover;
           filter: blur(12px) saturate(0.2) brightness(0.35) contrast(0.7);
           opacity: 0.08;
+          transform: rotate(var(--rotate, 0deg)) translateY(var(--parallax-y, 0px));
+          transition: none;
         }
 
         /* ── Parallax Halos ── */

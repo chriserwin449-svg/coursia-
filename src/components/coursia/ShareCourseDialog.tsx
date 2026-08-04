@@ -143,7 +143,7 @@ export default function ShareCourseDialog({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     // Search immediately if >= 2 chars, with a short debounce for typing
     if (value.trim().length >= 2) {
-      debounceRef.current = setTimeout(() => searchUsers(value), 200);
+      debounceRef.current = setTimeout(() => searchUsers(value), 300);
     } else {
       setResults([]);
       setIsSearching(false);

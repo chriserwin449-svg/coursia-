@@ -44,6 +44,11 @@ export async function POST(
       return NextResponse.json({ error: "Recipient user not found" }, { status: 404 });
     }
 
+    // Prevent sharing with yourself
+    if (sharedWith === userId) {
+      return NextResponse.json({ error: "You cannot share a course with yourself" }, { status: 400 });
+    }
+
     // Prevent duplicate shares
     const existingShare = await db.courseShare.findFirst({
       where: {
