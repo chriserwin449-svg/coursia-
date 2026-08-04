@@ -87,3 +87,25 @@ Stage Summary:
 - Mobile responsive with no horizontal overflow
 - All 8 sections reveal on scroll with once-only animation
 - Zero console errors, pushed to GitHub
+---
+Task ID: 4
+Agent: main
+Task: Complete landing page overhaul with premium animations, floating pill navbar, study bg collage, Avec/Sans Coursia card, and mobile responsiveness
+
+Work Log:
+- Read and analyzed full LandingPage.tsx (1015 lines) and LegalPage.tsx
+- Analyzed uploaded reference image (CREDOA floating pill navbar design)
+- Generated 5 AI study environment images (books, laptop, coffee, materials, backpack) using z-ai image generation CLI
+- Delegated full LandingPage.tsx rewrite to full-stack-developer subagent
+- Updated LegalPage.tsx: increased all text sizes (text-sm→text-base, text-base→text-lg, headings text-base→text-lg with more margin)
+- Verified in browser with agent-browser: desktop and mobile screenshots analyzed with VLM
+- Confirmed no console errors, proper rendering, no overflow on mobile
+- Pushed all changes to GitHub (main branch)
+
+Stage Summary:
+- LandingPage.tsx: 1015 lines → 787 lines (net -228 lines, removed Coursia Open, Pricing, Final CTA, Aurora Arc)
+- Added: floating pill navbar, study environment background collage (5 images), parallax scroll, Avec/Sans Coursia cycling card, premium micro-interactions, 120ms stagger reveal
+- Removed: Coursia Open section, Pricing section, Final CTA section, Aurora Arc
+- LegalPage.tsx: all text sizes increased for better readability
+- Background images: 5 PNG files in public/images/bg/
+- Git commit: e59b5df pushed to main
