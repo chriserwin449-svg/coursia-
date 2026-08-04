@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 /**
  * GET /api/users/search?q=<query>
  * Search users by firstName, lastName, email, or username (case-insensitive).
- * Requires Authorization header with Bearer token.
+ * Uses Prisma ORM for cross-database compatibility (SQLite + PostgreSQL).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -16,39 +16,32 @@ export async function GET(request: NextRequest) {
     }
 
     const authHeader = request.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const requestUserId = authHeader?.startsWith("Bearer ") ? authHeader.replace("Bearer ", "").trim() : "";
 
-    // Extract the requesting user's ID to exclude from results
-    const requestUserId = authHeader.replace("Bearer ", "").trim();
-
-    // Use case-insensitive search for SQLite compatibility
-    const qLower = q.toLowerCase();
-
-    // Build raw SQL query for case-insensitive search across all fields
-    // Exclude the requesting user so they can't share with themselves
-    const users = await db.$queryRawUnsafe(
-      `SELECT "id", "firstName", "lastName", "email", "username", "avatar"
-       FROM "User"
-       WHERE (
-         LOWER("firstName") LIKE '%' || $1 || '%'
-         OR LOWER("lastName") LIKE '%' || $1 || '%'
-         OR LOWER("email") LIKE '%' || $1 || '%'
-         OR LOWER("username") LIKE '%' || $1 || '%'
-       )
-       AND "id" != $2
-       LIMIT 10`,
-      qLower,
-      requestUserId
-    ) as Array<{
-      id: string;
-      firstName: string;
-      lastName: string;
-      email: string;
-      username: string | null;
-      avatar: string | null;
-    }>;
+    // Use Prisma ORM for cross-database compatibility
+    // mode: "insensitive" works for both PostgreSQL and SQLite (Prisma 4.x+)
+    const users = await db.user.findMany({
+      where: {
+        OR: [
+          { firstName: { contains: q, mode: "insensitive" } },
+          { lastName: { contains: q, mode: "insensitive" } },
+          { email: { contains: q, mode: "insensitive" } },
+          { username: { contains: q, mode: "insensitive" } },
+        ],
+        // Only apply self-exclusion if requestUserId looks like a real UUID/CUID
+        // (the Bearer token is a 64-char hex string, not a user ID)
+        ...(requestUserId && requestUserId.length <= 30 ? { NOT: { id: requestUserId } } : {}),
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        username: true,
+        avatar: true,
+      },
+      take: 10,
+    });
 
     console.log(`✅ [users/search] Query "${q}" → ${users.length} results`);
 

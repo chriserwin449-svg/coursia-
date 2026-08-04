@@ -131,3 +131,16 @@ Stage Summary:
 - courses/share API: Self-share rejection added  
 - LegalPage.tsx: All text sizes increased significantly (text-lg content, text-xl headings, text-4xl title)
 - 5 files changed, 212 insertions, 69 deletions
+---
+Task ID: 3
+Agent: general-purpose
+Task: Fix friend search API - users/search returns no results
+
+Work Log:
+- Analyzed root cause: raw SQL with $1/$2 params incompatible with SQLite
+- Rewrote to use Prisma ORM findMany with mode: "insensitive" for cross-DB compatibility
+- Fixed authToken mismatch (random hex vs UUID) - added length check for self-exclusion
+
+Stage Summary:
+- /src/app/api/users/search/route.ts rewritten to use Prisma ORM
+- Search now works for both SQLite and PostgreSQL

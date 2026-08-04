@@ -67,32 +67,17 @@ export default function LandingPage() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Parallax effect for hero background elements + background collage
+  // Parallax effect for hero background elements only
   useEffect(() => {
     let ticking = false;
     const onScroll = () => {
       if (!ticking) {
         requestAnimationFrame(() => {
           const y = window.scrollY;
-          // Hero glows (existing)
           const glow = document.getElementById('hero-glow');
           if (glow) glow.style.transform = `translate(-50%, ${y * 0.1}px)`;
           const grid = document.getElementById('hero-grid');
           if (grid) grid.style.transform = `translateY(${y * 0.04}px)`;
-          // Background collage parallax — use CSS custom properties to preserve rotation
-          const collage = document.getElementById('bg-collage');
-          if (collage) {
-            const imgs = collage.querySelectorAll('.study-bg-img');
-            imgs.forEach((img, i) => {
-              const speed = 0.03 + (i * 0.015);
-              (img as HTMLElement).style.setProperty('--parallax-y', `${y * speed}px`);
-            });
-            const halos = collage.querySelectorAll('.bg-halo');
-            halos.forEach((h, i) => {
-              const speed = 0.02 + (i * 0.01);
-              (h as HTMLElement).style.transform = `translateY(${y * speed}px)`;
-            });
-          }
           ticking = false;
         });
         ticking = true;
@@ -102,16 +87,36 @@ export default function LandingPage() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Initialize --rotate from data-rotate attributes on background images
-  useEffect(() => {
-    const imgs = document.querySelectorAll('.study-bg-img[data-rotate]');
-    imgs.forEach((img) => {
-      const rotate = (img as HTMLElement).getAttribute('data-rotate');
-      if (rotate) {
-        (img as HTMLElement).style.setProperty('--rotate', `${rotate}deg`);
-      }
-    });
-  }, []);
+  // Testimonials data — fun/cool comments
+  const testimonials = lang === "fr" ? [
+    { name: "Aminata K.", region: "Kinshasa", stars: 5, text: "Les cours sont trop stylés, j'ai tout pigé en 20 minutes 😂🔥", emoji: "🔥" },
+    { name: "Lucas M.", region: "Paris", stars: 5, text: "La gestion des points c'est grave addictive, j'peux plus m'arrêter 💀", emoji: "💀" },
+    { name: "Fatou S.", region: "Dakar", stars: 5, text: "J'ai impressionné mon prof avec un cours sur la mécanique quantique 🤯", emoji: "🤯" },
+    { name: "Youssef B.", region: "Casablanca", stars: 4, text: "C'est bien mais j'voudrais plus de cours sur le foot ⚽", emoji: "⚽" },
+    { name: "Chloé D.", region: "Bruxelles", stars: 5, text: "Les quiz sont un game changer, même ma mère l'utilise 😅", emoji: "😅" },
+    { name: "Kofi A.", region: "Abidjan", stars: 5, text: "J'ai généré 47 cours ce mois... oui j'ai un problème 😂", emoji: "😂" },
+    { name: "Inès R.", region: "Tunis", stars: 5, text: "Les chapitres sont bien structurés, style Netflix mais pour apprendre 🎬", emoji: "🎬" },
+    { name: "Jules P.", region: "Lyon", stars: 4, text: "Cours sur la crypto généré en 3 minutes, mon banquier est jaloux 😎", emoji: "😎" },
+    { name: "Aïcha N.", region: "Bamako", stars: 5, text: "Mieux que mes cours à la fac, et c'est pas peu dire 🏆", emoji: "🏆" },
+    { name: "Olivier T.", region: "Genève", stars: 5, text: "J'ai partagé un cours avec tout mon équipe, ils sont addicts aussi 😈", emoji: "😈" },
+    { name: "Mariama F.", region: "Yaoundé", stars: 4, text: "L'IA comprend même quand j'écris mal, c'est magique ✨", emoji: "✨" },
+    { name: "Théo L.", region: "Montréal", stars: 5, text: "10/10 je recommande, même mon chien a appris des trucs 🐕", emoji: "🐕" },
+  ] : [
+    { name: "Aminata K.", region: "Kinshasa", stars: 5, text: "The courses are so dope, I got it all in 20 minutes 😂🔥", emoji: "🔥" },
+    { name: "Lucas M.", region: "Paris", stars: 5, text: "The points system is seriously addictive, I can't stop 💀", emoji: "💀" },
+    { name: "Fatou S.", region: "Dakar", stars: 5, text: "Impressed my professor with a quantum mechanics course 🤯", emoji: "🤯" },
+    { name: "Youssef B.", region: "Casablanca", stars: 4, text: "It's cool but I want more football courses ⚽", emoji: "⚽" },
+    { name: "Chloé D.", region: "Brussels", stars: 5, text: "The quizzes are a game changer, even my mom uses it 😅", emoji: "😅" },
+    { name: "Kofi A.", region: "Abidjan", stars: 5, text: "Generated 47 courses this month... yes I have a problem 😂", emoji: "😂" },
+    { name: "Inès R.", region: "Tunis", stars: 5, text: "Chapters are well structured, like Netflix but for learning 🎬", emoji: "🎬" },
+    { name: "Jules P.", region: "Lyon", stars: 4, text: "Crypto course generated in 3 minutes, my banker is jealous 😎", emoji: "😎" },
+    { name: "Aïcha N.", region: "Bamako", stars: 5, text: "Better than my university lectures, and that's saying a lot 🏆", emoji: "🏆" },
+    { name: "Olivier T.", region: "Geneva", stars: 5, text: "Shared a course with my whole team, they're addicted too 😈", emoji: "😈" },
+    { name: "Mariama F.", region: "Yaoundé", stars: 4, text: "The AI understands even when I write badly, it's magic ✨", emoji: "✨" },
+    { name: "Théo L.", region: "Montreal", stars: 5, text: "10/10 I recommend, even my dog learned things 🐕", emoji: "🐕" },
+  ];
+  const testimonialsRow1 = testimonials.slice(0, 6);
+  const testimonialsRow2 = testimonials.slice(6, 12);
 
   // Cycling timer for comparison card
   useEffect(() => {
@@ -164,7 +169,7 @@ export default function LandingPage() {
     return { ...badge, icon: icons[i] };
   });
 
-  // Floating cards data
+  // Floating cards data — positions adjusted so animations don't overflow
   const floatingCards = [
     {
       title: lang === "fr" ? "Intelligence Artificielle" : "Artificial Intelligence",
@@ -172,7 +177,7 @@ export default function LandingPage() {
       progress: 78,
       isGenerating: true,
       floatClass: "hero-float-1",
-      style: { top: "0px", left: "5%", width: "280px" },
+      style: { top: "20px", left: "5%", width: "280px" },
     },
     {
       title: "Machine Learning",
@@ -180,7 +185,7 @@ export default function LandingPage() {
       progress: 92,
       isGenerating: false,
       floatClass: "hero-float-2",
-      style: { top: "180px", left: "50%", width: "240px" },
+      style: { top: "200px", left: "48%", width: "240px" },
     },
     {
       title: lang === "fr" ? "Design UX/UI" : "UX/UI Design",
@@ -188,7 +193,7 @@ export default function LandingPage() {
       progress: 65,
       isGenerating: false,
       floatClass: "hero-float-3",
-      style: { top: "320px", left: "0%", width: "240px" },
+      style: { top: "340px", left: "2%", width: "240px" },
     },
     {
       title: lang === "fr" ? "Marketing Digital" : "Digital Marketing",
@@ -196,7 +201,7 @@ export default function LandingPage() {
       progress: 84,
       isGenerating: false,
       floatClass: "hero-float-4",
-      style: { top: "410px", left: "45%", width: "200px" },
+      style: { top: "430px", left: "42%", width: "200px" },
     },
   ];
 
@@ -240,22 +245,8 @@ export default function LandingPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
-      {/* ── Background Study Environment Collage ── */}
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden" id="bg-collage">
-        <img src="/images/bg/study-books.png" alt="" className="absolute study-bg-img" data-rotate="-3" style={{ top: '5%', left: '-5%', width: '35%' }} />
-        <img src="/images/bg/study-laptop.png" alt="" className="absolute study-bg-img" data-rotate="2" style={{ top: '15%', right: '-8%', width: '40%' }} />
-        <img src="/images/bg/study-coffee.png" alt="" className="absolute study-bg-img" data-rotate="-1.5" style={{ top: '40%', left: '10%', width: '30%' }} />
-        <img src="/images/bg/study-materials.png" alt="" className="absolute study-bg-img" data-rotate="1" style={{ top: '55%', right: '5%', width: '35%' }} />
-        <img src="/images/bg/study-backpack.png" alt="" className="absolute study-bg-img" data-rotate="-2" style={{ top: '75%', left: '25%', width: '30%' }} />
-
-        {/* Dark overlay on top of everything */}
-        <div className="absolute inset-0 bg-night/85" />
-
-        {/* Parallax halos */}
-        <div className="bg-halo bg-halo-1" />
-        <div className="bg-halo bg-halo-2" />
-        <div className="bg-halo bg-halo-3" />
-      </div>
+      {/* ── Hero Background Mosaic (only in hero section) ── */}
+      {/* Images are inside the hero section, not fixed to the page */}
 
       {/* ===== FLOATING PILL NAVBAR ===== */}
       <nav aria-label="Navigation principale" className={`fixed top-4 left-0 right-0 z-50 transition-all duration-500 px-4 sm:px-6`}>
@@ -302,6 +293,19 @@ export default function LandingPage() {
 
       {/* ===== HERO SECTION ===== */}
       <section id="hero" className="lp-section relative overflow-hidden min-h-screen flex items-center px-4 pt-28 pb-20">
+        {/* Background Mosaic Images — arranged like a grid, scrolling slowly */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="hero-bg-mosaic">
+            <img src="/images/bg/study-books.png" alt="" className="hero-mosaic-img" style={{ gridRow: '1', gridColumn: '1' }} />
+            <img src="/images/bg/study-laptop.png" alt="" className="hero-mosaic-img" style={{ gridRow: '1', gridColumn: '2' }} />
+            <img src="/images/bg/study-coffee.png" alt="" className="hero-mosaic-img" style={{ gridRow: '1', gridColumn: '3' }} />
+            <img src="/images/bg/study-materials.png" alt="" className="hero-mosaic-img" style={{ gridRow: '2', gridColumn: '1' }} />
+            <img src="/images/bg/study-backpack.png" alt="" className="hero-mosaic-img" style={{ gridRow: '2', gridColumn: '2' }} />
+          </div>
+          {/* Dark overlay on top of mosaic */}
+          <div className="absolute inset-0 bg-night/80" />
+        </div>
+
         {/* Grid + Halos */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div id="hero-grid" className="absolute inset-0 hero-grid"></div>
@@ -353,7 +357,7 @@ export default function LandingPage() {
           </div>
 
           {/* RIGHT COLUMN — Floating Cards (desktop only) */}
-          <div className="relative hidden lg:block h-[520px] overflow-hidden">
+          <div className="relative hidden lg:block h-[540px] overflow-hidden" style={{ paddingTop: '16px' }}>
             {floatingCards.map((card, i) => (
               <motion.div
                 key={card.title}
@@ -485,6 +489,73 @@ export default function LandingPage() {
                 <p className="text-muted-foreground leading-relaxed">{card.desc}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== SCROLLING TESTIMONIALS ===== */}
+      <section id="testimonials" className="lp-section relative z-10 py-20 overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-mauve/5 rounded-full blur-[120px]" />
+        </div>
+        <div className="relative z-10">
+          <div className="lp-stagger text-center mb-12 px-4" style={{ transitionDelay: '0ms' }}>
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-3">
+              {lang === "fr" ? "Ce qu'ils" : "What they"}<span className="gradient-text"> {lang === "fr" ? "en pensent" : "think"}</span> <span className="text-2xl">🤷</span>
+            </h2>
+            <p className="text-muted-foreground text-base max-w-xl mx-auto">
+              {lang === "fr" ? "Des vrais avis de vrais utilisateurs (enfin, presque)" : "Real reviews from real users (well, almost)"}
+            </p>
+          </div>
+
+          {/* Row 1 — scrolls left */}
+          <div className="lp-stagger mb-4" style={{ transitionDelay: '120ms' }}>
+            <div className="testimonial-scroll-left">
+              <div className="testimonial-track">
+                {[...testimonialsRow1, ...testimonialsRow1].map((t, i) => (
+                  <div key={i} className="testimonial-card glass rounded-2xl p-4 flex-shrink-0" style={{ width: '320px' }}>
+                    <div className="flex items-center gap-1 mb-2">
+                      {Array.from({ length: 5 }).map((_, s) => (
+                        <Star key={s} className={`w-3.5 h-3.5 ${s < t.stars ? 'text-gold fill-gold' : 'text-muted-foreground/30'}`} />
+                      ))}
+                    </div>
+                    <p className="text-sm text-foreground/90 leading-relaxed mb-3">{t.text}</p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold text-foreground">{t.name}</p>
+                        <p className="text-[10px] text-muted-foreground/60">{t.region}</p>
+                      </div>
+                      <span className="text-lg">{t.emoji}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2 — scrolls right */}
+          <div className="lp-stagger" style={{ transitionDelay: '240ms' }}>
+            <div className="testimonial-scroll-right">
+              <div className="testimonial-track-reverse">
+                {[...testimonialsRow2, ...testimonialsRow2].map((t, i) => (
+                  <div key={i} className="testimonial-card glass rounded-2xl p-4 flex-shrink-0" style={{ width: '320px' }}>
+                    <div className="flex items-center gap-1 mb-2">
+                      {Array.from({ length: 5 }).map((_, s) => (
+                        <Star key={s} className={`w-3.5 h-3.5 ${s < t.stars ? 'text-gold fill-gold' : 'text-muted-foreground/30'}`} />
+                      ))}
+                    </div>
+                    <p className="text-sm text-foreground/90 leading-relaxed mb-3">{t.text}</p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold text-foreground">{t.name}</p>
+                        <p className="text-[10px] text-muted-foreground/60">{t.region}</p>
+                      </div>
+                      <span className="text-lg">{t.emoji}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -849,56 +920,92 @@ export default function LandingPage() {
           pointer-events: none;
         }
 
-        /* ── Background Study Images ── */
-        .study-bg-img {
-          object-fit: cover;
-          filter: blur(12px) saturate(0.2) brightness(0.35) contrast(0.7);
-          opacity: 0.08;
-          transform: rotate(var(--rotate, 0deg)) translateY(var(--parallax-y, 0px));
-          transition: none;
-        }
-
-        /* ── Parallax Halos ── */
-        .bg-halo {
+        /* ── Background Mosaic Grid (hero only) ── */
+        .hero-bg-mosaic {
           position: absolute;
-          border-radius: 50%;
-          pointer-events: none;
+          top: -5%;
+          left: -5%;
+          right: -5%;
+          bottom: -5%;
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          grid-template-rows: repeat(2, 1fr);
+          gap: 8px;
+          animation: mosaic-scroll 40s linear infinite;
+          z-index: 0;
         }
-        .bg-halo-1 {
-          top: -10%; left: 30%; width: 500px; height: 500px;
-          background: radial-gradient(circle, rgba(124,92,191,0.15) 0%, transparent 70%);
-          filter: blur(80px);
-          will-change: transform;
+        .hero-mosaic-img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          filter: blur(8px) saturate(0.3) brightness(0.4) contrast(0.8);
+          opacity: 0.12;
+          border-radius: 8px;
         }
-        .bg-halo-2 {
-          top: 30%; right: -5%; width: 400px; height: 400px;
-          background: radial-gradient(circle, rgba(234,179,8,0.08) 0%, transparent 70%);
-          filter: blur(60px);
-          will-change: transform;
-        }
-        .bg-halo-3 {
-          top: 60%; left: 10%; width: 350px; height: 350px;
-          background: radial-gradient(circle, rgba(168,85,247,0.1) 0%, transparent 70%);
-          filter: blur(70px);
-          will-change: transform;
+        @keyframes mosaic-scroll {
+          0% { transform: translateY(0); }
+          100% { transform: translateY(-30px); }
         }
 
-        /* ── Floating card animations (reduced amplitude) ── */
+        /* ── Testimonial scrolling marquee ── */
+        .testimonial-scroll-left,
+        .testimonial-scroll-right {
+          overflow: hidden;
+          width: 100%;
+          mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
+          -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
+        }
+        .testimonial-track {
+          display: flex;
+          gap: 16px;
+          width: max-content;
+          animation: scroll-left 50s linear infinite;
+        }
+        .testimonial-track-reverse {
+          display: flex;
+          gap: 16px;
+          width: max-content;
+          animation: scroll-right 50s linear infinite;
+        }
+        @keyframes scroll-left {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        @keyframes scroll-right {
+          0% { transform: translateX(-50%); }
+          100% { transform: translateX(0); }
+        }
+        .testimonial-card {
+          transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .testimonial-card:hover {
+          transform: translateY(-2px) scale(1.02);
+          box-shadow: 0 12px 24px rgba(0,0,0,0.25), 0 0 1px rgba(124,92,191,0.15);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .testimonial-track,
+          .testimonial-track-reverse,
+          .hero-bg-mosaic {
+            animation: none;
+          }
+        }
+
+        /* ── Floating card animations (reduced amplitude, no overflow) ── */
         @keyframes hero-float-1 {
           0%, 100% { transform: translateY(0) rotate(-1deg); }
-          50% { transform: translateY(-10px) rotate(-1deg); }
+          50% { transform: translateY(-8px) rotate(-1deg); }
         }
         @keyframes hero-float-2 {
           0%, 100% { transform: translateY(0) rotate(1.5deg); }
-          50% { transform: translateY(-8px) rotate(1.5deg); }
+          50% { transform: translateY(-6px) rotate(1.5deg); }
         }
         @keyframes hero-float-3 {
           0%, 100% { transform: translateY(0) rotate(-2deg); }
-          50% { transform: translateY(-12px) rotate(-2deg); }
+          50% { transform: translateY(-10px) rotate(-2deg); }
         }
         @keyframes hero-float-4 {
           0%, 100% { transform: translateY(0) rotate(1deg); }
-          50% { transform: translateY(-6px) rotate(1deg); }
+          50% { transform: translateY(-5px) rotate(1deg); }
         }
 
         /* ── Utility animations ── */
