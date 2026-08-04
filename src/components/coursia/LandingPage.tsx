@@ -28,21 +28,27 @@ export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const sections = document.querySelectorAll('.lp-section');
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('revealed');
-            if (entry.target.id === 'hero') setHeroVisible(true);
-            observer.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.15 }
-    );
-    sections.forEach((s) => observer.observe(s));
-    return () => observer.disconnect();
+    let observer: IntersectionObserver | null = null;
+    const timer = setTimeout(() => {
+      const sections = document.querySelectorAll('.lp-section');
+      observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('revealed');
+              if (entry.target.id === 'hero') setHeroVisible(true);
+              observer?.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: 0.15 }
+      );
+      sections.forEach((s) => observer.observe(s));
+    }, 100);
+    return () => {
+      clearTimeout(timer);
+      observer?.disconnect();
+    };
   }, []);
 
   useEffect(() => {
