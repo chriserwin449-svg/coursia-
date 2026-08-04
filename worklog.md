@@ -62,3 +62,28 @@ Stage Summary:
 - No lint errors in src/, no console errors in browser
 - Files modified: src/components/coursia/LandingPage.tsx
 - Pushed to GitHub: commit 9439152
+---
+Task ID: 3
+Agent: Main Agent
+Task: Premium scroll reveal animations, parallax, mobile fixes, push to GitHub
+
+Work Log:
+- Analyzed full LandingPage.tsx (1039 lines) — discovered it had been updated with framer-motion, typewriter, pricing, explore section, diff section
+- Delegated to full-stack-developer agent for comprehensive rewrite
+- Agent replaced 8 individual state-based visibility states with single CSS class-based IntersectionObserver
+- Added `.lp-section` class to all 8 sections, `.lp-stagger` with staggered transitionDelay to child elements
+- Added parallax effect: requestAnimationFrame-throttled scroll listener moves hero glow (0.1x) and grid (0.04x)
+- Added prefers-reduced-motion media query for accessibility
+- Enhanced .glass card hover with premium cubic-bezier easing
+- Added overflow-x-hidden to root container for mobile
+- Fixed observer timing (100ms setTimeout to ensure DOM ready) and cleanup
+- Verified all 8 sections reveal correctly with natural scrolling speed (8/8)
+- Fixed observer cleanup to properly disconnect on unmount
+- Pushed to GitHub: commits 9439152 and 66e244e
+
+Stage Summary:
+- Premium Apple/Linear/Stripe-quality scroll reveal with stagger (100-150ms between elements)
+- Parallax background effect on hero glow and grid
+- Mobile responsive with no horizontal overflow
+- All 8 sections reveal on scroll with once-only animation
+- Zero console errors, pushed to GitHub
