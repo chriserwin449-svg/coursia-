@@ -109,3 +109,25 @@ Stage Summary:
 - LegalPage.tsx: all text sizes increased for better readability
 - Background images: 5 PNG files in public/images/bg/
 - Git commit: e59b5df pushed to main
+---
+Task ID: 1-4
+Agent: main
+Task: Complete LP overhaul + invite fix + legal text enlargement
+
+Work Log:
+- Analyzed uploaded reference images (CREDOA pill navbar + Coursia hero)
+- Explored invite system codebase (ShareCourseDialog, user search API, share API)
+- Explored CTA flow (setView, CreateCourse, AuthPage, store randomTopic/pendingGeneration)
+- Delegated LP rewrite to full-stack-developer subagent (Task 1)
+- Delegated invite fix + legal text to full-stack-developer subagent (Task 2-3)
+- Verified all changes with agent-browser + VLM analysis
+- Confirmed: pill navbar, generate CTA input, comparison section, +/- FAQ, bottom CTA, invite system
+- Pushed to GitHub (2 commits: e59b5df + f409abe)
+
+Stage Summary:
+- LandingPage.tsx: Added generate CTA section, +/- FAQ, bottom CTA, bigger comparison, fixed overflow/bg/botons
+- ShareCourseDialog.tsx: Debounce 200→300ms
+- users/search API: Self-exclusion added
+- courses/share API: Self-share rejection added  
+- LegalPage.tsx: All text sizes increased significantly (text-lg content, text-xl headings, text-4xl title)
+- 5 files changed, 212 insertions, 69 deletions
