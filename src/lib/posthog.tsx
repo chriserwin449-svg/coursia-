@@ -8,8 +8,27 @@
  */
 
 import posthog from "posthog-js";
-import { useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+
+/* ------------------------------------------------------------------ */
+/*  Inner component that uses useSearchParams — wrapped in Suspense    */
+/* ------------------------------------------------------------------ */
+
+function PostHogPageViewTracker() {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (!pathname) return;
+    const url = searchParams?.toString()
+      ? `${pathname}?${searchParams.toString()}`
+      : pathname;
+    posthog.capture("$pageview", { $current_url: url });
+  }, [pathname, searchParams]);
+
+  return null;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Provider — wraps children, initializes PostHog, captures pageviews */
@@ -17,8 +36,6 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
   const readyRef = useRef(false);
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   // Initialize PostHog
   useEffect(() => {
@@ -61,16 +78,14 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       });
   }, []);
 
-  // Capture pageviews on route change
-  useEffect(() => {
-    if (!readyRef.current || !pathname) return;
-    const url = searchParams?.toString()
-      ? `${pathname}?${searchParams.toString()}`
-      : pathname;
-    posthog.capture("$pageview", { $current_url: url });
-  }, [pathname, searchParams]);
-
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <Suspense fallback={null}>
+        <PostHogPageViewTracker />
+      </Suspense>
+    </>
+  );
 }
 
 /* ------------------------------------------------------------------ */
