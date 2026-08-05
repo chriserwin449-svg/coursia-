@@ -49,11 +49,12 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Retry with exponential backoff — used by all provider calls
+ * Delays: 2s, 4s, 8s (4 total attempts)
  */
 async function retryWithBackoff<T>(
   fn: () => Promise<T | null>,
   label: string,
-  maxRetries = 2,
+  maxRetries = 3,
 ): Promise<T | null> {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -61,7 +62,7 @@ async function retryWithBackoff<T>(
       if (result !== null && result !== undefined) return result;
       // If result is null (empty response), retry
       if (attempt < maxRetries) {
-        const delay = 1000 * Math.pow(2, attempt); // 1s, 2s
+        const delay = 2000 * Math.pow(2, attempt); // 2s, 4s, 8s
         console.log(`[${label}] Empty/null response, retry ${attempt + 1}/${maxRetries} in ${delay}ms...`);
         await sleep(delay);
         continue;
@@ -75,7 +76,7 @@ async function retryWithBackoff<T>(
         || msg.includes("502") || msg.includes("500");
 
       if (attempt < maxRetries && isRetryable) {
-        const delay = 1000 * Math.pow(2, attempt); // 1s, 2s
+        const delay = 2000 * Math.pow(2, attempt); // 2s, 4s, 8s
         console.log(`[${label}] Attempt ${attempt + 1} failed (${msg.slice(0, 120)}), retry in ${delay}ms...`);
         await sleep(delay);
         continue;
@@ -143,7 +144,7 @@ async function callZAI(
       console.error("[ZAI] Error:", error instanceof Error ? error.message : error);
       throw error; // re-throw for retryWithBackoff to handle
     }
-  }, "ZAI", 1); // 1 retry max (was 2) — faster generation
+  }, "ZAI", 3); // 3 retries with 2s, 4s, 8s backoff for 429 errors
 }
 
 /**
@@ -191,7 +192,7 @@ async function callGroq(
       }
     }
     return null;
-  }, "Groq", 1);
+  }, "Groq", 3);
 }
 
 /**
@@ -239,7 +240,7 @@ async function callOpenAIWithFallback(
       }
     }
     return null;
-  }, "OpenAI", 1);
+  }, "OpenAI", 3);
 }
 
 /**

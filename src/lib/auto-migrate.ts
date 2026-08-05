@@ -191,6 +191,16 @@ export async function ensureSchemaUpToDate(): Promise<void> {
       );
     } catch { /* ignore */ }
 
+    // ── P2003 fix: Drop the dual-FK constraint that required CourseProgress to exist ──
+    // StudySession.courseId now only references Course.id (not CourseProgress)
+    try {
+      await db.$executeRawUnsafe(`
+        DO $$ BEGIN
+          ALTER TABLE "StudySession" DROP CONSTRAINT IF EXISTS "StudySession_progress_fkey";
+        EXCEPTION WHEN undefined_object THEN null; END $$
+      `);
+    } catch { /* ignore */ }
+
     console.log("✅ Auto-migration completed successfully");
     migrationRan = true;
   } catch (error) {

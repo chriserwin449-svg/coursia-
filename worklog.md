@@ -516,3 +516,32 @@ Stage Summary:
 - Zero hydration errors in console
 - Zero runtime errors
 - Course generation end-to-end verified via browser: 4 chapters generated, auto-redirect to viewer works
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix 429 rate limiting (sequential AI calls + exponential retry) and P2003 StudySession error
+
+Work Log:
+- Read generate/route.ts to understand all Promise.all patterns for AI calls
+- Read study-time/route.ts to understand StudySession creation and P2003 root cause
+- Read openai.ts to understand retryWithBackoff pattern
+- Identified 3 Promise.all usages: (1) deepSearch 2 web queries — OK, (2) deepSearch + scrapeSourceLinks — OK, (3) chapter generation — ROOT CAUSE of 429
+- Changed chapter generation from `Promise.all` + `.map()` to sequential `for...of` loop
+- Updated `withRetry` in generate/route.ts: delays 2s→4s→8s, retries 3 (4 total attempts)
+- Updated `retryWithBackoff` in openai.ts: delays 2s→4s→8s, retries 3 (4 total attempts)
+- Updated all AI provider calls (ZAI, Groq, OpenAI) to use 3 retries
+- Identified P2003 root cause: StudySession.courseId had dual FK constraint to both Course.id AND CourseProgress.id — impossible to satisfy
+- Removed `courseProgress` relation from StudySession model (both SQLite and Postgres schemas)
+- Removed `sessions` back-relation from CourseProgress model
+- Added code-level P2003 prevention: verify Course exists before creating StudySession
+- Added auto-migrate step to drop `StudySession_progress_fkey` constraint on existing PostgreSQL deployments
+- Ran db:push to sync SQLite schema
+- Tested: Course generation completed in 66.3s with 4 chapters, zero 429 errors
+- Tested: StudySession creation with valid courseId → 200 OK
+- Tested: StudySession creation with invalid courseId → 404 "Course not found"
+
+Stage Summary:
+- Key files modified: src/app/api/courses/generate/route.ts, src/lib/openai.ts, src/app/api/study-time/route.ts, prisma/schema.prisma, prisma/schema.postgres.prisma, src/lib/auto-migrate.ts
+- Fix 1: Chapters now generate sequentially (no more 429 rate limiting)
+- Fix 2: P2003 error eliminated by removing impossible dual-FK constraint + adding course existence check
+- Generation test: 66.3s total, 4/4 chapters, all quality checks passed

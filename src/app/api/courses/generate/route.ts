@@ -55,9 +55,9 @@ function logDuration(from: string, to: string) {
 }
 
 /**
- * Retry with exponential backoff: 1s, 2s, 4s (3 attempts)
+ * Retry with exponential backoff: 2s, 4s, 8s (4 attempts)
  */
-async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       return await fn();
@@ -68,7 +68,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
         || msg.includes("502") || msg.includes("503") || msg.includes("500");
 
       if (attempt < retries && isRetryable) {
-        const delay = 1000 * Math.pow(2, attempt); // 1s, 2s
+        const delay = 2000 * Math.pow(2, attempt); // 2s, 4s, 8s
         console.log(`[retry] Attempt ${attempt + 1} failed (${msg.slice(0, 120)}), retrying in ${delay}ms...`);
         await sleep(delay);
         continue;
@@ -1160,48 +1160,43 @@ export async function POST(request: NextRequest) {
 
     console.log(`[outline] ${outline.chapters.length} chapters planned`);
 
-    // ── Step 2: Generate ALL chapters in parallel (no batches, no delay) ──
-    // This cuts chapter generation from ~40s sequential to ~15s parallel
+    // ── Step 2: Generate ALL chapters SEQUENTIALLY (no parallel — avoids 429 rate limiting) ──
     logStep("chapters_start");
     let generatedChapters: Array<{ title: string; content: string; summary: string }> = [];
 
     const allChapters = outline.chapters;
 
-    const chapterPromises = allChapters.map((ch, chapterIdx) => {
-      return (async () => {
-        console.log(`[generate] ── Chapter ${chapterIdx + 1}/${allChapters.length}: "${ch.title}" ──`);
-        const chStart = Date.now();
+    for (let chapterIdx = 0; chapterIdx < allChapters.length; chapterIdx++) {
+      const ch = allChapters[chapterIdx];
+      console.log(`[generate] ── Chapter ${chapterIdx + 1}/${allChapters.length}: "${ch.title}" ──`);
+      const chStart = Date.now();
 
-        // Attempt 1: Full prompt with research context
-        let chapter = await generateChapter(title, courseLang, level, chapterIdx, allChapters.length, ch, webContext, sourceContext);
+      // Attempt 1: Full prompt with research context
+      let chapter = await generateChapter(title, courseLang, level, chapterIdx, allChapters.length, ch, webContext, sourceContext);
 
-        // Attempt 2: Without research context
-        if (!chapter) {
-          console.log(`[chapter-${chapterIdx + 1}] Attempt 1 failed, trying without research context...`);
-          chapter = await generateChapter(title, courseLang, level, chapterIdx, allChapters.length, ch, "", "");
-        }
+      // Attempt 2: Without research context
+      if (!chapter) {
+        console.log(`[chapter-${chapterIdx + 1}] Attempt 1 failed, trying without research context...`);
+        chapter = await generateChapter(title, courseLang, level, chapterIdx, allChapters.length, ch, "", "");
+      }
 
-        // Attempt 3: Minimal emergency prompt
-        if (!chapter) {
-          console.log(`[chapter-${chapterIdx + 1}] Attempt 2 failed, trying minimal emergency prompt...`);
-          chapter = await generateChapterEmergency(title, courseLang, level, chapterIdx, allChapters.length, ch);
-        }
+      // Attempt 3: Minimal emergency prompt
+      if (!chapter) {
+        console.log(`[chapter-${chapterIdx + 1}] Attempt 2 failed, trying minimal emergency prompt...`);
+        chapter = await generateChapterEmergency(title, courseLang, level, chapterIdx, allChapters.length, ch);
+      }
 
-        if (chapter) {
-          const quality = validateChapterQuality(chapter.content, level);
-          if (!quality.passed) console.log(`[chapter-${chapterIdx + 1}] Quality issues: ${quality.issues.join(", ")} (${quality.wordCount} words, ${quality.headingCount} headings)`);
-          else console.log(`[chapter-${chapterIdx + 1}] Quality OK (${quality.wordCount} words, ${quality.headingCount} headings)`);
-        } else {
-          console.error(`[chapter-${chapterIdx + 1}] ALL 3 ATTEMPTS FAILED — chapter will be missing!`);
-        }
+      if (chapter) {
+        const quality = validateChapterQuality(chapter.content, level);
+        if (!quality.passed) console.log(`[chapter-${chapterIdx + 1}] Quality issues: ${quality.issues.join(", ")} (${quality.wordCount} words, ${quality.headingCount} headings)`);
+        else console.log(`[chapter-${chapterIdx + 1}] Quality OK (${quality.wordCount} words, ${quality.headingCount} headings)`);
+      } else {
+        console.error(`[chapter-${chapterIdx + 1}] ALL 3 ATTEMPTS FAILED — chapter will be missing!`);
+      }
 
-        console.log(`[chapter-${chapterIdx + 1}] Time: ${((Date.now() - chStart) / 1000).toFixed(1)}s`);
-        return chapter || null;
-      })();
-    });
-
-    const chapterResults = await Promise.all(chapterPromises);
-    generatedChapters = chapterResults.filter((ch): ch is NonNullable<typeof ch> => ch !== null);
+      console.log(`[chapter-${chapterIdx + 1}] Time: ${((Date.now() - chStart) / 1000).toFixed(1)}s`);
+      if (chapter) generatedChapters.push(chapter);
+    }
 
     // ── Safety net: if fewer than MIN_CHAPTERS were generated, try single-call fallback ──
     if (generatedChapters.length < MIN_CHAPTERS) {

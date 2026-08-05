@@ -130,7 +130,6 @@ model CourseProgress {
   flameAwardedLevels String        @default("[]")
   maxUnlockedLevel  Int            @default(0)
   stoppedAtLevel    Int            @default(-1)
-  sessions          StudySession[]
 }
 
 model Feedback {
@@ -153,7 +152,6 @@ model StudySession {
   chapterId       String?
   courseId        String
   course          Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseProgress  CourseProgress? @relation(fields: [courseId], references: [id], onDelete: Cascade)
   startTime       DateTime
   endTime         DateTime?
   durationSeconds Int      @default(0)

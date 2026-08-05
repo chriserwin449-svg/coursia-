@@ -117,6 +117,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "start") {
+      // ── CRITICAL: Verify course exists BEFORE creating session (P2003 prevention) ──
+      const existingCourse = await db.course.findUnique({
+        where: { id: courseId },
+      });
+      if (!existingCourse) {
+        console.error(`[study-time] P2003 prevention: course "${courseId}" does not exist, refusing to create StudySession`);
+        return NextResponse.json({ error: "Course not found" }, { status: 404 });
+      }
+
       const session = await db.studySession.create({
         data: {
           courseId,
