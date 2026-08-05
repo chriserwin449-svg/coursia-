@@ -4,7 +4,9 @@ import { db } from "@/lib/db";
 /**
  * GET /api/users/search?q=<query>
  * Search users by firstName, lastName, email, or username (case-insensitive).
- * Uses Prisma ORM for cross-database compatibility (SQLite + PostgreSQL).
+ * Uses raw SQL for reliable cross-database behavior:
+ * - SQLite: LIKE is already case-insensitive for ASCII
+ * - PostgreSQL: ILIKE for explicit case-insensitive matching
  */
 export async function GET(request: NextRequest) {
   try {
@@ -12,42 +14,39 @@ export async function GET(request: NextRequest) {
     const q = searchParams.get("q")?.trim();
 
     if (!q || q.length < 2) {
-      return NextResponse.json({ error: "Search query must be at least 2 characters" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Search query must be at least 2 characters" },
+        { status: 400 }
+      );
     }
 
-    const authHeader = request.headers.get("Authorization");
-    const requestUserId = authHeader?.startsWith("Bearer ") ? authHeader.replace("Bearer ", "").trim() : "";
+    const dbUrl = process.env.DATABASE_URL || "";
+    let users;
 
-    // Use Prisma ORM for cross-database compatibility
-    // mode: "insensitive" works for both PostgreSQL and SQLite (Prisma 4.x+)
-    const users = await db.user.findMany({
-      where: {
-        OR: [
-          { firstName: { contains: q, mode: "insensitive" } },
-          { lastName: { contains: q, mode: "insensitive" } },
-          { email: { contains: q, mode: "insensitive" } },
-          { username: { contains: q, mode: "insensitive" } },
-        ],
-        // Only apply self-exclusion if requestUserId looks like a real UUID/CUID
-        // (the Bearer token is a 64-char hex string, not a user ID)
-        ...(requestUserId && requestUserId.length <= 30 ? { NOT: { id: requestUserId } } : {}),
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        username: true,
-        avatar: true,
-      },
-      take: 10,
-    });
+    if (dbUrl.startsWith("file:")) {
+      // SQLite — LIKE is case-insensitive for ASCII by default
+      users = await db.$queryRawUnsafe(
+        `SELECT id, "firstName", "lastName", email, username, avatar FROM "User" WHERE "firstName" LIKE '%' || ?1 || '%' OR "lastName" LIKE '%' || ?1 || '%' OR email LIKE '%' || ?1 || '%' OR username LIKE '%' || ?1 || '%' LIMIT 10`,
+        q
+      );
+    } else {
+      // PostgreSQL — ILIKE for case-insensitive matching
+      users = await db.$queryRawUnsafe(
+        `SELECT id, "firstName", "lastName", email, username, avatar FROM "User" WHERE "firstName" ILIKE '%' || $1 || '%' OR "lastName" ILIKE '%' || $1 || '%' OR email ILIKE '%' || $1 || '%' OR username ILIKE '%' || $1 || '%' LIMIT 10`,
+        q
+      );
+    }
 
-    console.log(`✅ [users/search] Query "${q}" → ${users.length} results`);
+    console.log(
+      `[users/search] Query "${q}" -> ${Array.isArray(users) ? users.length : 0} results (DB: ${dbUrl.startsWith("file:") ? "SQLite" : "PostgreSQL"})`
+    );
 
-    return NextResponse.json({ users });
+    return NextResponse.json({ users: Array.isArray(users) ? users : [] });
   } catch (error) {
     console.error("[users/search] Error:", error);
-    return NextResponse.json({ error: "Failed to search users" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to search users" },
+      { status: 500 }
+    );
   }
 }

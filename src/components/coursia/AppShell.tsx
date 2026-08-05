@@ -230,52 +230,6 @@ function MobileSlideOver({ open, onClose }: { open: boolean; onClose: () => void
   );
 }
 
-function MobileBottomNav() {
-  const view = useAppStore((s) => s.view);
-  const setView = useAppStore((s) => s.setView);
-  const lang = useAppStore((s) => s.lang);
-  const tx = t(lang);
-  const hasNotification = useAppStore((s) => s.hasNotification);
-
-  const NAV_ITEMS = [
-    { view: "create" as const, label: tx.nav.create, icon: BookOpen },
-    { view: "library" as const, label: tx.nav.library, icon: Library },
-    { view: "journey" as const, label: tx.nav.journey, icon: Route },
-    { view: "offers" as const, label: tx.nav.offers, icon: Tag },
-  ];
-
-  // Show blinking dot when there's a notification and user is NOT on offers page
-  const showDot = hasNotification && view !== "offers";
-
-  return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-night-light/95 backdrop-blur-lg border-t border-border">
-      <div className="flex items-center justify-around py-1.5 px-1">
-        {NAV_ITEMS.map((item) => {
-          const isActive = view === item.view;
-          return (
-            <button
-              key={item.view}
-              onClick={() => setView(item.view)}
-              className={`flex flex-col items-center gap-0.5 py-1.5 px-2 sm:px-3 rounded-xl transition-all duration-200 cursor-pointer relative ${
-                isActive
-                  ? "text-mauve-light"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <item.icon className={`w-5 h-5 ${isActive ? "text-mauve-light" : ""}`} />
-              <span className="text-[10px] font-semibold leading-tight">{item.label}</span>
-              {/* Red blinking dot on Offers tab */}
-              {item.view === "offers" && showDot && (
-                <span className="notification-dot absolute top-1 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500" />
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 export default function AppShell() {
   const view = useAppStore((s) => s.view);
   const legalPage = useAppStore((s) => s.legalPage);
@@ -623,7 +577,7 @@ export default function AppShell() {
           {view !== "viewer" && <TopBar />}
           <MobileSlideOver open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
           <main
-            className={`min-h-screen transition-all duration-300 ease-in-out pb-20 md:pb-0 ${
+            className={`min-h-screen transition-all duration-300 ease-in-out pb-0 ${
               collapsed
                 ? "ml-0 md:ml-[72px]"
                 : "ml-0 md:ml-[72px] lg:ml-64"
@@ -635,7 +589,6 @@ export default function AppShell() {
             {view === "journey" && <Journey />}
             {view === "offers" && <OffersPage />}
           </main>
-          <MobileBottomNav />
         </div>
       )}
     </div>

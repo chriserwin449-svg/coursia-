@@ -144,3 +144,41 @@ Work Log:
 Stage Summary:
 - /src/app/api/users/search/route.ts rewritten to use Prisma ORM
 - Search now works for both SQLite and PostgreSQL
+---
+Task ID: 4
+Agent: main
+Task: Fix friend search API - remove mode:insensitive, add raw SQL fallback
+
+Work Log:
+- Analyzed root cause: Prisma `mode: "insensitive"` may not work reliably across all DB providers
+- Rewrote API route to use Prisma `contains` (without mode:insensitive) as primary query
+- Added raw SQL fallback with proper parameterized queries:
+  - SQLite: uses `LIKE` (already case-insensitive for ASCII)
+  - PostgreSQL: uses `ILIKE` for case-insensitive matching
+- Removed unused authToken/self-exclusion logic (authToken is 64-char hex, not a user ID)
+- Reviewed ShareCourseDialog.tsx client-side: confirmed `data.users` correctly extracted, search triggers properly, results displayed correctly
+- Verified no lint errors in src/
+
+Stage Summary:
+- /src/app/api/users/search/route.ts: robust search with Prisma ORM + raw SQL fallback
+- ShareCourseDialog.tsx: no changes needed, client-side correctly handles API response
+- Files modified: src/app/api/users/search/route.ts
+---
+Task ID: 1
+Agent: main-coordinator
+Task: Fix course sharing search API + mobile LP fixes + CreateCourse overflow + contact email
+
+Work Log:
+- Fixed friend search API (src/app/api/users/search/route.ts): Removed `mode: "insensitive"` which caused issues. Now uses raw SQL with SQLite LIKE (case-insensitive for ASCII) and PostgreSQL ILIKE (explicit case-insensitive) for reliable cross-database behavior.
+- Added mobile hamburger menu to LP navbar (LandingPage.tsx): Three horizontal lines icon, click opens animated dropdown with nav links (Features, How it works, Comparison, Offres, Nous contacter) using framer-motion AnimatePresence.
+- Fixed LP generate button overflow on mobile: Added `overflow-hidden` to flex container, `min-w-0` to input, `flex-shrink-0` to button, reduced button padding on mobile.
+- Added "Nous contacter" link in LP footer and hamburger dropdown: `mailto:hellocoursia@gmail.com?subject=Support%20Coursia`.
+- Removed MobileBottomNav from AppShell.tsx entirely (both function definition and JSX usage).
+- Changed main element padding from `pb-20 md:pb-0` to `pb-0` since bottom nav is removed.
+- Fixed CreateCourse level selector overflow: Added `min-w-0`, `text-xs sm:text-sm md:text-base break-words whitespace-normal`, reduced button padding on mobile (`px-3 py-3 sm:px-4 sm:py-4`).
+- Fixed CreateCourse link "+" button overflow: Reduced padding on mobile, added `flex-shrink-0`, added `min-w-0` to input.
+
+Stage Summary:
+- Files modified: src/app/api/users/search/route.ts, src/components/coursia/LandingPage.tsx, src/components/coursia/AppShell.tsx, src/components/coursia/CreateCourse.tsx
+- Build passes cleanly (bun run build succeeds)
+- All lint checks pass for modified files

@@ -654,7 +654,7 @@ export default function CreateCourse() {
 
   return (
     <>
-    <div className="w-full max-w-2xl mx-auto px-4 pt-14 sm:pt-20 pb-8 md:pt-24 md:pb-16">
+    <div className="w-full max-w-2xl mx-auto px-4 pt-14 sm:pt-20 pb-8 md:pt-24 md:pb-16 overflow-x-hidden">
       {/* ═══════════ Personalized Greeting ═══════════ */}
       {user && (
         <div className="mb-6 sm:mb-8">
@@ -720,7 +720,7 @@ export default function CreateCourse() {
               value={linkInput}
               onChange={(e) => setLinkInput(e.target.value)}
               placeholder={tx.create.linkPlaceholder}
-              className="flex-1 px-5 py-3.5 rounded-2xl bg-night border border-border text-foreground font-semibold placeholder:text-muted-foreground/50 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300"
+              className="flex-1 min-w-0 px-4 sm:px-5 py-3 sm:py-3.5 rounded-2xl bg-night border border-border text-foreground font-semibold placeholder:text-muted-foreground/50 focus:outline-none focus:border-mauve focus:ring-2 focus:ring-mauve/20 transition-all duration-300"
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -732,7 +732,7 @@ export default function CreateCourse() {
             <button
               onClick={addLink}
               disabled={!linkInput.trim() || loading}
-              className="px-5 py-3.5 rounded-2xl bg-mauve/20 text-mauve-light font-bold hover:bg-mauve/30 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="px-3 sm:px-5 py-3 sm:py-3.5 rounded-2xl bg-mauve/20 text-mauve-light font-bold hover:bg-mauve/30 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex-shrink-0"
             >
               <Plus className="w-5 h-5" />
             </button>
@@ -801,20 +801,20 @@ export default function CreateCourse() {
             <label className="block text-sm font-bold mb-3 text-muted-foreground uppercase tracking-wider">
               {tx.create.level}
             </label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {tx.create.levels.map((levelName, i) => {
                 const isSelected = selectedLevel === i;
                 return (
                   <button
                     key={i}
                     onClick={() => setSelectedLevel(i)}
-                    className={`relative px-4 py-4 rounded-2xl font-bold text-center cursor-pointer transition-all duration-300 ${
+                    className={`relative min-w-0 px-3 py-3 sm:px-4 sm:py-4 rounded-2xl font-bold text-center cursor-pointer transition-all duration-300 ${
                       isSelected
                         ? "bg-mauve/20 border-2 border-mauve text-mauve-light shadow-lg shadow-mauve/10"
                         : "glass border-2 border-transparent text-muted-foreground hover:text-foreground hover:bg-white/5"
                     }`}
                   >
-                    <span className="text-sm md:text-base">{levelName}</span>
+                    <span className="text-xs sm:text-sm md:text-base break-words whitespace-normal leading-snug">{levelName}</span>
                     {isSelected && (
                       <div className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full bg-mauve border-2 border-night" />
                     )}

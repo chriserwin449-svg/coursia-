@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain, Cpu, Palette, TrendingUp,
   Sparkles, BookOpen, ArrowRight, Check, Crown, Zap,
   LogIn, GraduationCap, Briefcase, Lightbulb, BarChart3, Star,
   Settings, Globe, X, Flame, Trophy, Layers, MessageSquare, Lock,
-  Search, Frown,
+  Search, Frown, Menu,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
@@ -29,6 +29,7 @@ export default function LandingPage() {
   const [typedCount, setTypedCount] = useState(0);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Topic input for generate CTA
   const [topicInput, setTopicInput] = useState("");
@@ -267,8 +268,17 @@ export default function LandingPage() {
             </a>
           </div>
 
-          {/* Right: lang toggle + CTA */}
-          <div className="flex items-center gap-2">
+          {/* Mobile hamburger menu button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/10 transition-all duration-200 cursor-pointer"
+            aria-label="Open menu"
+          >
+            <Menu className="w-5 h-5 text-foreground" />
+          </button>
+
+          {/* Right: lang toggle + CTA (desktop) */}
+          <div className="hidden md:flex items-center gap-2">
             <button
               onClick={() => setLang(lang === "fr" ? "en" : "fr")}
               title={lang === "fr" ? "Switch to English" : "Passer en Français"}
@@ -279,13 +289,80 @@ export default function LandingPage() {
             </button>
             <button
               onClick={() => user ? setView("create") : setView("auth")}
-              className="hidden sm:flex hero-premium-btn px-5 py-2 rounded-full text-white text-sm font-bold cursor-pointer items-center gap-1.5"
+              className="hero-premium-btn px-5 py-2 rounded-full text-white text-sm font-bold cursor-pointer items-center gap-1.5"
             >
               <span className="relative z-10">{tx.landing.startFree}</span>
               <ArrowRight className="w-3.5 h-3.5 relative z-10" />
             </button>
           </div>
         </div>
+
+        {/* Mobile dropdown menu */}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              className="overflow-hidden md:hidden"
+            >
+              <div className="mt-2 mx-2 bg-night/95 backdrop-blur-2xl border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/30 p-2">
+                <a
+                  href="#features"
+                  onClick={(e) => { e.preventDefault(); scrollTo("features"); setMobileMenuOpen(false); }}
+                  className="block px-4 py-3 rounded-xl text-sm text-muted-foreground/80 hover:text-foreground hover:bg-white/5 transition-colors duration-200"
+                >
+                  {tx.landing.navFeatures}
+                </a>
+                <a
+                  href="#audience"
+                  onClick={(e) => { e.preventDefault(); scrollTo("audience"); setMobileMenuOpen(false); }}
+                  className="block px-4 py-3 rounded-xl text-sm text-muted-foreground/80 hover:text-foreground hover:bg-white/5 transition-colors duration-200"
+                >
+                  {tx.landing.heroNavHow}
+                </a>
+                <a
+                  href="#compare"
+                  onClick={(e) => { e.preventDefault(); scrollTo("compare"); setMobileMenuOpen(false); }}
+                  className="block px-4 py-3 rounded-xl text-sm text-muted-foreground/80 hover:text-foreground hover:bg-white/5 transition-colors duration-200"
+                >
+                  {lang === "fr" ? "Comparaison" : "Comparison"}
+                </a>
+                <a
+                  href="#"
+                  onClick={(e) => { e.preventDefault(); setView("offers"); setMobileMenuOpen(false); }}
+                  className="block px-4 py-3 rounded-xl text-sm text-muted-foreground/80 hover:text-foreground hover:bg-white/5 transition-colors duration-200"
+                >
+                  {tx.nav.offers}
+                </a>
+                <a
+                  href="mailto:hellocoursia@gmail.com?subject=Support%20Coursia"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block px-4 py-3 rounded-xl text-sm text-muted-foreground/80 hover:text-foreground hover:bg-white/5 transition-colors duration-200"
+                >
+                  {lang === "fr" ? "Nous contacter" : "Contact us"}
+                </a>
+                <div className="border-t border-white/[0.06] mt-1 pt-1 flex items-center gap-2">
+                  <button
+                    onClick={() => { setLang(lang === "fr" ? "en" : "fr"); }}
+                    className="flex items-center gap-1.5 px-4 py-3 rounded-xl text-sm text-muted-foreground/80 hover:text-foreground hover:bg-white/5 transition-colors duration-200 cursor-pointer"
+                  >
+                    <Globe className="w-4 h-4" />
+                    {lang.toUpperCase()}
+                  </button>
+                  <button
+                    onClick={() => { if (user) setView("create"); else setView("auth"); setMobileMenuOpen(false); }}
+                    className="hero-premium-btn flex-1 px-4 py-2.5 rounded-xl text-white text-sm font-bold cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <span className="relative z-10">{tx.landing.startFree}</span>
+                    <ArrowRight className="w-3.5 h-3.5 relative z-10" />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       {/* ===== HERO SECTION ===== */}
@@ -586,7 +663,7 @@ export default function LandingPage() {
 
             {/* Topic Input */}
             <div className="lp-stagger relative mb-6" style={{ transitionDelay: '120ms' }}>
-              <div className="flex items-center gap-3 p-2 rounded-2xl bg-white/[0.04] border border-white/[0.08] focus-within:border-mauve/40 transition-colors">
+              <div className="flex items-center gap-3 p-2 rounded-2xl bg-white/[0.04] border border-white/[0.08] focus-within:border-mauve/40 transition-colors overflow-hidden">
                 <Sparkles className="w-5 h-5 text-mauve-light flex-shrink-0 ml-2" />
                 <input
                   type="text"
@@ -594,11 +671,11 @@ export default function LandingPage() {
                   onChange={(e) => setTopicInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleGenerateFromLP(); }}
                   placeholder={lang === "fr" ? "Apprendre Python pour le développement web..." : "Learn Python for web development..."}
-                  className="flex-1 bg-transparent text-foreground placeholder:text-muted-foreground/50 text-sm font-medium focus:outline-none py-3 px-2"
+                  className="flex-1 min-w-0 bg-transparent text-foreground placeholder:text-muted-foreground/50 text-sm font-medium focus:outline-none py-3 px-2"
                 />
                 <button
                   onClick={handleGenerateFromLP}
-                  className="hero-premium-btn flex items-center gap-2 px-5 py-3 rounded-xl text-white text-sm font-bold cursor-pointer whitespace-nowrap"
+                  className="hero-premium-btn flex items-center justify-center gap-2 px-4 sm:px-5 py-3 rounded-xl text-white text-sm font-bold cursor-pointer whitespace-nowrap flex-shrink-0"
                 >
                   <Zap className="w-4 h-4" />
                   <span className="hidden sm:inline">{lang === "fr" ? "Générer" : "Generate"}</span>
@@ -825,6 +902,13 @@ export default function LandingPage() {
             >
               {(tx.landing as Record<string, unknown>).terms as string}
             </button>
+            <span className="text-muted-foreground/20">·</span>
+            <a
+              href="mailto:hellocoursia@gmail.com?subject=Support%20Coursia"
+              className="text-muted-foreground/60 hover:text-foreground transition-colors"
+            >
+              {lang === "fr" ? "Nous contacter" : "Contact us"}
+            </a>
 
           </div>
           <p className="text-xs text-muted-foreground/40">{(tx.landing as Record<string, unknown>).footer as string}</p>
