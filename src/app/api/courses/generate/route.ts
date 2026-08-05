@@ -235,15 +235,15 @@ function getPromptStrings(lang: string) {
         ? `Create a level ${level} course outline that covers the subject with depth and rigor.\nThe outline must be detailed enough for another expert to teach from it.`
         : `Crée un plan de cours de niveau ${level} qui couvre le sujet avec profondeur et rigueur.\nLe plan doit être suffisamment détaillé pour qu'un autre expert puisse l'enseigner.`,
       chapterCountRule: (min: number, max: number) => en
-        ? `MANDATORY CHAPTER COUNT: between ${min} and ${max} chapters. No fewer than ${min}, no more than ${max}.\nEach chapter MUST be substantial and cover a distinct aspect of the subject.`
-        : `NOMBRE DE CHAPITRES OBLIGATOIRE : entre ${min} et ${max} chapitres. Pas moins de ${min}, pas plus de ${max}.\nChaque chapitre DOIT être substantiel et couvrir un aspect distinct du sujet.`,
+        ? `CHAPTER COUNT: exactly ${min} chapters. Each chapter must be substantial and cover a distinct aspect of the subject.`
+        : `NOMBRE DE CHAPITRES : exactement ${min} chapitres. Chaque chapitre DOIT être substantiel et couvrir un aspect distinct du sujet.`,
       absoluteRules: en
         ? `ABSOLUTE RULES:\n1. PROGRESSION: each chapter builds on the previous. Logical order, not random.\n2. DEPTH: each chapter must contain at least 3 distinct sub-sections.\n3. CONCRETE: each chapter must have at least 1 real case or specific example (names, figures, situations).\n4. ANALOGIES: varied (cooking, sports, music, finance, nature, technology, health...).\n5. RESEARCH ANCHORING: integrate the research data above as verifiable facts. Prioritize 2024-2025 data. Each chapter must rely on at least 1 real research fact.`
         : `RÈGLES ABSOLUES :\n1. PROGRESSION : chaque chapitre construit sur le précédent. Ordre logique, pas aléatoire.\n2. PROFONDEUR : chaque chapitre doit contenir au moins 3 sous-sections distinctes.\n3. CONCRET : chaque chapitre doit avoir au moins 1 cas réel ou exemple précis (noms, chiffres, situations).\n4. ANALOGIES : variées (cuisine, sport, musique, finance, nature, technologie, santé...).\n5. ANCRAGE RECHERCHE : intègre les données de recherche ci-dessus comme faits vérifiables. Privilégie les données 2024-2025. Chaque chapitre doit s'appuyer sur au moins 1 fait réel de la recherche.`,
-      jsonOnly: en ? "Respond ONLY with this valid JSON:" : "Réponds UNIQUEMENT avec ce JSON valide :",
+      jsonOnly: en ? "Respond ONLY with valid JSON:" : "Réponds UNIQUEMENT avec du JSON valide :",
       jsonExample: (level: number) => en
-        ? `{\n  "description": "A captivating 2-3 sentence description of the course that immediately makes you want to start",\n  "chapters": [\n    {\n      "title": "Precise chapter title",\n      "goal": "What the reader will master precisely after this chapter (1 sentence)",\n      "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"],\n      "subSections": ["Sub-section A", "Sub-section B", "Sub-section C"],\n      "plannedAnalogy": "Concrete, familiar and original analogy for the chapter's main concept",\n      "plannedCaseStudy": "Real case or specific example with context (company, person, situation, figures)",\n      "plannedExample": "Specific numerical example (amounts, percentages, durations, comparisons)",\n      "mythToBust": "A common misconception this chapter will destroy with evidence",\n      "reflectionQuestion": "Deep reflection question that forces the reader to truly think",\n      "realAction": "Concrete action immediately applicable in the reader's life/profession",\n      "expertNote": "${level >= 2 ? "Expert note, nuance or insight that only a professional would understand" : ""}"\n    }\n  ]\n}`
-        : `{\n  "description": "Description captivante du cours en 2-3 phrases qui donne immédiatement envie de commencer",\n  "chapters": [\n    {\n      "title": "Titre précis du chapitre",\n      "goal": "Ce que le lecteur maîtrisera précisément après ce chapitre (1 phrase)",\n      "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"],\n      "subSections": ["Sous-section A", "Sous-section B", "Sous-section C"],\n      "plannedAnalogy": "Analogie concrète, familière et originale pour le concept principal du chapitre",\n      "plannedCaseStudy": "Cas réel ou exemple précis avec contexte (entreprise, personne, situation, chiffres)",\n      "plannedExample": "Exemple chiffré et spécifique (montants, pourcentages, durées, comparaisons)",\n      "mythToBust": "Une idée reçue que ce chapitre détruira avec des preuves",\n      "reflectionQuestion": "Question de réflexion profonde qui force le lecteur à vraiment penser",\n      "realAction": "Action concrète applicable immédiatement dans la vie/vie professionnelle du lecteur",\n      "expertNote": "${level >= 2 ? "Note experte, nuance ou insight que seul un professionnel comprendrait" : ""}"\n    }\n  ]\n}`,
+        ? `{\n  "description": "2-3 sentence captivating course description",\n  "chapters": [\n    {\n      "title": "Chapter title",\n      "goal": "What the reader will master (1 sentence)",\n      "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"],\n      "subSections": ["Section A", "Section B", "Section C"],\n      "plannedAnalogy": "Familiar analogy",\n      "plannedCaseStudy": "Real case with context",\n      "plannedExample": "Numerical example",\n      "mythToBust": "Common misconception to debunk",\n      "reflectionQuestion": "Deep question",\n      "realAction": "Immediate action"${level >= 2 ? ',\n      "expertNote": "Expert insight"' : ""}\n    }\n  ]\n}`
+        : `{\n  "description": "Description captivante du cours en 2-3 phrases",\n  "chapters": [\n    {\n      "title": "Titre du chapitre",\n      "goal": "Ce que le lecteur maîtrisera (1 phrase)",\n      "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"],\n      "subSections": ["Section A", "Section B", "Section C"],\n      "plannedAnalogy": "Analogie familière",\n      "plannedCaseStudy": "Cas réel avec contexte",\n      "plannedExample": "Exemple chiffré",\n      "mythToBust": "Idée reçue à détruire",\n      "reflectionQuestion": "Question de réflexion",\n      "realAction": "Action immédiate"${level >= 2 ? ',\n      "expertNote": "Note experte"' : ""}\n    }\n  ]\n}`,
       userPrompt: (level: number, title: string) => en
         ? `Design the detailed outline for a level ${level} course (${MIN_CHAPTERS}-${MAX_CHAPTERS} chapters) on: ${title}`
         : `Conçois le plan détaillé du cours de niveau ${level} (${MIN_CHAPTERS}-${MAX_CHAPTERS} chapitres) sur : ${title}`,
@@ -389,12 +389,19 @@ function buildOutlineSystemPrompt(
 ): string {
   const s = getPromptStrings(courseLang);
 
+  // Truncate research context to keep prompt fast (< 1500 chars)
+  const maxResearch = 1500;
+  let truncatedWeb = webContext;
+  let truncatedSource = sourceContext;
+  if (truncatedWeb.length > maxResearch) truncatedWeb = truncatedWeb.slice(0, maxResearch) + "...";
+  if (truncatedSource.length > 500) truncatedSource = truncatedSource.slice(0, 500) + "...";
+
   let researchBlock = "";
-  if (webContext || sourceContext) {
+  if (truncatedWeb || truncatedSource) {
     researchBlock = `
 ${s.outline.researchHeader}
-${webContext || s.outline.noData}
-${sourceContext || ""}
+${truncatedWeb || s.outline.noData}
+${truncatedSource || ""}
 ${s.outline.researchFooter}`;
   }
 
@@ -555,10 +562,15 @@ function buildChapterSystemPrompt(
 
   let researchBlock = "";
   if (webContext || sourceContext) {
+    // Truncate research for chapter prompts (keep them fast)
+    const maxWeb = 1200;
+    const maxSrc = 400;
+    const truncatedW = webContext.length > maxWeb ? webContext.slice(0, maxWeb) + "..." : webContext;
+    const truncatedS = sourceContext.length > maxSrc ? sourceContext.slice(0, maxSrc) + "..." : sourceContext;
     researchBlock = `
 ${s.chapter.researchHeader}
-${webContext}
-${sourceContext}
+${truncatedW}
+${truncatedS}
 ${s.chapter.researchFooter}
 ${s.chapter.researchRules}`;
   }
@@ -1151,45 +1163,60 @@ export async function POST(request: NextRequest) {
 
     console.log(`[outline] ${outline.chapters.length} chapters planned`);
 
-    // ── Step 2: Generate all chapters IN PARALLEL for speed ──
+    // ── Step 2: Generate chapters in 2 batches to avoid SDK rate limiting ──
     logStep("chapters_start");
     let generatedChapters: Array<{ title: string; content: string; summary: string }> = [];
 
-    const chapterPromises = outline.chapters.map((ch, i) =>
-      (async () => {
-        console.log(`[generate] ── Chapter ${i + 1}/${outline.chapters.length}: "${ch.title}" ──`);
-        const chStart = Date.now();
+    const allChapters = outline.chapters;
 
-        // Attempt 1: Full prompt with research context (no retry — faster)
-        let chapter = await generateChapter(title, courseLang, level, i, outline.chapters.length, ch, webContext, sourceContext);
+    // Process in batches of 2 with a small delay between batches
+    const BATCH_SIZE = 2;
+    for (let batchStart = 0; batchStart < allChapters.length; batchStart += BATCH_SIZE) {
+      const batch = allChapters.slice(batchStart, batchStart + BATCH_SIZE);
 
-        // Attempt 2: Without research context (smaller prompt = faster, less likely to fail)
-        if (!chapter) {
-          console.log(`[chapter-${i + 1}] Attempt 1 failed, trying without research context...`);
-          chapter = await generateChapter(title, courseLang, level, i, outline.chapters.length, ch, "", "");
-        }
+      // Add delay between batches to avoid SDK rate limiting
+      if (batchStart > 0) {
+        console.log(`[generate] ⏳ Waiting 2s before batch ${Math.floor(batchStart / BATCH_SIZE) + 1} to avoid rate limiting...`);
+        await sleep(2000);
+      }
 
-        // Attempt 3: Minimal emergency prompt — just asks for raw content, no fancy structure
-        if (!chapter) {
-          console.log(`[chapter-${i + 1}] Attempt 2 failed, trying minimal emergency prompt...`);
-          chapter = await generateChapterEmergency(title, courseLang, level, i, outline.chapters.length, ch);
-        }
+      const chapterPromises = batch.map((ch, i) => {
+        const chapterIdx = batchStart + i;
+        return (async () => {
+          console.log(`[generate] ── Chapter ${chapterIdx + 1}/${allChapters.length}: "${ch.title}" ──`);
+          const chStart = Date.now();
 
-        if (chapter) {
-          const quality = validateChapterQuality(chapter.content, level);
-          if (!quality.passed) console.log(`[chapter-${i + 1}] Quality issues: ${quality.issues.join(", ")} (${quality.wordCount} words, ${quality.headingCount} headings)`);
-          else console.log(`[chapter-${i + 1}] Quality OK (${quality.wordCount} words, ${quality.headingCount} headings)`);
-        } else {
-          console.error(`[chapter-${i + 1}] ALL 3 ATTEMPTS FAILED — chapter will be missing!`);
-        }
+          // Attempt 1: Full prompt with research context
+          let chapter = await generateChapter(title, courseLang, level, chapterIdx, allChapters.length, ch, webContext, sourceContext);
 
-        console.log(`[chapter-${i + 1}] Time: ${((Date.now() - chStart) / 1000).toFixed(1)}s`);
-        return chapter || null;
-      })()
-    );
+          // Attempt 2: Without research context
+          if (!chapter) {
+            console.log(`[chapter-${chapterIdx + 1}] Attempt 1 failed, trying without research context...`);
+            chapter = await generateChapter(title, courseLang, level, chapterIdx, allChapters.length, ch, "", "");
+          }
 
-    const chapterResults = await Promise.all(chapterPromises);
-    generatedChapters = chapterResults.filter((ch): ch is NonNullable<typeof ch> => ch !== null);
+          // Attempt 3: Minimal emergency prompt
+          if (!chapter) {
+            console.log(`[chapter-${chapterIdx + 1}] Attempt 2 failed, trying minimal emergency prompt...`);
+            chapter = await generateChapterEmergency(title, courseLang, level, chapterIdx, allChapters.length, ch);
+          }
+
+          if (chapter) {
+            const quality = validateChapterQuality(chapter.content, level);
+            if (!quality.passed) console.log(`[chapter-${chapterIdx + 1}] Quality issues: ${quality.issues.join(", ")} (${quality.wordCount} words, ${quality.headingCount} headings)`);
+            else console.log(`[chapter-${chapterIdx + 1}] Quality OK (${quality.wordCount} words, ${quality.headingCount} headings)`);
+          } else {
+            console.error(`[chapter-${chapterIdx + 1}] ALL 3 ATTEMPTS FAILED — chapter will be missing!`);
+          }
+
+          console.log(`[chapter-${chapterIdx + 1}] Time: ${((Date.now() - chStart) / 1000).toFixed(1)}s`);
+          return chapter || null;
+        })();
+      });
+
+      const batchResults = await Promise.all(chapterPromises);
+      generatedChapters.push(...batchResults.filter((ch): ch is NonNullable<typeof ch> => ch !== null));
+    }
 
     // ── Safety net: if fewer than MIN_CHAPTERS were generated, try single-call fallback ──
     if (generatedChapters.length < MIN_CHAPTERS) {

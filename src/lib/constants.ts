@@ -19,14 +19,14 @@ export const FREE_COURSE_LIMIT = 1; // Max free courses without subscription
 export const FREE_CHAPTER_LIMIT = 1; // Only first chapter readable without subscription
 
 // ─── Course Generation ───────────────────────────────────────────────────
-export const MIN_CHAPTERS = 4;
+export const MIN_CHAPTERS = 4; // Reduced from 4 (kept) but outline generates 4-6, we keep only MIN
 export const MAX_CHAPTERS = 6;
 export const MIN_SUBCHAPTERS = 2;
 export const MIN_WORDS_PER_CHAPTER = 400;
 export const MAX_SOURCE_LINKS = 3;
 export const SCRAPED_TEXT_MAX_LENGTH = 4000;
 export const SCRAPED_TEXT_MIN_LENGTH = 50;
-export const MAX_TOKENS = 16384;
+export const MAX_TOKENS = 4096; // Reduced from 16384 — chapters are 500-700 words, ~1000 tokens
 export const AI_RETRY_COUNT = 2;
 export const AI_RETRY_BACKOFF_MS = 2000;
 

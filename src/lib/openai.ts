@@ -104,15 +104,27 @@ export function classifyAIError(error: unknown): string {
 
 /**
  * Call z-ai SDK (primary provider — always available)
- * Now passes maxTokens and temperature, with 2 retries
+ * Uses singleton instance to avoid cold starts
  */
+let zaiSingleton: Awaited<ReturnType<typeof ZAI.create>> | null = null;
+let zaiSingletonPromise: Promise<Awaited<ReturnType<typeof ZAI.create>>> | null = null;
+
+async function getZAI(): Promise<Awaited<ReturnType<typeof ZAI.create>>> {
+  if (zaiSingleton) return zaiSingleton;
+  if (!zaiSingletonPromise) {
+    zaiSingletonPromise = ZAI.create();
+  }
+  zaiSingleton = await zaiSingletonPromise;
+  return zaiSingleton;
+}
+
 async function callZAI(
   messages: Array<{ role: string; content: string }>,
   options?: { temperature?: number; maxTokens?: number },
 ): Promise<{ content: string } | null> {
   return retryWithBackoff(async () => {
     try {
-      const zai = await ZAI.create();
+      const zai = await getZAI();
       const completion = await zai.chat.completions.create({
         messages: messages as Array<{ role: "user" | "system" | "assistant"; content: string }>,
         thinking: { type: "disabled" },
@@ -131,7 +143,7 @@ async function callZAI(
       console.error("[ZAI] Error:", error instanceof Error ? error.message : error);
       throw error; // re-throw for retryWithBackoff to handle
     }
-  }, "ZAI", 2);
+  }, "ZAI", 1); // 1 retry max (was 2) — faster generation
 }
 
 /**

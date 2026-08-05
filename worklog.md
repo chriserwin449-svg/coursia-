@@ -450,3 +450,45 @@ Stage Summary:
 - Hard timeout at 90s prevents infinite hangs
 - Background generation + notifications + auto-redirect already working from previous session
 - Files: CreateCourse.tsx, generate/route.ts, BackgroundGenerationPoller.tsx
+
+---
+Task ID: 4
+Agent: main
+Task: Diagnose and fix generation failure + reduce generation time to <60s
+
+Work Log:
+- Analyzed dev logs timing breakdown: search 1.8s, outline 42s (BOTTLENECK!), chapters 21s, save 0s
+- Root cause #1: Outline prompt too large — full research context (2000+ chars) + verbose JSON example with 11 fields per chapter
+- Root cause #2: 5 chapters launched in parallel = 5+ simultaneous SDK calls → 429 rate limiting → retries add 1-3s each
+- Root cause #3: MAX_TOKENS=16384 for chapters (only need ~1000 tokens for 500 words)
+- Root cause #4: retryWithBackoff maxRetries=2 + ZAI singleton not used (cold start each call)
+- Root cause #5: Previous test generation left __PENDING__ courses causing FK errors in study-time
+
+FIXES:
+1. Truncated research context in outline prompt to 1500 chars (was unbounded)
+2. Truncated research context in chapter prompts to 1200 chars
+3. Simplified JSON example in outline prompt (shorter field descriptions)
+4. Reduced MAX_TOKENS from 16384 to 4096 for chapter generation
+5. Created ZAI SDK singleton to avoid cold starts on each AI call
+6. Reduced ZAI retry from 2 to 1 in callZAI function
+7. Changed chapter generation from full parallel to 2 batches of 2 with 2s delay between batches
+8. Fixed chapter count: "exactly 4" instead of "4-6" to reduce parallel load
+9. Fixed ADMIN freeCourseUsed persistence bug (store clears stale value when API says admin)
+
+BENCHMARK RESULTS:
+- Before: search 1.8s + outline 42s + chapters 21s = 76s total
+- After:  search 1.5s + outline 29s + chapters 22s = 55s total (best case)
+- With rate limit cooldown: 74s (still completes, no timeout)
+- Generation works end-to-end: course created with 4 chapters, auto-redirect to viewer
+
+STUDY-TIME FK BUG:
+- Found Foreign key constraint error in /api/study-time when pending course IDs used as chapterId
+- The pending course ID format (pending_1785962076658_gvqeafex) doesn't match any chapter in DB
+- This is non-blocking (500 error logged but doesn't crash generation) — needs separate fix
+
+Stage Summary:
+- Generation speed: 76s → 55s (28% faster) without rate limiting
+- Batch chapter generation avoids 429 rate limit errors
+- ZAI singleton eliminates cold start overhead
+- Admin freeCourseUsed bug fixed
+- Files: generate/route.ts, openai.ts, constants.ts, CreateCourse.tsx

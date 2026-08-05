@@ -208,7 +208,7 @@ export default function CreateCourse() {
   useEffect(() => {
     if (!loading) { setGenerationStep(0); return; }
     // Advance through steps: each step ~12-15s (course takes ~60-90s total)
-    const stepDurations = [2000, 5000, 10000, 25000, 40000]; // ms thresholds (faster generation)
+    const stepDurations = [2000, 8000, 20000, 40000, 50000]; // ms thresholds (matches ~55s total)
     const interval = setInterval(() => {
       const elapsed = Date.now() - (progressStartRef.current || Date.now());
       let step = 0;
