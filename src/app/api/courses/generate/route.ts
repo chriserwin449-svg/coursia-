@@ -923,10 +923,9 @@ export async function POST(request: NextRequest) {
 
     console.log(`[generate] ═══ VALIDATION OK ═══ title="${title.trim()}" level=${level} lang=${courseLang} userId=${userId || 'anonymous'} links=${sourceLinks.length}`);
 
-    // ── CRITICAL: Free course abuse prevention (atomic, race-condition-safe) ──
-    // Single source of truth: User.freeCourseUsed boolean in the database.
-    // This flag is NEVER reset, even if the course is deleted.
-    // We use an interactive transaction to atomically check + claim the free slot.
+    // ── CRITICAL: Ensure DB columns exist FIRST (especially for PostgreSQL) ──
+    await ensureFreeCourseColumn();
+
     // ── ADMIN BYPASS: whitelisted emails skip ALL limits ──
     let requestingUserEmail: string | null = null;
     let isUserAdmin = false;
@@ -950,14 +949,13 @@ export async function POST(request: NextRequest) {
       isUserAdmin = isAdmin(requestingUserEmail);
 
       if (isUserAdmin) {
-        console.log(`[generate] ⚡ Admin bypass: ${requestingUserEmail} — unlimited generation`);
+        console.log(`[generate] ⚡ Admin bypass: ${requestingUserEmail} — unlimited generation, skipping ALL checks`);
       }
     }
 
+    // ── Skip ALL quota checks for admin users ──
     if (userId && !isUserAdmin) {
-      // Ensure column exists BEFORE the transaction (especially for PostgreSQL)
-      await ensureFreeCourseColumn();
-
+      // Free course abuse prevention (atomic, race-condition-safe)
       let freeSlotClaimed = false;
       try {
         let canGenerate = false;
@@ -988,11 +986,7 @@ export async function POST(request: NextRequest) {
           console.log(`[generate] Free limit reached for user ${userId}: freeCourseUsed=true, subscription not active`);
           return NextResponse.json({ error: "FREE_LIMIT", requiresSubscription: true }, { status: 403 });
         }
-        if (isUserAdmin) {
-          console.log(`[generate] ⚡ Admin bypass: user ${requestingUser?.email} — unlimited generation`);
-        } else {
-          console.log(`[generate] User quota OK: freeCourseUsed now claimed for user ${userId}`);
-        }
+        console.log(`[generate] User quota OK: freeCourseUsed now claimed for user ${userId}`);
       } catch (dbError) {
         const errMsg = dbError instanceof Error ? dbError.message : String(dbError);
         console.error("[generate] DB error checking quota:", errMsg);
@@ -1123,9 +1117,8 @@ export async function POST(request: NextRequest) {
     logStep("outline_end");
     logDuration("outline_start", "outline_end");
 
-    console.log(`[outline] Outline has ${outline.chapters.length} chapters, need at least ${MIN_CHAPTERS}`);
-    if (outline.chapters.length < MIN_CHAPTERS) {
-      console.log("[generate] Outline failed or too few chapters, trying single-call fallback...");
+    if (!outline || outline.chapters.length < MIN_CHAPTERS) {
+      console.log(`[generate] Outline ${outline ? 'has too few chapters (' + outline.chapters.length + ')' : 'is null'}, trying single-call fallback...`);
       logStep("fallback_start");
       const fallbackResult = await generateSingleCall(title, courseLang, level, webContext, sourceContext);
       logStep("fallback_end");
