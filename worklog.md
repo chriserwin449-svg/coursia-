@@ -327,3 +327,41 @@ Stage Summary:
 - PostgreSQL column migration runs before admin check (fixes circular dependency)
 - Admin users properly bypass all quota checks on production
 - Files: src/app/api/courses/generate/route.ts
+
+---
+Task ID: 8
+Agent: Main Agent + full-stack-developer subagent
+Task: Full diagnosis + fix course generation failure + background generation + notifications
+
+Work Log:
+- DIAGNOSTIC PHASE 1 (Frontend): Verified payload construction, validation flow,
+  error handling — all correct. CreateCourse sends {title, sourceLinks, level, courseLang, userId}
+- DIAGNOSTIC PHASE 2 (Backend): curl test to localhost returned 200 OK with 5 chapters
+  in 76.5s. Generation works perfectly locally.
+- DIAGNOSTIC PHASE 3 (ROOT CAUSE): Found vercel.json line 9: maxDuration: 60
+  Generation takes 76-180s but Vercel kills the function at 60s → user gets timeout error,
+  no course is created. This is the PRIMARY bug causing all generation failures in production.
+- DIAGNOSTIC PHASE 4 (AI): z-ai SDK works (429 retries handled correctly)
+- DIAGNOSTIC PHASE 5 (DB): schema.postgres.prisma complete and correct
+
+FIXES APPLIED:
+1. vercel.json: maxDuration 60→300 for generate and generate-level routes
+2. Background generation system:
+   - Client timeout reduced to 120s (was 300s)
+   - If 120s exceeded, switches to polling mode (not an error)
+   - BackgroundGenerationPoller.tsx: polls /api/courses every 10s
+   - Survives page navigation and tab close (localStorage persistence)
+   - Auto-redirects to viewer when course appears
+3. Sonner toast notifications:
+   - "⏳ La génération continue en arrière-plan..." on background switch
+   - "🎉 Cours prêt !" with action button on completion
+   - Sonner Toaster added to layout.tsx (was imported but never rendered)
+4. Admin bypass verified working: chrisnsumbuk@gmail.com skips all limits
+- Committed and pushed: e72c154
+
+Stage Summary:
+- ROOT CAUSE: vercel.json maxDuration:60 killed generation before completion
+- Generation now has 300s on Vercel (matching the route's export const maxDuration)
+- Background polling ensures course is found even if user leaves the page
+- Toast notifications provide real-time feedback
+- Files: vercel.json, src/app/layout.tsx, src/components/coursia/BackgroundGenerationPoller.tsx (new), src/components/coursia/CreateCourse.tsx, src/components/coursia/AppShell.tsx, src/lib/store.ts
