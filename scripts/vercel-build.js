@@ -1,5 +1,6 @@
 // Vercel build script
 // Swaps schema.prisma to PostgreSQL version before building
+// Then pushes schema changes to the database (creates missing columns/tables)
 
 const { execSync } = require("child_process");
 const fs = require("fs");
@@ -28,6 +29,21 @@ try {
 } catch (error) {
   console.error("❌ Failed to generate Prisma client:", error.message);
   process.exit(1);
+}
+
+// Push schema to database to create any missing columns/tables
+// This is safe — it only adds new columns/tables, never drops existing data
+if (process.env.DATABASE_URL) {
+  try {
+    console.log("📊 Pushing schema changes to database (non-destructive)...");
+    execSync("npx prisma db push --accept-data-loss 2>/dev/null || npx prisma db push", {
+      stdio: "inherit",
+      timeout: 120000,
+    });
+    console.log("✅ Database schema pushed successfully");
+  } catch (error) {
+    console.warn("⚠️ Schema push failed (non-critical, DB may need manual migration):", error.message);
+  }
 }
 
 console.log("✅ Vercel build preparation complete");

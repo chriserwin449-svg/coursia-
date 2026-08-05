@@ -1,5 +1,6 @@
 // PostgreSQL schema for Vercel/Supabase deployment
 // This file is used by vercel-build.js to swap the schema before building
+// IMPORTANT: Keep this file in sync with schema.prisma (only provider differs)
 
 generator client {
   provider = "prisma-client-js"
@@ -17,14 +18,17 @@ model User {
   password                String
   firstName               String
   lastName                String
+  username                String?  @unique         // Coursia username (optional, for sharing)
+  avatar                  String?                   // Profile photo URL (base64 data URI)
   subscriptionPlan        String   @default("free") // "free" | "monthly" | "annual"
   subscriptionStatus      String   @default("none") // "none" | "active" | "canceled" | "past_due" | "expired"
-  creemSubscriptionId     String?  // PayPal subscription/order ID (paypal_xxx)
-  creemCustomerId         String?  // PayPal customer ID
+  creemSubscriptionId     String?  // Creem subscription ID (sub_xxx)
+  creemCustomerId         String?  // Creem customer ID (cust_xxx)
   hasCardOnFile          Boolean  @default(false) // true after user registers card via PayPal
   subscriptionStartDate  DateTime?
   subscriptionEndDate    DateTime?
   trialStartDate         DateTime?  // Starts when user creates first course
+  freeCourseUsed         Boolean  @default(false) // Set to true after first free course generation
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
   paymentRequests         PaymentRequest[]
@@ -38,7 +42,7 @@ model PaymentRequest {
   currency      String   @default("USD")
   status        String   @default("pending") // "pending" | "approved" | "rejected"
   paymentProof  String?  // optional: screenshot URL or transaction ID
-  txRef         String?  // PayPal transaction reference if available
+  txRef         String?  // transaction reference if available
   adminNote     String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -49,11 +53,14 @@ model PaymentRequest {
 model AppSettings {
   id              String   @id @default("main")
   flamePoints     Int      @default(0)
+  posthogKey      String?
+  posthogHost     String?
   updatedAt       DateTime @updatedAt
 }
 
 model FlameTransaction {
   id          String   @id @default(cuid())
+  userId      String?
   amount      Int
   reason      String
   courseId    String?
@@ -75,6 +82,9 @@ model Course {
   finalQuiz   CourseQuiz?
   progress    CourseProgress?
   sessions    StudySession[]
+  shares          CourseShare[]
+  invitationLinks InvitationLink[]
+  publicListing   PublicCourse?
 }
 
 model Chapter {
@@ -122,9 +132,24 @@ model CourseProgress {
   score             Int            @default(0)
   passedAt          DateTime?
   flameAwarded      Boolean        @default(false)
+  flameAwardedLevels String        @default("[]")
   maxUnlockedLevel  Int            @default(0)
   stoppedAtLevel    Int            @default(-1)
   sessions          StudySession[]
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String?
+  type      String   @default("general") // "bug_report" | "feature_request" | "question" | "general"
+  subject   String
+  message   String
+  email     String?
+  page      String?
+  metadata  String   @default("{}")
+  status    String   @default("new") // "new" | "read" | "resolved" | "dismissed"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model StudySession {
@@ -137,4 +162,65 @@ model StudySession {
   startTime       DateTime
   endTime         DateTime?
   durationSeconds Int      @default(0)
+  flameAwarded    Boolean  @default(false)
+}
+
+model UsedTopic {
+  id        String   @id @default(cuid())
+  title     String
+  userId    String?  // null = globally used (all users)
+  createdAt DateTime @default(now())
+
+  @@unique([title]) // Prevent duplicate topic entries
+}
+
+model CourseShare {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  sharedBy    String   // userId who shared
+  sharedWith  String   // userId who receives
+  message     String?  // optional message
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model InvitationLink {
+  id          String   @id @default(cuid())
+  code        String   @unique          // e.g. "aB3x9Z" — 6-char alphanumeric
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdBy   String                    // userId who created the link
+  createdAt   DateTime @default(now())
+  maxUses     Int      @default(100)
+  useCount    Int      @default(0)
+
+  @@index([code])
+  @@index([courseId])
+}
+
+model Certificate {
+  id              String   @id @default(cuid())
+  userId          String
+  courseId        String
+  courseTitle     String
+  userName        String   // firstName + lastName at time of issuance
+  score           Int      @default(0)      // average quiz score %
+  totalLevels     Int      @default(3)      // 0=beginner, 1=intermediate, 2=advanced
+  certificateId   String   @unique          // e.g. CRS-9FAD8A2E
+  issuedAt        DateTime @default(now())
+
+  @@index([userId])
+  @@index([certificateId])
+}
+
+model PublicCourse {
+  id          String   @id @default(cuid())
+  courseId    String   @unique
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  publishedBy String
+  publishedAt DateTime @default(now())
+  views       Int      @default(0)
+
+  @@index([publishedAt])
 }
