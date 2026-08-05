@@ -197,3 +197,25 @@ Work Log:
 Stage Summary:
 - Files: src/app/api/users/search/route.ts, src/app/api/users/search-debug/route.ts, src/app/api/users/avatar/route.ts, src/components/coursia/ShareCourseDialog.tsx
 - Build passes, pushed as a520baa
+---
+Task ID: 1
+Agent: main
+Task: Fix friend search not returning results + Fix avatar upload not working
+
+Work Log:
+- Deep debug of search API: discovered local DB had 0 users, created test users (Jean Dupont, Marie Curie)
+- Confirmed Prisma search query works correctly (curl test returned Jean Dupont for "jean")
+- Root cause for production: `self-restart-server.ts` standalone server was missing `/api/users/search`, `/api/users/avatar`, `/api/courses/[id]/share`, `/api/courses/[id]/shares`, and `/api/auth/me` routes entirely
+- Rewrote `/api/users/search/route.ts`: removed 3-layer fallback complexity, simplified to single `db.user.findMany` with `contains` filter (works for both SQLite and PostgreSQL), with raw SQL fallback
+- Rewrote `/api/users/avatar/route.ts`: increased size limit from 500KB to 2MB, added detailed logging
+- Added client-side image compression in Sidebar.tsx and AppShell.tsx: resize to 200x200 JPEG at 80% quality before upload
+- Added all missing routes to `self-restart-server.ts`: user search, avatar upload, auth/me, course share, course shares list
+- Added debug endpoint `/api/users/search/test` for diagnostics
+- Successfully verified search works: curl test returned correct user data
+
+Stage Summary:
+- Search API: SIMPLIFIED and VERIFIED WORKING via curl (returned users for search queries)
+- Avatar upload: Fixed size mismatch (500KB→2MB), added compression (200x200 JPEG)
+- Standalone server: Added all missing API routes
+- Files modified: src/app/api/users/search/route.ts, src/app/api/users/avatar/route.ts, src/components/coursia/Sidebar.tsx, src/components/coursia/AppShell.tsx, self-restart-server.ts
+- Files created: src/app/api/users/search/test/route.ts

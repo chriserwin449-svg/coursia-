@@ -363,6 +363,103 @@ Bun.serve({
           return new Response(JSON.stringify({success:true}),{headers:{"Content-Type":JSON_CT}});
         }
 
+        // ── GET /api/users/search?q=... ──
+        if(p==="/api/users/search"&&method==="GET"){
+          try{
+            const q=url.searchParams.get("q")?.trim();
+            if(!q||q.length<2)return new Response(JSON.stringify({users:[]}),{headers:{"Content-Type":JSON_CT}});
+            const db=await getDB();
+            const users=await db.user.findMany({
+              where:{OR:[
+                {firstName:{contains:q}},{lastName:{contains:q}},
+                {email:{contains:q}},{username:{contains:q}},
+              ]},
+              select:{id:true,firstName:true,lastName:true,email:true,username:true,avatar:true},
+              take:10,
+            });
+            console.log(`[users/search] "${q}" -> ${users.length} results`);
+            return new Response(JSON.stringify({users}),{headers:{"Content-Type":JSON_CT}});
+          }catch(e){console.error("[users/search]",e.message);}
+          return new Response(JSON.stringify({users:[]}),{headers:{"Content-Type":JSON_CT}});
+        }
+
+        // ── GET /api/users/search/test (debug) ──
+        if(p==="/api/users/search/test"&&method==="GET"){
+          try{
+            const db=await getDB();
+            const count=await db.user.count();
+            const sample=await db.user.findMany({select:{id:true,firstName:true,lastName:true,email:true,username:true},take:5});
+            return new Response(JSON.stringify({totalUsers:count,isPostgres:false,sampleUsers:sample}),{headers:{"Content-Type":JSON_CT}});
+          }catch(e){console.error("[search/test]",e.message);}
+          return new Response(JSON.stringify({totalUsers:0,isPostgres:false,sampleUsers:[]}),{headers:{"Content-Type":JSON_CT}});
+        }
+
+        // ── POST /api/users/avatar ──
+        if(p==="/api/users/avatar"&&method==="POST"){
+          try{
+            const formData=await req.formData();
+            const file=formData.get("avatar") as File|null;
+            const userId=formData.get("userId") as string|null;
+            if(!userId)return new Response(JSON.stringify({error:"userId required"}),{status:400,headers:{"Content-Type":JSON_CT}});
+            if(!file)return new Response(JSON.stringify({error:"No file"}),{status:400,headers:{"Content-Type":JSON_CT}});
+            const bytes=await file.arrayBuffer();
+            const buf=Buffer.from(bytes);
+            const b64=buf.toString("base64");
+            const avatarUrl=`data:${file.type};base64,${b64}`;
+            const db=await getDB();
+            await db.user.update({where:{id:userId},data:{avatar:avatarUrl}});
+            console.log(`[avatar] ✅ Uploaded for ${userId.substring(0,8)} (${Math.round(b64.length/1024)}KB)`);
+            return new Response(JSON.stringify({success:true,avatarUrl}),{headers:{"Content-Type":JSON_CT}});
+          }catch(e){console.error("[avatar]",e.message);}
+          return new Response(JSON.stringify({error:"Upload failed"}),{status:500,headers:{"Content-Type":JSON_CT}});
+        }
+
+        // ── POST /api/auth/me ──
+        if(p==="/api/auth/me"&&method==="POST"){
+          try{
+            const {token,userId}=await req.json();
+            if(!userId)return new Response(JSON.stringify({valid:false}),{status:400,headers:{"Content-Type":JSON_CT}});
+            const db=await getDB();
+            const user=await db.user.findUnique({where:{id:userId},select:{id:true,email:true,firstName:true,lastName:true,avatar:true}});
+            if(!user)return new Response(JSON.stringify({valid:false}),{status:401,headers:{"Content-Type":JSON_CT}});
+            return new Response(JSON.stringify({valid:true,user}),{headers:{"Content-Type":JSON_CT}});
+          }catch(e){console.error("[auth/me]",e.message);}
+          return new Response(JSON.stringify({valid:false}),{status:500,headers:{"Content-Type":JSON_CT}});
+        }
+
+        // ── POST /api/courses/[id]/share ──
+        if(p.match(/\/api\/courses\/[^/]+\/share$/)&&method==="POST"){
+          try{
+            const courseId=p.split("/")[3];
+            const {sharedWith}=await req.json();
+            const authHeader=req.headers.get("Authorization")||"";
+            const sharedBy=authHeader.startsWith("Bearer ")?authHeader.substring(7):"";
+            if(!sharedWith||!sharedBy)return new Response(JSON.stringify({error:"Missing sharedWith or auth"}),{status:400,headers:{"Content-Type":JSON_CT}});
+            const db=await getDB();
+            await db.courseShare.create({data:{courseId,sharedBy,sharedWith}});
+            console.log(`[share] ${sharedBy} shared ${courseId} with ${sharedWith}`);
+            return new Response(JSON.stringify({success:true}),{headers:{"Content-Type":JSON_CT}});
+          }catch(e){console.error("[share]",e.message);}
+          return new Response(JSON.stringify({error:"Share failed"}),{status:500,headers:{"Content-Type":JSON_CT}});
+        }
+
+        // ── GET /api/courses/[id]/shares ──
+        if(p.match(/\/api\/courses\/[^/]+\/shares$/)&&method==="GET"){
+          try{
+            const courseId=p.split("/")[3];
+            const db=await getDB();
+            const shares=await db.courseShare.findMany({where:{courseId},include:{},orderBy:{createdAt:"desc"}});
+            // Get user details for each share
+            const sharedWith=[];
+            for(const s of shares){
+              const u=await db.user.findUnique({where:{id:s.sharedWith},select:{id:true,firstName:true,lastName:true,email:true,username:true,avatar:true}});
+              if(u)sharedWith.push({...u,sharedAt:s.createdAt});
+            }
+            return new Response(JSON.stringify({sharedWith}),{headers:{"Content-Type":JSON_CT}});
+          }catch(e){console.error("[shares]",e.message);}
+          return new Response(JSON.stringify({sharedWith:[]}),{headers:{"Content-Type":JSON_CT}});
+        }
+
         return new Response("{}",{headers:{"Content-Type":JSON_CT}});
       }
 

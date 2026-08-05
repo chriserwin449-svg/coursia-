@@ -57,6 +57,37 @@ function MobileSlideOver({ open, onClose }: { open: boolean; onClose: () => void
     fileInputRef.current?.click();
   };
 
+  /**
+   * Compress image to max 200x200 JPEG before uploading.
+   */
+  const compressAvatar = (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX = 200;
+        let w = img.width;
+        let h = img.height;
+        if (w > h) { h = (h / w) * MAX; w = MAX; } else { w = (w / h) * MAX; h = MAX; }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Canvas error")); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) { reject(new Error("Blob creation failed")); return; }
+            resolve(new File([blob], "avatar.jpg", { type: "image/jpeg", lastModified: Date.now() }));
+          },
+          "image/jpeg",
+          0.8
+        );
+      };
+      img.onerror = () => reject(new Error("Image load failed"));
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
@@ -66,15 +97,14 @@ function MobileSlideOver({ open, onClose }: { open: boolean; onClose: () => void
       toast.error(lang === "fr" ? "Format non supporté." : "Unsupported format.");
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error(lang === "fr" ? "Fichier trop volumineux. Max 2 Mo." : "File too large. Max 2MB.");
-      return;
-    }
 
     setUploadingAvatar(true);
     try {
+      const compressedFile = await compressAvatar(file);
+      console.log(`[avatar] Compressed: ${Math.round(file.size / 1024)}KB → ${Math.round(compressedFile.size / 1024)}KB`);
+
       const formData = new FormData();
-      formData.append("avatar", file);
+      formData.append("avatar", compressedFile);
       formData.append("userId", user.id);
 
       const res = await fetch("/api/users/avatar", { method: "POST", body: formData });
@@ -83,10 +113,12 @@ function MobileSlideOver({ open, onClose }: { open: boolean; onClose: () => void
         setUser({ ...user, avatar: data.avatarUrl });
         toast.success(lang === "fr" ? "Photo mise à jour !" : "Photo updated!");
       } else {
-        const data = await res.json().catch(() => ({}));
-        toast.error(data.error || (lang === "fr" ? "Erreur." : "Error."));
+        const errData = await res.json().catch(() => ({}));
+        console.error("[avatar] Upload failed:", res.status, errData);
+        toast.error(errData.error || (lang === "fr" ? "Erreur." : "Error."));
       }
-    } catch {
+    } catch (err) {
+      console.error("[avatar] Upload error:", err);
       toast.error(lang === "fr" ? "Erreur réseau." : "Network error.");
     } finally {
       setUploadingAvatar(false);
