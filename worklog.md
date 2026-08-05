@@ -390,3 +390,33 @@ Stage Summary:
 - Fix: Moved fetchCourses declaration before its consumers + added error boundaries
 - Files changed: CreateCourse.tsx, layout.tsx, error.tsx (new), global-error.tsx (new), SafeRender.tsx (new)
 - Verified: Full auth flow (register + login) works correctly in dev
+---
+Task ID: 2
+Agent: main
+Task: Fix "Un imprévu s'est produit" error + implement background generation with notifications and auto-redirect
+
+Work Log:
+- Analyzed the error screenshot showing "Un imprévu s'est produit" on the create course page
+- Diagnosed that the generate API was timing out or failing on Vercel, causing the old retry-3-times-then-error flow to show the generic error
+- Identified the fundamental issue: the frontend was trying to await the full generation response (up to 120s), but Vercel serverless functions can timeout
+- Implemented complete fire-and-forget architecture:
+  1. Server now saves a "pending" course record (__PENDING__ description, no chapters) at the START of generation
+  2. Server continues generating (outline + chapters) 
+  3. Server updates the pending record with real content when done
+  4. Client fires the request and immediately enters background mode
+  5. BackgroundGenerationPoller polls /api/courses every 10s
+  6. Poller detects pending courses (no chapters) and waits for completion
+  7. When course has chapters → shows toast notification + auto-redirect
+- Added savePendingCourse() and updatePendingCourse() to generate/route.ts
+- Completely rewrote generateCourse() in CreateCourse.tsx to be fire-and-forget
+- Enhanced BackgroundGenerationPoller to detect pending courses and handle 8-min timeout
+- Added background generation notice UI element above generate button
+- Tested locally: generation completed in 98.5s, poller detected course, course appeared in library
+- Tested navigation during generation: user can freely navigate to Library, Journey, etc.
+- Pushed commit b0fbbf4
+
+Stage Summary:
+- Root cause: Frontend awaited synchronous generation response which timed out on Vercel
+- Fix: Fire-and-forget + pending course record + background polling
+- Files: generate/route.ts, CreateCourse.tsx, BackgroundGenerationPoller.tsx
+- Verified: Generation works, navigation works during generation, poller detects completion
