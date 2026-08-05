@@ -1014,58 +1014,59 @@ export async function POST(request: NextRequest) {
     }
 
     // ── DAILY GENERATION LIMIT ──
-    const DAILY_LIMIT_FREE = 1; // Anonymous users
-    const DAILY_LIMIT_SUBSCRIBED = 4; // Active subscribers
-    const DAILY_LIMIT_ADMIN_VALUE = 9999; // Admins: effectively unlimited
+    // Admin bypass: skip daily limit entirely
+    if (!isUserAdmin) {
+      const DAILY_LIMIT_FREE = 1; // Anonymous users
+      const DAILY_LIMIT_SUBSCRIBED = 4; // Active subscribers
 
-    let dailyLimit = userId ? DAILY_LIMIT_SUBSCRIBED : DAILY_LIMIT_FREE;
+      let dailyLimit = userId ? DAILY_LIMIT_SUBSCRIBED : DAILY_LIMIT_FREE;
 
-    // Admin bypass: skip daily limit
-    if (isUserAdmin) {
-      dailyLimit = DAILY_LIMIT_ADMIN_VALUE;
-    } else if (userId) {
-      // Check subscription status for the daily limit
-      try {
-        const user = await db.user.findUnique({
-          where: { id: userId },
-          select: { subscriptionStatus: true },
-        });
-        if (user?.subscriptionStatus !== "active") {
-          dailyLimit = DAILY_LIMIT_FREE; // Not subscribed → same as anonymous
-        }
-      } catch { /* non-critical, use default */ }
-    }
-
-    // Count courses created today (UTC-based)
-    try {
-      const todayStart = new Date();
-      todayStart.setUTCHours(0, 0, 0, 0);
-
-      const coursesToday = await db.course.count({
-        where: {
-          userId: userId || null,
-          createdAt: { gte: todayStart },
-        },
-      });
-
-      if (coursesToday >= dailyLimit) {
-        // Calculate when the limit resets (next midnight UTC)
-        const tomorrow = new Date();
-        tomorrow.setUTCHours(24, 0, 0, 0);
-        const resetInMs = tomorrow.getTime() - Date.now();
-
-        console.log(`[generate] Daily limit reached: ${coursesToday}/${dailyLimit} for user ${userId || 'anonymous'}`);
-        return NextResponse.json({
-          error: "DAILY_LIMIT",
-          message: `Daily generation limit reached (${dailyLimit} courses/day)`,
-          dailyLimit,
-          coursesToday,
-          resetInMs,
-          resetAt: tomorrow.toISOString(),
-        }, { status: 429 });
+      if (userId) {
+        // Check subscription status for the daily limit
+        try {
+          const user = await db.user.findUnique({
+            where: { id: userId },
+            select: { subscriptionStatus: true },
+          });
+          if (user?.subscriptionStatus !== "active") {
+            dailyLimit = DAILY_LIMIT_FREE; // Not subscribed → same as anonymous
+          }
+        } catch { /* non-critical, use default */ }
       }
-    } catch (dailyErr) {
-      console.warn("[generate] Daily limit check failed, proceeding:", dailyErr);
+
+      // Count courses created today (UTC-based)
+      try {
+        const todayStart = new Date();
+        todayStart.setUTCHours(0, 0, 0, 0);
+
+        const coursesToday = await db.course.count({
+          where: {
+            userId: userId || null,
+            createdAt: { gte: todayStart },
+          },
+        });
+
+        if (coursesToday >= dailyLimit) {
+          // Calculate when the limit resets (next midnight UTC)
+          const tomorrow = new Date();
+          tomorrow.setUTCHours(24, 0, 0, 0);
+          const resetInMs = tomorrow.getTime() - Date.now();
+
+          console.log(`[generate] Daily limit reached: ${coursesToday}/${dailyLimit} for user ${userId || 'anonymous'}`);
+          return NextResponse.json({
+            error: "DAILY_LIMIT",
+            message: `Daily generation limit reached (${dailyLimit} courses/day)`,
+            dailyLimit,
+            coursesToday,
+            resetInMs,
+            resetAt: tomorrow.toISOString(),
+          }, { status: 429 });
+        }
+      } catch (dailyErr) {
+        console.warn("[generate] Daily limit check failed, proceeding:", dailyErr);
+      }
+    } else {
+      console.log(`[generate] ⚡ Admin user ${requestingUserEmail} — skipping daily limit check entirely`);
     }
 
     // ── Step 0: Deep web search + source scraping (parallel) ──
@@ -1149,47 +1150,51 @@ export async function POST(request: NextRequest) {
 
     console.log(`[outline] ${outline.chapters.length} chapters planned`);
 
-    // ── Step 2: Generate each chapter individually ──
+    // ── Step 2: Generate all chapters IN PARALLEL for speed ──
     logStep("chapters_start");
     let generatedChapters: Array<{ title: string; content: string; summary: string }> = [];
 
-    for (let i = 0; i < outline.chapters.length; i++) {
-      const ch = outline.chapters[i];
-      console.log(`[generate] ── Chapter ${i + 1}/${outline.chapters.length}: "${ch.title}" ──`);
-      const chStart = Date.now();
+    const chapterPromises = outline.chapters.map((ch, i) =>
+      (async () => {
+        console.log(`[generate] ── Chapter ${i + 1}/${outline.chapters.length}: "${ch.title}" ──`);
+        const chStart = Date.now();
 
-      // Attempt 1: Full prompt with research context
-      let chapter = await withRetry(
-        () => generateChapter(title, courseLang, level, i, outline.chapters.length, ch, webContext, sourceContext),
-        1, // 1 retry (2 attempts total)
-      );
-
-      // Attempt 2: Without research context (smaller prompt = faster, less likely to fail)
-      if (!chapter) {
-        console.log(`[chapter-${i + 1}] Attempt 1 failed, trying without research context...`);
-        chapter = await withRetry(
-          () => generateChapter(title, courseLang, level, i, outline.chapters.length, ch, "", ""),
-          1,
+        // Attempt 1: Full prompt with research context
+        let chapter = await withRetry(
+          () => generateChapter(title, courseLang, level, i, outline.chapters.length, ch, webContext, sourceContext),
+          1, // 1 retry (2 attempts total)
         );
-      }
 
-      // Attempt 3: Minimal emergency prompt — just asks for raw content, no fancy structure
-      if (!chapter) {
-        console.log(`[chapter-${i + 1}] Attempt 2 failed, trying minimal emergency prompt...`);
-        chapter = await generateChapterEmergency(title, courseLang, level, i, outline.chapters.length, ch);
-      }
+        // Attempt 2: Without research context (smaller prompt = faster, less likely to fail)
+        if (!chapter) {
+          console.log(`[chapter-${i + 1}] Attempt 1 failed, trying without research context...`);
+          chapter = await withRetry(
+            () => generateChapter(title, courseLang, level, i, outline.chapters.length, ch, "", ""),
+            1,
+          );
+        }
 
-      if (chapter) {
-        const quality = validateChapterQuality(chapter.content, level);
-        if (!quality.passed) console.log(`[chapter-${i + 1}] Quality issues: ${quality.issues.join(", ")} (${quality.wordCount} words, ${quality.headingCount} headings)`);
-        else console.log(`[chapter-${i + 1}] Quality OK (${quality.wordCount} words, ${quality.headingCount} headings)`);
-        generatedChapters.push(chapter);
-      } else {
-        console.error(`[chapter-${i + 1}] ALL 3 ATTEMPTS FAILED — chapter will be missing!`);
-      }
+        // Attempt 3: Minimal emergency prompt — just asks for raw content, no fancy structure
+        if (!chapter) {
+          console.log(`[chapter-${i + 1}] Attempt 2 failed, trying minimal emergency prompt...`);
+          chapter = await generateChapterEmergency(title, courseLang, level, i, outline.chapters.length, ch);
+        }
 
-      console.log(`[chapter-${i + 1}] Time: ${((Date.now() - chStart) / 1000).toFixed(1)}s`);
-    }
+        if (chapter) {
+          const quality = validateChapterQuality(chapter.content, level);
+          if (!quality.passed) console.log(`[chapter-${i + 1}] Quality issues: ${quality.issues.join(", ")} (${quality.wordCount} words, ${quality.headingCount} headings)`);
+          else console.log(`[chapter-${i + 1}] Quality OK (${quality.wordCount} words, ${quality.headingCount} headings)`);
+        } else {
+          console.error(`[chapter-${i + 1}] ALL 3 ATTEMPTS FAILED — chapter will be missing!`);
+        }
+
+        console.log(`[chapter-${i + 1}] Time: ${((Date.now() - chStart) / 1000).toFixed(1)}s`);
+        return chapter || null;
+      })()
+    );
+
+    const chapterResults = await Promise.all(chapterPromises);
+    generatedChapters = chapterResults.filter((ch): ch is NonNullable<typeof ch> => ch !== null);
 
     // ── Safety net: if fewer than MIN_CHAPTERS were generated, try single-call fallback ──
     if (generatedChapters.length < MIN_CHAPTERS) {

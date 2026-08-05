@@ -8,7 +8,8 @@ export const ADMIN_EMAILS: string[] = [
   "chrisnsumbuk@gmail.com",
 ];
 
-export const DAILY_LIMIT_ADMIN = 9999;
+/** Admin users have NO daily limit — the check is skipped entirely for them */
+export const DAILY_LIMIT_ADMIN = 0; // 0 = unlimited (check skipped in generate route)
 
 /**
  * Check if a user email is an admin (bypasses all limits).

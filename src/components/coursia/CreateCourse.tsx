@@ -895,8 +895,8 @@ export default function CreateCourse() {
             </p>
             <p className="text-xs text-muted-foreground mb-3">
               {lang === "fr"
-                ? `Tu as créé tes ${dailyCoursesToday}/${dailyLimitTotal} cours aujourd'hui. Reviens bientôt !`
-                : `You've created ${dailyCoursesToday}/${dailyLimitTotal} courses today. Come back soon!`}
+                ? `Tu as créé tes ${dailyCoursesToday} cours aujourd'hui. Reviens bientôt !`
+                : `You've created ${dailyCoursesToday} courses today. Come back soon!`}
             </p>
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-mauve/10 text-mauve-light text-lg font-extrabold tabular-nums">
               <Clock className="w-4 h-4" />

@@ -203,7 +203,6 @@ export async function GET(request: NextRequest) {
 
     // ── ADMIN BYPASS: unlimited generation for whitelisted emails ──
     if (isAdmin(user?.email)) {
-      const dailyInfo = await getDailyLimitInfo(userId, true);
       return NextResponse.json<PaywallStatus>({
         ...defaultStatus({
           canStudy: true, canGenerate: true, canProgress: true,
@@ -216,9 +215,11 @@ export async function GET(request: NextRequest) {
           hasCardOnFile: true,
           requireCard: false,
           freeCourseUsed: false,
-          ...dailyInfo,
+          // Admin has NO daily limit
+          dailyLimit: 0,
+          coursesToday: 0,
+          dailyLimitReached: false,
         }),
-        dailyLimit: DAILY_LIMIT_ADMIN,
       });
     }
 
