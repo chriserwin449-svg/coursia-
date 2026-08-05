@@ -138,8 +138,9 @@ export default function CreateCourse() {
         const canGenerate = pw.canGenerate === true || pw.canGenerate === undefined;
         setCanCreateCourse(canGenerate);
         const apiFreeUsed = !!pw.freeCourseUsed;
-        const storeFreeUsed = useAppStore.getState().freeCourseUsed;
-        const effectiveFreeUsed = apiFreeUsed || storeFreeUsed;
+        // Admin users: always trust API (freeCourseUsed=false), clear stale store value
+        const isStoreStale = pw.paywallReason === "admin" && useAppStore.getState().freeCourseUsed;
+        const effectiveFreeUsed = isStoreStale ? false : (apiFreeUsed || useAppStore.getState().freeCourseUsed);
         setLocalFreeCourseUsed(effectiveFreeUsed);
         useAppStore.getState().setFreeCourseUsed(effectiveFreeUsed);
         useAppStore.getState().setExpiryWarning48h(!!pw.expiryWarning48h);
@@ -207,7 +208,7 @@ export default function CreateCourse() {
   useEffect(() => {
     if (!loading) { setGenerationStep(0); return; }
     // Advance through steps: each step ~12-15s (course takes ~60-90s total)
-    const stepDurations = [3000, 8000, 18000, 45000, 70000]; // ms thresholds
+    const stepDurations = [2000, 5000, 10000, 25000, 40000]; // ms thresholds (faster generation)
     const interval = setInterval(() => {
       const elapsed = Date.now() - (progressStartRef.current || Date.now());
       let step = 0;
@@ -845,22 +846,7 @@ export default function CreateCourse() {
           </div>
         )}
 
-        {/*  Background generation notice  */}
-        {backgroundGeneration && loading && (
-          <div className="mb-6 p-4 rounded-2xl bg-mauve/10 border border-mauve/20 animate-fade-in">
-            <div className="flex items-center gap-2 mb-1">
-              <Loader2 className="w-4 h-4 animate-spin text-mauve-light" />
-              <p className="text-sm font-bold text-mauve-light">
-                {lang === "fr" ? "Génération en cours..." : "Generation in progress..."}
-              </p>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {lang === "fr"
-                ? "Tu peux naviguer librement. Tu recevras une notification quand le cours sera prêt."
-                : "Feel free to navigate. You'll get a notification when the course is ready."}
-            </p>
-          </div>
-        )}
+        {/*  Background generation notice — removed (button already shows generation status)  */}
 
         {/*  Suggested topic banner  */}
         {showSuggested && suggestedTopic && (

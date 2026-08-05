@@ -121,25 +121,21 @@ async function deepSearch(
 
   const langQ = courseLang === "en" ? "in english" : "en français";
 
-  // 5 parallel searches from different angles for richer, more accurate content
-  const [r1, r2, r3, r4, r5] = await Promise.all([
+  // 3 parallel searches (reduced from 5 for speed — under 60s target)
+  const [r1, r2, r3] = await Promise.all([
     searchOnce(zai, `${topic} ${levelContext} explained ${langQ}`),
     searchOnce(zai, `${topic} real world examples case studies applications ${langQ}`),
-    searchOnce(zai, `${topic} common mistakes misconceptions pitfalls ${langQ}`),
-    searchOnce(zai, `${topic} latest advances 2025 trends future ${langQ}`),
-    searchOnce(zai, `best resources learn ${topic} ${courseLang === "en" ? "2025" : "2025"} ${langQ}`),
+    searchOnce(zai, `${topic} latest advances 2025 trends best practices ${langQ}`),
   ]);
 
   const blocks: string[] = [];
   if (r1) blocks.push(`══ CONCEPTS & EXPLANATIONS ══\n${r1}`);
   if (r2) blocks.push(`══ REAL-WORLD EXAMPLES & CASES ══\n${r2}`);
-  if (r3) blocks.push(`══ COMMON MISTAKES & MISCONCEPTIONS ══\n${r3}`);
-  if (r4) blocks.push(`══ LATEST ADVANCES & TRENDS (2025) ══\n${r4}`);
-  if (r5) blocks.push(`══ BEST RESOURCES & REFERENCES ══\n${r5}`);
+  if (r3) blocks.push(`══ LATEST ADVANCES & BEST PRACTICES ══\n${r3}`);
 
   const combined = blocks.join("\n\n");
-  const totalResults = [r1, r2, r3, r4, r5].filter(Boolean).length;
-  console.log(`[search] Deep search completed: ${totalResults}/5 queries returned results (${combined.length} chars)`);
+  const totalResults = [r1, r2, r3].filter(Boolean).length;
+  console.log(`[search] Deep search completed: ${totalResults}/3 queries returned results (${combined.length} chars)`);
 
   return combined;
 }
@@ -663,10 +659,8 @@ async function generateChapter(
 
 function extractChapter(text: string): { title: string; content: string; summary: string } | null {
   let cleaned = text.trim();
-  const cb = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (cb) cleaned = cb[1].trim();
 
-  // Strategy 1: Direct JSON parse
+  // Strategy 0: Direct JSON parse on the FULL text first (before code block extraction)
   const tryParse = (s: string) => {
     try {
       const data = JSON.parse(s) as Record<string, unknown>;
@@ -679,6 +673,13 @@ function extractChapter(text: string): { title: string; content: string; summary
 
   let result = tryParse(cleaned);
   if (result) return result;
+
+  // Strategy 1: Code block extraction — try ALL code blocks, not just the first (lazy match)
+  const codeBlocks = [...cleaned.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)];
+  for (const cb of codeBlocks) {
+    result = tryParse(cb[1].trim());
+    if (result) return result;
+  }
 
   // Strategy 2: Brace-matching extraction (only tracks { } depth, ignores [ ])
   const firstBrace = cleaned.indexOf("{");
@@ -1067,6 +1068,16 @@ export async function POST(request: NextRequest) {
     const pendingCourseId = await savePendingCourse(title, level, userId, sourceLinks);
     console.log(`[generate] Pending course ID: ${pendingCourseId || 'none'}`);
 
+    // ── Hard timeout: check elapsed time before expensive AI steps ──
+    const GENERATION_TIMEOUT_MS = 90_000; // 90s safety net (rate limiting may add delays)
+    const checkTimeout = (step: string) => {
+      const elapsed = Date.now() - startTime;
+      if (elapsed > GENERATION_TIMEOUT_MS) {
+        console.warn(`[generate] ⏰ TIMEOUT at step "${step}" after ${Math.round(elapsed / 1000)}s`);
+        throw new Error("GENERATION_TIMEOUT");
+      }
+    };
+
     // ── Step 0: Deep web search + source scraping (parallel) ──
     logStep("search_start");
     let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
@@ -1075,15 +1086,6 @@ export async function POST(request: NextRequest) {
 
     try {
       zaiInstance = await ZAI.create();
-
-      // Warm-up call to prime the SDK connection (prevents cold-start failures)
-      try {
-        console.log("[generate] Warming up SDK connection...");
-        await zaiInstance.functions.invoke("web_search", { query: "warmup", num: 1 });
-        console.log("[generate] SDK warm-up successful");
-      } catch {
-        console.log("[generate] SDK warm-up failed (non-critical, continuing)");
-      }
 
       const [searchResults, scraped] = await Promise.all([
         deepSearch(zaiInstance, title, courseLang, level),
@@ -1099,6 +1101,7 @@ export async function POST(request: NextRequest) {
     logStep("search_end");
     logDuration("search_start", "search_end");
     console.log(`[generate] Search phase complete: web=${webContext.length > 0 ? webContext.length + 'chars' : 'none'}, sources=${scrapedPages.length}`);
+    checkTimeout("search");
 
     // ── Step 1: Generate outline (with retry) ──
     logStep("outline_start");
@@ -1106,7 +1109,7 @@ export async function POST(request: NextRequest) {
     let outlineError: unknown = null;
 
     try {
-      outline = await withRetry(() => generateOutline(title, courseLang, level, webContext, sourceContext), 2);
+      outline = await withRetry(() => generateOutline(title, courseLang, level, webContext, sourceContext), 1);
     } catch (error) {
       outlineError = error;
       const msg = error instanceof Error ? error.message : String(error);
@@ -1120,6 +1123,7 @@ export async function POST(request: NextRequest) {
 
     logStep("outline_end");
     logDuration("outline_start", "outline_end");
+    checkTimeout("outline");
 
     if (!outline || outline.chapters.length < MIN_CHAPTERS) {
       console.log(`[generate] Outline ${outline ? 'has too few chapters (' + outline.chapters.length + ')' : 'is null'}, trying single-call fallback...`);
@@ -1156,19 +1160,13 @@ export async function POST(request: NextRequest) {
         console.log(`[generate] ── Chapter ${i + 1}/${outline.chapters.length}: "${ch.title}" ──`);
         const chStart = Date.now();
 
-        // Attempt 1: Full prompt with research context
-        let chapter = await withRetry(
-          () => generateChapter(title, courseLang, level, i, outline.chapters.length, ch, webContext, sourceContext),
-          1, // 1 retry (2 attempts total)
-        );
+        // Attempt 1: Full prompt with research context (no retry — faster)
+        let chapter = await generateChapter(title, courseLang, level, i, outline.chapters.length, ch, webContext, sourceContext);
 
         // Attempt 2: Without research context (smaller prompt = faster, less likely to fail)
         if (!chapter) {
           console.log(`[chapter-${i + 1}] Attempt 1 failed, trying without research context...`);
-          chapter = await withRetry(
-            () => generateChapter(title, courseLang, level, i, outline.chapters.length, ch, "", ""),
-            1,
-          );
+          chapter = await generateChapter(title, courseLang, level, i, outline.chapters.length, ch, "", "");
         }
 
         // Attempt 3: Minimal emergency prompt — just asks for raw content, no fancy structure
@@ -1225,6 +1223,7 @@ export async function POST(request: NextRequest) {
     console.log(`[generate] Generated ${generatedChapters.length}/${outline.chapters.length} chapters successfully`);
     logStep("chapters_end");
     logDuration("chapters_start", "chapters_end");
+    // No timeout check here — save is fast (< 1s), always let it complete
 
     // ── Step 3: Save ──
     logStep("save_start");
@@ -1249,6 +1248,17 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     const msg = error instanceof Error ? error.message : String(error);
+
+    // Timeout: course stays as __PENDING__, poller will try to recover
+    if (msg === "GENERATION_TIMEOUT") {
+      console.error(`[generate] ═══ TIMEOUT after ${duration}s — course left as pending for poller ═══`);
+      return NextResponse.json({
+        error: "TIMEOUT",
+        message: "Course generation timed out. The background poller will detect completion.",
+        duration: Number(duration),
+      }, { status: 504 });
+    }
+
     const errorType = classifyAIError(error);
     console.error(`[generate] ═══ UNHANDLED ERROR after ${duration}s ═══`);
     console.error(`[generate] Error type: ${errorType}`);

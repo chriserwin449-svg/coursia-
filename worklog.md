@@ -420,3 +420,33 @@ Stage Summary:
 - Fix: Fire-and-forget + pending course record + background polling
 - Files: generate/route.ts, CreateCourse.tsx, BackgroundGenerationPoller.tsx
 - Verified: Generation works, navigation works during generation, poller detects completion
+
+---
+Task ID: 3
+Agent: main
+Task: Fix duplicate generation message + speed up generation to <60s + fix admin freeCourseUsed bug
+
+Work Log:
+- Analyzed uploaded screenshot: found duplicate "Génération en cours..." card AND button both showing generation status
+- Removed the duplicate card (lines 848-863 in CreateCourse.tsx) — button already shows generation progress
+- Fixed admin freeCourseUsed persistence bug: when admin is detected via paywallReason==="admin", clear stale freeCourseUsed=true from zustand store
+- Optimized extractChapter() function: moved direct JSON parse to Strategy 0 (before code block extraction), added code block iteration (all blocks, not just first lazy match)
+- Reduced web searches from 5 to 3 parallel queries (removed "common mistakes" and "best resources")
+- Removed SDK warmup call (was wasting 2-3 seconds)
+- Reduced outline retry from 2 to 1
+- Reduced chapter generation retries (removed withRetry wrapper, direct calls only)
+- Added hard 90s timeout with checkTimeout() at search/outline steps (not at save — save is instant)
+- Timeout handling: GENERATION_TIMEOUT returns 504, course stays as __PENDING__ for poller recovery
+- Updated poller: 8s interval (was 10s), 2min max age (was 8min)
+- Updated progress step durations to match faster generation (2s, 5s, 10s, 25s, 40s)
+- Verified with agent-browser: create page loads correctly, no error boundary, generation starts, no duplicate messages
+- Generation benchmark: search 1.8s, outline ~5s, chapters ~20s parallel = ~27s without rate limiting, ~66s with 429 retries
+
+Stage Summary:
+- Duplicate "Génération en cours..." card removed from UI
+- Generation speed optimized: 98.5s → ~27s ideal / ~66s with rate limiting (was 98.5s)
+- Admin freeCourseUsed no longer persists as true when API says false
+- Chapter JSON extraction more robust (Strategy 0: direct parse first, then all code blocks)
+- Hard timeout at 90s prevents infinite hangs
+- Background generation + notifications + auto-redirect already working from previous session
+- Files: CreateCourse.tsx, generate/route.ts, BackgroundGenerationPoller.tsx
