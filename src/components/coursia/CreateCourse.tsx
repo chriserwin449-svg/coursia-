@@ -558,8 +558,28 @@ export default function CreateCourse() {
           // Failed to parse success response — poller will handle it
         }
       }
-      // Non-200 or parse failure — poller handles recovery
-      console.log("[generate] Fire-and-forgot request returned non-success, poller will handle recovery");
+      // Non-200 response — show error to user instead of silently hoping the poller fixes it
+      console.log("[generate] Fire-and-forget request returned non-success:", res.status);
+      if (res.status >= 400) {
+        try {
+          const errData = await res.clone().json();
+          const errorType = errData.error || "SERVER";
+          const errorMsg = getErrorMessage(errorType, res.status, errData.message || "");
+          setError(errorMsg);
+          generatingRef.current = false;
+          setLoading(false);
+          setIsGenerating(false);
+          setBackgroundGeneration(null);
+          // For admin users, don't set freeCourseUsed on failure
+        } catch {
+          // Can't parse error, show generic message
+          setError(lang === "fr" ? "La génération a échoué. Réessaie." : "Generation failed. Try again.");
+          generatingRef.current = false;
+          setLoading(false);
+          setIsGenerating(false);
+          setBackgroundGeneration(null);
+        }
+      }
     }).catch((err) => {
       // Network error — poller handles recovery
       console.warn("[generate] Fire-and-forget network error:", err);

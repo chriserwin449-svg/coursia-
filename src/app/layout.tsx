@@ -4,6 +4,7 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 import "./globals.css";
 import SafeRender from "@/components/SafeRender";
 import { Toaster as ShadcnToaster } from "@/components/ui/toaster";
+import Script from "next/script";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { PostHogProvider } from "@/lib/posthog";
 
@@ -112,9 +113,10 @@ export default function RootLayout({
         <link rel="alternate" hrefLang="en" href={SITE_URL} />
         <link rel="alternate" hrefLang="x-default" href={SITE_URL} />
 
-        {/* JSON-LD: Organization + WebSite */}
+        {/* JSON-LD: Organization + WebSite (suppressHydrationWarning for Turbopack SSR mismatch) */}
         <script
           type="application/ld+json"
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
@@ -167,19 +169,11 @@ export default function RootLayout({
           <SpeedInsights />
         </SafeRender>
 
-        {/* Tawk.to Live Chat */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
-(function(){
-var s1=document.createElement("script"),s0=document.getElementsByTagName("script")[0];
-s1.async=true;
-s1.src='https://embed.tawk.to/6a690e0d64a1cb1d4e015ac7/1jul5tpf4';
-s1.charset='UTF-8';
-s1.setAttribute('crossorigin','*');
-s0.parentNode.insertBefore(s1,s0);
-})();`,
-          }}
+        {/* Tawk.to Live Chat — use next/script with lazyOnload to avoid SSR hydration mismatch */}
+        <Script
+          src="https://embed.tawk.to/6a690e0d64a1cb1d4e015ac7/1jul5tpf4"
+          strategy="lazyOnload"
+          async
         />
       </body>
     </html>

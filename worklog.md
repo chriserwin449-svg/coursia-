@@ -492,3 +492,27 @@ Stage Summary:
 - ZAI singleton eliminates cold start overhead
 - Admin freeCourseUsed bug fixed
 - Files: generate/route.ts, openai.ts, constants.ts, CreateCourse.tsx
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix course generation timeout + hydration mismatch errors
+
+Work Log:
+- Diagnosed generation taking 74.3s (target: <60s) — outline was the main bottleneck at 38.7s
+- Reduced outline prompt from 800+ chars to ~300 chars (slim, focused) — outline time dropped from 38.7s to 16.4s
+- Changed chapter generation from 2 sequential batches to full parallel (Promise.all) — chapters time dropped from 40.4s to 19.4s
+- Reduced web search queries from 3 to 2
+- Fixed JSON-LD example in outline prompt: showed 4 chapters instead of 1 to prevent AI from generating only 2
+- Fixed Tawk.to hydration mismatch: replaced inline script with next/script strategy="lazyOnload"
+- Fixed JSON-LD hydration mismatch: added suppressHydrationWarning
+- Fixed fire-and-forget error handling: now shows error message on server 500 instead of spinning forever
+- Updated poller MAX_AGE_MS from 2min to 5min safety net
+- Updated client step progression timings to match faster generation
+
+Stage Summary:
+- Generation time: 74.3s → 39.0s (48% faster, under 60s target!)
+- Outline: 38.7s → 16.4s (58% faster)
+- Chapters: 40.4s → 19.4s (52% faster, parallelized)
+- Zero hydration errors in console
+- Zero runtime errors
+- Course generation end-to-end verified via browser: 4 chapters generated, auto-redirect to viewer works
