@@ -236,3 +236,20 @@ Stage Summary:
 - schema.postgres.prisma now has ALL models and columns matching schema.prisma
 - vercel-build.js will auto-push schema changes on next Vercel deploy
 - Once deployed: search, share, avatar will all work because CourseShare table + username/avatar columns will exist
+---
+Task ID: 3
+Agent: main
+Task: Add admin bypass for unlimited generation + fix avatar column migration
+
+Work Log:
+- Created src/lib/admin.ts with ADMIN_EMAILS whitelist (chrisnsumbuk@gmail.com)
+- Added isAdmin() bypass in paywall-status: returns admin plan with canGenerate=true, dailyLimit=9999
+- Added isAdmin() bypass in generate: skips freeCourseUsed check AND daily limit check
+- Added username + avatar column migration in auth/me, paywall-status, and generate routes
+- These migrations ensure columns exist on PostgreSQL even if prisma db push hasn't run yet
+
+Stage Summary:
+- chrisnsumbuk@gmail.com now has unlimited generation (no paywall, no daily limit)
+- Admin check is email-based, case-insensitive
+- Avatar + username columns will be auto-created on first API call in production
+- Files: src/lib/admin.ts (new), paywall-status/route.ts, generate/route.ts, auth/me/route.ts
