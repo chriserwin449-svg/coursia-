@@ -193,17 +193,15 @@ export default function CreateCourse() {
 
   // ── Cleanup local state when background generation completes (cleared by poller) ──
   useEffect(() => {
-    if (!backgroundGeneration && isBackgroundMode) {
+    if (!backgroundGeneration) {
       // BackgroundGenerationPoller found the course and cleared the store
-      console.log("[create] Background generation completed, cleaning up local state");
+      console.log("[create] Background generation completed or cleared, cleaning up local state");
       generatingRef.current = false;
       setLoading(false);
       setIsGenerating(false);
-      setIsBackgroundMode(false);
-      abortRef.current = null;
       fetchCourses();
     }
-  }, [backgroundGeneration, isBackgroundMode, fetchCourses]);
+  }, [backgroundGeneration, fetchCourses]);
 
   // Simulate step progression based on time elapsed
   useEffect(() => {
@@ -431,13 +429,14 @@ export default function CreateCourse() {
     }
   }, [lang]);
 
-  //  Generate course (with retry, timeout, DB recovery) 
+  //  Generate course — FIRE-AND-FORGET with immediate background mode
   const generateCourse = async () => {
     // ═══ DOUBLE-CLICK PREVENTION ═══
     if (generatingRef.current) {
       console.log("[generate] Blocked: already generating");
       return;
     }
+
     if (!title.trim() || loading) return;
 
     // Validate payload before sending
@@ -473,225 +472,99 @@ export default function CreateCourse() {
       userId: useAppStore.getState().userId,
     };
 
-    console.log("[generate] Starting generation:", { title: generatingTitle, level: effectiveLevel, lang: courseLang });
+    console.log("[generate] Starting fire-and-forget generation:", { title: generatingTitle, level: effectiveLevel, lang: courseLang });
 
-    // ═══ SET LOADING STATE ═══
+    // ═══ IMMEDIATE BACKGROUND MODE — user can navigate freely ═══
     generatingRef.current = true;
     setLoading(true);
-    setError(""); // CRITICAL: Clear error BEFORE any async work
+    setError("");
     setIsGenerating(true);
     setGenerationStep(0);
     progressStartRef.current = Date.now();
 
-    // ═══ ABORT CONTROLLER (120s client patience timeout) ═══
-    if (abortRef.current) abortRef.current.abort();
-    abortRef.current = new AbortController();
-    const { signal } = abortRef.current;
-    const CLIENT_PATIENCE_MS = 120_000; // 120 seconds — after this, switch to background mode
-    const timeoutId = setTimeout(() => abortRef.current?.abort(), CLIENT_PATIENCE_MS);
+    // Set background generation in the store (survives page navigation)
+    setBackgroundGeneration({
+      title: generatingTitle,
+      startedAt: Date.now(),
+      userId: useAppStore.getState().userId || "",
+    });
 
-    const MAX_ATTEMPTS = 3;
-    let lastError: string | null = null;
-    let lastHttpStatus = 0;
-    let lastErrorType = "UNKNOWN";
-    let courseRecovered = false;
-
-    // Helper: poll DB to find a course that may have been created in the background
-    const pollDbForCourse = async (maxPolls = 10, intervalMs = 5000): Promise<CourseData | null> => {
-      for (let p = 0; p < maxPolls; p++) {
-        try {
-          await new Promise(r => setTimeout(r, p === 0 ? 0 : intervalMs));
-          const checkRes = await fetch(`/api/courses?userId=${useAppStore.getState().userId || ''}`);
-          if (checkRes.ok) {
-            const checkData = await checkRes.json();
-            const list: CourseData[] = (checkData.courses as CourseData[]) || [];
-            const match = list.find((c) => c.title.toLowerCase() === generatingTitle.toLowerCase());
-            if (match) return match;
-          }
-        } catch { /* non-critical */ }
+    // Show toast that generation started
+    toast.info(
+      lang === "fr"
+        ? "✨ Génération du cours en cours..."
+        : "✨ Generating your course...",
+      {
+        description:
+          lang === "fr"
+            ? "Tu recevras une notification quand le cours sera prêt. Tu peux continuer à naviguer."
+            : "You'll get a notification when it's ready. Feel free to navigate.",
+        duration: 5000,
       }
-      return null;
-    };
+    );
 
-    try {
-      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        // Between retries: DB recovery check to avoid duplicate courses
-        if (attempt > 0) {
-          const backoffMs = 1000 * Math.pow(2, attempt); // 2s, 4s
-          console.log(`[generate] Retry ${attempt}/${MAX_ATTEMPTS - 1} in ${backoffMs}ms...`);
-          setGenerationStep(0);
-          await new Promise(r => setTimeout(r, backoffMs));
-
-          if (signal.aborted) {
-            console.log("[generate] Aborted during retry backoff");
-            break;
-          }
-
-          // Poll DB for the course (the API may have completed in the background)
-          const recovered = await pollDbForCourse(3, 3000);
-          if (recovered) {
-            console.log(`[generate] Course found in DB after failed attempt, recovering: "${recovered.title}"`);
-            useAppStore.getState().addCourse(recovered);
-            setSelectedCourseId(recovered.id);
-            setView("viewer");
-            trackEvent({ name: "course_created_recovery", properties: { title: generatingTitle, attempt: attempt + 1 } });
-            courseRecovered = true;
+    // ═══ FIRE-AND-FORGET: don't await the response ═══
+    fetch("/api/courses/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).then(async (res) => {
+      if (res.ok) {
+        try {
+          const data = await res.json();
+          if (data.course) {
+            // Generation completed while we were watching — handle immediately
+            console.log("[generate] Fire-and-forget completed:", data.course.title);
+            const course = data.course as CourseData;
+            // Clear background mode
+            generatingRef.current = false;
+            setLoading(false);
+            setIsGenerating(false);
+            setBackgroundGeneration(null);
+            setCanCreateCourse(false);
+            setLocalFreeCourseUsed(true);
+            useAppStore.getState().setFreeCourseUsed(true);
+            // Refresh courses list
+            const coursesRes = await fetch(`/api/courses?userId=${useAppStore.getState().userId || ''}`);
+            if (coursesRes.ok) {
+              const coursesData = await coursesRes.json();
+              useAppStore.getState().setCourses(coursesData.courses || []);
+            }
+            // Show success notification
+            toast.success(
+              lang === "fr" ? `🎉 Cours "${course.title}" prêt !` : `🎉 Course "${course.title}" ready!`,
+              {
+                description: lang === "fr" ? "Clique pour commencer l'apprentissage." : "Click to start learning.",
+                action: {
+                  label: lang === "fr" ? "Voir le cours" : "View course",
+                  onClick: () => {
+                    setSelectedCourseId(course.id);
+                    setView("viewer");
+                  },
+                },
+                duration: 8000,
+              }
+            );
+            trackEvent({ name: "course_created", properties: { plan: String(effectiveLevel), mode: "fire-and-forget" } });
+            // If user is on create page, auto-redirect
+            if (useAppStore.getState().view === "create") {
+              setSelectedCourseId(course.id);
+              setView("viewer");
+            }
             return;
           }
-        }
-
-        try {
-          console.log(`[generate] Attempt ${attempt + 1}/${MAX_ATTEMPTS}...`);
-          const res = await fetch("/api/courses/generate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-            signal,
-          });
-
-          if (!res.ok) {
-            // Try to parse error body for more details
-            let errorData: Record<string, unknown> = {};
-            try { errorData = await res.json(); } catch { /* ignore parse error */ }
-
-            lastHttpStatus = res.status;
-            lastErrorType = (errorData.errorType as string) || "UNKNOWN";
-            lastError = (errorData.message as string) || (errorData.error as string) || `HTTP ${res.status}`;
-
-            if (errorData.error === "FREE_LIMIT" || errorData.error === "TRIAL_LIMIT" || errorData.error === "TRIAL_EXPIRED") {
-              // Save pending generation for auto-resume after payment
-              console.log("[generate] Paywall error from API — saving pending generation");
-              useAppStore.getState().setPendingGeneration({
-                topic: generatingTitle,
-                courseLang,
-                level: effectiveLevel,
-                isRandom: !!isRandomTopic,
-              });
-              setView("offers");
-              return;
-            }
-
-            if (errorData.error === "DAILY_LIMIT") {
-              console.log("[generate] Daily limit reached from API");
-              setDailyLimitReached(true);
-              setDailyResetInMs(errorData.resetInMs || 0);
-              setDailyCoursesToday(errorData.coursesToday || 0);
-              setDailyLimitTotal(errorData.dailyLimit || 4);
-              setError(""); // Clear any other error
-              return;
-            }
-
-            console.warn(`[generate] Attempt ${attempt + 1} failed (${res.status}): ${lastError}`);
-            continue; // retry
-          }
-
-          // Parse successful response
-          let data: Record<string, unknown>;
-          try {
-            data = await res.json();
-          } catch (parseErr) {
-            console.error("[generate] Failed to parse response JSON:", parseErr);
-            lastErrorType = "PARSE";
-            lastError = "Invalid response from server";
-            continue;
-          }
-
-          // Handle empty/null AI responses
-          if (!data.course) {
-            lastErrorType = "EMPTY";
-            lastError = "Empty response from server";
-            console.warn(`[generate] Attempt ${attempt + 1}: empty course data`);
-            continue;
-          }
-
-          // ═══ SUCCESS ═══
-          const course = data.course as CourseData;
-          console.log(`[generate] ✓ Success on attempt ${attempt + 1}: "${course.title}" (${course.chapters?.length || 0} chapters)`);
-          // Immediately mark free course as used (reflects the atomic DB flag set before generation)
-          setCanCreateCourse(false);
-          setLocalFreeCourseUsed(true);
-          useAppStore.getState().setFreeCourseUsed(true);
-          setSelectedCourseId(course.id);
-          setView("viewer");
-          trackEvent({ name: "course_created", properties: { plan: String(effectiveLevel), attempt: attempt + 1 } });
-          return;
-        } catch (err: unknown) {
-          if (signal.aborted) {
-            console.log("[generate] Request aborted (timeout or user cancel)");
-            lastErrorType = "TIMEOUT";
-            lastError = "Request timed out";
-            break; // Don't retry on abort
-          }
-          lastError = err instanceof Error ? err.message : "Network error";
-          lastErrorType = "NETWORK";
-          console.warn(`[generate] Attempt ${attempt + 1} network error: ${lastError}`);
+        } catch {
+          // Failed to parse success response — poller will handle it
         }
       }
+      // Non-200 or parse failure — poller handles recovery
+      console.log("[generate] Fire-and-forgot request returned non-success, poller will handle recovery");
+    }).catch((err) => {
+      // Network error — poller handles recovery
+      console.warn("[generate] Fire-and-forget network error:", err);
+    });
 
-      // All attempts failed — poll DB to find course that may have been created in the background
-      console.log("[generate] All attempts failed, polling DB for recovery...");
-      const recovered = await pollDbForCourse(10, 5000);
-      if (recovered) {
-        console.log(`[generate] Final recovery: course "${recovered.title}" found in DB`);
-        useAppStore.getState().addCourse(recovered);
-        setSelectedCourseId(recovered.id);
-        setView("viewer");
-        trackEvent({ name: "course_created_recovery", properties: { title: generatingTitle } });
-        courseRecovered = true;
-        return;
-      }
-
-      // ═══ NO RECOVERY — Switch to background mode instead of showing error ═══
-      if (lastErrorType === "TIMEOUT") {
-        console.log("[generate] Client patience timeout — switching to background generation mode");
-        setIsBackgroundMode(true);
-        setBackgroundGeneration({
-          title: generatingTitle,
-          startedAt: Date.now(),
-          userId: useAppStore.getState().userId || "",
-        });
-        toast.info(
-          lang === "fr"
-            ? "⏳ La génération continue en arrière-plan..."
-            : "⏳ Generation continues in the background...",
-          {
-            description:
-              lang === "fr"
-                ? "Tu recevras une notification quand le cours sera prêt."
-                : "You'll get a notification when the course is ready.",
-            duration: 6000,
-          }
-        );
-        trackEvent({ name: "course_generation_background_mode", properties: { title: generatingTitle } });
-        // Keep loading=true and isGenerating=true — the BackgroundGenerationPoller will handle the rest
-        // Do NOT setLoading(false) — the UI stays in progress mode
-        // Do NOT setIsGenerating(false) — the global poller checks this
-        // Do NOT set generatingRef=false — prevent double-click while background poller runs
-        // Just clean up the abort controller and timeout
-        clearTimeout(timeoutId);
-        abortRef.current = null;
-        return;
-      }
-
-      // ═══ NON-TIMEOUT ERROR — Show specific error message ═══
-      const errorMsg = getErrorMessage(lastErrorType, lastHttpStatus, lastError || "");
-      console.error(`[generate] ALL ATTEMPTS FAILED: type=${lastErrorType}, status=${lastHttpStatus}, detail=${lastError}`);
-      setError(errorMsg);
-    } finally {
-      clearTimeout(timeoutId);
-      // Only reset these states if NOT in background mode
-      // (BackgroundGenerationPoller handles cleanup when course is found)
-      if (!useAppStore.getState().backgroundGeneration) {
-        generatingRef.current = false;
-        setLoading(false);
-        setIsGenerating(false);
-        abortRef.current = null;
-        // Only refresh courses list if we're still on this page (not redirected to viewer)
-        if (!courseRecovered) {
-          fetchCourses();
-        }
-      }
-    }
+    // User can now navigate freely — BackgroundGenerationPoller handles the rest
   };
 
   //  Open a course 
@@ -972,6 +845,23 @@ export default function CreateCourse() {
           </div>
         )}
 
+        {/*  Background generation notice  */}
+        {backgroundGeneration && loading && (
+          <div className="mb-6 p-4 rounded-2xl bg-mauve/10 border border-mauve/20 animate-fade-in">
+            <div className="flex items-center gap-2 mb-1">
+              <Loader2 className="w-4 h-4 animate-spin text-mauve-light" />
+              <p className="text-sm font-bold text-mauve-light">
+                {lang === "fr" ? "Génération en cours..." : "Generation in progress..."}
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {lang === "fr"
+                ? "Tu peux naviguer librement. Tu recevras une notification quand le cours sera prêt."
+                : "Feel free to navigate. You'll get a notification when the course is ready."}
+            </p>
+          </div>
+        )}
+
         {/*  Suggested topic banner  */}
         {showSuggested && suggestedTopic && (
           <div className="mb-6 p-4 rounded-2xl glass text-center animate-fade-in-slide-up">
@@ -993,10 +883,7 @@ export default function CreateCourse() {
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
                 <span className="flex items-center gap-2">
-                  <span>{isBackgroundMode
-                    ? (lang === "fr" ? progressMessages[generationStep] + " (arrière-plan)" : progressMessages[generationStep] + " (background)")
-                    : progressMessages[generationStep]
-                  }</span>
+                  <span>{progressMessages[generationStep]}</span>
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
                 </span>
               </>

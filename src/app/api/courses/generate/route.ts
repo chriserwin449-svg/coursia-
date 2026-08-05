@@ -1063,6 +1063,10 @@ export async function POST(request: NextRequest) {
       console.log(`[generate] ⚡ Admin user ${requestingUserEmail} — skipping daily limit check entirely`);
     }
 
+    // ── Step -1: Save a pending course record immediately so the client poller can detect it ──
+    const pendingCourseId = await savePendingCourse(title, level, userId, sourceLinks);
+    console.log(`[generate] Pending course ID: ${pendingCourseId || 'none'}`);
+
     // ── Step 0: Deep web search + source scraping (parallel) ──
     logStep("search_start");
     let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
@@ -1224,7 +1228,17 @@ export async function POST(request: NextRequest) {
 
     // ── Step 3: Save ──
     logStep("save_start");
-    const course = await saveCourse(title, level, userId, sourceLinks, outline.description, generatedChapters, scrapedPages.length);
+    let course;
+    if (pendingCourseId) {
+      // Update the pending course with actual content
+      await updatePendingCourse(pendingCourseId, outline.description, generatedChapters);
+      course = await db.course.findUnique({
+        where: { id: pendingCourseId },
+        include: { chapters: { orderBy: { order: "asc" } } },
+      });
+    } else {
+      course = await saveCourse(title, level, userId, sourceLinks, outline.description, generatedChapters, scrapedPages.length);
+    }
     logStep("save_end");
     logDuration("save_start", "save_end");
     logDuration("start", "save_end");
@@ -1269,6 +1283,70 @@ async function saveCourse(
   // No need to set it here again.
 
   return course;
+}
+
+/**
+ * Creates a placeholder "pending" course record immediately so the client
+ * poller can detect that generation is in progress. The placeholder has
+ * a description starting with "__PENDING__" and no chapters.
+ */
+async function savePendingCourse(
+  title: string, level: number, userId: string | null, sourceLinks: string[],
+) {
+  try {
+    const courseId = `pending_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const course = await db.course.create({
+      data: {
+        id: courseId,
+        title: title.trim(),
+        description: "__PENDING__",
+        sourceLinks: JSON.stringify(sourceLinks),
+        level,
+        flameCost: 0,
+        userId: userId || null,
+      },
+      include: { chapters: { orderBy: { order: "asc" } } },
+    });
+    await db.courseProgress.upsert({ where: { courseId }, create: { courseId }, update: {} });
+    console.log(`[generate] Saved pending course: ${courseId}`);
+    return courseId;
+  } catch (err) {
+    console.warn("[generate] Failed to save pending course (non-critical):", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/**
+ * Updates a pending course with actual content after generation completes.
+ */
+async function updatePendingCourse(
+  courseId: string,
+  description: string,
+  chapters: Array<{ title: string; content: string; summary: string }>,
+) {
+  try {
+    // Delete any existing placeholder chapters
+    await db.chapter.deleteMany({ where: { courseId } });
+    // Create actual chapters
+    await db.chapter.createMany({
+      data: chapters.map((ch, idx) => ({
+        title: ch.title,
+        content: ch.content,
+        summary: ch.summary,
+        order: idx + 1,
+        level: 0,
+        courseId,
+      })),
+    });
+    // Update the course description (remove __PENDING__ marker)
+    await db.course.update({
+      where: { id: courseId },
+      data: { description },
+    });
+    console.log(`[generate] Updated pending course ${courseId} with ${chapters.length} chapters`);
+  } catch (err) {
+    console.error("[generate] Failed to update pending course:", err instanceof Error ? err.message : err);
+  }
 }
 
 function buildResponse(
