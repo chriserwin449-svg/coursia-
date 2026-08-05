@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
  *
  * The avatar is stored as a base64 data URI in the database so it works
  * on any deployment (Vercel, local, etc.) without needing persistent file storage.
+ * Max file size: 500KB to keep base64 reasonable (~666KB).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -32,10 +33,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file size (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
+    // Validate file size (max 500KB to keep base64 reasonable ~666KB)
+    const MAX_SIZE = 500 * 1024;
+    if (file.size > MAX_SIZE) {
       return NextResponse.json(
-        { error: "File too large. Maximum size is 2MB." },
+        { error: "File too large. Maximum size is 500KB." },
         { status: 400 }
       );
     }
@@ -45,15 +47,10 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
     const base64 = buffer.toString("base64");
 
+    console.log(`[avatar] File size: ${Math.round(file.size / 1024)}KB, Base64 length: ${Math.round(base64.length / 1024)}KB`);
+
     // Determine MIME type from file
-    const mimeMap: Record<string, string> = {
-      "image/jpeg": "image/jpeg",
-      "image/png": "image/png",
-      "image/webp": "image/webp",
-      "image/gif": "image/gif",
-    };
-    const mime = mimeMap[file.type] || file.type;
-    const avatarUrl = `data:${mime};base64,${base64}`;
+    const avatarUrl = `data:${file.type};base64,${base64}`;
 
     // Update user's avatar in database
     try {

@@ -7,6 +7,8 @@ import {
   UserPlus,
   CheckCircle2,
   Users,
+  Eye,
+  Send,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { toast } from "sonner";
@@ -55,6 +57,7 @@ export default function ShareCourseDialog({
 }: ShareCourseDialogProps) {
   const lang = useAppStore((s) => s.lang);
   const authToken = useAppStore((s) => s.authToken);
+  const setView = useAppStore((s) => s.setView);
 
   // Invite friend state
   const [query, setQuery] = useState("");
@@ -79,10 +82,9 @@ export default function ShareCourseDialog({
   useEffect(() => {
     if (open) {
       reset();
-      // Fetch shared users list
       fetchSharedWith();
     }
-  }, [open, reset]);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const authHeaders = useCallback(
     () =>
@@ -126,7 +128,7 @@ export default function ShareCourseDialog({
         if (res.ok) {
           const data = await res.json();
           console.log(`[ShareDialog] Search "${searchQuery}" -> ${data.users?.length || 0} results`);
-          setResults((data.users || []).slice(0, 5));
+          setResults((data.users || []).slice(0, 10));
         } else {
           const errText = await res.text().catch(() => "");
           console.error(`[ShareDialog] Search failed: ${res.status} ${errText}`);
@@ -145,7 +147,6 @@ export default function ShareCourseDialog({
   const handleQueryChange = (value: string) => {
     setQuery(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    // Search immediately if >= 2 chars, with a short debounce for typing
     if (value.trim().length >= 2) {
       debounceRef.current = setTimeout(() => searchUsers(value), 300);
     } else {
@@ -185,7 +186,6 @@ export default function ShareCourseDialog({
             ? `Cours partagé avec ${selectedFriend.firstName} !`
             : `Course shared with ${selectedFriend.firstName}!`
         );
-        // Refresh shared list
         fetchSharedWith();
         setTimeout(() => {
           onOpenChange(false);
@@ -210,6 +210,34 @@ export default function ShareCourseDialog({
     }
   };
 
+  const handleViewJourney = () => {
+    // Close dialog and navigate to journey page
+    onOpenChange(false);
+    toast.info(
+      lang === "fr"
+        ? `Parcours de ${selectedFriend?.firstName || ""} — fonctionnalité bientôt disponible !`
+        : `${selectedFriend?.firstName || ""}'s journey — coming soon!`
+    );
+  };
+
+  // ── Avatar helper ──
+  const renderAvatar = (user: SearchResult | SharedUser, size: "sm" | "md") => {
+    const cls = size === "sm"
+      ? "w-8 h-8 rounded-full object-cover flex-shrink-0 border border-purple-500/20"
+      : "w-9 h-9 rounded-full object-cover flex-shrink-0 border-2 border-purple-500/30";
+    const fallbackCls = size === "sm"
+      ? "w-8 h-8 rounded-full bg-gradient-to-br from-purple-500/70 to-pink-500/70 flex items-center justify-center flex-shrink-0 text-white font-bold text-xs"
+      : "w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm";
+
+    return user.avatar ? (
+      <img src={user.avatar} alt={user.firstName} className={cls} />
+    ) : (
+      <div className={fallbackCls}>
+        {user.firstName.charAt(0).toUpperCase()}
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -230,9 +258,7 @@ export default function ShareCourseDialog({
 
         {/* ── Scrollable body ── */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-5 pt-4 space-y-5">
-          {/* ═══════════════════════════════════════
-              SECTION 1: Invite a friend
-              ═══════════════════════════════════════ */}
+          {/* SECTION 1: Invite a friend */}
           <div>
             <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
               <UserPlus className="w-4 h-4 text-purple-400" />
@@ -262,7 +288,7 @@ export default function ShareCourseDialog({
                 </div>
 
                 {/* Results */}
-                <div className="mt-2 max-h-56 overflow-y-auto custom-scrollbar">
+                <div className="mt-2 max-h-64 overflow-y-auto custom-scrollbar">
                   {isSearching && results.length === 0 && query.length >= 2 && (
                     <div className="flex items-center justify-center py-6">
                       <Loader2 className="w-5 h-5 animate-spin text-purple-400" />
@@ -285,17 +311,7 @@ export default function ShareCourseDialog({
                       onClick={() => handleSelectFriend(user)}
                       className="w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-150 hover:bg-[rgba(124,92,191,0.12)] cursor-pointer group"
                     >
-                      {user.avatar ? (
-                        <img
-                          src={user.avatar}
-                          alt={user.firstName}
-                          className="w-9 h-9 rounded-full object-cover flex-shrink-0 border-2 border-purple-500/30"
-                        />
-                      ) : (
-                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0 text-white font-bold text-sm">
-                          {user.firstName.charAt(0).toUpperCase()}
-                        </div>
-                      )}
+                      {renderAvatar(user, "md")}
                       <div className="text-left flex-1 min-w-0">
                         <p className="text-sm font-semibold truncate group-hover:text-purple-300 transition-colors">
                           {user.firstName} {user.lastName}
@@ -309,6 +325,7 @@ export default function ShareCourseDialog({
                           {user.email}
                         </p>
                       </div>
+                      <Send className="w-4 h-4 text-[#9b9bb0]/40 group-hover:text-purple-400 transition-colors flex-shrink-0" />
                     </button>
                   ))}
 
@@ -329,17 +346,17 @@ export default function ShareCourseDialog({
             {shareState === "selected" && selectedFriend && (
               <div className="space-y-3">
                 <div className="flex items-center gap-3 p-3 rounded-2xl bg-[rgba(124,92,191,0.1)] border border-[rgba(124,92,191,0.2)]">
-                  {selectedFriend.avatar ? (
-                    <img
-                      src={selectedFriend.avatar}
-                      alt={selectedFriend.firstName}
-                      className="w-10 h-10 rounded-full object-cover flex-shrink-0 border-2 border-purple-500/30"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0 text-white font-bold">
-                      {selectedFriend.firstName.charAt(0).toUpperCase()}
-                    </div>
-                  )}
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0 text-white font-bold">
+                    {selectedFriend.avatar ? (
+                      <img
+                        src={selectedFriend.avatar}
+                        alt={selectedFriend.firstName}
+                        className="w-10 h-10 rounded-full object-cover border-2 border-purple-500/30"
+                      />
+                    ) : (
+                      selectedFriend.firstName.charAt(0).toUpperCase()
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm">
                       {selectedFriend.firstName} {selectedFriend.lastName}
@@ -355,22 +372,39 @@ export default function ShareCourseDialog({
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    onClick={handleBack}
-                    className="flex-1 rounded-xl border border-[rgba(124,92,191,0.2)] text-[#9b9bb0] hover:text-[#f0eef6] hover:bg-[rgba(124,92,191,0.1)] cursor-pointer"
-                  >
-                    {lang === "fr" ? "Retour" : "Back"}
-                  </Button>
+                {/* Action buttons */}
+                <div className="space-y-2">
+                  {/* Primary: Share course */}
                   <Button
                     onClick={handleSendInvite}
                     disabled={shareState === "sending"}
-                    className="flex-1 rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 text-white font-semibold hover:from-purple-500 hover:to-pink-400 transition-all shadow-lg shadow-purple-500/20 cursor-pointer"
+                    className="w-full rounded-xl bg-gradient-to-r from-purple-600 to-pink-500 text-white font-semibold hover:from-purple-500 hover:to-pink-400 transition-all shadow-lg shadow-purple-500/20 cursor-pointer flex items-center justify-center gap-2"
                   >
-                    {lang === "fr"
-                      ? "Partager le cours"
-                      : "Share Course"}
+                    {shareState === "sending" ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    {lang === "fr" ? "Partager le cours" : "Share Course"}
+                  </Button>
+
+                  {/* Secondary: View journey */}
+                  <Button
+                    variant="ghost"
+                    onClick={handleViewJourney}
+                    className="w-full rounded-xl border border-[rgba(124,92,191,0.2)] text-[#9b9bb0] hover:text-[#f0eef6] hover:bg-[rgba(124,92,191,0.1)] cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Eye className="w-4 h-4" />
+                    {lang === "fr" ? "Voir le parcours" : "View their journey"}
+                  </Button>
+
+                  {/* Tertiary: Back */}
+                  <Button
+                    variant="ghost"
+                    onClick={handleBack}
+                    className="w-full rounded-xl text-muted-foreground/50 hover:text-foreground hover:bg-white/5 cursor-pointer text-sm"
+                  >
+                    {lang === "fr" ? "Retour à la recherche" : "Back to search"}
                   </Button>
                 </div>
               </div>
@@ -397,14 +431,10 @@ export default function ShareCourseDialog({
             )}
           </div>
 
-          {/* ═══════════════════════════════════════
-              DIVIDER
-              ═══════════════════════════════════════ */}
+          {/* DIVIDER */}
           <div className="border-t border-[rgba(124,92,191,0.15)]" />
 
-          {/* ═══════════════════════════════════════
-              SECTION 2: Shared with
-              ═══════════════════════════════════════ */}
+          {/* SECTION 2: Shared with */}
           <div>
             <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
               <Users className="w-4 h-4 text-purple-400" />
@@ -428,17 +458,7 @@ export default function ShareCourseDialog({
                     key={user.id}
                     className="flex items-center gap-3 p-2.5 rounded-xl bg-[rgba(124,92,191,0.06)]"
                   >
-                    {user.avatar ? (
-                      <img
-                        src={user.avatar}
-                        alt={user.firstName}
-                        className="w-8 h-8 rounded-full object-cover flex-shrink-0 border border-purple-500/20"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500/70 to-pink-500/70 flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">
-                        {user.firstName.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    {renderAvatar(user, "sm")}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">
                         {user.firstName} {user.lastName}
