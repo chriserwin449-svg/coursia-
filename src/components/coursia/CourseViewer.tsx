@@ -1329,7 +1329,8 @@ export default function CourseViewer() {
           {/* Content area */}
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             <div key={`chapter-${currentChapter.id}-${currentChapterIndex}`} className="max-w-3xl mx-auto px-4 sm:px-5 md:px-6 py-5 sm:py-6 md:py-8 animate-fade-in-slide-right">
-              <div className="md:hidden flex justify-end mb-4">
+              <div className="md:hidden flex justify-end gap-2 mb-4">
+                <button onClick={() => setShowShareDialog(true)} className="p-2 rounded-xl glass text-xs font-bold hover:bg-mauve/10 hover:text-mauve-light transition-all cursor-pointer"><Share2 className="w-4 h-4 text-muted-foreground" /></button>
                 <button onClick={() => setIsFullscreen(true)} className="p-2 rounded-xl glass text-xs font-bold hover:bg-white/10 transition-all cursor-pointer"><Maximize2 className="w-4 h-4 text-muted-foreground" /></button>
               </div>
 

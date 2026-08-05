@@ -125,11 +125,15 @@ export default function ShareCourseDialog({
         );
         if (res.ok) {
           const data = await res.json();
+          console.log(`[ShareDialog] Search "${searchQuery}" -> ${data.users?.length || 0} results`);
           setResults((data.users || []).slice(0, 5));
         } else {
+          const errText = await res.text().catch(() => "");
+          console.error(`[ShareDialog] Search failed: ${res.status} ${errText}`);
           setResults([]);
         }
-      } catch {
+      } catch (err) {
+        console.error(`[ShareDialog] Search network error:`, err);
         setResults([]);
       } finally {
         setIsSearching(false);
