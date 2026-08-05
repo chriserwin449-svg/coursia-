@@ -121,21 +121,19 @@ async function deepSearch(
 
   const langQ = courseLang === "en" ? "in english" : "en français";
 
-  // 3 parallel searches (reduced from 5 for speed — under 60s target)
-  const [r1, r2, r3] = await Promise.all([
+  // 2 parallel searches (reduced from 3 for speed — under 30s total target)
+  const [r1, r2] = await Promise.all([
     searchOnce(zai, `${topic} ${levelContext} explained ${langQ}`),
-    searchOnce(zai, `${topic} real world examples case studies applications ${langQ}`),
-    searchOnce(zai, `${topic} latest advances 2025 trends best practices ${langQ}`),
+    searchOnce(zai, `${topic} real world examples case studies best practices ${langQ}`),
   ]);
 
   const blocks: string[] = [];
   if (r1) blocks.push(`══ CONCEPTS & EXPLANATIONS ══\n${r1}`);
-  if (r2) blocks.push(`══ REAL-WORLD EXAMPLES & CASES ══\n${r2}`);
-  if (r3) blocks.push(`══ LATEST ADVANCES & BEST PRACTICES ══\n${r3}`);
+  if (r2) blocks.push(`══ EXAMPLES & BEST PRACTICES ══\n${r2}`);
 
   const combined = blocks.join("\n\n");
-  const totalResults = [r1, r2, r3].filter(Boolean).length;
-  console.log(`[search] Deep search completed: ${totalResults}/3 queries returned results (${combined.length} chars)`);
+  const totalResults = [r1, r2].filter(Boolean).length;
+  console.log(`[search] Deep search completed: ${totalResults}/2 queries returned results (${combined.length} chars)`);
 
   return combined;
 }
@@ -389,12 +387,12 @@ function buildOutlineSystemPrompt(
 ): string {
   const s = getPromptStrings(courseLang);
 
-  // Truncate research context to keep prompt fast (< 1500 chars)
-  const maxResearch = 1500;
+  // Truncate research context to keep prompt FAST (< 500 chars — shorter = faster AI response)
+  const maxResearch = 500;
   let truncatedWeb = webContext;
   let truncatedSource = sourceContext;
   if (truncatedWeb.length > maxResearch) truncatedWeb = truncatedWeb.slice(0, maxResearch) + "...";
-  if (truncatedSource.length > 500) truncatedSource = truncatedSource.slice(0, 500) + "...";
+  if (truncatedSource.length > 200) truncatedSource = truncatedSource.slice(0, 200) + "...";
 
   let researchBlock = "";
   if (truncatedWeb || truncatedSource) {
@@ -405,22 +403,20 @@ ${truncatedSource || ""}
 ${s.outline.researchFooter}`;
   }
 
-  return `${s.outline.role}
+  // Slim outline prompt: keep it SHORT so the AI responds faster
+  // The detailed writing instructions are in the chapter generation prompts, not here
+  const en = courseLang === "en";
+  const levelLabel = level === 0 ? "beginner" : level === 1 ? "intermediate" : "advanced";
+  return `${en ? 'You are an expert course designer. Respond ONLY with valid JSON.' : 'Tu es un expert en conception de cours. Réponds UNIQUEMENT avec du JSON valide.'}
 
-${s.outline.subjectLabel} : ${title}
-${s.outline.languageLabel} : ${s.langLabel}
-${s.outline.langNote}
-
-${s.outline.levelDesc[level] || s.outline.levelDesc[1]}
+${en ? 'Subject' : 'Sujet'}: ${title}
+${en ? 'Language' : 'Langue'}: ${s.langLabel}
+${en ? 'Level' : 'Niveau'}: ${levelLabel}
+${en ? 'Write EVERYTHING in English.' : 'Rédige TOUT en français.'}
 
 ${researchBlock}
 
-${s.outline.missionHeader}
-${s.outline.missionText(level)}
-
-${s.outline.chapterCountRule(MIN_CHAPTERS, MAX_CHAPTERS)}
-
-${s.outline.absoluteRules}
+IMPORTANT: Create EXACTLY ${MIN_CHAPTERS} chapters in the JSON array. NOT fewer. Each chapter must have all fields: title, goal, keyConcepts (3+), subSections (3+), plannedAnalogy, plannedCaseStudy, plannedExample, mythToBust, reflectionQuestion, realAction.
 
 ${s.outline.jsonOnly}
 ${s.outline.jsonExample(level)}`;
@@ -431,10 +427,11 @@ async function generateOutline(
 ): Promise<OutlineResult | null> {
   const systemPrompt = buildOutlineSystemPrompt(title, courseLang, level, webContext, sourceContext);
   console.log(`[outline] Generating outline for "${title}" (level=${level}, lang=${courseLang})...`);
+  // Reduced maxTokens: outline needs ~2048 for 4 detailed chapters with all fields
   const completion = await smartChatCompletion([
     { role: "system", content: systemPrompt },
     { role: "user", content: getPromptStrings(courseLang).outline.userPrompt(level, title) },
-  ], { maxTokens: 4096, temperature: 0.5 });
+  ], { maxTokens: 2048, temperature: 0.5 });
 
   const text = completion.content || "";
   console.log(`[outline] Response: ${text.length} chars, provider: ${completion.provider}`);
@@ -1163,60 +1160,48 @@ export async function POST(request: NextRequest) {
 
     console.log(`[outline] ${outline.chapters.length} chapters planned`);
 
-    // ── Step 2: Generate chapters in 2 batches to avoid SDK rate limiting ──
+    // ── Step 2: Generate ALL chapters in parallel (no batches, no delay) ──
+    // This cuts chapter generation from ~40s sequential to ~15s parallel
     logStep("chapters_start");
     let generatedChapters: Array<{ title: string; content: string; summary: string }> = [];
 
     const allChapters = outline.chapters;
 
-    // Process in batches of 2 with a small delay between batches
-    const BATCH_SIZE = 2;
-    for (let batchStart = 0; batchStart < allChapters.length; batchStart += BATCH_SIZE) {
-      const batch = allChapters.slice(batchStart, batchStart + BATCH_SIZE);
+    const chapterPromises = allChapters.map((ch, chapterIdx) => {
+      return (async () => {
+        console.log(`[generate] ── Chapter ${chapterIdx + 1}/${allChapters.length}: "${ch.title}" ──`);
+        const chStart = Date.now();
 
-      // Add delay between batches to avoid SDK rate limiting
-      if (batchStart > 0) {
-        console.log(`[generate] ⏳ Waiting 2s before batch ${Math.floor(batchStart / BATCH_SIZE) + 1} to avoid rate limiting...`);
-        await sleep(2000);
-      }
+        // Attempt 1: Full prompt with research context
+        let chapter = await generateChapter(title, courseLang, level, chapterIdx, allChapters.length, ch, webContext, sourceContext);
 
-      const chapterPromises = batch.map((ch, i) => {
-        const chapterIdx = batchStart + i;
-        return (async () => {
-          console.log(`[generate] ── Chapter ${chapterIdx + 1}/${allChapters.length}: "${ch.title}" ──`);
-          const chStart = Date.now();
+        // Attempt 2: Without research context
+        if (!chapter) {
+          console.log(`[chapter-${chapterIdx + 1}] Attempt 1 failed, trying without research context...`);
+          chapter = await generateChapter(title, courseLang, level, chapterIdx, allChapters.length, ch, "", "");
+        }
 
-          // Attempt 1: Full prompt with research context
-          let chapter = await generateChapter(title, courseLang, level, chapterIdx, allChapters.length, ch, webContext, sourceContext);
+        // Attempt 3: Minimal emergency prompt
+        if (!chapter) {
+          console.log(`[chapter-${chapterIdx + 1}] Attempt 2 failed, trying minimal emergency prompt...`);
+          chapter = await generateChapterEmergency(title, courseLang, level, chapterIdx, allChapters.length, ch);
+        }
 
-          // Attempt 2: Without research context
-          if (!chapter) {
-            console.log(`[chapter-${chapterIdx + 1}] Attempt 1 failed, trying without research context...`);
-            chapter = await generateChapter(title, courseLang, level, chapterIdx, allChapters.length, ch, "", "");
-          }
+        if (chapter) {
+          const quality = validateChapterQuality(chapter.content, level);
+          if (!quality.passed) console.log(`[chapter-${chapterIdx + 1}] Quality issues: ${quality.issues.join(", ")} (${quality.wordCount} words, ${quality.headingCount} headings)`);
+          else console.log(`[chapter-${chapterIdx + 1}] Quality OK (${quality.wordCount} words, ${quality.headingCount} headings)`);
+        } else {
+          console.error(`[chapter-${chapterIdx + 1}] ALL 3 ATTEMPTS FAILED — chapter will be missing!`);
+        }
 
-          // Attempt 3: Minimal emergency prompt
-          if (!chapter) {
-            console.log(`[chapter-${chapterIdx + 1}] Attempt 2 failed, trying minimal emergency prompt...`);
-            chapter = await generateChapterEmergency(title, courseLang, level, chapterIdx, allChapters.length, ch);
-          }
+        console.log(`[chapter-${chapterIdx + 1}] Time: ${((Date.now() - chStart) / 1000).toFixed(1)}s`);
+        return chapter || null;
+      })();
+    });
 
-          if (chapter) {
-            const quality = validateChapterQuality(chapter.content, level);
-            if (!quality.passed) console.log(`[chapter-${chapterIdx + 1}] Quality issues: ${quality.issues.join(", ")} (${quality.wordCount} words, ${quality.headingCount} headings)`);
-            else console.log(`[chapter-${chapterIdx + 1}] Quality OK (${quality.wordCount} words, ${quality.headingCount} headings)`);
-          } else {
-            console.error(`[chapter-${chapterIdx + 1}] ALL 3 ATTEMPTS FAILED — chapter will be missing!`);
-          }
-
-          console.log(`[chapter-${chapterIdx + 1}] Time: ${((Date.now() - chStart) / 1000).toFixed(1)}s`);
-          return chapter || null;
-        })();
-      });
-
-      const batchResults = await Promise.all(chapterPromises);
-      generatedChapters.push(...batchResults.filter((ch): ch is NonNullable<typeof ch> => ch !== null));
-    }
+    const chapterResults = await Promise.all(chapterPromises);
+    generatedChapters = chapterResults.filter((ch): ch is NonNullable<typeof ch> => ch !== null);
 
     // ── Safety net: if fewer than MIN_CHAPTERS were generated, try single-call fallback ──
     if (generatedChapters.length < MIN_CHAPTERS) {

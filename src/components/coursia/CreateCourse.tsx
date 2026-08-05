@@ -207,8 +207,8 @@ export default function CreateCourse() {
   // Simulate step progression based on time elapsed
   useEffect(() => {
     if (!loading) { setGenerationStep(0); return; }
-    // Advance through steps: each step ~12-15s (course takes ~60-90s total)
-    const stepDurations = [2000, 8000, 20000, 40000, 50000]; // ms thresholds (matches ~55s total)
+    // Advance through steps: each step ~7s (course takes ~35s total with parallel chapters)
+    const stepDurations = [2000, 5000, 12000, 20000, 30000]; // ms thresholds (matches ~35s total with parallel chapters)
     const interval = setInterval(() => {
       const elapsed = Date.now() - (progressStartRef.current || Date.now());
       let step = 0;

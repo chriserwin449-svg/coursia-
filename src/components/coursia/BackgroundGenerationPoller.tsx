@@ -43,8 +43,8 @@ export default function BackgroundGenerationPoller() {
     stopPolling();
     notifiedRef.current = false;
 
-    const POLL_INTERVAL_MS = 8_000; // Poll every 8 seconds (was 10)
-    const MAX_AGE_MS = 2 * 60_000; // 2 minutes (generation now targets <60s, was 8 min)
+    const POLL_INTERVAL_MS = 8_000; // Poll every 8 seconds
+    const MAX_AGE_MS = 5 * 60_000; // 5 minutes safety net (generation targets <40s, but rate limiting may add delays)
 
     intervalRef.current = setInterval(async () => {
       const pending = useAppStore.getState().backgroundGeneration;
