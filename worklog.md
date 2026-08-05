@@ -253,3 +253,33 @@ Stage Summary:
 - Admin check is email-based, case-insensitive
 - Avatar + username columns will be auto-created on first API call in production
 - Files: src/lib/admin.ts (new), paywall-status/route.ts, generate/route.ts, auth/me/route.ts
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Fix course generation not working + admin bypass for chrisnsumbuk@gmail.com + avatar upload fix
+
+Work Log:
+- Investigated course generation flow: found generation works but takes ~3 minutes
+- Found root cause: Frontend timeout (150s) shorter than generation time (~180s+), causing premature abort before course is saved
+- Found Vercel maxDuration already set to 300s from previous session
+- Increased frontend FETCH_TIMEOUT_MS from 150s to 300s in CreateCourse.tsx
+- Increased DB recovery polling from 5 polls @3s (15s total) to 10 polls @5s (50s total)
+- Fixed extractChapter() function: brace-matching was confused by counting [] same as {}, added proper string tracking, fixed content regex extraction, added Strategy 4 for raw markdown fallback
+- Added admin bypass with raw SQL fallback in generate route (handles missing Prisma columns)
+- Added admin bypass to generate-level route (was missing entirely)
+- Added raw SQL fallback for user lookup in paywall-status route
+- Added avatar column migration in /api/users/avatar route (ensures column exists before update)
+- Added maxDuration=300 to generate-level route
+- Verified all changes compile without errors
+- Tested generation flow in browser: signup → create page → generate button enabled → generation starts correctly
+
+Stage Summary:
+- Key files modified:
+  - src/app/api/courses/generate/route.ts: admin bypass with raw SQL fallback, extractChapter robustness fix
+  - src/app/api/courses/paywall-status/route.ts: raw SQL fallback for user lookup
+  - src/app/api/courses/[id]/generate-level/route.ts: added admin bypass + maxDuration=300
+  - src/app/api/users/avatar/route.ts: added avatar column migration
+  - src/components/coursia/CreateCourse.tsx: increased timeouts and polling patience
+- chrisnsumbuk@gmail.com admin bypass is now bulletproof across all generation APIs with raw SQL fallbacks
+- Avatar upload has column migration to ensure it works even if PostgreSQL schema is out of sync

@@ -463,7 +463,7 @@ export default function CreateCourse() {
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
     const { signal } = abortRef.current;
-    const FETCH_TIMEOUT_MS = 150_000; // 150 seconds
+    const FETCH_TIMEOUT_MS = 300_000; // 300 seconds (5 min — generation takes ~3 min)
     const timeoutId = setTimeout(() => abortRef.current?.abort(), FETCH_TIMEOUT_MS);
 
     const MAX_ATTEMPTS = 3;
@@ -473,7 +473,7 @@ export default function CreateCourse() {
     let courseRecovered = false;
 
     // Helper: poll DB to find a course that may have been created in the background
-    const pollDbForCourse = async (maxPolls = 5, intervalMs = 3000): Promise<CourseData | null> => {
+    const pollDbForCourse = async (maxPolls = 10, intervalMs = 5000): Promise<CourseData | null> => {
       for (let p = 0; p < maxPolls; p++) {
         try {
           await new Promise(r => setTimeout(r, p === 0 ? 0 : intervalMs));
@@ -504,7 +504,7 @@ export default function CreateCourse() {
           }
 
           // Poll DB for the course (the API may have completed in the background)
-          const recovered = await pollDbForCourse(2, 2000);
+          const recovered = await pollDbForCourse(3, 3000);
           if (recovered) {
             console.log(`[generate] Course found in DB after failed attempt, recovering: "${recovered.title}"`);
             useAppStore.getState().addCourse(recovered);
@@ -606,7 +606,7 @@ export default function CreateCourse() {
 
       // All attempts failed — poll DB to find course that may have been created in the background
       console.log("[generate] All attempts failed, polling DB for recovery...");
-      const recovered = await pollDbForCourse(5, 3000);
+      const recovered = await pollDbForCourse(10, 5000);
       if (recovered) {
         console.log(`[generate] Final recovery: course "${recovered.title}" found in DB`);
         useAppStore.getState().addCourse(recovered);

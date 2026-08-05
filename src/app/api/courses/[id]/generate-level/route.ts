@@ -3,6 +3,9 @@ import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 import { smartChatCompletion } from "@/lib/openai";
 import { MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
+import { isAdmin } from "@/lib/admin";
+
+export const maxDuration = 300;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -119,7 +122,22 @@ export async function POST(
 
     // ── SUBSCRIPTION CHECK: only active subscribers can generate additional levels ──
     // (Free course users can study their existing beginner chapters but cannot unlock higher levels)
+    // ADMIN BYPASS: whitelisted emails skip this check
+    let ownerEmail: string | null = null;
     if (course.userId) {
+      try {
+        const owner = await db.user.findUnique({ where: { id: course.userId }, select: { email: true } });
+        ownerEmail = owner?.email || null;
+      } catch {
+        try {
+          const rows = await db.$queryRawUnsafe(`SELECT email FROM "User" WHERE id = $1 LIMIT 1`, course.userId) as Array<{ email: string }>;
+          ownerEmail = rows[0]?.email || null;
+        } catch { /* non-critical */ }
+      }
+    }
+    const isLevelAdmin = isAdmin(ownerEmail);
+
+    if (course.userId && !isLevelAdmin) {
       const courseOwner = await db.user.findUnique({
         where: { id: course.userId },
         select: { subscriptionStatus: true },

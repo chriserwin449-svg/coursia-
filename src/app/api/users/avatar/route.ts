@@ -57,6 +57,16 @@ export async function POST(request: NextRequest) {
 
     console.log(`[avatar] Base64 length: ${Math.round(base64.length / 1024)}KB, updating DB...`);
 
+    // Ensure avatar column exists (for PostgreSQL compatibility)
+    const dbUrl = process.env.DATABASE_URL || "";
+    if (dbUrl.includes("postgres")) {
+      try {
+        await db.$executeRawUnsafe(
+          `DO $$ BEGIN ALTER TABLE "User" ADD COLUMN "avatar" TEXT; EXCEPTION WHEN duplicate_column THEN null; END $$;`
+        );
+      } catch { /* non-critical */ }
+    }
+
     // Update user's avatar in database
     try {
       await db.user.update({

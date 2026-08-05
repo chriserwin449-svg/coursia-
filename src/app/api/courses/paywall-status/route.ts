@@ -171,21 +171,35 @@ export async function GET(request: NextRequest) {
       }));
     }
 
-    // ── Fetch user data ──
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: {
-        subscriptionPlan: true,
-        subscriptionStatus: true,
-        subscriptionEndDate: true,
-        trialStartDate: true,
-        createdAt: true,
-        email: true,
-        firstName: true,
-        hasCardOnFile: true,
-        freeCourseUsed: true,
-      },
-    });
+    // ── Fetch user data (with raw SQL fallback) ──
+    let user: Record<string, unknown> | null = null;
+    try {
+      user = await db.user.findUnique({
+        where: { id: userId },
+        select: {
+          subscriptionPlan: true,
+          subscriptionStatus: true,
+          subscriptionEndDate: true,
+          trialStartDate: true,
+          createdAt: true,
+          email: true,
+          firstName: true,
+          hasCardOnFile: true,
+          freeCourseUsed: true,
+        },
+      }) as unknown as Record<string, unknown>;
+    } catch {
+      // Fallback to raw SQL if Prisma fails (missing columns in PostgreSQL)
+      try {
+        const rows = await db.$queryRawUnsafe(
+          `SELECT "subscriptionPlan", "subscriptionStatus", "subscriptionEndDate", "trialStartDate", "createdAt", "email", "firstName", "hasCardOnFile", "freeCourseUsed" FROM "User" WHERE id = $1 LIMIT 1`,
+          userId
+        ) as Array<Record<string, unknown>>;
+        user = rows[0] || null;
+      } catch (fallbackErr) {
+        console.error("[paywall-status] Both Prisma and raw SQL failed:", fallbackErr);
+      }
+    }
 
     // ── ADMIN BYPASS: unlimited generation for whitelisted emails ──
     if (isAdmin(user?.email)) {

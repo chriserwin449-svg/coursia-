@@ -28,9 +28,9 @@ async function ensureFreeCourseColumn(): Promise<void> {
   } catch { /* non-critical */ }
 }
 
-// Vercel serverless function timeout — course generation needs 120s
+// Vercel serverless function timeout — course generation needs up to 5 minutes
 // (web search + AI outline + 4-6 AI chapter generations)
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -680,49 +680,85 @@ function extractChapter(text: string): { title: string; content: string; summary
   let result = tryParse(cleaned);
   if (result) return result;
 
-  // Strategy 2: Brace-matching extraction
+  // Strategy 2: Brace-matching extraction (only tracks { } depth, ignores [ ])
   const firstBrace = cleaned.indexOf("{");
-  if (firstBrace === -1) return null;
+  if (firstBrace !== -1) {
+    let braceDepth = 0, lastBrace = -1;
+    let inString = false, escaped = false;
+    for (let i = firstBrace; i < cleaned.length; i++) {
+      const ch = cleaned[i];
+      if (escaped) { escaped = false; continue; }
+      if (ch === "\\") { escaped = true; continue; }
+      if (ch === '"' && !inString) { inString = true; continue; }
+      if (ch === '"' && inString) { inString = false; continue; }
+      if (inString) continue;
+      if (ch === "{") braceDepth++;
+      if (ch === "}") { braceDepth--; lastBrace = i; if (braceDepth === 0) break; }
+    }
 
-  let depth = 0, lastBrace = -1;
-  for (let i = firstBrace; i < cleaned.length; i++) {
-    if (cleaned[i] === "\\") continue;
-    if (cleaned[i] === "\"") { let j = i + 1; while (j < cleaned.length) { if (cleaned[j] === "\\") { j += 2; continue; } if (cleaned[j] === "\"") break; j++; } i = j; continue; }
-    if (cleaned[i] === "{") depth++;
-    if (cleaned[i] === "}") { depth--; lastBrace = i; if (depth === 0) break; }
-    if (cleaned[i] === "[") depth++;
-    if (cleaned[i] === "]") depth--;
+    const snippet = lastBrace > firstBrace ? cleaned.slice(firstBrace, lastBrace + 1) : cleaned.slice(firstBrace);
+
+    result = tryParse(snippet)
+      || tryParse(snippet.replace(/,\s*([}\]])/g, "$1").replace(/[\u201C\u201D\u2018\u2019]/g, "'"))
+      || tryParse(snippet.replace(/[\u201C\u201D\u2018\u2019]/g, "'").replace(/[\u00A0]/g, " "));
+
+    if (result) return result;
   }
-
-  const snippet = lastBrace > firstBrace ? cleaned.slice(firstBrace, lastBrace + 1) : cleaned.slice(firstBrace);
-
-  result = tryParse(snippet)
-    || tryParse(snippet.replace(/,\s*([}\]])/g, "$1").replace(/[\u201C\u201D\u2018\u2019]/g, "'"));
-
-  if (result) return result;
 
   // Strategy 3: Extract title + content from partial JSON (e.g., truncated by token limit)
   const titleMatch = cleaned.match(/"title"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-  const contentMatch = cleaned.match(/"content"\s*:\s*"((?:[^"\\]|\\.|[\s\S])*?)(?:"\s*(?:,|\}|$))/);
   const summaryMatch = cleaned.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
 
-  if (titleMatch && contentMatch) {
-    let content = contentMatch[1]
-      .replace(/\\n/g, "\n")
-      .replace(/\\t/g, "\t")
-      .replace(/\\"/g, '"')
-      .replace(/\\\\/g, "\\");
-    // Ensure content has at least one heading
-    if (content.includes("##")) {
-      console.log(`[extractChapter] Recovered chapter from partial JSON: "${titleMatch[1].slice(0, 50)}..."`);
-      return {
-        title: titleMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"'),
-        content,
-        summary: summaryMatch ? summaryMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"') : "",
-      };
+  // For content, use a greedy approach: find the longest possible content value
+  const contentStartMatch = cleaned.match(/"content"\s*:\s*"/);
+  if (titleMatch && contentStartMatch) {
+    const contentStart = contentStartMatch.index! + contentStartMatch[0].length;
+    // Walk backwards from the end to find the closing quote of the content field
+    let contentEnd = -1;
+    let esc = false;
+    let inStr = false;
+    for (let i = cleaned.length - 1; i >= contentStart; i--) {
+      if (esc) { esc = false; continue; }
+      if (cleaned[i] === "\\") { esc = true; continue; }
+      if (cleaned[i] === '"' && !inStr) { inStr = true; contentEnd = i; continue; }
+      if (cleaned[i] === '"' && inStr) { inStr = false; contentEnd = i; continue; }
+    }
+    // Actually, simpler: find the closing pattern: ","summary" or "}\n or end of string
+    // after the content start
+    const afterContent = cleaned.slice(contentStart);
+    const closingMatch = afterContent.match(/"\s*(?:,\s*"\w+"|$)/);
+    if (closingMatch && closingMatch.index !== undefined) {
+      const rawContent = afterContent.slice(0, closingMatch.index);
+      let content = rawContent
+        .replace(/\\n/g, "\n")
+        .replace(/\\t/g, "\t")
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, "\\");
+      if (content.includes("##")) {
+        console.log(`[extractChapter] Recovered chapter from partial JSON: "${titleMatch[1].slice(0, 50)}..."`);
+        return {
+          title: titleMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"'),
+          content,
+          summary: summaryMatch ? summaryMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"') : "",
+        };
+      }
     }
   }
 
+  // Strategy 4: AI returned raw markdown content (no JSON wrapper at all)
+  // Check if the text starts with ## headings or has substantial markdown content
+  const lines = cleaned.split("\n").filter(l => l.trim());
+  const headingLines = lines.filter(l => l.trim().startsWith("#"));
+  if (headingLines.length >= 3 && cleaned.includes("##")) {
+    // Try to extract a title from the first non-heading line or the first heading
+    let title = "Untitled Chapter";
+    const firstH2 = cleaned.match(/^##\s+(.+)$/m);
+    if (firstH2) title = firstH2[1].trim();
+    console.log(`[extractChapter] Recovered raw markdown chapter: "${title.slice(0, 50)}..."`);
+    return { title, content: cleaned, summary: "" };
+  }
+
+  console.warn(`[extractChapter] All extraction strategies failed (${cleaned.length} chars)`);
   return null;
 }
 
@@ -892,12 +928,31 @@ export async function POST(request: NextRequest) {
     // This flag is NEVER reset, even if the course is deleted.
     // We use an interactive transaction to atomically check + claim the free slot.
     // ── ADMIN BYPASS: whitelisted emails skip ALL limits ──
-    const requestingUser = userId ? await db.user.findUnique({
-      where: { id: userId },
-      select: { email: true, subscriptionStatus: true, freeCourseUsed: true },
-    }).catch(() => null) : null;
+    let requestingUserEmail: string | null = null;
+    let isUserAdmin = false;
 
-    const isUserAdmin = isAdmin(requestingUser?.email);
+    if (userId) {
+      // Try Prisma first, fall back to raw SQL (in case columns are missing)
+      try {
+        const requestingUser = await db.user.findUnique({
+          where: { id: userId },
+          select: { email: true, subscriptionStatus: true, freeCourseUsed: true },
+        });
+        requestingUserEmail = requestingUser?.email || null;
+      } catch {
+        try {
+          const rows = await db.$queryRawUnsafe(
+            `SELECT email FROM "User" WHERE id = $1 LIMIT 1`, userId
+          ) as Array<{ email: string }>;
+          requestingUserEmail = rows[0]?.email || null;
+        } catch { /* non-critical */ }
+      }
+      isUserAdmin = isAdmin(requestingUserEmail);
+
+      if (isUserAdmin) {
+        console.log(`[generate] ⚡ Admin bypass: ${requestingUserEmail} — unlimited generation`);
+      }
+    }
 
     if (userId && !isUserAdmin) {
       // Ensure column exists BEFORE the transaction (especially for PostgreSQL)
