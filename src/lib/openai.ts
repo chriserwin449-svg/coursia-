@@ -48,14 +48,53 @@ const EXTERNAL_API_TIMEOUT = 60_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Retry with exponential backoff — used by all provider calls
- * Delays: 2s, 4s, 8s (4 total attempts)
+ * Error class that preserves the last error from a failed provider attempt.
+ * Used to propagate real error information instead of silently returning null.
+ */
+export class AIProviderError extends Error {
+  provider: string;
+  lastError: Error | null;
+  attempts: number;
+
+  constructor(provider: string, lastError: Error | null, attempts: number) {
+    const msg = lastError
+      ? `All ${attempts} attempts to ${provider} failed. Last error: ${lastError.message}`
+      : `${provider} returned empty/null response after ${attempts} attempts`;
+    super(msg);
+    this.name = "AIProviderError";
+    this.provider = provider;
+    this.lastError = lastError;
+    this.attempts = attempts;
+  }
+}
+
+/**
+ * Error class thrown when ALL AI providers have failed.
+ * Contains the list of provider errors for diagnostics.
+ */
+export class AllProvidersFailedError extends Error {
+  providerErrors: Array<{ provider: string; error: string }>;
+
+  constructor(providerErrors: Array<{ provider: string; error: string }>) {
+    const summary = providerErrors.map((e) => `${e.provider}: ${e.error.slice(0, 100)}`).join(" | ");
+    super(`ALL AI providers failed: ${summary}`);
+    this.name = "AllProvidersFailedError";
+    this.providerErrors = providerErrors;
+  }
+}
+
+/**
+ * Retry with exponential backoff — used by all provider calls.
+ * Delays: 2s, 4s, 8s (4 total attempts).
+ * IMPORTANT: Now throws AIProviderError on permanent failure instead of returning null.
  */
 async function retryWithBackoff<T>(
   fn: () => Promise<T | null>,
   label: string,
   maxRetries = 3,
 ): Promise<T | null> {
+  let lastError: Error | null = null;
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const result = await fn();
@@ -67,9 +106,11 @@ async function retryWithBackoff<T>(
         await sleep(delay);
         continue;
       }
-      return null;
+      // All retries exhausted with empty responses
+      lastError = new Error(`Empty/null response after ${maxRetries + 1} attempts`);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const msg = lastError.message;
       const isRetryable = msg.includes("429") || msg.includes("timeout") || msg.includes("ECONNRESET")
         || msg.includes("ETIMEDOUT") || msg.includes("socket") || msg.includes("fetch failed")
         || msg.includes("aborted") || msg.includes("abort") || msg.includes("503")
@@ -81,11 +122,14 @@ async function retryWithBackoff<T>(
         await sleep(delay);
         continue;
       }
-      console.error(`[${label}] Attempt ${attempt + 1} FAILED permanently: ${msg.slice(0, 200)}`);
-      return null;
+      console.error(`[${label}] Attempt ${attempt + 1} FAILED permanently: ${msg.slice(0, 500)}`);
+      if (lastError.stack) console.error(`[${label}] Stack: ${lastError.stack.slice(0, 500)}`);
+      // Throw instead of returning null — let the caller know what happened
+      throw new AIProviderError(label, lastError, attempt + 1);
     }
   }
-  return null;
+  // All retries exhausted with empty/null responses
+  throw new AIProviderError(label, lastError, maxRetries + 1);
 }
 
 /**
@@ -100,6 +144,7 @@ export function classifyAIError(error: unknown): string {
   if (msg.includes("500") || msg.includes("502") || msg.includes("503")) return "SERVER";
   if (msg.includes("JSON") || msg.includes("parse")) return "PARSE";
   if (!msg || msg === "undefined" || msg === "") return "EMPTY";
+  if (msg.includes("AllProvidersFailed") || msg.includes("ALL AI providers")) return "AI_GENERATION_FAILED";
   return "UNKNOWN";
 }
 
@@ -190,11 +235,18 @@ async function callGroq(
           const errorBody = await response.text().catch(() => "");
           console.error(`[Groq] Model ${model} failed (${response.status}): ${errorBody.slice(0, 300)}`);
           if (response.status === 404) continue;
-          return null;
+          // Throw so retryWithBackoff can handle it
+          throw new Error(`Groq ${model} HTTP ${response.status}: ${errorBody.slice(0, 200)}`);
         }
       } catch (error) {
-        console.error(`[Groq] Model ${model} request failed:`, error instanceof Error ? error.message : error);
-        continue;
+        // If it's a 404, try next model
+        const errMsg = error instanceof Error ? error.message : String(error);
+        if (errMsg.includes("404")) {
+          console.warn(`[Groq] Model ${model} not found, trying next...`);
+          continue;
+        }
+        console.error(`[Groq] Model ${model} request failed:`, errMsg);
+        throw error; // re-throw for retryWithBackoff
       }
     }
     return null;
@@ -238,11 +290,16 @@ async function callOpenAIWithFallback(
           const errorBody = await response.text().catch(() => "");
           console.error(`[OpenAI] Model ${model} failed (${response.status}): ${errorBody.slice(0, 300)}`);
           if (response.status === 404 || response.status === 401) continue;
-          return null;
+          throw new Error(`OpenAI ${model} HTTP ${response.status}: ${errorBody.slice(0, 200)}`);
         }
       } catch (error) {
-        console.error(`[OpenAI] Model ${model} request failed:`, error instanceof Error ? error.message : error);
-        continue;
+        const errMsg = error instanceof Error ? error.message : String(error);
+        if (errMsg.includes("404") || errMsg.includes("401")) {
+          console.warn(`[OpenAI] Model ${model} not found/unauthorized, trying next...`);
+          continue;
+        }
+        console.error(`[OpenAI] Model ${model} request failed:`, errMsg);
+        throw error;
       }
     }
     return null;
@@ -251,8 +308,11 @@ async function callOpenAIWithFallback(
 
 /**
  * Smart AI chat completion with automatic provider routing.
- * Priority: z-ai SDK > Groq > OpenAI/Google > Free
- * Each provider has its own retry logic with exponential backoff.
+ * Priority: z-ai SDK > Groq > OpenAI/Google > throws AllProvidersFailedError
+ *
+ * IMPORTANT: Now THROWS AllProvidersFailedError when ALL providers fail,
+ * instead of silently returning empty content. This ensures callers can
+ * distinguish between "AI failed" and "parsing failed".
  */
 export async function smartChatCompletion(
   messages: Array<{ role: string; content: string }>,
@@ -260,25 +320,40 @@ export async function smartChatCompletion(
 ) {
   console.log(`[AI] Starting smartChatCompletion (maxTokens: ${options?.maxTokens ?? 'default'}, temperature: ${options?.temperature ?? 'default'})`);
 
+  const providerErrors: Array<{ provider: string; error: string }> = [];
+
   // Priority 1: z-ai SDK (always available, works everywhere including Vercel)
   console.log("[AI] Trying z-ai SDK as primary provider...");
-  const zaiResult = await callZAI(messages, options);
-  if (zaiResult) {
-    console.log(`[AI] z-ai SDK succeeded: ${zaiResult.content.length} chars`);
-    return { content: zaiResult.content, provider: "zai" as const };
+  try {
+    const zaiResult = await callZAI(messages, options);
+    if (zaiResult) {
+      console.log(`[AI] z-ai SDK succeeded: ${zaiResult.content.length} chars`);
+      return { content: zaiResult.content, provider: "zai" as const };
+    }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`[AI] z-ai SDK FAILED: ${msg.slice(0, 300)}`);
+    providerErrors.push({ provider: "ZAI SDK", error: msg });
   }
-  console.warn("[AI] z-ai SDK failed, falling through...");
 
   // Priority 2: Groq (free, fast)
   const groqKey = process.env.GROQ_API_KEY;
   if (groqKey) {
     console.log("[AI] Trying Groq...");
-    const result = await callGroq(groqKey, messages, options);
-    if (result) {
-      console.log(`[AI] Groq succeeded: ${result.content.length} chars`);
-      return { content: result.content, provider: "groq" as const };
+    try {
+      const result = await callGroq(groqKey, messages, options);
+      if (result) {
+        console.log(`[AI] Groq succeeded: ${result.content.length} chars`);
+        return { content: result.content, provider: "groq" as const };
+      }
+      providerErrors.push({ provider: "Groq", error: "Returned empty response" });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[AI] Groq FAILED: ${msg.slice(0, 300)}`);
+      providerErrors.push({ provider: "Groq", error: msg });
     }
-    console.warn("[AI] Groq failed, falling through...");
+  } else {
+    providerErrors.push({ provider: "Groq", error: "No GROQ_API_KEY configured" });
   }
 
   // Priority 3: OPENAI_API_KEY (can be Google Gemini or OpenAI)
@@ -287,67 +362,82 @@ export async function smartChatCompletion(
     // Google Gemini
     if (apiKey.startsWith("AIza") || apiKey.startsWith("AQ.")) {
       console.log("[AI] Trying Google Gemini...");
-      const geminiResult = await retryWithBackoff(async () => {
-        try {
-          const response = await fetchWithTimeout(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                contents: (() => {
-                  const systemMsg = messages.find((m) => m.role === "system");
-                  const nonSystem = messages.filter((m) => m.role !== "system");
-                  const merged = nonSystem.map((m, i) => ({
-                    role: m.role === "assistant" ? "model" : "user",
-                    parts: [{ text: (i === 0 && systemMsg ? `[INSTRUCTIONS]\n${systemMsg.content}\n\n[/INSTRUCTIONS]\n\n` : "") + m.content }],
-                  }));
-                  return merged.length > 0 ? merged : [{ role: "user" as const, parts: [{ text: "Hello" }] }];
-                })(),
-                generationConfig: { temperature: options?.temperature ?? 0.7, maxOutputTokens: options?.maxTokens ?? 8192 },
-              }),
-              timeoutMs: EXTERNAL_API_TIMEOUT,
-            },
-          );
-          if (response.ok) {
-            const data = await response.json();
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            if (text && text.trim().length > 0) {
-              console.log(`[Gemini] Success: ${text.length} chars`);
-              return { content: text.trim() };
+      try {
+        const geminiResult = await retryWithBackoff(async () => {
+          try {
+            const response = await fetchWithTimeout(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contents: (() => {
+                    const systemMsg = messages.find((m) => m.role === "system");
+                    const nonSystem = messages.filter((m) => m.role !== "system");
+                    const merged = nonSystem.map((m, i) => ({
+                      role: m.role === "assistant" ? "model" : "user",
+                      parts: [{ text: (i === 0 && systemMsg ? `[INSTRUCTIONS]\n${systemMsg.content}\n\n[/INSTRUCTIONS]\n\n` : "") + m.content }],
+                    }));
+                    return merged.length > 0 ? merged : [{ role: "user" as const, parts: [{ text: "Hello" }] }];
+                  })(),
+                  generationConfig: { temperature: options?.temperature ?? 0.7, maxOutputTokens: options?.maxTokens ?? 8192 },
+                }),
+                timeoutMs: EXTERNAL_API_TIMEOUT,
+              },
+            );
+            if (response.ok) {
+              const data = await response.json();
+              const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+              if (text && text.trim().length > 0) {
+                console.log(`[Gemini] Success: ${text.length} chars`);
+                return { content: text.trim() };
+              }
+              console.warn("[Gemini] Empty response");
+              return null;
             }
-            console.warn("[Gemini] Empty response");
-            return null;
+            const errorBody = await response.text().catch(() => "");
+            throw new Error(`Gemini HTTP ${response.status}: ${errorBody.slice(0, 200)}`);
+          } catch (error) {
+            throw error;
           }
-          const errorBody = await response.text().catch(() => "");
-          console.error(`[Gemini] Failed (${response.status}): ${errorBody.slice(0, 300)}`);
-          return null;
-        } catch (error) {
-          console.error("[Gemini] Request failed:", error instanceof Error ? error.message : error);
-          throw error;
-        }
-      }, "Gemini", 2);
+        }, "Gemini", 2);
 
-      if (geminiResult) {
-        console.log(`[AI] Gemini succeeded: ${geminiResult.content.length} chars`);
-        return { content: geminiResult.content, provider: "google" as const };
+        if (geminiResult) {
+          console.log(`[AI] Gemini succeeded: ${geminiResult.content.length} chars`);
+          return { content: geminiResult.content, provider: "google" as const };
+        }
+        providerErrors.push({ provider: "Gemini", error: "Returned empty response" });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error(`[AI] Gemini FAILED: ${msg.slice(0, 300)}`);
+        providerErrors.push({ provider: "Gemini", error: msg });
       }
-      console.warn("[AI] Gemini failed, falling through...");
     }
 
     // OpenAI
     if (apiKey.startsWith("sk-")) {
       console.log("[AI] Trying OpenAI...");
-      const result = await callOpenAIWithFallback(apiKey, messages, options);
-      if (result) {
-        console.log(`[AI] OpenAI succeeded: ${result.content.length} chars`);
-        return { content: result.content, provider: "openai" as const };
+      try {
+        const result = await callOpenAIWithFallback(apiKey, messages, options);
+        if (result) {
+          console.log(`[AI] OpenAI succeeded: ${result.content.length} chars`);
+          return { content: result.content, provider: "openai" as const };
+        }
+        providerErrors.push({ provider: "OpenAI", error: "Returned empty response" });
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error(`[AI] OpenAI FAILED: ${msg.slice(0, 300)}`);
+        providerErrors.push({ provider: "OpenAI", error: msg });
       }
-      console.warn("[AI] OpenAI all models failed");
     }
+  } else {
+    providerErrors.push({ provider: "OpenAI/Gemini", error: "No OPENAI_API_KEY configured" });
   }
 
-  // All providers failed
-  console.error("[AI] ALL PROVIDERS FAILED — no content generated");
-  return { content: "", provider: "free" as const };
+  // ALL providers failed — throw with full diagnostics
+  console.error("[AI] ═══ ALL PROVIDERS FAILED ═══");
+  for (const pe of providerErrors) {
+    console.error(`  ${pe.provider}: ${pe.error}`);
+  }
+  throw new AllProvidersFailedError(providerErrors);
 }

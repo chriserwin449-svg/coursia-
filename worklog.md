@@ -571,3 +571,32 @@ Stage Summary:
 - In DEV mode, the real error is shown to the user (not masked)
 - API responses now include debug object with real error message and stack trace
 - Production keeps user-friendly messages but server logs everything
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix generic "AI had trouble structuring this course" error — expose real errors instead of masking them
+
+Work Log:
+- Found the generic error message "L'IA a eu du mal à structurer ce cours" in CreateCourse.tsx line 424, mapped from `AI_GENERATION_FAILED` error type
+- Traced the full call chain: CreateCourse.tsx → fire-and-forget fetch → /api/courses/generate → AI_GENERATION_FAILED response
+- Identified root cause: `retryWithBackoff` in openai.ts silently returned `null` on all errors (swallowing error info); `smartChatCompletion` returned `{ content: "", provider: "free" }` instead of throwing when ALL providers failed
+- Created `AIProviderError` class: preserves provider name, last error, and attempt count when a provider permanently fails
+- Created `AllProvidersFailedError` class: collects errors from ALL providers (ZAI, Groq, Gemini, OpenAI) with per-provider details
+- Rewrote `retryWithBackoff`: now throws `AIProviderError` on permanent failure instead of returning null; throws on empty responses after all retries
+- Rewrote `smartChatCompletion`: tracks per-provider errors in `providerErrors` array; throws `AllProvidersFailedError` when ALL providers fail instead of returning empty content
+- Updated `callGroq`: now throws error on non-404 HTTP failures (was returning null)
+- Updated `callOpenAIWithFallback`: same fix — throws on non-404/401 HTTP failures
+- Fixed bug in callOpenAIWithFallback catch block: was referencing block-scoped `response` variable from try block
+- Updated generate/route.ts outline error handling: detects `AllProvidersFailedError` and logs per-provider failures; skips retry without context when AllProvidersFailedError (pointless — no providers available)
+- Updated both AI_GENERATION_FAILED responses to include `realError` field and `providerFailures` array in debug object
+- Updated CreateCourse.tsx `getErrorMessage`: removed ALL generic error messages for AI_GENERATION_FAILED and GENERATION_ERROR; now always shows the real server error (truncated to 200 chars)
+- Always logs real error to console.error for debugging (not just in dev mode)
+- Verified all other smartChatCompletion consumers (random, quiz, final-quiz, generate-level) have try-catch blocks that handle thrown errors
+
+Stage Summary:
+- Key files modified: src/lib/openai.ts, src/app/api/courses/generate/route.ts, src/components/coursia/CreateCourse.tsx
+- Error chain now preserves real error: ZAI/Groq/etc failure → AIProviderError → AllProvidersFailedError → AI_GENERATION_FAILED response with real error → client shows real error
+- Users will now see the ACTUAL error (e.g., "ZAI SDK: timeout after 4 attempts; Groq: No GROQ_API_KEY configured") instead of generic "AI had trouble"
+- No lint errors in modified files
+- App renders correctly in browser (verified with agent-browser)

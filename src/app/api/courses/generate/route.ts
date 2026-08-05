@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
-import { smartChatCompletion, classifyAIError } from "@/lib/openai";
+import { smartChatCompletion, classifyAIError, AllProvidersFailedError } from "@/lib/openai";
 import { MAX_SOURCE_LINKS, MAX_TOKENS, MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
 import { isAdmin } from "@/lib/admin";
 
@@ -1186,12 +1186,24 @@ export async function POST(request: NextRequest) {
       console.error("[generate] ❌ Outline all retries failed:");
       console.error("  Full error:", msg);
       console.error("  Stack:", error instanceof Error ? error.stack : "N/A");
-      try {
-        outline = await generateOutline(title, courseLang, level, "", "");
-      } catch (retryErr) {
-        console.error("[generate] ❌ Outline retry without context also failed:");
-        console.error("  Full error:", retryErr instanceof Error ? retryErr.message : String(retryErr));
-        console.error("  Stack:", retryErr instanceof Error ? retryErr.stack : "N/A");
+      // If it's an AllProvidersFailedError, log each provider's failure
+      if (error instanceof AllProvidersFailedError) {
+        console.error("[generate] Provider-by-provider failures:");
+        for (const pe of error.providerErrors) {
+          console.error(`  → ${pe.provider}: ${pe.error}`);
+        }
+      }
+      // Retry without context as last resort (skip if AllProvidersFailedError — no point retrying)
+      if (!(error instanceof AllProvidersFailedError)) {
+        try {
+          outline = await generateOutline(title, courseLang, level, "", "");
+        } catch (retryErr) {
+          console.error("[generate] ❌ Outline retry without context also failed:");
+          console.error("  Full error:", retryErr instanceof Error ? retryErr.message : String(retryErr));
+          console.error("  Stack:", retryErr instanceof Error ? retryErr.stack : "N/A");
+        }
+      } else {
+        console.warn("[generate] Skipping outline retry without context (AllProvidersFailedError — no providers available)");
       }
     }
 
@@ -1212,13 +1224,31 @@ export async function POST(request: NextRequest) {
         console.error("[generate] Root cause outline error:", realError?.message || String(outlineError));
         console.error("[generate] Outline error stack:", realError?.stack || "N/A");
         const errType = outlineError ? classifyAIError(outlineError) : "UNKNOWN";
+
+        // Extract provider errors if available
+        let providerFailures: Array<{ provider: string; error: string }> = [];
+        if (outlineError instanceof AllProvidersFailedError) {
+          providerFailures = outlineError.providerErrors;
+        }
+
+        // Build a human-readable error message for the client
+        let clientMessage: string;
+        if (outlineError instanceof AllProvidersFailedError) {
+          const providerList = outlineError.providerErrors.map(e => `${e.provider}: ${e.error}`).join("; ");
+          clientMessage = `Tous les fournisseurs IA ont échoué. ${providerList}`;
+        } else {
+          clientMessage = realError?.message || "Erreur inconnue lors de la génération du plan.";
+        }
+
         return NextResponse.json({
           error: "AI_GENERATION_FAILED",
-          message: realError?.message || "All AI generation methods failed (outline + fallback).",
+          message: clientMessage,
+          realError: realError?.message || String(outlineError),
           errorType: errType,
           debug: {
             outlineError: realError?.message || String(outlineError),
             outlineStack: realError?.stack?.slice(0, 500) || "N/A",
+            providerFailures,
           },
         }, { status: 500 });
       }
@@ -1295,7 +1325,8 @@ export async function POST(request: NextRequest) {
       console.error("[generate] ═══ ALL GENERATION METHODS FAILED — no chapters at all ═══");
       return NextResponse.json({
         error: "AI_GENERATION_FAILED",
-        message: "All AI chapter generation attempts failed (3 strategies × N chapters).",
+        message: `Aucun chapitre n'a pu être généré sur ${allChapters.length} prévus. L'IA n'a pas réussi à produire de contenu valide.`,
+        realError: `Failed to generate any of ${allChapters.length} chapters (3 strategies each)`,
         debug: { totalChapters: allChapters.length, failedAll: true },
       }, { status: 500 });
     }

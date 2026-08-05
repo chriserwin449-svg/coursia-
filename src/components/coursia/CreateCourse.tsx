@@ -405,12 +405,18 @@ export default function CreateCourse() {
     setLinks(links.filter((_, i) => i !== index));
   };
 
-  //  User-friendly error classification — in DEV, always show real error
+  //  User-friendly error classification — always show the real error message from server
   const getErrorMessage = useCallback((errorType: string, httpStatus: number, detail: string): string => {
-    // In development, show the real server error (never mask it)
-    if (process.env.NODE_ENV === "development" && detail) {
+    // ALWAYS log the real server error to console (for debugging)
+    if (detail) {
       console.error("[generate] Real server error:", detail);
-      return detail.slice(0, 300);
+    }
+
+    // For AI_GENERATION_FAILED, show the server's message (which now contains the real error)
+    // instead of a generic "AI had trouble" message
+    if (errorType === "AI_GENERATION_FAILED" && detail) {
+      // Server now sends real error info — show it truncated for readability
+      return detail.slice(0, 200);
     }
 
     if (lang === "fr") {
@@ -421,8 +427,8 @@ export default function CreateCourse() {
       if (errorType === "AUTH") return "Un petit souci côté serveur. Réessaie dans quelques secondes, ça va marcher.";
       if (errorType === "SERVER") return "Les serveurs sont un peu chargés en ce moment. Reviens dans quelques instants !";
       if (errorType === "PARSE" || errorType === "EMPTY") return "L'IA n'arrive pas à traiter ce sujet. Essaie avec un sujet plus précis ou différent.";
-      if (errorType === "AI_GENERATION_FAILED") return "L'IA a eu du mal à structurer ce cours. Réessaie, elle fera mieux la prochaine fois !";
-      return "Un imprévu s'est produit. Réessaie, ça devrait fonctionner.";
+      if (errorType === "GENERATION_ERROR" && detail) return detail.slice(0, 200);
+      return detail ? detail.slice(0, 200) : "Un imprévu s'est produit. Réessaie, ça devrait fonctionner.";
     } else {
       if (httpStatus === 403) return "You've reached your free course limit. Upgrade to Premium to create unlimited courses!";
       if (errorType === "RATE_LIMIT") return "You're going a bit too fast! Wait a few seconds and try again.";
@@ -431,8 +437,8 @@ export default function CreateCourse() {
       if (errorType === "AUTH") return "Quick server hiccup. Try again in a few seconds — it'll work.";
       if (errorType === "SERVER") return "Servers are a bit busy right now. Give it a moment and try again!";
       if (errorType === "PARSE" || errorType === "EMPTY") return "AI couldn't process this topic. Try something more specific or different.";
-      if (errorType === "AI_GENERATION_FAILED") return "AI had trouble structuring this course. Try again — it'll do better next time!";
-      return "Something unexpected happened. Try again — it should work.";
+      if (errorType === "GENERATION_ERROR" && detail) return detail.slice(0, 200);
+      return detail ? detail.slice(0, 200) : "Something unexpected happened. Try again — it should work.";
     }
   }, [lang]);
 
