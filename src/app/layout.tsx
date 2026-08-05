@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster as ShadcnToaster } from "@/components/ui/toaster";
+import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { PostHogProvider } from "@/lib/posthog";
 
 const geistSans = Geist({
@@ -155,7 +156,8 @@ export default function RootLayout({
         <PostHogProvider>
           {children}
         </PostHogProvider>
-        <Toaster />
+        <ShadcnToaster />
+        <SonnerToaster richColors position="top-right" />
         <SpeedInsights />
 
         {/* Tawk.to Live Chat */}

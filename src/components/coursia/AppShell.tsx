@@ -18,6 +18,7 @@ import Journey from "@/components/coursia/Journey";
 import OffersPage from "@/components/coursia/OffersPage";
 import TopBar from "@/components/coursia/TopBar";
 import LegalPage from "@/components/coursia/LegalPage";
+import BackgroundGenerationPoller from "@/components/coursia/BackgroundGenerationPoller";
 
 
 function MobileSlideOver({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -621,6 +622,7 @@ export default function AppShell() {
             {view === "journey" && <Journey />}
             {view === "offers" && <OffersPage />}
           </main>
+          <BackgroundGenerationPoller />
         </div>
       )}
     </div>

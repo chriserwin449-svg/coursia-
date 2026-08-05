@@ -150,6 +150,9 @@ interface AppState {
   // Legal pages
   legalPage: null | "privacy" | "terms";
   setLegalPage: (page: null | "privacy" | "terms") => void;
+  // Background generation tracking (survives page navigation)
+  backgroundGeneration: { title: string; startedAt: number; userId: string } | null;
+  setBackgroundGeneration: (v: { title: string; startedAt: number; userId: string } | null) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -292,4 +295,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Legal pages
   legalPage: null,
   setLegalPage: (page) => set({ legalPage: page }),
+  // Background generation tracking (survives page navigation)
+  backgroundGeneration: (typeof window !== "undefined" ? (() => { try { const v = localStorage.getItem("coursia-bg-generation"); return v ? JSON.parse(v) : null; } catch { return null; } })() : null) as { title: string; startedAt: number; userId: string } | null,
+  setBackgroundGeneration: (v) => {
+    if (typeof window !== "undefined") {
+      if (v) {
+        localStorage.setItem("coursia-bg-generation", JSON.stringify(v));
+      } else {
+        localStorage.removeItem("coursia-bg-generation");
+      }
+    }
+    set({ backgroundGeneration: v });
+  },
 }));

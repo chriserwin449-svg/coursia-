@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { trackEvent } from "@/lib/analytics";
+import { toast } from "sonner";
 import {
   Sparkles,
   Plus,
@@ -27,6 +28,8 @@ export default function CreateCourse() {
   const setView = useAppStore((s) => s.setView);
   const setSelectedCourseId = useAppStore((s) => s.setSelectedCourseId);
   const setIsGenerating = useAppStore((s) => s.setIsGenerating);
+  const backgroundGeneration = useAppStore((s) => s.backgroundGeneration);
+  const setBackgroundGeneration = useAppStore((s) => s.setBackgroundGeneration);
 
   const [title, setTitle] = useState("");
   const [links, setLinks] = useState<string[]>([]);
@@ -50,6 +53,7 @@ export default function CreateCourse() {
   const [selectedLevel, setSelectedLevel] = useState(0);
   const [isRandomTopic, setIsRandomTopic] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
+  const [isBackgroundMode, setIsBackgroundMode] = useState(false);
 
   //  Double-click prevention ref 
   const generatingRef = useRef(false);
@@ -130,6 +134,33 @@ export default function CreateCourse() {
       ],
     [lang]
   );
+
+  // ── Resume loading state if there's a pending background generation ──
+  useEffect(() => {
+    if (backgroundGeneration && !loading) {
+      // User returned to create page while generation is running in background
+      setLoading(true);
+      setIsGenerating(true);
+      setIsBackgroundMode(true);
+      setGenerationStep(2); // Jump to "Creating outline..." step
+      progressStartRef.current = backgroundGeneration.startedAt;
+      console.log("[create] Resumed background generation tracking for:", backgroundGeneration.title);
+    }
+  }, []); // run once on mount to resume background generation
+
+  // ── Cleanup local state when background generation completes (cleared by poller) ──
+  useEffect(() => {
+    if (!backgroundGeneration && isBackgroundMode) {
+      // BackgroundGenerationPoller found the course and cleared the store
+      console.log("[create] Background generation completed, cleaning up local state");
+      generatingRef.current = false;
+      setLoading(false);
+      setIsGenerating(false);
+      setIsBackgroundMode(false);
+      abortRef.current = null;
+      fetchCourses();
+    }
+  }, [backgroundGeneration, isBackgroundMode, fetchCourses]);
 
   // Simulate step progression based on time elapsed
   useEffect(() => {
@@ -459,12 +490,12 @@ export default function CreateCourse() {
     setGenerationStep(0);
     progressStartRef.current = Date.now();
 
-    // ═══ ABORT CONTROLLER (150s timeout) ═══
+    // ═══ ABORT CONTROLLER (120s client patience timeout) ═══
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
     const { signal } = abortRef.current;
-    const FETCH_TIMEOUT_MS = 300_000; // 300 seconds (5 min — generation takes ~3 min)
-    const timeoutId = setTimeout(() => abortRef.current?.abort(), FETCH_TIMEOUT_MS);
+    const CLIENT_PATIENCE_MS = 120_000; // 120 seconds — after this, switch to background mode
+    const timeoutId = setTimeout(() => abortRef.current?.abort(), CLIENT_PATIENCE_MS);
 
     const MAX_ATTEMPTS = 3;
     let lastError: string | null = null;
@@ -617,19 +648,55 @@ export default function CreateCourse() {
         return;
       }
 
-      // ═══ NO RECOVERY — Show specific error message ═══
+      // ═══ NO RECOVERY — Switch to background mode instead of showing error ═══
+      if (lastErrorType === "TIMEOUT") {
+        console.log("[generate] Client patience timeout — switching to background generation mode");
+        setIsBackgroundMode(true);
+        setBackgroundGeneration({
+          title: generatingTitle,
+          startedAt: Date.now(),
+          userId: useAppStore.getState().userId || "",
+        });
+        toast.info(
+          lang === "fr"
+            ? "⏳ La génération continue en arrière-plan..."
+            : "⏳ Generation continues in the background...",
+          {
+            description:
+              lang === "fr"
+                ? "Tu recevras une notification quand le cours sera prêt."
+                : "You'll get a notification when the course is ready.",
+            duration: 6000,
+          }
+        );
+        trackEvent({ name: "course_generation_background_mode", properties: { title: generatingTitle } });
+        // Keep loading=true and isGenerating=true — the BackgroundGenerationPoller will handle the rest
+        // Do NOT setLoading(false) — the UI stays in progress mode
+        // Do NOT setIsGenerating(false) — the global poller checks this
+        // Do NOT set generatingRef=false — prevent double-click while background poller runs
+        // Just clean up the abort controller and timeout
+        clearTimeout(timeoutId);
+        abortRef.current = null;
+        return;
+      }
+
+      // ═══ NON-TIMEOUT ERROR — Show specific error message ═══
       const errorMsg = getErrorMessage(lastErrorType, lastHttpStatus, lastError || "");
       console.error(`[generate] ALL ATTEMPTS FAILED: type=${lastErrorType}, status=${lastHttpStatus}, detail=${lastError}`);
       setError(errorMsg);
     } finally {
       clearTimeout(timeoutId);
-      generatingRef.current = false;
-      setLoading(false);
-      setIsGenerating(false);
-      abortRef.current = null;
-      // Only refresh courses list if we're still on this page (not redirected to viewer)
-      if (!courseRecovered) {
-        fetchCourses();
+      // Only reset these states if NOT in background mode
+      // (BackgroundGenerationPoller handles cleanup when course is found)
+      if (!useAppStore.getState().backgroundGeneration) {
+        generatingRef.current = false;
+        setLoading(false);
+        setIsGenerating(false);
+        abortRef.current = null;
+        // Only refresh courses list if we're still on this page (not redirected to viewer)
+        if (!courseRecovered) {
+          fetchCourses();
+        }
       }
     }
   };
@@ -933,7 +1000,10 @@ export default function CreateCourse() {
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
                 <span className="flex items-center gap-2">
-                  <span>{progressMessages[generationStep]}</span>
+                  <span>{isBackgroundMode
+                    ? (lang === "fr" ? progressMessages[generationStep] + " (arrière-plan)" : progressMessages[generationStep] + " (background)")
+                    : progressMessages[generationStep]
+                  }</span>
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
                 </span>
               </>
