@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import "./globals.css";
+import SafeRender from "@/components/SafeRender";
 import { Toaster as ShadcnToaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { PostHogProvider } from "@/lib/posthog";
@@ -156,9 +157,15 @@ export default function RootLayout({
         <PostHogProvider>
           {children}
         </PostHogProvider>
-        <ShadcnToaster />
-        <SonnerToaster richColors position="top-right" />
-        <SpeedInsights />
+        <SafeRender>
+          <ShadcnToaster />
+        </SafeRender>
+        <SafeRender>
+          <SonnerToaster richColors position="top-right" />
+        </SafeRender>
+        <SafeRender>
+          <SpeedInsights />
+        </SafeRender>
 
         {/* Tawk.to Live Chat */}
         <script
