@@ -219,3 +219,20 @@ Stage Summary:
 - Standalone server: Added all missing API routes
 - Files modified: src/app/api/users/search/route.ts, src/app/api/users/avatar/route.ts, src/components/coursia/Sidebar.tsx, src/components/coursia/AppShell.tsx, self-restart-server.ts
 - Files created: src/app/api/users/search/test/route.ts
+---
+Task ID: 2
+Agent: main
+Task: Sync schema.postgres.prisma with schema.prisma to fix search, share, avatar in production
+
+Work Log:
+- Diagnosed root cause: schema.postgres.prisma was severely out of date with schema.prisma
+- Missing from PostgreSQL schema: User.username, User.avatar, User.freeCourseUsed, AppSettings.posthogKey/posthogHost, FlameTransaction.userId, CourseProgress.flameAwardedLevels, StudySession.flameAwarded, Course.shares/invitationLinks/publicListing relations
+- Missing entire models: Feedback, UsedTopic, CourseShare, InvitationLink, Certificate, PublicCourse
+- Rewrote schema.postgres.prisma to be a perfect mirror of schema.prisma (with PostgreSQL provider + directUrl + FK maps)
+- Updated vercel-build.js to run `prisma db push` after generating client, creating missing columns/tables on deploy
+- Committed and pushed
+
+Stage Summary:
+- schema.postgres.prisma now has ALL models and columns matching schema.prisma
+- vercel-build.js will auto-push schema changes on next Vercel deploy
+- Once deployed: search, share, avatar will all work because CourseShare table + username/avatar columns will exist
