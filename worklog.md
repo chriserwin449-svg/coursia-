@@ -182,3 +182,18 @@ Stage Summary:
 - Files modified: src/app/api/users/search/route.ts, src/components/coursia/LandingPage.tsx, src/components/coursia/AppShell.tsx, src/components/coursia/CreateCourse.tsx
 - Build passes cleanly (bun run build succeeds)
 - All lint checks pass for modified files
+---
+Task ID: 2
+Agent: main-coordinator
+Task: Fix search, share dialog UX, avatar upload
+
+Work Log:
+- Rewrote search API with triple-fallback: Prisma ORM (mode:insensitive for PG) -> Prisma.sql tagged template (LIKE/ILIKE) -> $queryRawUnsafe
+- Added /api/users/search-debug endpoint for production debugging (shows DB type, user count, test search)
+- ShareCourseDialog: improved UX with "Partager le cours" + "Voir le parcours" + "Retour" buttons when friend selected
+- ShareCourseDialog: show up to 10 results, added send icon on each result row
+- Avatar: max 500KB, base64 data URI in DB, detailed logging
+
+Stage Summary:
+- Files: src/app/api/users/search/route.ts, src/app/api/users/search-debug/route.ts, src/app/api/users/avatar/route.ts, src/components/coursia/ShareCourseDialog.tsx
+- Build passes, pushed as a520baa
