@@ -545,3 +545,29 @@ Stage Summary:
 - Fix 1: Chapters now generate sequentially (no more 429 rate limiting)
 - Fix 2: P2003 error eliminated by removing impossible dual-FK constraint + adding course existence check
 - Generation test: 66.3s total, 4/4 chapters, all quality checks passed
+---
+Task ID: 2
+Agent: Main Agent
+Task: Expose real error instead of generic "AI_GENERATION_FAILED" message + comprehensive logging
+
+Work Log:
+- Traced "AI had trouble structuring this course" from CreateCourse.tsx → AI_GENERATION_FAILED error type → generate/route.ts
+- Identified all 12 catch blocks that silently swallow errors: generateOutline, generateChapter, generateChapterEmergency, generateSingleCall, extractOutline (3 strategies), extractChapter (5 strategies), outer try-catch, retryWithBackoff, withRetry
+- Added try-catch logging to all 4 AI call functions (generateOutline, generateChapter, generateChapterEmergency, generateSingleCall): logs message + stack + request context (without API keys) on throw
+- Added logging to extractOutline when all strategies fail: logs first 1000 chars of raw AI response
+- Added logging to extractChapter when it fails: logs first 500 chars of raw AI response
+- Fixed outline retry catch block: now logs full error message + stack instead of truncated 150 chars
+- Updated both AI_GENERATION_FAILED responses to include real error message and debug object with outlineError + outlineStack
+- Updated outer catch block (GENERATION_ERROR): logs stack trace, request context (title, level, lang, userId, sourceLinks), returns debug object with message + stack + context
+- Updated CreateCourse.tsx: in development mode, getErrorMessage() returns the real server error instead of generic message; always console.error the full error JSON
+- Updated client-side fire-and-forget error handler: always logs full error JSON to browser console
+- Updated openai.ts callZAI catch: logs message + stack + request context (maxTokens, temperature, message count, first msg)
+- Tested: generation completed successfully (96.5s, 4/4 chapters), all logging visible in dev.log
+- Tested: zero browser console errors
+
+Stage Summary:
+- Key files modified: src/app/api/courses/generate/route.ts, src/lib/openai.ts, src/components/coursia/CreateCourse.tsx
+- 12 catch blocks now log full error details instead of silently swallowing
+- In DEV mode, the real error is shown to the user (not masked)
+- API responses now include debug object with real error message and stack trace
+- Production keeps user-friendly messages but server logs everything

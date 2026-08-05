@@ -428,10 +428,18 @@ async function generateOutline(
   const systemPrompt = buildOutlineSystemPrompt(title, courseLang, level, webContext, sourceContext);
   console.log(`[outline] Generating outline for "${title}" (level=${level}, lang=${courseLang})...`);
   // Reduced maxTokens: outline needs ~2048 for 4 detailed chapters with all fields
-  const completion = await smartChatCompletion([
-    { role: "system", content: systemPrompt },
-    { role: "user", content: getPromptStrings(courseLang).outline.userPrompt(level, title) },
-  ], { maxTokens: 2048, temperature: 0.5 });
+  let completion;
+  try {
+    completion = await smartChatCompletion([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: getPromptStrings(courseLang).outline.userPrompt(level, title) },
+    ], { maxTokens: 2048, temperature: 0.5 });
+  } catch (aiErr) {
+    console.error("[outline] ❌ AI call THREW an exception:");
+    console.error("  Message:", aiErr instanceof Error ? aiErr.message : String(aiErr));
+    console.error("  Stack:", aiErr instanceof Error ? aiErr.stack : "N/A");
+    throw aiErr; // Let caller handle retry
+  }
 
   const text = completion.content || "";
   console.log(`[outline] Response: ${text.length} chars, provider: ${completion.provider}`);
@@ -439,7 +447,12 @@ async function generateOutline(
     console.warn("[outline] Empty response from AI");
     return null;
   }
-  return extractOutline(text);
+  const result = extractOutline(text);
+  if (!result) {
+    console.error("[outline] ❌ extractOutline returned null — AI response could not be parsed");
+    console.error("[outline] First 500 chars of raw AI response:", text.slice(0, 500));
+  }
+  return result;
 }
 
 function extractOutline(text: string): OutlineResult | null {
@@ -454,7 +467,9 @@ function extractOutline(text: string): OutlineResult | null {
       const parsed = parseOutlineData(data);
       if (parsed && parsed.chapters.length > 0) return parsed;
     }
-  } catch { /* not valid JSON directly, continue */ }
+  } catch (parseErr) {
+    console.error("[extractOutline] Strategy 1 (direct JSON parse) failed:", parseErr instanceof Error ? parseErr.message : String(parseErr));
+  }
 
   // Strategy 2: Brace-matching extraction (for JSON embedded in text)
   const firstBrace = cleaned.indexOf("{");
@@ -476,7 +491,10 @@ function extractOutline(text: string): OutlineResult | null {
     try {
       const data = JSON.parse(s) as Record<string, unknown>;
       return parseOutlineData(data);
-    } catch { return null; }
+    } catch (parseErr) {
+      console.error("[extractOutline] tryParse failed on snippet (${s.length} chars):", parseErr instanceof Error ? parseErr.message : String(parseErr));
+      return null;
+    }
   };
 
   const result = tryParse(snippet)
@@ -485,7 +503,11 @@ function extractOutline(text: string): OutlineResult | null {
   if (result) return result;
 
   // Strategy 3: Extract chapter titles from partial/truncated JSON
-  return extractChaptersFromPartialJSON(snippet);
+  const partialResult = extractChaptersFromPartialJSON(snippet);
+  if (!partialResult) {
+    console.error("[extractOutline] ❌ ALL strategies failed. Raw AI response (first 1000 chars):", cleaned.slice(0, 1000));
+  }
+  return partialResult;
 }
 
 function parseOutlineData(data: Record<string, unknown>): OutlineResult | null {
@@ -652,10 +674,18 @@ async function generateChapter(
     outline, webContext, sourceContext,
   );
 
-  const completion = await smartChatCompletion([
-    { role: "system", content: systemPrompt },
-    { role: "user", content: getPromptStrings(courseLang).chapter.userPrompt(chapterIdx, outline.title) },
-  ], { maxTokens: MAX_TOKENS, temperature: 0.7 });
+  let completion;
+  try {
+    completion = await smartChatCompletion([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: getPromptStrings(courseLang).chapter.userPrompt(chapterIdx, outline.title) },
+    ], { maxTokens: MAX_TOKENS, temperature: 0.7 });
+  } catch (aiErr) {
+    console.error(`[chapter-${chapterIdx + 1}] ❌ AI call THREW an exception:`);
+    console.error("  Message:", aiErr instanceof Error ? aiErr.message : String(aiErr));
+    console.error("  Stack:", aiErr instanceof Error ? aiErr.stack : "N/A");
+    return null;
+  }
 
   const text = completion.content || "";
   console.log(`[chapter-${chapterIdx + 1}] ${text.length} chars, provider: ${completion.provider}`);
@@ -663,7 +693,12 @@ async function generateChapter(
     console.warn(`[chapter-${chapterIdx + 1}] Empty response`);
     return null;
   }
-  return extractChapter(text);
+  const result = extractChapter(text);
+  if (!result) {
+    console.error(`[chapter-${chapterIdx + 1}] ❌ extractChapter returned null — AI response could not be parsed`);
+    console.error(`[chapter-${chapterIdx + 1}] First 500 chars of raw AI response:`, text.slice(0, 500));
+  }
+  return result;
 }
 
 function extractChapter(text: string): { title: string; content: string; summary: string } | null {
@@ -799,15 +834,28 @@ async function generateChapterEmergency(
   const s = getPromptStrings(courseLang);
   const levelLabel = level === 0 ? "beginner" : level === 1 ? "intermediate" : "advanced";
 
-  const completion = await smartChatCompletion([
-    { role: "system", content: s.emergency.systemPrompt(s.emergency.langNote, levelLabel) },
-    { role: "user", content: s.emergency.userPrompt(chapterIdx + 1, totalChapters, courseTitle, outline) },
-  ], { maxTokens: 4096, temperature: 0.6 });
+  let completion;
+  try {
+    completion = await smartChatCompletion([
+      { role: "system", content: s.emergency.systemPrompt(s.emergency.langNote, levelLabel) },
+      { role: "user", content: s.emergency.userPrompt(chapterIdx + 1, totalChapters, courseTitle, outline) },
+    ], { maxTokens: 4096, temperature: 0.6 });
+  } catch (aiErr) {
+    console.error(`[emergency-chapter-${chapterIdx + 1}] ❌ AI call THREW an exception:`);
+    console.error("  Message:", aiErr instanceof Error ? aiErr.message : String(aiErr));
+    console.error("  Stack:", aiErr instanceof Error ? aiErr.stack : "N/A");
+    return null;
+  }
 
   const text = completion.content || "";
   console.log(`[emergency-chapter-${chapterIdx + 1}] ${text.length} chars, provider: ${completion.provider}`);
   if (!text) return null;
-  return extractChapter(text);
+  const result = extractChapter(text);
+  if (!result) {
+    console.error(`[emergency-chapter-${chapterIdx + 1}] ❌ extractChapter returned null`);
+    console.error(`[emergency-chapter-${chapterIdx + 1}] First 500 chars of raw AI response:`, text.slice(0, 500));
+  }
+  return result;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -820,17 +868,25 @@ async function generateSingleCall(
   const s = getPromptStrings(courseLang);
   const researchBlock = (webContext || sourceContext) ? `\n\n${s.singleCall.researchHeader}\n${webContext}\n${sourceContext}\n${s.singleCall.researchUse}` : "";
 
-  const completion = await smartChatCompletion([
-    { role: "system", content: [
-      `${s.singleCall.systemRole} ${s.chapter.languageLabel} : ${s.langLabel}. ${s.singleCall.langNote}`,
-      s.singleCall.rules,
-      s.singleCall.chapterRules,
-      s.singleCall.structure,
-      researchBlock,
-      s.singleCall.jsonFormat,
-    ].join("\n") },
-    { role: "user", content: s.singleCall.userPrompt(level, title) },
-  ], { maxTokens: MAX_TOKENS, temperature: 0.7 });
+  let completion;
+  try {
+    completion = await smartChatCompletion([
+      { role: "system", content: [
+        `${s.singleCall.systemRole} ${s.chapter.languageLabel} : ${s.langLabel}. ${s.singleCall.langNote}`,
+        s.singleCall.rules,
+        s.singleCall.chapterRules,
+        s.singleCall.structure,
+        researchBlock,
+        s.singleCall.jsonFormat,
+      ].join("\n") },
+      { role: "user", content: s.singleCall.userPrompt(level, title) },
+    ], { maxTokens: MAX_TOKENS, temperature: 0.7 });
+  } catch (aiErr) {
+    console.error("[fallback] ❌ AI call THREW an exception:");
+    console.error("  Message:", aiErr instanceof Error ? aiErr.message : String(aiErr));
+    console.error("  Stack:", aiErr instanceof Error ? aiErr.stack : "N/A");
+    return null;
+  }
 
   const text = completion.content || "";
   console.log(`[fallback] ${text.length} chars, provider: ${completion.provider}`);
@@ -838,7 +894,12 @@ async function generateSingleCall(
     console.warn("[fallback] Empty response");
     return null;
   }
-  return extractFallbackCourse(text);
+  const result = extractFallbackCourse(text);
+  if (!result) {
+    console.error("[fallback] ❌ extractFallbackCourse returned null");
+    console.error("[fallback] First 500 chars of raw AI response:", text.slice(0, 500));
+  }
+  return result;
 }
 
 function extractFallbackCourse(text: string): { description: string; chapters: Array<{ title: string; content: string; summary: string }> } | null {
@@ -1122,11 +1183,15 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       outlineError = error;
       const msg = error instanceof Error ? error.message : String(error);
-      console.log(`[generate] Outline all retries failed (${msg.slice(0, 150)}), trying without research context...`);
+      console.error("[generate] ❌ Outline all retries failed:");
+      console.error("  Full error:", msg);
+      console.error("  Stack:", error instanceof Error ? error.stack : "N/A");
       try {
         outline = await generateOutline(title, courseLang, level, "", "");
       } catch (retryErr) {
-        console.error("[generate] Outline retry without context also failed:", retryErr instanceof Error ? retryErr.message : retryErr);
+        console.error("[generate] ❌ Outline retry without context also failed:");
+        console.error("  Full error:", retryErr instanceof Error ? retryErr.message : String(retryErr));
+        console.error("  Stack:", retryErr instanceof Error ? retryErr.stack : "N/A");
       }
     }
 
@@ -1142,12 +1207,19 @@ export async function POST(request: NextRequest) {
       logDuration("fallback_start", "fallback_end");
 
       if (!fallbackResult || fallbackResult.chapters.length === 0) {
-        console.error("[generate] ALL GENERATION METHODS FAILED");
+        const realError = outlineError instanceof Error ? outlineError : null;
+        console.error("[generate] ═══ ALL GENERATION METHODS FAILED ═══");
+        console.error("[generate] Root cause outline error:", realError?.message || String(outlineError));
+        console.error("[generate] Outline error stack:", realError?.stack || "N/A");
         const errType = outlineError ? classifyAIError(outlineError) : "UNKNOWN";
         return NextResponse.json({
           error: "AI_GENERATION_FAILED",
-          message: "The AI could not generate a valid course structure. This is usually temporary.",
+          message: realError?.message || "All AI generation methods failed (outline + fallback).",
           errorType: errType,
+          debug: {
+            outlineError: realError?.message || String(outlineError),
+            outlineStack: realError?.stack?.slice(0, 500) || "N/A",
+          },
         }, { status: 500 });
       }
       console.log(`[generate] Fallback succeeded: ${fallbackResult.chapters.length} chapters`);
@@ -1220,10 +1292,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (generatedChapters.length === 0) {
-      console.error("[generate] ALL GENERATION METHODS FAILED — no chapters at all");
+      console.error("[generate] ═══ ALL GENERATION METHODS FAILED — no chapters at all ═══");
       return NextResponse.json({
         error: "AI_GENERATION_FAILED",
-        message: "The AI could not generate any course chapters. Please try again.",
+        message: "All AI chapter generation attempts failed (3 strategies × N chapters).",
+        debug: { totalChapters: allChapters.length, failedAll: true },
       }, { status: 500 });
     }
 
@@ -1270,12 +1343,19 @@ export async function POST(request: NextRequest) {
     console.error(`[generate] ═══ UNHANDLED ERROR after ${duration}s ═══`);
     console.error(`[generate] Error type: ${errorType}`);
     console.error(`[generate] Error message: ${msg}`);
+    console.error(`[generate] Stack trace:`, error instanceof Error ? error.stack : "N/A");
     console.error(error);
+    console.error(`[generate] Request context: title="${title}", level=${level}, lang=${courseLang}, userId=${userId || 'anonymous'}, sourceLinks=${sourceLinks.length}`);
 
     return NextResponse.json({
       error: "GENERATION_ERROR",
-      message: `Course generation failed: ${msg.slice(0, 200)}`,
+      message: msg.slice(0, 500),
       errorType,
+      debug: {
+        message: msg,
+        stack: error instanceof Error ? error.stack?.slice(0, 1000) : "N/A",
+        context: `title="${title}" level=${level} lang=${courseLang}`,
+      },
     }, { status: 500 });
   }
 }

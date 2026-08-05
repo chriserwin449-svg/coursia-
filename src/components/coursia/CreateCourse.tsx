@@ -405,8 +405,14 @@ export default function CreateCourse() {
     setLinks(links.filter((_, i) => i !== index));
   };
 
-  //  User-friendly error classification 
+  //  User-friendly error classification — in DEV, always show real error
   const getErrorMessage = useCallback((errorType: string, httpStatus: number, detail: string): string => {
+    // In development, show the real server error (never mask it)
+    if (process.env.NODE_ENV === "development" && detail) {
+      console.error("[generate] Real server error:", detail);
+      return detail.slice(0, 300);
+    }
+
     if (lang === "fr") {
       if (httpStatus === 403) return "Tu as atteint ta limite de cours gratuits. Passe à Premium pour en créer autant que tu veux !";
       if (errorType === "RATE_LIMIT") return "Oups, tu as été un peu trop rapide ! Attends quelques secondes et réessaie.";
@@ -566,13 +572,16 @@ export default function CreateCourse() {
           const errorType = errData.error || "SERVER";
           const errorMsg = getErrorMessage(errorType, res.status, errData.message || "");
           setError(errorMsg);
+          // Log full error details to browser console (always, even in production)
+          console.error("[generate] ❌ Server error response:", JSON.stringify(errData, null, 2));
           generatingRef.current = false;
           setLoading(false);
           setIsGenerating(false);
           setBackgroundGeneration(null);
           // For admin users, don't set freeCourseUsed on failure
-        } catch {
-          // Can't parse error, show generic message
+        } catch (parseErr) {
+          // Can't parse error, log raw response
+          console.error("[generate] ❌ Failed to parse error response:", parseErr);
           setError(lang === "fr" ? "La génération a échoué. Réessaie." : "Generation failed. Try again.");
           generatingRef.current = false;
           setLoading(false);

@@ -141,7 +141,13 @@ async function callZAI(
       console.warn("[ZAI] Empty response from SDK");
       return null;
     } catch (error) {
-      console.error("[ZAI] Error:", error instanceof Error ? error.message : error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      const errStack = error instanceof Error ? error.stack : "N/A";
+      console.error("[ZAI] ❌ Error details:");
+      console.error("  Message:", errMsg);
+      console.error("  Stack:", errStack);
+      console.error("  Request: maxTokens=${options?.maxTokens ?? 'default'}, temperature=${options?.temperature ?? 'default'}");
+      console.error("  Messages count:", messages.length, "| First msg role:", messages[0]?.role, "| First 100 chars:", messages[0]?.content?.slice(0, 100));
       throw error; // re-throw for retryWithBackoff to handle
     }
   }, "ZAI", 3); // 3 retries with 2s, 4s, 8s backoff for 429 errors
