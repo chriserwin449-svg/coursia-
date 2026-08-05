@@ -22,6 +22,9 @@ async function ensureAllColumns(): Promise<void> {
     await migrateColumn("User", "subscriptionStartDate", "TIMESTAMP(3)");
     await migrateColumn("User", "subscriptionEndDate", "TIMESTAMP(3)");
     await migrateColumn("User", "trialStartDate", "TIMESTAMP(3)");
+    await migrateColumn("User", "username", "TEXT");
+    await migrateColumn("User", "avatar", "TEXT");
+    await migrateColumn("User", "freeCourseUsed", "BOOLEAN NOT NULL DEFAULT false");
   } catch {
     // Non-critical
   }

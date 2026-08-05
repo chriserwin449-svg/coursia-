@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
 import { smartChatCompletion, classifyAIError } from "@/lib/openai";
 import { MAX_SOURCE_LINKS, MAX_TOKENS, MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
+import { isAdmin } from "@/lib/admin";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COLUMN MIGRATION (ensure freeCourseUsed & hasCardOnFile exist)
@@ -22,6 +23,8 @@ async function ensureFreeCourseColumn(): Promise<void> {
   try {
     await migrateColumn("User", "freeCourseUsed", "BOOLEAN NOT NULL DEFAULT false");
     await migrateColumn("User", "hasCardOnFile", "BOOLEAN NOT NULL DEFAULT false");
+    await migrateColumn("User", "username", "TEXT");
+    await migrateColumn("User", "avatar", "TEXT");
   } catch { /* non-critical */ }
 }
 
@@ -888,7 +891,15 @@ export async function POST(request: NextRequest) {
     // Single source of truth: User.freeCourseUsed boolean in the database.
     // This flag is NEVER reset, even if the course is deleted.
     // We use an interactive transaction to atomically check + claim the free slot.
-    if (userId) {
+    // ── ADMIN BYPASS: whitelisted emails skip ALL limits ──
+    const requestingUser = userId ? await db.user.findUnique({
+      where: { id: userId },
+      select: { email: true, subscriptionStatus: true, freeCourseUsed: true },
+    }).catch(() => null) : null;
+
+    const isUserAdmin = isAdmin(requestingUser?.email);
+
+    if (userId && !isUserAdmin) {
       // Ensure column exists BEFORE the transaction (especially for PostgreSQL)
       await ensureFreeCourseColumn();
 
@@ -922,7 +933,11 @@ export async function POST(request: NextRequest) {
           console.log(`[generate] Free limit reached for user ${userId}: freeCourseUsed=true, subscription not active`);
           return NextResponse.json({ error: "FREE_LIMIT", requiresSubscription: true }, { status: 403 });
         }
-        console.log(`[generate] User quota OK: freeCourseUsed now claimed for user ${userId}`);
+        if (isUserAdmin) {
+          console.log(`[generate] ⚡ Admin bypass: user ${requestingUser?.email} — unlimited generation`);
+        } else {
+          console.log(`[generate] User quota OK: freeCourseUsed now claimed for user ${userId}`);
+        }
       } catch (dbError) {
         const errMsg = dbError instanceof Error ? dbError.message : String(dbError);
         console.error("[generate] DB error checking quota:", errMsg);
@@ -946,11 +961,15 @@ export async function POST(request: NextRequest) {
     // ── DAILY GENERATION LIMIT ──
     const DAILY_LIMIT_FREE = 1; // Anonymous users
     const DAILY_LIMIT_SUBSCRIBED = 4; // Active subscribers
+    const DAILY_LIMIT_ADMIN_VALUE = 9999; // Admins: effectively unlimited
 
     let dailyLimit = userId ? DAILY_LIMIT_SUBSCRIBED : DAILY_LIMIT_FREE;
 
-    // Check subscription status for the daily limit
-    if (userId) {
+    // Admin bypass: skip daily limit
+    if (isUserAdmin) {
+      dailyLimit = DAILY_LIMIT_ADMIN_VALUE;
+    } else if (userId) {
+      // Check subscription status for the daily limit
       try {
         const user = await db.user.findUnique({
           where: { id: userId },

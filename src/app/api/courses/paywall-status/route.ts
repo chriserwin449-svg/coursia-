@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { isAdmin, DAILY_LIMIT_ADMIN } from "@/lib/admin";
 
 async function migrateColumn(table: string, col: string, colDef: string): Promise<void> {
   try {
@@ -22,6 +23,8 @@ async function ensureAllColumns(): Promise<void> {
     await migrateColumn("User", "trialStartDate", "TIMESTAMP(3)");
     await migrateColumn("User", "hasCardOnFile", "BOOLEAN NOT NULL DEFAULT false");
     await migrateColumn("User", "freeCourseUsed", "BOOLEAN NOT NULL DEFAULT false");
+    await migrateColumn("User", "username", "TEXT");
+    await migrateColumn("User", "avatar", "TEXT");
   } catch { /* non-critical */ }
 }
 
@@ -183,6 +186,27 @@ export async function GET(request: NextRequest) {
         freeCourseUsed: true,
       },
     });
+
+    // ── ADMIN BYPASS: unlimited generation for whitelisted emails ──
+    if (isAdmin(user?.email)) {
+      const dailyInfo = await getDailyLimitInfo(userId, true);
+      return NextResponse.json<PaywallStatus>({
+        ...defaultStatus({
+          canStudy: true, canGenerate: true, canProgress: true,
+          hasSubscription: true,
+          subscriptionPlan: "admin",
+          subscriptionStatus: "active",
+          showPaywall: false,
+          paywallReason: "admin",
+          firstName: user.firstName || undefined,
+          hasCardOnFile: true,
+          requireCard: false,
+          freeCourseUsed: false,
+          ...dailyInfo,
+        }),
+        dailyLimit: DAILY_LIMIT_ADMIN,
+      });
+    }
 
     // ── ACTIVE SUBSCRIPTION ──
     if (user && user.subscriptionStatus === "active") {
