@@ -365,3 +365,28 @@ Stage Summary:
 - Background polling ensures course is found even if user leaves the page
 - Toast notifications provide real-time feedback
 - Files: vercel.json, src/app/layout.tsx, src/components/coursia/BackgroundGenerationPoller.tsx (new), src/components/coursia/CreateCourse.tsx, src/components/coursia/AppShell.tsx, src/lib/store.ts
+---
+Task ID: 1
+Agent: main
+Task: Fix authentication crash on coursia.app — "Application error: a client-side exception has occurred"
+
+Work Log:
+- Diagnosed the issue by reading dev.log, which initially showed `ReferenceError: Toaster is not defined` (transient, from cached compilation)
+- Used Agent Browser to test the full auth flow (landing → register → login → create page)
+- Discovered the REAL root cause: `ReferenceError: Cannot access 'fetchCourses' before initialization` in CreateCourse.tsx
+- The bug: `fetchCourses` was declared as a `const` (useCallback) at line 277, but a useEffect at line 152 referenced it in its dependency array. JavaScript's Temporal Dead Zone (TDZ) prevents accessing a const before its declaration.
+- This caused the ENTIRE app to crash whenever a user registered or logged in (because AuthPage navigates to the "create" view which renders CreateCourse)
+- Fixed by moving `fetchCourses` useCallback declaration before all useEffects that depend on it
+- Added safety measures:
+  - `src/app/error.tsx` — route-level error boundary with retry/home buttons
+  - `src/app/global-error.tsx` — root error boundary for uncaught errors
+  - `src/components/SafeRender.tsx` — reusable error boundary wrapper
+  - Wrapped ShadcnToaster, SonnerToaster, SpeedInsights in SafeRender in layout.tsx
+- Tested full auth flow: register → login → create page — all working with zero errors
+- Pushed to Vercel (commit 2ecf466)
+
+Stage Summary:
+- Root cause: fetchCourses TDZ error in CreateCourse.tsx (const declared after useEffect that depends on it)
+- Fix: Moved fetchCourses declaration before its consumers + added error boundaries
+- Files changed: CreateCourse.tsx, layout.tsx, error.tsx (new), global-error.tsx (new), SafeRender.tsx (new)
+- Verified: Full auth flow (register + login) works correctly in dev
