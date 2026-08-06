@@ -624,3 +624,23 @@ Stage Summary:
 - Key files modified: src/app/api/courses/generate/route.ts, src/components/coursia/CreateCourse.tsx, src/components/coursia/BackgroundGenerationPoller.tsx
 - 3 root causes fixed: premature timeout (90s→270s), browser fetch abort, poller timeout (5→6 min)
 - End-to-end test passed: course generated successfully, poller detected, viewer displayed
+---
+Task ID: 1
+Agent: Main
+Task: Fix ZAI SDK initialization failure when .z-ai-config file is missing on production
+
+Work Log:
+- Identified root cause: ZAI.create() reads .z-ai-config file which doesn't exist on production deployment
+- Error message: "Configuration file not found or invalid. Please create .z-ai-config in your project, home directory, or /etc."
+- Rewrote getZAI() function in src/lib/openai.ts with 3-strategy fallback:
+  1. ZAI.create() (reads config file - works in sandbox)
+  2. Read /etc/.z-ai-config directly (works in sandbox)
+  3. Direct new ZAI(config) with env vars or defaults (works everywhere)
+- Added buildZAIConfig() helper that uses env vars: ZAI_BASE_URL, ZAI_API_KEY, ZAI_CHAT_ID, ZAI_USER_ID, ZAI_TOKEN
+- Updated src/app/api/courses/generate/route.ts to use getZAI() instead of ZAI.create()
+- Updated getActiveProvider() to use getZAI() instead of ZAI.create()
+
+Stage Summary:
+- Key fix: ZAI SDK now initializes without config file dependency
+- Files modified: src/lib/openai.ts, src/app/api/courses/generate/route.ts
+- Pushed to GitHub: commit 9a6a247
