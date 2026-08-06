@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { smartChatCompletion, classifyAIError, AllProvidersFailedError, getZAI } from "@/lib/openai";
 import { MAX_SOURCE_LINKS, MAX_TOKENS, MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
-import { isAdmin } from "@/lib/admin";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COLUMN MIGRATION (ensure freeCourseUsed & hasCardOnFile exist)
@@ -22,14 +21,12 @@ async function ensureFreeCourseColumn(): Promise<void> {
   try {
     await migrateColumn("User", "freeCourseUsed", "BOOLEAN NOT NULL DEFAULT false");
     await migrateColumn("User", "hasCardOnFile", "BOOLEAN NOT NULL DEFAULT false");
-    await migrateColumn("User", "username", "TEXT");
-    await migrateColumn("User", "avatar", "TEXT");
   } catch { /* non-critical */ }
 }
 
-// Vercel serverless function timeout — course generation needs up to 5 minutes
+// Vercel serverless function timeout — course generation needs 120s
 // (web search + AI outline + 4-6 AI chapter generations)
-export const maxDuration = 300;
+export const maxDuration = 120;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -54,9 +51,9 @@ function logDuration(from: string, to: string) {
 }
 
 /**
- * Retry with exponential backoff: 2s, 4s, 8s (4 attempts)
+ * Retry with exponential backoff: 1s, 2s, 4s (3 attempts)
  */
-async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, retries = 2): Promise<T> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       return await fn();
@@ -67,7 +64,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
         || msg.includes("502") || msg.includes("503") || msg.includes("500");
 
       if (attempt < retries && isRetryable) {
-        const delay = 2000 * Math.pow(2, attempt); // 2s, 4s, 8s
+        const delay = 1000 * Math.pow(2, attempt); // 1s, 2s
         console.log(`[retry] Attempt ${attempt + 1} failed (${msg.slice(0, 120)}), retrying in ${delay}ms...`);
         await sleep(delay);
         continue;
@@ -120,19 +117,25 @@ async function deepSearch(
 
   const langQ = courseLang === "en" ? "in english" : "en français";
 
-  // 2 parallel searches (reduced from 3 for speed — under 30s total target)
-  const [r1, r2] = await Promise.all([
+  // 5 parallel searches from different angles for richer, more accurate content
+  const [r1, r2, r3, r4, r5] = await Promise.all([
     searchOnce(zai, `${topic} ${levelContext} explained ${langQ}`),
-    searchOnce(zai, `${topic} real world examples case studies best practices ${langQ}`),
+    searchOnce(zai, `${topic} real world examples case studies applications ${langQ}`),
+    searchOnce(zai, `${topic} common mistakes misconceptions pitfalls ${langQ}`),
+    searchOnce(zai, `${topic} latest advances 2025 trends future ${langQ}`),
+    searchOnce(zai, `best resources learn ${topic} ${courseLang === "en" ? "2025" : "2025"} ${langQ}`),
   ]);
 
   const blocks: string[] = [];
   if (r1) blocks.push(`══ CONCEPTS & EXPLANATIONS ══\n${r1}`);
-  if (r2) blocks.push(`══ EXAMPLES & BEST PRACTICES ══\n${r2}`);
+  if (r2) blocks.push(`══ REAL-WORLD EXAMPLES & CASES ══\n${r2}`);
+  if (r3) blocks.push(`══ COMMON MISTAKES & MISCONCEPTIONS ══\n${r3}`);
+  if (r4) blocks.push(`══ LATEST ADVANCES & TRENDS (2025) ══\n${r4}`);
+  if (r5) blocks.push(`══ BEST RESOURCES & REFERENCES ══\n${r5}`);
 
   const combined = blocks.join("\n\n");
-  const totalResults = [r1, r2].filter(Boolean).length;
-  console.log(`[search] Deep search completed: ${totalResults}/2 queries returned results (${combined.length} chars)`);
+  const totalResults = [r1, r2, r3, r4, r5].filter(Boolean).length;
+  console.log(`[search] Deep search completed: ${totalResults}/5 queries returned results (${combined.length} chars)`);
 
   return combined;
 }
@@ -232,15 +235,15 @@ function getPromptStrings(lang: string) {
         ? `Create a level ${level} course outline that covers the subject with depth and rigor.\nThe outline must be detailed enough for another expert to teach from it.`
         : `Crée un plan de cours de niveau ${level} qui couvre le sujet avec profondeur et rigueur.\nLe plan doit être suffisamment détaillé pour qu'un autre expert puisse l'enseigner.`,
       chapterCountRule: (min: number, max: number) => en
-        ? `CHAPTER COUNT: exactly ${min} chapters. Each chapter must be substantial and cover a distinct aspect of the subject.`
-        : `NOMBRE DE CHAPITRES : exactement ${min} chapitres. Chaque chapitre DOIT être substantiel et couvrir un aspect distinct du sujet.`,
+        ? `MANDATORY CHAPTER COUNT: between ${min} and ${max} chapters. No fewer than ${min}, no more than ${max}.\nEach chapter MUST be substantial and cover a distinct aspect of the subject.`
+        : `NOMBRE DE CHAPITRES OBLIGATOIRE : entre ${min} et ${max} chapitres. Pas moins de ${min}, pas plus de ${max}.\nChaque chapitre DOIT être substantiel et couvrir un aspect distinct du sujet.`,
       absoluteRules: en
         ? `ABSOLUTE RULES:\n1. PROGRESSION: each chapter builds on the previous. Logical order, not random.\n2. DEPTH: each chapter must contain at least 3 distinct sub-sections.\n3. CONCRETE: each chapter must have at least 1 real case or specific example (names, figures, situations).\n4. ANALOGIES: varied (cooking, sports, music, finance, nature, technology, health...).\n5. RESEARCH ANCHORING: integrate the research data above as verifiable facts. Prioritize 2024-2025 data. Each chapter must rely on at least 1 real research fact.`
         : `RÈGLES ABSOLUES :\n1. PROGRESSION : chaque chapitre construit sur le précédent. Ordre logique, pas aléatoire.\n2. PROFONDEUR : chaque chapitre doit contenir au moins 3 sous-sections distinctes.\n3. CONCRET : chaque chapitre doit avoir au moins 1 cas réel ou exemple précis (noms, chiffres, situations).\n4. ANALOGIES : variées (cuisine, sport, musique, finance, nature, technologie, santé...).\n5. ANCRAGE RECHERCHE : intègre les données de recherche ci-dessus comme faits vérifiables. Privilégie les données 2024-2025. Chaque chapitre doit s'appuyer sur au moins 1 fait réel de la recherche.`,
-      jsonOnly: en ? "Respond ONLY with valid JSON:" : "Réponds UNIQUEMENT avec du JSON valide :",
+      jsonOnly: en ? "Respond ONLY with this valid JSON:" : "Réponds UNIQUEMENT avec ce JSON valide :",
       jsonExample: (level: number) => en
-        ? `{\n  "description": "2-3 sentence captivating course description",\n  "chapters": [\n    {\n      "title": "Chapter 1 title",\n      "goal": "What the reader will master (1 sentence)",\n      "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"],\n      "subSections": ["Section A", "Section B", "Section C"],\n      "plannedAnalogy": "Familiar analogy",\n      "plannedCaseStudy": "Real case with context",\n      "plannedExample": "Numerical example",\n      "mythToBust": "Common misconception to debunk",\n      "reflectionQuestion": "Deep question",\n      "realAction": "Immediate action"${level >= 2 ? ',\n      "expertNote": "Expert insight"' : ""}\n    },\n    {\n      "title": "Chapter 2 title",\n      "goal": "Goal for this chapter",\n      "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"],\n      "subSections": ["Section A", "Section B", "Section C"],\n      "plannedAnalogy": "Analogy",\n      "plannedCaseStudy": "Case study",\n      "plannedExample": "Example",\n      "mythToBust": "Myth",\n      "reflectionQuestion": "Question",\n      "realAction": "Action"\n    },\n    {\n      "title": "Chapter 3 title",\n      "goal": "Goal",\n      "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"],\n      "subSections": ["Section A", "Section B", "Section C"],\n      "plannedAnalogy": "Analogy",\n      "plannedCaseStudy": "Case study",\n      "plannedExample": "Example",\n      "mythToBust": "Myth",\n      "reflectionQuestion": "Question",\n      "realAction": "Action"\n    },\n    {\n      "title": "Chapter 4 title",\n      "goal": "Goal",\n      "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"],\n      "subSections": ["Section A", "Section B", "Section C"],\n      "plannedAnalogy": "Analogy",\n      "plannedCaseStudy": "Case study",\n      "plannedExample": "Example",\n      "mythToBust": "Myth",\n      "reflectionQuestion": "Question",\n      "realAction": "Action"\n    }\n  ]\n}`
-        : `{\n  "description": "Description captivante du cours en 2-3 phrases",\n  "chapters": [\n    {\n      "title": "Titre du chapitre 1",\n      "goal": "Ce que le lecteur maîtrisera (1 phrase)",\n      "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"],\n      "subSections": ["Section A", "Section B", "Section C"],\n      "plannedAnalogy": "Analogie familière",\n      "plannedCaseStudy": "Cas réel avec contexte",\n      "plannedExample": "Exemple chiffré",\n      "mythToBust": "Idée reçue à détruire",\n      "reflectionQuestion": "Question de réflexion",\n      "realAction": "Action immédiate"\n    },\n    {\n      "title": "Titre du chapitre 2",\n      "goal": "Objectif",\n      "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"],\n      "subSections": ["Section A", "Section B", "Section C"],\n      "plannedAnalogy": "Analogie",\n      "plannedCaseStudy": "Cas réel",\n      "plannedExample": "Exemple",\n      "mythToBust": "Mythe",\n      "reflectionQuestion": "Question",\n      "realAction": "Action"\n    },\n    {\n      "title": "Titre du chapitre 3",\n      "goal": "Objectif",\n      "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"],\n      "subSections": ["Section A", "Section B", "Section C"],\n      "plannedAnalogy": "Analogie",\n      "plannedCaseStudy": "Cas réel",\n      "plannedExample": "Exemple",\n      "mythToBust": "Mythe",\n      "reflectionQuestion": "Question",\n      "realAction": "Action"\n    },\n    {\n      "title": "Titre du chapitre 4",\n      "goal": "Objectif",\n      "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"],\n      "subSections": ["Section A", "Section B", "Section C"],\n      "plannedAnalogy": "Analogie",\n      "plannedCaseStudy": "Cas réel",\n      "plannedExample": "Exemple",\n      "mythToBust": "Mythe",\n      "reflectionQuestion": "Question",\n      "realAction": "Action"\n    }\n  ]\n}`,
+        ? `{\n  "description": "A captivating 2-3 sentence description of the course that immediately makes you want to start",\n  "chapters": [\n    {\n      "title": "Precise chapter title",\n      "goal": "What the reader will master precisely after this chapter (1 sentence)",\n      "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"],\n      "subSections": ["Sub-section A", "Sub-section B", "Sub-section C"],\n      "plannedAnalogy": "Concrete, familiar and original analogy for the chapter's main concept",\n      "plannedCaseStudy": "Real case or specific example with context (company, person, situation, figures)",\n      "plannedExample": "Specific numerical example (amounts, percentages, durations, comparisons)",\n      "mythToBust": "A common misconception this chapter will destroy with evidence",\n      "reflectionQuestion": "Deep reflection question that forces the reader to truly think",\n      "realAction": "Concrete action immediately applicable in the reader's life/profession",\n      "expertNote": "${level >= 2 ? "Expert note, nuance or insight that only a professional would understand" : ""}"\n    }\n  ]\n}`
+        : `{\n  "description": "Description captivante du cours en 2-3 phrases qui donne immédiatement envie de commencer",\n  "chapters": [\n    {\n      "title": "Titre précis du chapitre",\n      "goal": "Ce que le lecteur maîtrisera précisément après ce chapitre (1 phrase)",\n      "keyConcepts": ["Concept 1", "Concept 2", "Concept 3"],\n      "subSections": ["Sous-section A", "Sous-section B", "Sous-section C"],\n      "plannedAnalogy": "Analogie concrète, familière et originale pour le concept principal du chapitre",\n      "plannedCaseStudy": "Cas réel ou exemple précis avec contexte (entreprise, personne, situation, chiffres)",\n      "plannedExample": "Exemple chiffré et spécifique (montants, pourcentages, durées, comparaisons)",\n      "mythToBust": "Une idée reçue que ce chapitre détruira avec des preuves",\n      "reflectionQuestion": "Question de réflexion profonde qui force le lecteur à vraiment penser",\n      "realAction": "Action concrète applicable immédiatement dans la vie/vie professionnelle du lecteur",\n      "expertNote": "${level >= 2 ? "Note experte, nuance ou insight que seul un professionnel comprendrait" : ""}"\n    }\n  ]\n}`,
       userPrompt: (level: number, title: string) => en
         ? `Design the detailed outline for a level ${level} course (${MIN_CHAPTERS}-${MAX_CHAPTERS} chapters) on: ${title}`
         : `Conçois le plan détaillé du cours de niveau ${level} (${MIN_CHAPTERS}-${MAX_CHAPTERS} chapitres) sur : ${title}`,
@@ -386,36 +389,31 @@ function buildOutlineSystemPrompt(
 ): string {
   const s = getPromptStrings(courseLang);
 
-  // Truncate research context to keep prompt FAST (< 500 chars — shorter = faster AI response)
-  const maxResearch = 500;
-  let truncatedWeb = webContext;
-  let truncatedSource = sourceContext;
-  if (truncatedWeb.length > maxResearch) truncatedWeb = truncatedWeb.slice(0, maxResearch) + "...";
-  if (truncatedSource.length > 200) truncatedSource = truncatedSource.slice(0, 200) + "...";
-
   let researchBlock = "";
-  if (truncatedWeb || truncatedSource) {
+  if (webContext || sourceContext) {
     researchBlock = `
 ${s.outline.researchHeader}
-${truncatedWeb || s.outline.noData}
-${truncatedSource || ""}
+${webContext || s.outline.noData}
+${sourceContext || ""}
 ${s.outline.researchFooter}`;
   }
 
-  // Slim outline prompt: keep it SHORT so the AI responds faster
-  // The detailed writing instructions are in the chapter generation prompts, not here
-  const en = courseLang === "en";
-  const levelLabel = level === 0 ? "beginner" : level === 1 ? "intermediate" : "advanced";
-  return `${en ? 'You are an expert course designer. Respond ONLY with valid JSON.' : 'Tu es un expert en conception de cours. Réponds UNIQUEMENT avec du JSON valide.'}
+  return `${s.outline.role}
 
-${en ? 'Subject' : 'Sujet'}: ${title}
-${en ? 'Language' : 'Langue'}: ${s.langLabel}
-${en ? 'Level' : 'Niveau'}: ${levelLabel}
-${en ? 'Write EVERYTHING in English.' : 'Rédige TOUT en français.'}
+${s.outline.subjectLabel} : ${title}
+${s.outline.languageLabel} : ${s.langLabel}
+${s.outline.langNote}
+
+${s.outline.levelDesc[level] || s.outline.levelDesc[1]}
 
 ${researchBlock}
 
-IMPORTANT: Create EXACTLY ${MIN_CHAPTERS} chapters in the JSON array. NOT fewer. Each chapter must have all fields: title, goal, keyConcepts (3+), subSections (3+), plannedAnalogy, plannedCaseStudy, plannedExample, mythToBust, reflectionQuestion, realAction.
+${s.outline.missionHeader}
+${s.outline.missionText(level)}
+
+${s.outline.chapterCountRule(MIN_CHAPTERS, MAX_CHAPTERS)}
+
+${s.outline.absoluteRules}
 
 ${s.outline.jsonOnly}
 ${s.outline.jsonExample(level)}`;
@@ -426,19 +424,10 @@ async function generateOutline(
 ): Promise<OutlineResult | null> {
   const systemPrompt = buildOutlineSystemPrompt(title, courseLang, level, webContext, sourceContext);
   console.log(`[outline] Generating outline for "${title}" (level=${level}, lang=${courseLang})...`);
-  // Reduced maxTokens: outline needs ~2048 for 4 detailed chapters with all fields
-  let completion;
-  try {
-    completion = await smartChatCompletion([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: getPromptStrings(courseLang).outline.userPrompt(level, title) },
-    ], { maxTokens: 2048, temperature: 0.5 });
-  } catch (aiErr) {
-    console.error("[outline] ❌ AI call THREW an exception:");
-    console.error("  Message:", aiErr instanceof Error ? aiErr.message : String(aiErr));
-    console.error("  Stack:", aiErr instanceof Error ? aiErr.stack : "N/A");
-    throw aiErr; // Let caller handle retry
-  }
+  const completion = await smartChatCompletion([
+    { role: "system", content: systemPrompt },
+    { role: "user", content: getPromptStrings(courseLang).outline.userPrompt(level, title) },
+  ], { maxTokens: 4096, temperature: 0.5 });
 
   const text = completion.content || "";
   console.log(`[outline] Response: ${text.length} chars, provider: ${completion.provider}`);
@@ -446,12 +435,7 @@ async function generateOutline(
     console.warn("[outline] Empty response from AI");
     return null;
   }
-  const result = extractOutline(text);
-  if (!result) {
-    console.error("[outline] ❌ extractOutline returned null — AI response could not be parsed");
-    console.error("[outline] First 500 chars of raw AI response:", text.slice(0, 500));
-  }
-  return result;
+  return extractOutline(text);
 }
 
 function extractOutline(text: string): OutlineResult | null {
@@ -466,9 +450,7 @@ function extractOutline(text: string): OutlineResult | null {
       const parsed = parseOutlineData(data);
       if (parsed && parsed.chapters.length > 0) return parsed;
     }
-  } catch (parseErr) {
-    console.error("[extractOutline] Strategy 1 (direct JSON parse) failed:", parseErr instanceof Error ? parseErr.message : String(parseErr));
-  }
+  } catch { /* not valid JSON directly, continue */ }
 
   // Strategy 2: Brace-matching extraction (for JSON embedded in text)
   const firstBrace = cleaned.indexOf("{");
@@ -490,10 +472,7 @@ function extractOutline(text: string): OutlineResult | null {
     try {
       const data = JSON.parse(s) as Record<string, unknown>;
       return parseOutlineData(data);
-    } catch (parseErr) {
-      console.error("[extractOutline] tryParse failed on snippet (${s.length} chars):", parseErr instanceof Error ? parseErr.message : String(parseErr));
-      return null;
-    }
+    } catch { return null; }
   };
 
   const result = tryParse(snippet)
@@ -502,11 +481,7 @@ function extractOutline(text: string): OutlineResult | null {
   if (result) return result;
 
   // Strategy 3: Extract chapter titles from partial/truncated JSON
-  const partialResult = extractChaptersFromPartialJSON(snippet);
-  if (!partialResult) {
-    console.error("[extractOutline] ❌ ALL strategies failed. Raw AI response (first 1000 chars):", cleaned.slice(0, 1000));
-  }
-  return partialResult;
+  return extractChaptersFromPartialJSON(snippet);
 }
 
 function parseOutlineData(data: Record<string, unknown>): OutlineResult | null {
@@ -580,15 +555,10 @@ function buildChapterSystemPrompt(
 
   let researchBlock = "";
   if (webContext || sourceContext) {
-    // Truncate research for chapter prompts (keep them fast)
-    const maxWeb = 1200;
-    const maxSrc = 400;
-    const truncatedW = webContext.length > maxWeb ? webContext.slice(0, maxWeb) + "..." : webContext;
-    const truncatedS = sourceContext.length > maxSrc ? sourceContext.slice(0, maxSrc) + "..." : sourceContext;
     researchBlock = `
 ${s.chapter.researchHeader}
-${truncatedW}
-${truncatedS}
+${webContext}
+${sourceContext}
 ${s.chapter.researchFooter}
 ${s.chapter.researchRules}`;
   }
@@ -673,18 +643,10 @@ async function generateChapter(
     outline, webContext, sourceContext,
   );
 
-  let completion;
-  try {
-    completion = await smartChatCompletion([
-      { role: "system", content: systemPrompt },
-      { role: "user", content: getPromptStrings(courseLang).chapter.userPrompt(chapterIdx, outline.title) },
-    ], { maxTokens: MAX_TOKENS, temperature: 0.7 });
-  } catch (aiErr) {
-    console.error(`[chapter-${chapterIdx + 1}] ❌ AI call THREW an exception:`);
-    console.error("  Message:", aiErr instanceof Error ? aiErr.message : String(aiErr));
-    console.error("  Stack:", aiErr instanceof Error ? aiErr.stack : "N/A");
-    return null;
-  }
+  const completion = await smartChatCompletion([
+    { role: "system", content: systemPrompt },
+    { role: "user", content: getPromptStrings(courseLang).chapter.userPrompt(chapterIdx, outline.title) },
+  ], { maxTokens: MAX_TOKENS, temperature: 0.7 });
 
   const text = completion.content || "";
   console.log(`[chapter-${chapterIdx + 1}] ${text.length} chars, provider: ${completion.provider}`);
@@ -692,18 +654,15 @@ async function generateChapter(
     console.warn(`[chapter-${chapterIdx + 1}] Empty response`);
     return null;
   }
-  const result = extractChapter(text);
-  if (!result) {
-    console.error(`[chapter-${chapterIdx + 1}] ❌ extractChapter returned null — AI response could not be parsed`);
-    console.error(`[chapter-${chapterIdx + 1}] First 500 chars of raw AI response:`, text.slice(0, 500));
-  }
-  return result;
+  return extractChapter(text);
 }
 
 function extractChapter(text: string): { title: string; content: string; summary: string } | null {
   let cleaned = text.trim();
+  const cb = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (cb) cleaned = cb[1].trim();
 
-  // Strategy 0: Direct JSON parse on the FULL text first (before code block extraction)
+  // Strategy 1: Direct JSON parse
   const tryParse = (s: string) => {
     try {
       const data = JSON.parse(s) as Record<string, unknown>;
@@ -717,92 +676,49 @@ function extractChapter(text: string): { title: string; content: string; summary
   let result = tryParse(cleaned);
   if (result) return result;
 
-  // Strategy 1: Code block extraction — try ALL code blocks, not just the first (lazy match)
-  const codeBlocks = [...cleaned.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)];
-  for (const cb of codeBlocks) {
-    result = tryParse(cb[1].trim());
-    if (result) return result;
-  }
-
-  // Strategy 2: Brace-matching extraction (only tracks { } depth, ignores [ ])
+  // Strategy 2: Brace-matching extraction
   const firstBrace = cleaned.indexOf("{");
-  if (firstBrace !== -1) {
-    let braceDepth = 0, lastBrace = -1;
-    let inString = false, escaped = false;
-    for (let i = firstBrace; i < cleaned.length; i++) {
-      const ch = cleaned[i];
-      if (escaped) { escaped = false; continue; }
-      if (ch === "\\") { escaped = true; continue; }
-      if (ch === '"' && !inString) { inString = true; continue; }
-      if (ch === '"' && inString) { inString = false; continue; }
-      if (inString) continue;
-      if (ch === "{") braceDepth++;
-      if (ch === "}") { braceDepth--; lastBrace = i; if (braceDepth === 0) break; }
-    }
+  if (firstBrace === -1) return null;
 
-    const snippet = lastBrace > firstBrace ? cleaned.slice(firstBrace, lastBrace + 1) : cleaned.slice(firstBrace);
-
-    result = tryParse(snippet)
-      || tryParse(snippet.replace(/,\s*([}\]])/g, "$1").replace(/[\u201C\u201D\u2018\u2019]/g, "'"))
-      || tryParse(snippet.replace(/[\u201C\u201D\u2018\u2019]/g, "'").replace(/[\u00A0]/g, " "));
-
-    if (result) return result;
+  let depth = 0, lastBrace = -1;
+  for (let i = firstBrace; i < cleaned.length; i++) {
+    if (cleaned[i] === "\\") continue;
+    if (cleaned[i] === "\"") { let j = i + 1; while (j < cleaned.length) { if (cleaned[j] === "\\") { j += 2; continue; } if (cleaned[j] === "\"") break; j++; } i = j; continue; }
+    if (cleaned[i] === "{") depth++;
+    if (cleaned[i] === "}") { depth--; lastBrace = i; if (depth === 0) break; }
+    if (cleaned[i] === "[") depth++;
+    if (cleaned[i] === "]") depth--;
   }
+
+  const snippet = lastBrace > firstBrace ? cleaned.slice(firstBrace, lastBrace + 1) : cleaned.slice(firstBrace);
+
+  result = tryParse(snippet)
+    || tryParse(snippet.replace(/,\s*([}\]])/g, "$1").replace(/[\u201C\u201D\u2018\u2019]/g, "'"));
+
+  if (result) return result;
 
   // Strategy 3: Extract title + content from partial JSON (e.g., truncated by token limit)
   const titleMatch = cleaned.match(/"title"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  const contentMatch = cleaned.match(/"content"\s*:\s*"((?:[^"\\]|\\.|[\s\S])*?)(?:"\s*(?:,|\}|$))/);
   const summaryMatch = cleaned.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
 
-  // For content, use a greedy approach: find the longest possible content value
-  const contentStartMatch = cleaned.match(/"content"\s*:\s*"/);
-  if (titleMatch && contentStartMatch) {
-    const contentStart = contentStartMatch.index! + contentStartMatch[0].length;
-    // Walk backwards from the end to find the closing quote of the content field
-    let contentEnd = -1;
-    let esc = false;
-    let inStr = false;
-    for (let i = cleaned.length - 1; i >= contentStart; i--) {
-      if (esc) { esc = false; continue; }
-      if (cleaned[i] === "\\") { esc = true; continue; }
-      if (cleaned[i] === '"' && !inStr) { inStr = true; contentEnd = i; continue; }
-      if (cleaned[i] === '"' && inStr) { inStr = false; contentEnd = i; continue; }
-    }
-    // Actually, simpler: find the closing pattern: ","summary" or "}\n or end of string
-    // after the content start
-    const afterContent = cleaned.slice(contentStart);
-    const closingMatch = afterContent.match(/"\s*(?:,\s*"\w+"|$)/);
-    if (closingMatch && closingMatch.index !== undefined) {
-      const rawContent = afterContent.slice(0, closingMatch.index);
-      let content = rawContent
-        .replace(/\\n/g, "\n")
-        .replace(/\\t/g, "\t")
-        .replace(/\\"/g, '"')
-        .replace(/\\\\/g, "\\");
-      if (content.includes("##")) {
-        console.log(`[extractChapter] Recovered chapter from partial JSON: "${titleMatch[1].slice(0, 50)}..."`);
-        return {
-          title: titleMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"'),
-          content,
-          summary: summaryMatch ? summaryMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"') : "",
-        };
-      }
+  if (titleMatch && contentMatch) {
+    let content = contentMatch[1]
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t")
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, "\\");
+    // Ensure content has at least one heading
+    if (content.includes("##")) {
+      console.log(`[extractChapter] Recovered chapter from partial JSON: "${titleMatch[1].slice(0, 50)}..."`);
+      return {
+        title: titleMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"'),
+        content,
+        summary: summaryMatch ? summaryMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"') : "",
+      };
     }
   }
 
-  // Strategy 4: AI returned raw markdown content (no JSON wrapper at all)
-  // Check if the text starts with ## headings or has substantial markdown content
-  const lines = cleaned.split("\n").filter(l => l.trim());
-  const headingLines = lines.filter(l => l.trim().startsWith("#"));
-  if (headingLines.length >= 3 && cleaned.includes("##")) {
-    // Try to extract a title from the first non-heading line or the first heading
-    let title = "Untitled Chapter";
-    const firstH2 = cleaned.match(/^##\s+(.+)$/m);
-    if (firstH2) title = firstH2[1].trim();
-    console.log(`[extractChapter] Recovered raw markdown chapter: "${title.slice(0, 50)}..."`);
-    return { title, content: cleaned, summary: "" };
-  }
-
-  console.warn(`[extractChapter] All extraction strategies failed (${cleaned.length} chars)`);
   return null;
 }
 
@@ -833,28 +749,15 @@ async function generateChapterEmergency(
   const s = getPromptStrings(courseLang);
   const levelLabel = level === 0 ? "beginner" : level === 1 ? "intermediate" : "advanced";
 
-  let completion;
-  try {
-    completion = await smartChatCompletion([
-      { role: "system", content: s.emergency.systemPrompt(s.emergency.langNote, levelLabel) },
-      { role: "user", content: s.emergency.userPrompt(chapterIdx + 1, totalChapters, courseTitle, outline) },
-    ], { maxTokens: 4096, temperature: 0.6 });
-  } catch (aiErr) {
-    console.error(`[emergency-chapter-${chapterIdx + 1}] ❌ AI call THREW an exception:`);
-    console.error("  Message:", aiErr instanceof Error ? aiErr.message : String(aiErr));
-    console.error("  Stack:", aiErr instanceof Error ? aiErr.stack : "N/A");
-    return null;
-  }
+  const completion = await smartChatCompletion([
+    { role: "system", content: s.emergency.systemPrompt(s.emergency.langNote, levelLabel) },
+    { role: "user", content: s.emergency.userPrompt(chapterIdx + 1, totalChapters, courseTitle, outline) },
+  ], { maxTokens: 4096, temperature: 0.6 });
 
   const text = completion.content || "";
   console.log(`[emergency-chapter-${chapterIdx + 1}] ${text.length} chars, provider: ${completion.provider}`);
   if (!text) return null;
-  const result = extractChapter(text);
-  if (!result) {
-    console.error(`[emergency-chapter-${chapterIdx + 1}] ❌ extractChapter returned null`);
-    console.error(`[emergency-chapter-${chapterIdx + 1}] First 500 chars of raw AI response:`, text.slice(0, 500));
-  }
-  return result;
+  return extractChapter(text);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -867,25 +770,17 @@ async function generateSingleCall(
   const s = getPromptStrings(courseLang);
   const researchBlock = (webContext || sourceContext) ? `\n\n${s.singleCall.researchHeader}\n${webContext}\n${sourceContext}\n${s.singleCall.researchUse}` : "";
 
-  let completion;
-  try {
-    completion = await smartChatCompletion([
-      { role: "system", content: [
-        `${s.singleCall.systemRole} ${s.chapter.languageLabel} : ${s.langLabel}. ${s.singleCall.langNote}`,
-        s.singleCall.rules,
-        s.singleCall.chapterRules,
-        s.singleCall.structure,
-        researchBlock,
-        s.singleCall.jsonFormat,
-      ].join("\n") },
-      { role: "user", content: s.singleCall.userPrompt(level, title) },
-    ], { maxTokens: MAX_TOKENS, temperature: 0.7 });
-  } catch (aiErr) {
-    console.error("[fallback] ❌ AI call THREW an exception:");
-    console.error("  Message:", aiErr instanceof Error ? aiErr.message : String(aiErr));
-    console.error("  Stack:", aiErr instanceof Error ? aiErr.stack : "N/A");
-    return null;
-  }
+  const completion = await smartChatCompletion([
+    { role: "system", content: [
+      `${s.singleCall.systemRole} ${s.chapter.languageLabel} : ${s.langLabel}. ${s.singleCall.langNote}`,
+      s.singleCall.rules,
+      s.singleCall.chapterRules,
+      s.singleCall.structure,
+      researchBlock,
+      s.singleCall.jsonFormat,
+    ].join("\n") },
+    { role: "user", content: s.singleCall.userPrompt(level, title) },
+  ], { maxTokens: MAX_TOKENS, temperature: 0.7 });
 
   const text = completion.content || "";
   console.log(`[fallback] ${text.length} chars, provider: ${completion.provider}`);
@@ -893,12 +788,7 @@ async function generateSingleCall(
     console.warn("[fallback] Empty response");
     return null;
   }
-  const result = extractFallbackCourse(text);
-  if (!result) {
-    console.error("[fallback] ❌ extractFallbackCourse returned null");
-    console.error("[fallback] First 500 chars of raw AI response:", text.slice(0, 500));
-  }
-  return result;
+  return extractFallbackCourse(text);
 }
 
 function extractFallbackCourse(text: string): { description: string; chapters: Array<{ title: string; content: string; summary: string }> } | null {
@@ -993,39 +883,14 @@ export async function POST(request: NextRequest) {
 
     console.log(`[generate] ═══ VALIDATION OK ═══ title="${title.trim()}" level=${level} lang=${courseLang} userId=${userId || 'anonymous'} links=${sourceLinks.length}`);
 
-    // ── CRITICAL: Ensure DB columns exist FIRST (especially for PostgreSQL) ──
-    await ensureFreeCourseColumn();
-
-    // ── ADMIN BYPASS: whitelisted emails skip ALL limits ──
-    let requestingUserEmail: string | null = null;
-    let isUserAdmin = false;
-
+    // ── CRITICAL: Free course abuse prevention (atomic, race-condition-safe) ──
+    // Single source of truth: User.freeCourseUsed boolean in the database.
+    // This flag is NEVER reset, even if the course is deleted.
+    // We use an interactive transaction to atomically check + claim the free slot.
     if (userId) {
-      // Try Prisma first, fall back to raw SQL (in case columns are missing)
-      try {
-        const requestingUser = await db.user.findUnique({
-          where: { id: userId },
-          select: { email: true, subscriptionStatus: true, freeCourseUsed: true },
-        });
-        requestingUserEmail = requestingUser?.email || null;
-      } catch {
-        try {
-          const rows = await db.$queryRawUnsafe(
-            `SELECT email FROM "User" WHERE id = $1 LIMIT 1`, userId
-          ) as Array<{ email: string }>;
-          requestingUserEmail = rows[0]?.email || null;
-        } catch { /* non-critical */ }
-      }
-      isUserAdmin = isAdmin(requestingUserEmail);
+      // Ensure column exists BEFORE the transaction (especially for PostgreSQL)
+      await ensureFreeCourseColumn();
 
-      if (isUserAdmin) {
-        console.log(`[generate] ⚡ Admin bypass: ${requestingUserEmail} — unlimited generation, skipping ALL checks`);
-      }
-    }
-
-    // ── Skip ALL quota checks for admin users ──
-    if (userId && !isUserAdmin) {
-      // Free course abuse prevention (atomic, race-condition-safe)
       let freeSlotClaimed = false;
       try {
         let canGenerate = false;
@@ -1078,103 +943,55 @@ export async function POST(request: NextRequest) {
     }
 
     // ── DAILY GENERATION LIMIT ──
-    // Admin bypass: skip daily limit entirely
-    if (!isUserAdmin) {
-      const DAILY_LIMIT_FREE = 1; // Anonymous users
-      const DAILY_LIMIT_SUBSCRIBED = 4; // Active subscribers
+    const DAILY_LIMIT_FREE = 1; // Anonymous users
+    const DAILY_LIMIT_SUBSCRIBED = 4; // Active subscribers
 
-      let dailyLimit = userId ? DAILY_LIMIT_SUBSCRIBED : DAILY_LIMIT_FREE;
+    let dailyLimit = userId ? DAILY_LIMIT_SUBSCRIBED : DAILY_LIMIT_FREE;
 
-      if (userId) {
-        // Check subscription status for the daily limit
-        try {
-          const user = await db.user.findUnique({
-            where: { id: userId },
-            select: { subscriptionStatus: true },
-          });
-          if (user?.subscriptionStatus !== "active") {
-            dailyLimit = DAILY_LIMIT_FREE; // Not subscribed → same as anonymous
-          }
-        } catch { /* non-critical, use default */ }
-      }
-
-      // Count courses created today (UTC-based)
+    // Check subscription status for the daily limit
+    if (userId) {
       try {
-        const todayStart = new Date();
-        todayStart.setUTCHours(0, 0, 0, 0);
-
-        const coursesToday = await db.course.count({
-          where: {
-            userId: userId || null,
-            createdAt: { gte: todayStart },
-          },
+        const user = await db.user.findUnique({
+          where: { id: userId },
+          select: { subscriptionStatus: true },
         });
-
-        if (coursesToday >= dailyLimit) {
-          // Calculate when the limit resets (next midnight UTC)
-          const tomorrow = new Date();
-          tomorrow.setUTCHours(24, 0, 0, 0);
-          const resetInMs = tomorrow.getTime() - Date.now();
-
-          console.log(`[generate] Daily limit reached: ${coursesToday}/${dailyLimit} for user ${userId || 'anonymous'}`);
-          return NextResponse.json({
-            error: "DAILY_LIMIT",
-            message: `Daily generation limit reached (${dailyLimit} courses/day)`,
-            dailyLimit,
-            coursesToday,
-            resetInMs,
-            resetAt: tomorrow.toISOString(),
-          }, { status: 429 });
+        if (user?.subscriptionStatus !== "active") {
+          dailyLimit = DAILY_LIMIT_FREE; // Not subscribed → same as anonymous
         }
-      } catch (dailyErr) {
-        console.warn("[generate] Daily limit check failed, proceeding:", dailyErr);
-      }
-    } else {
-      console.log(`[generate] ⚡ Admin user ${requestingUserEmail} — skipping daily limit check entirely`);
+      } catch { /* non-critical, use default */ }
     }
 
-    // ── Step -2: Clean up stale pending courses (> 10 minutes old) ──
+    // Count courses created today (UTC-based)
     try {
-      const staleThreshold = new Date(Date.now() - 10 * 60_000);
-      const staleCount = await db.course.count({
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+
+      const coursesToday = await db.course.count({
         where: {
-          description: { startsWith: "__PENDING__" },
-          createdAt: { lt: staleThreshold },
+          userId: userId || null,
+          createdAt: { gte: todayStart },
         },
       });
-      if (staleCount > 0) {
-        console.log(`[generate] Cleaning up ${staleCount} stale pending courses (> 10 min old)`);
-        const staleCourses = await db.course.findMany({
-          where: {
-            description: { startsWith: "__PENDING__" },
-            createdAt: { lt: staleThreshold },
-          },
-          select: { id: true },
-        });
-        for (const stale of staleCourses) {
-          await db.chapter.deleteMany({ where: { courseId: stale.id } }).catch(() => {});
-          await db.courseProgress.deleteMany({ where: { courseId: stale.id } }).catch(() => {});
-          await db.course.deleteMany({ where: { id: stale.id } }).catch(() => {});
-        }
+
+      if (coursesToday >= dailyLimit) {
+        // Calculate when the limit resets (next midnight UTC)
+        const tomorrow = new Date();
+        tomorrow.setUTCHours(24, 0, 0, 0);
+        const resetInMs = tomorrow.getTime() - Date.now();
+
+        console.log(`[generate] Daily limit reached: ${coursesToday}/${dailyLimit} for user ${userId || 'anonymous'}`);
+        return NextResponse.json({
+          error: "DAILY_LIMIT",
+          message: `Daily generation limit reached (${dailyLimit} courses/day)`,
+          dailyLimit,
+          coursesToday,
+          resetInMs,
+          resetAt: tomorrow.toISOString(),
+        }, { status: 429 });
       }
-    } catch {
-      // Non-critical
+    } catch (dailyErr) {
+      console.warn("[generate] Daily limit check failed, proceeding:", dailyErr);
     }
-
-    // ── Step -1: Save a pending course record immediately so the client poller can detect it ──
-    const pendingCourseId = await savePendingCourse(title, level, userId, sourceLinks);
-    console.log(`[generate] Pending course ID: ${pendingCourseId || 'none'}`);
-
-    // ── Hard timeout: check elapsed time before expensive AI steps ──
-    // Set to 270s (4.5 min) — well under the 300s maxDuration but enough for full generation
-    const GENERATION_TIMEOUT_MS = 270_000;
-    const checkTimeout = (step: string) => {
-      const elapsed = Date.now() - startTime;
-      if (elapsed > GENERATION_TIMEOUT_MS) {
-        console.warn(`[generate] ⏰ TIMEOUT at step "${step}" after ${Math.round(elapsed / 1000)}s`);
-        throw new Error("GENERATION_TIMEOUT");
-      }
-    };
 
     // ── Step 0: Deep web search + source scraping (parallel) ──
     logStep("search_start");
@@ -1184,6 +1001,15 @@ export async function POST(request: NextRequest) {
 
     try {
       zaiInstance = await getZAI();
+
+      // Warm-up call to prime the SDK connection (prevents cold-start failures)
+      try {
+        console.log("[generate] Warming up SDK connection...");
+        await zaiInstance.invokeFunction("web_search", { query: "warmup", num: 1 });
+        console.log("[generate] SDK warm-up successful");
+      } catch {
+        console.log("[generate] SDK warm-up failed (non-critical, continuing)");
+      }
 
       const [searchResults, scraped] = await Promise.all([
         deepSearch(zaiInstance, title, courseLang, level),
@@ -1199,7 +1025,6 @@ export async function POST(request: NextRequest) {
     logStep("search_end");
     logDuration("search_start", "search_end");
     console.log(`[generate] Search phase complete: web=${webContext.length > 0 ? webContext.length + 'chars' : 'none'}, sources=${scrapedPages.length}`);
-    checkTimeout("search");
 
     // ── Step 1: Generate outline (with retry) ──
     logStep("outline_start");
@@ -1207,77 +1032,36 @@ export async function POST(request: NextRequest) {
     let outlineError: unknown = null;
 
     try {
-      outline = await withRetry(() => generateOutline(title, courseLang, level, webContext, sourceContext), 1);
+      outline = await withRetry(() => generateOutline(title, courseLang, level, webContext, sourceContext), 2);
     } catch (error) {
       outlineError = error;
       const msg = error instanceof Error ? error.message : String(error);
-      console.error("[generate] ❌ Outline all retries failed:");
-      console.error("  Full error:", msg);
-      console.error("  Stack:", error instanceof Error ? error.stack : "N/A");
-      // If it's an AllProvidersFailedError, log each provider's failure
-      if (error instanceof AllProvidersFailedError) {
-        console.error("[generate] Provider-by-provider failures:");
-        for (const pe of error.providerErrors) {
-          console.error(`  → ${pe.provider}: ${pe.error}`);
-        }
-      }
-      // Retry without context as last resort (skip if AllProvidersFailedError — no point retrying)
-      if (!(error instanceof AllProvidersFailedError)) {
-        try {
-          outline = await generateOutline(title, courseLang, level, "", "");
-        } catch (retryErr) {
-          console.error("[generate] ❌ Outline retry without context also failed:");
-          console.error("  Full error:", retryErr instanceof Error ? retryErr.message : String(retryErr));
-          console.error("  Stack:", retryErr instanceof Error ? retryErr.stack : "N/A");
-        }
-      } else {
-        console.warn("[generate] Skipping outline retry without context (AllProvidersFailedError — no providers available)");
+      console.log(`[generate] Outline all retries failed (${msg.slice(0, 150)}), trying without research context...`);
+      try {
+        outline = await generateOutline(title, courseLang, level, "", "");
+      } catch (retryErr) {
+        console.error("[generate] Outline retry without context also failed:", retryErr instanceof Error ? retryErr.message : retryErr);
       }
     }
 
     logStep("outline_end");
     logDuration("outline_start", "outline_end");
-    checkTimeout("outline");
 
-    if (!outline || outline.chapters.length < MIN_CHAPTERS) {
-      console.log(`[generate] Outline ${outline ? 'has too few chapters (' + outline.chapters.length + ')' : 'is null'}, trying single-call fallback...`);
+    console.log(`[outline] Outline has ${outline.chapters.length} chapters, need at least ${MIN_CHAPTERS}`);
+    if (outline.chapters.length < MIN_CHAPTERS) {
+      console.log("[generate] Outline failed or too few chapters, trying single-call fallback...");
       logStep("fallback_start");
       const fallbackResult = await generateSingleCall(title, courseLang, level, webContext, sourceContext);
       logStep("fallback_end");
       logDuration("fallback_start", "fallback_end");
 
       if (!fallbackResult || fallbackResult.chapters.length === 0) {
-        const realError = outlineError instanceof Error ? outlineError : null;
-        console.error("[generate] ═══ ALL GENERATION METHODS FAILED ═══");
-        console.error("[generate] Root cause outline error:", realError?.message || String(outlineError));
-        console.error("[generate] Outline error stack:", realError?.stack || "N/A");
+        console.error("[generate] ALL GENERATION METHODS FAILED");
         const errType = outlineError ? classifyAIError(outlineError) : "UNKNOWN";
-
-        // Extract provider errors if available
-        let providerFailures: Array<{ provider: string; error: string }> = [];
-        if (outlineError instanceof AllProvidersFailedError) {
-          providerFailures = outlineError.providerErrors;
-        }
-
-        // Build a human-readable error message for the client
-        let clientMessage: string;
-        if (outlineError instanceof AllProvidersFailedError) {
-          const providerList = outlineError.providerErrors.map(e => `${e.provider}: ${e.error}`).join("; ");
-          clientMessage = `Tous les fournisseurs IA ont échoué. ${providerList}`;
-        } else {
-          clientMessage = realError?.message || "Erreur inconnue lors de la génération du plan.";
-        }
-
         return NextResponse.json({
           error: "AI_GENERATION_FAILED",
-          message: clientMessage,
-          realError: realError?.message || String(outlineError),
+          message: "The AI could not generate a valid course structure. This is usually temporary.",
           errorType: errType,
-          debug: {
-            outlineError: realError?.message || String(outlineError),
-            outlineStack: realError?.stack?.slice(0, 500) || "N/A",
-            providerFailures,
-          },
         }, { status: 500 });
       }
       console.log(`[generate] Fallback succeeded: ${fallbackResult.chapters.length} chapters`);
@@ -1290,42 +1074,46 @@ export async function POST(request: NextRequest) {
 
     console.log(`[outline] ${outline.chapters.length} chapters planned`);
 
-    // ── Step 2: Generate ALL chapters SEQUENTIALLY (no parallel — avoids 429 rate limiting) ──
+    // ── Step 2: Generate each chapter individually ──
     logStep("chapters_start");
     let generatedChapters: Array<{ title: string; content: string; summary: string }> = [];
 
-    const allChapters = outline.chapters;
-
-    for (let chapterIdx = 0; chapterIdx < allChapters.length; chapterIdx++) {
-      const ch = allChapters[chapterIdx];
-      console.log(`[generate] ── Chapter ${chapterIdx + 1}/${allChapters.length}: "${ch.title}" ──`);
+    for (let i = 0; i < outline.chapters.length; i++) {
+      const ch = outline.chapters[i];
+      console.log(`[generate] ── Chapter ${i + 1}/${outline.chapters.length}: "${ch.title}" ──`);
       const chStart = Date.now();
 
       // Attempt 1: Full prompt with research context
-      let chapter = await generateChapter(title, courseLang, level, chapterIdx, allChapters.length, ch, webContext, sourceContext);
+      let chapter = await withRetry(
+        () => generateChapter(title, courseLang, level, i, outline.chapters.length, ch, webContext, sourceContext),
+        1, // 1 retry (2 attempts total)
+      );
 
-      // Attempt 2: Without research context
+      // Attempt 2: Without research context (smaller prompt = faster, less likely to fail)
       if (!chapter) {
-        console.log(`[chapter-${chapterIdx + 1}] Attempt 1 failed, trying without research context...`);
-        chapter = await generateChapter(title, courseLang, level, chapterIdx, allChapters.length, ch, "", "");
+        console.log(`[chapter-${i + 1}] Attempt 1 failed, trying without research context...`);
+        chapter = await withRetry(
+          () => generateChapter(title, courseLang, level, i, outline.chapters.length, ch, "", ""),
+          1,
+        );
       }
 
-      // Attempt 3: Minimal emergency prompt
+      // Attempt 3: Minimal emergency prompt — just asks for raw content, no fancy structure
       if (!chapter) {
-        console.log(`[chapter-${chapterIdx + 1}] Attempt 2 failed, trying minimal emergency prompt...`);
-        chapter = await generateChapterEmergency(title, courseLang, level, chapterIdx, allChapters.length, ch);
+        console.log(`[chapter-${i + 1}] Attempt 2 failed, trying minimal emergency prompt...`);
+        chapter = await generateChapterEmergency(title, courseLang, level, i, outline.chapters.length, ch);
       }
 
       if (chapter) {
         const quality = validateChapterQuality(chapter.content, level);
-        if (!quality.passed) console.log(`[chapter-${chapterIdx + 1}] Quality issues: ${quality.issues.join(", ")} (${quality.wordCount} words, ${quality.headingCount} headings)`);
-        else console.log(`[chapter-${chapterIdx + 1}] Quality OK (${quality.wordCount} words, ${quality.headingCount} headings)`);
+        if (!quality.passed) console.log(`[chapter-${i + 1}] Quality issues: ${quality.issues.join(", ")} (${quality.wordCount} words, ${quality.headingCount} headings)`);
+        else console.log(`[chapter-${i + 1}] Quality OK (${quality.wordCount} words, ${quality.headingCount} headings)`);
+        generatedChapters.push(chapter);
       } else {
-        console.error(`[chapter-${chapterIdx + 1}] ALL 3 ATTEMPTS FAILED — chapter will be missing!`);
+        console.error(`[chapter-${i + 1}] ALL 3 ATTEMPTS FAILED — chapter will be missing!`);
       }
 
-      console.log(`[chapter-${chapterIdx + 1}] Time: ${((Date.now() - chStart) / 1000).toFixed(1)}s`);
-      if (chapter) generatedChapters.push(chapter);
+      console.log(`[chapter-${i + 1}] Time: ${((Date.now() - chStart) / 1000).toFixed(1)}s`);
     }
 
     // ── Safety net: if fewer than MIN_CHAPTERS were generated, try single-call fallback ──
@@ -1350,33 +1138,20 @@ export async function POST(request: NextRequest) {
     }
 
     if (generatedChapters.length === 0) {
-      console.error("[generate] ═══ ALL GENERATION METHODS FAILED — no chapters at all ═══");
+      console.error("[generate] ALL GENERATION METHODS FAILED — no chapters at all");
       return NextResponse.json({
         error: "AI_GENERATION_FAILED",
-        message: `Aucun chapitre n'a pu être généré sur ${allChapters.length} prévus. L'IA n'a pas réussi à produire de contenu valide.`,
-        realError: `Failed to generate any of ${allChapters.length} chapters (3 strategies each)`,
-        debug: { totalChapters: allChapters.length, failedAll: true },
+        message: "The AI could not generate any course chapters. Please try again.",
       }, { status: 500 });
     }
 
     console.log(`[generate] Generated ${generatedChapters.length}/${outline.chapters.length} chapters successfully`);
     logStep("chapters_end");
     logDuration("chapters_start", "chapters_end");
-    // No timeout check here — save is fast (< 1s), always let it complete
 
     // ── Step 3: Save ──
     logStep("save_start");
-    let course;
-    if (pendingCourseId) {
-      // Update the pending course with actual content
-      await updatePendingCourse(pendingCourseId, outline.description, generatedChapters);
-      course = await db.course.findUnique({
-        where: { id: pendingCourseId },
-        include: { chapters: { orderBy: { order: "asc" } } },
-      });
-    } else {
-      course = await saveCourse(title, level, userId, sourceLinks, outline.description, generatedChapters, scrapedPages.length);
-    }
+    const course = await saveCourse(title, level, userId, sourceLinks, outline.description, generatedChapters, scrapedPages.length);
     logStep("save_end");
     logDuration("save_start", "save_end");
     logDuration("start", "save_end");
@@ -1387,34 +1162,16 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     const msg = error instanceof Error ? error.message : String(error);
-
-    // Timeout: course stays as __PENDING__, poller will try to recover
-    if (msg === "GENERATION_TIMEOUT") {
-      console.error(`[generate] ═══ TIMEOUT after ${duration}s — course left as pending for poller ═══`);
-      return NextResponse.json({
-        error: "TIMEOUT",
-        message: "Course generation timed out. The background poller will detect completion.",
-        duration: Number(duration),
-      }, { status: 504 });
-    }
-
     const errorType = classifyAIError(error);
     console.error(`[generate] ═══ UNHANDLED ERROR after ${duration}s ═══`);
     console.error(`[generate] Error type: ${errorType}`);
     console.error(`[generate] Error message: ${msg}`);
-    console.error(`[generate] Stack trace:`, error instanceof Error ? error.stack : "N/A");
     console.error(error);
-    console.error(`[generate] Request context: title="${title}", level=${level}, lang=${courseLang}, userId=${userId || 'anonymous'}, sourceLinks=${sourceLinks.length}`);
 
     return NextResponse.json({
       error: "GENERATION_ERROR",
-      message: msg.slice(0, 500),
+      message: `Course generation failed: ${msg.slice(0, 200)}`,
       errorType,
-      debug: {
-        message: msg,
-        stack: error instanceof Error ? error.stack?.slice(0, 1000) : "N/A",
-        context: `title="${title}" level=${level} lang=${courseLang}`,
-      },
     }, { status: 500 });
   }
 }
@@ -1439,70 +1196,6 @@ async function saveCourse(
   // No need to set it here again.
 
   return course;
-}
-
-/**
- * Creates a placeholder "pending" course record immediately so the client
- * poller can detect that generation is in progress. The placeholder has
- * a description starting with "__PENDING__" and no chapters.
- */
-async function savePendingCourse(
-  title: string, level: number, userId: string | null, sourceLinks: string[],
-) {
-  try {
-    const courseId = `pending_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    const course = await db.course.create({
-      data: {
-        id: courseId,
-        title: title.trim(),
-        description: "__PENDING__",
-        sourceLinks: JSON.stringify(sourceLinks),
-        level,
-        flameCost: 0,
-        userId: userId || null,
-      },
-      include: { chapters: { orderBy: { order: "asc" } } },
-    });
-    await db.courseProgress.upsert({ where: { courseId }, create: { courseId }, update: {} });
-    console.log(`[generate] Saved pending course: ${courseId}`);
-    return courseId;
-  } catch (err) {
-    console.warn("[generate] Failed to save pending course (non-critical):", err instanceof Error ? err.message : err);
-    return null;
-  }
-}
-
-/**
- * Updates a pending course with actual content after generation completes.
- */
-async function updatePendingCourse(
-  courseId: string,
-  description: string,
-  chapters: Array<{ title: string; content: string; summary: string }>,
-) {
-  try {
-    // Delete any existing placeholder chapters
-    await db.chapter.deleteMany({ where: { courseId } });
-    // Create actual chapters
-    await db.chapter.createMany({
-      data: chapters.map((ch, idx) => ({
-        title: ch.title,
-        content: ch.content,
-        summary: ch.summary,
-        order: idx + 1,
-        level: 0,
-        courseId,
-      })),
-    });
-    // Update the course description (remove __PENDING__ marker)
-    await db.course.update({
-      where: { id: courseId },
-      data: { description },
-    });
-    console.log(`[generate] Updated pending course ${courseId} with ${chapters.length} chapters`);
-  } catch (err) {
-    console.error("[generate] Failed to update pending course:", err instanceof Error ? err.message : err);
-  }
 }
 
 function buildResponse(
