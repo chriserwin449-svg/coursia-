@@ -152,13 +152,32 @@ export function classifyAIError(error: unknown): string {
  * Call z-ai SDK (primary provider — always available)
  * Uses singleton instance to avoid cold starts.
  *
- * Tries ZAI.create() first (reads .z-ai-config file),
- * then falls back to direct instantiation with env vars or defaults.
+ * ALWAYS uses direct instantiation with env vars or hardcoded defaults.
+ * NEVER calls ZAI.create() which requires a .z-ai-config file that
+ * may not exist on production deployments.
  */
 let zaiSingleton: Awaited<ReturnType<typeof ZAI.create>> | null = null;
 let zaiSingletonPromise: Promise<Awaited<ReturnType<typeof ZAI.create>>> | null = null;
 
-function buildZAIConfig(): { baseUrl: string; apiKey: string; chatId?: string; userId?: string; token?: string } {
+/**
+ * Build ZAI config from environment variables or hardcoded defaults.
+ * These defaults match the internal API endpoint used by the SDK.
+ */
+async function buildZAIConfig() {
+  // Try reading /etc/.z-ai-config first (available in sandbox)
+  try {
+    const fs = await import('fs');
+    const raw = fs.readFileSync('/etc/.z-ai-config', 'utf-8').trim();
+    const fileConfig = JSON.parse(raw);
+    if (fileConfig.baseUrl && fileConfig.apiKey) {
+      console.log('[ZAI] Config loaded from /etc/.z-ai-config');
+      return fileConfig;
+    }
+  } catch {
+    /* file not available, use defaults */
+  }
+
+  // Fallback: env vars or hardcoded defaults
   return {
     baseUrl: process.env.ZAI_BASE_URL || 'https://internal-api.z.ai/v1',
     apiKey: process.env.ZAI_API_KEY || 'Z.ai',
@@ -168,37 +187,32 @@ function buildZAIConfig(): { baseUrl: string; apiKey: string; chatId?: string; u
   };
 }
 
-async function getZAI(): Promise<Awaited<ReturnType<typeof ZAI.create>>> {
+/**
+ * Get or create ZAI singleton. Uses direct instantiation to avoid .z-ai-config dependency.
+ */
+export async function getZAI(): Promise<Awaited<ReturnType<typeof ZAI.create>>> {
   if (zaiSingleton) return zaiSingleton;
   if (!zaiSingletonPromise) {
     zaiSingletonPromise = (async () => {
-      // Strategy 1: Try ZAI.create() which reads .z-ai-config file
       try {
-        const instance = await ZAI.create();
-        console.log('[ZAI] Initialized via .z-ai-config file');
-        return instance;
+        const config = await buildZAIConfig();
+        console.log('[ZAI] Direct init with baseUrl:', config.baseUrl);
+        return new ZAI(config);
       } catch (err) {
-        console.warn('[ZAI] ZAI.create() failed, falling back to direct initialization:', err instanceof Error ? err.message : String(err));
+        console.error('[ZAI] Direct instantiation also failed:', err instanceof Error ? err.message : String(err));
+        // Reset singleton to allow retry next call
+        zaiSingleton = null;
+        zaiSingletonPromise = null;
+        throw err;
       }
-      // Strategy 2: Try reading /etc/.z-ai-config file directly
-      try {
-        const fs = await import('fs');
-        const raw = fs.readFileSync('/etc/.z-ai-config', 'utf-8').trim();
-        const fileConfig = JSON.parse(raw);
-        if (fileConfig.baseUrl && fileConfig.apiKey) {
-          console.log('[ZAI] Initialized via /etc/.z-ai-config fallback');
-          return new ZAI(fileConfig);
-        }
-      } catch {
-        /* file not found or invalid */
-      }
-      // Strategy 3: Direct initialization with env vars or defaults
-      const config = buildZAIConfig();
-      console.log('[ZAI] Initialized via env vars / defaults (baseUrl:', config.baseUrl, ')');
-      return new ZAI(config);
     })();
   }
-  zaiSingleton = await zaiSingletonPromise;
+  try {
+    zaiSingleton = await zaiSingletonPromise;
+  } catch {
+    zaiSingletonPromise = null;
+    throw new Error('ZAI SDK initialization failed — check ZAI_BASE_URL and ZAI_API_KEY env vars');
+  }
   return zaiSingleton;
 }
 
