@@ -483,6 +483,7 @@ export default function CreateCourse() {
       level: effectiveLevel,
       courseLang,
       userId: useAppStore.getState().userId,
+      email: useAppStore.getState().userEmail,
     };
 
     console.log("[generate] Starting fire-and-forget generation:", { title: generatingTitle, level: effectiveLevel, lang: courseLang });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { smartChatCompletion, classifyAIError, AllProvidersFailedError, getZAI } from "@/lib/openai";
 import { MAX_SOURCE_LINKS, MAX_TOKENS, MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
+import { isAdmin } from "@/lib/admin";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COLUMN MIGRATION (ensure freeCourseUsed & hasCardOnFile exist)
@@ -855,7 +856,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // ── Parse and validate input ──
-    let body: { title?: string; sourceLinks?: string[]; level?: number; courseLang?: string; userId?: string };
+    let body: { title?: string; sourceLinks?: string[]; level?: number; courseLang?: string; userId?: string; email?: string };
     try {
       body = await request.json();
     } catch {
@@ -863,8 +864,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "INVALID_INPUT", message: "Invalid request body" }, { status: 400 });
     }
 
-    const { title, sourceLinks = [], level = 0, courseLang = "en", userId: rawUserId } = body;
+    const { title, sourceLinks = [], level = 0, courseLang = "en", userId: rawUserId, email: userEmail } = body;
     const userId: string | null = rawUserId || null;
+    const isUserAdmin = isAdmin(userEmail);
+    if (isUserAdmin) console.log(`[generate] Admin bypass enabled for ${userEmail}`);
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
       console.warn("[generate] Missing or empty title");
@@ -887,7 +890,8 @@ export async function POST(request: NextRequest) {
     // Single source of truth: User.freeCourseUsed boolean in the database.
     // This flag is NEVER reset, even if the course is deleted.
     // We use an interactive transaction to atomically check + claim the free slot.
-    if (userId) {
+    // ADMIN BYPASS: Admins skip this check entirely.
+    if (userId && !isUserAdmin) {
       // Ensure column exists BEFORE the transaction (especially for PostgreSQL)
       await ensureFreeCourseColumn();
 
@@ -943,54 +947,55 @@ export async function POST(request: NextRequest) {
     }
 
     // ── DAILY GENERATION LIMIT ──
-    const DAILY_LIMIT_FREE = 1; // Anonymous users
-    const DAILY_LIMIT_SUBSCRIBED = 4; // Active subscribers
+    // ADMIN BYPASS: Admins skip daily limits entirely.
+    if (!isUserAdmin) {
+      const DAILY_LIMIT_FREE = 1; // Anonymous users
+      const DAILY_LIMIT_SUBSCRIBED = 4; // Active subscribers
 
-    let dailyLimit = userId ? DAILY_LIMIT_SUBSCRIBED : DAILY_LIMIT_FREE;
+      let dailyLimit = userId ? DAILY_LIMIT_SUBSCRIBED : DAILY_LIMIT_FREE;
 
-    // Check subscription status for the daily limit
-    if (userId) {
-      try {
-        const user = await db.user.findUnique({
-          where: { id: userId },
-          select: { subscriptionStatus: true },
-        });
-        if (user?.subscriptionStatus !== "active") {
-          dailyLimit = DAILY_LIMIT_FREE; // Not subscribed → same as anonymous
-        }
-      } catch { /* non-critical, use default */ }
-    }
-
-    // Count courses created today (UTC-based)
-    try {
-      const todayStart = new Date();
-      todayStart.setUTCHours(0, 0, 0, 0);
-
-      const coursesToday = await db.course.count({
-        where: {
-          userId: userId || null,
-          createdAt: { gte: todayStart },
-        },
-      });
-
-      if (coursesToday >= dailyLimit) {
-        // Calculate when the limit resets (next midnight UTC)
-        const tomorrow = new Date();
-        tomorrow.setUTCHours(24, 0, 0, 0);
-        const resetInMs = tomorrow.getTime() - Date.now();
-
-        console.log(`[generate] Daily limit reached: ${coursesToday}/${dailyLimit} for user ${userId || 'anonymous'}`);
-        return NextResponse.json({
-          error: "DAILY_LIMIT",
-          message: `Daily generation limit reached (${dailyLimit} courses/day)`,
-          dailyLimit,
-          coursesToday,
-          resetInMs,
-          resetAt: tomorrow.toISOString(),
-        }, { status: 429 });
+      // Check subscription status for the daily limit
+      if (userId) {
+        try {
+          const user = await db.user.findUnique({
+            where: { id: userId },
+            select: { subscriptionStatus: true },
+          });
+          if (user?.subscriptionStatus !== "active") {
+            dailyLimit = DAILY_LIMIT_FREE;
+          }
+        } catch { /* non-critical, use default */ }
       }
-    } catch (dailyErr) {
-      console.warn("[generate] Daily limit check failed, proceeding:", dailyErr);
+
+      try {
+        const todayStart = new Date();
+        todayStart.setUTCHours(0, 0, 0, 0);
+
+        const coursesToday = await db.course.count({
+          where: {
+            userId: userId || null,
+            createdAt: { gte: todayStart },
+          },
+        });
+
+        if (coursesToday >= dailyLimit) {
+          const tomorrow = new Date();
+          tomorrow.setUTCHours(24, 0, 0, 0);
+          const resetInMs = tomorrow.getTime() - Date.now();
+
+          console.log(`[generate] Daily limit reached: ${coursesToday}/${dailyLimit} for user ${userId || 'anonymous'}`);
+          return NextResponse.json({
+            error: "DAILY_LIMIT",
+            message: `Daily generation limit reached (${dailyLimit} courses/day)`,
+            dailyLimit,
+            coursesToday,
+            resetInMs,
+            resetAt: tomorrow.toISOString(),
+          }, { status: 429 });
+        }
+      } catch (dailyErr) {
+        console.warn("[generate] Daily limit check failed, proceeding:", dailyErr);
+      }
     }
 
     // ── Step 0: Deep web search + source scraping (parallel) ──
