@@ -115,6 +115,7 @@ export async function ensureSchemaUpToDate(): Promise<void> {
         "score" INTEGER NOT NULL DEFAULT 0,
         "passedAt" TIMESTAMP(3),
         "flameAwarded" BOOLEAN NOT NULL DEFAULT false,
+        "flameAwardedLevels" TEXT NOT NULL DEFAULT '[]',
         "maxUnlockedLevel" INTEGER NOT NULL DEFAULT 0,
         "stoppedAtLevel" INTEGER NOT NULL DEFAULT -1
       );
@@ -162,6 +163,7 @@ export async function ensureSchemaUpToDate(): Promise<void> {
     }
 
     const cpColumns = [
+      ["flameAwardedLevels", "TEXT NOT NULL DEFAULT '[]'"],
       ["maxUnlockedLevel", "INTEGER NOT NULL DEFAULT 0"],
       ["stoppedAtLevel", "INTEGER NOT NULL DEFAULT -1"],
     ];

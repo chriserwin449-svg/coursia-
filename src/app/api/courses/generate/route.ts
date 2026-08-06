@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { smartChatCompletion, classifyAIError, AllProvidersFailedError, getZAI } from "@/lib/openai";
 import { MAX_SOURCE_LINKS, MAX_TOKENS, MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
 import { isAdmin } from "@/lib/admin";
+import { ensureSchemaUpToDate } from "@/lib/auto-migrate";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COLUMN MIGRATION (ensure freeCourseUsed & hasCardOnFile exist)
@@ -853,6 +854,9 @@ function parseFallbackData(data: Record<string, unknown>): { description: string
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
   logStep("start");
+
+  // Ensure DB schema is up to date (especially for PostgreSQL/Supabase)
+  await ensureSchemaUpToDate();
 
   try {
     // ── Parse and validate input ──
