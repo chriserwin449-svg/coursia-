@@ -517,11 +517,18 @@ export default function CreateCourse() {
     );
 
     // ═══ FIRE-AND-FORGET: don't await the response ═══
+    // Use AbortController with a generous 10-minute timeout (backend maxDuration=300s)
+    const abortController = new AbortController();
+    const fetchTimeout = setTimeout(() => abortController.abort(), 10 * 60_000);
+
     fetch("/api/courses/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      signal: abortController.signal,
     }).then(async (res) => {
+      clearTimeout(fetchTimeout);
+
       if (res.ok) {
         try {
           const data = await res.json();
@@ -566,8 +573,13 @@ export default function CreateCourse() {
             }
             return;
           }
+          // Response 200 but no course data — generation still running in background
+          // Poller is already active and will detect completion
+          console.log("[generate] Response 200 without course data — generation still in background, poller will handle it");
         } catch {
-          // Failed to parse success response — poller will handle it
+          // Failed to parse success response (e.g. empty response from premature connection close)
+          // This is normal — the poller is already polling and will detect the course when ready
+          console.log("[generate] Could not parse response — generation still in background, poller will handle it");
         }
       }
       // Non-200 response — show error to user instead of silently hoping the poller fixes it
@@ -596,6 +608,12 @@ export default function CreateCourse() {
         }
       }
     }).catch((err) => {
+      clearTimeout(fetchTimeout);
+      // AbortError is expected — generation still running in background, poller will handle it
+      if (err.name === "AbortError") {
+        console.log("[generate] Fetch aborted (timeout or connection closed) — generation continues in background, poller will handle it");
+        return;
+      }
       // Network error — poller handles recovery
       console.warn("[generate] Fire-and-forget network error:", err);
     });

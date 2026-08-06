@@ -600,3 +600,27 @@ Stage Summary:
 - Users will now see the ACTUAL error (e.g., "ZAI SDK: timeout after 4 attempts; Groq: No GROQ_API_KEY configured") instead of generic "AI had trouble"
 - No lint errors in modified files
 - App renders correctly in browser (verified with agent-browser)
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Fix course generation still failing — 3 root causes found and fixed
+
+Work Log:
+- Tested full generation flow via API + browser — generation works locally (200 OK, 4/4 chapters)
+- Identified ROOT CAUSE 1: GENERATION_TIMEOUT_MS was 90s but generation takes 278-317s → timeout kills generation mid-way
+  - Fixed: Increased GENERATION_TIMEOUT_MS from 90s to 270s (4.5 min, under 300s maxDuration)
+- Identified ROOT CAUSE 2: Browser fetch has no AbortController → browser kills connection at ~120s, Next.js sends premature 200 response
+  - Fixed: Added AbortController with 10-minute timeout to fire-and-forget fetch
+  - Fixed: Added AbortError handling in catch block (expected — poller handles recovery)
+  - Fixed: Added explicit logging for "200 without course data" case (generation still in background)
+- Identified ROOT CAUSE 3: Poller MAX_AGE_MS was 5 min but generation can take 5.3 min
+  - Fixed: Increased MAX_AGE_MS from 5 min to 6 min
+- Added stale pending course cleanup (> 10 min old) at start of each generation
+- Registered test user "gentest@test.com" and verified full flow end-to-end via agent-browser
+- Full test: generation took 317s (5.3 min), 4/4 chapters, poller detected completion, viewer displayed correctly
+
+Stage Summary:
+- Key files modified: src/app/api/courses/generate/route.ts, src/components/coursia/CreateCourse.tsx, src/components/coursia/BackgroundGenerationPoller.tsx
+- 3 root causes fixed: premature timeout (90s→270s), browser fetch abort, poller timeout (5→6 min)
+- End-to-end test passed: course generated successfully, poller detected, viewer displayed

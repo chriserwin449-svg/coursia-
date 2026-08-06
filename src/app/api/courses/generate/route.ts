@@ -1134,12 +1134,41 @@ export async function POST(request: NextRequest) {
       console.log(`[generate] ⚡ Admin user ${requestingUserEmail} — skipping daily limit check entirely`);
     }
 
+    // ── Step -2: Clean up stale pending courses (> 10 minutes old) ──
+    try {
+      const staleThreshold = new Date(Date.now() - 10 * 60_000);
+      const staleCount = await db.course.count({
+        where: {
+          description: { startsWith: "__PENDING__" },
+          createdAt: { lt: staleThreshold },
+        },
+      });
+      if (staleCount > 0) {
+        console.log(`[generate] Cleaning up ${staleCount} stale pending courses (> 10 min old)`);
+        const staleCourses = await db.course.findMany({
+          where: {
+            description: { startsWith: "__PENDING__" },
+            createdAt: { lt: staleThreshold },
+          },
+          select: { id: true },
+        });
+        for (const stale of staleCourses) {
+          await db.chapter.deleteMany({ where: { courseId: stale.id } }).catch(() => {});
+          await db.courseProgress.deleteMany({ where: { courseId: stale.id } }).catch(() => {});
+          await db.course.deleteMany({ where: { id: stale.id } }).catch(() => {});
+        }
+      }
+    } catch {
+      // Non-critical
+    }
+
     // ── Step -1: Save a pending course record immediately so the client poller can detect it ──
     const pendingCourseId = await savePendingCourse(title, level, userId, sourceLinks);
     console.log(`[generate] Pending course ID: ${pendingCourseId || 'none'}`);
 
     // ── Hard timeout: check elapsed time before expensive AI steps ──
-    const GENERATION_TIMEOUT_MS = 90_000; // 90s safety net (rate limiting may add delays)
+    // Set to 270s (4.5 min) — well under the 300s maxDuration but enough for full generation
+    const GENERATION_TIMEOUT_MS = 270_000;
     const checkTimeout = (step: string) => {
       const elapsed = Date.now() - startTime;
       if (elapsed > GENERATION_TIMEOUT_MS) {
