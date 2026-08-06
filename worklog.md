@@ -197,3 +197,24 @@ Work Log:
 Stage Summary:
 - Files: src/app/api/users/search/route.ts, src/app/api/users/search-debug/route.ts, src/app/api/users/avatar/route.ts, src/components/coursia/ShareCourseDialog.tsx
 - Build passes, pushed as a520baa
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix shared courses display + implement view friend's journey
+
+Work Log:
+- Fixed Library.tsx shared courses data mismatch: changed `data.shares` → `data.sharedCourses` to match API response
+- Updated Library.tsx interface: `sharedByName` instead of `sharedByFirstName`/`sharedByLastName`, `sharedAt` instead of `createdAt`
+- Enhanced shared course cards: added progress bar, chapter count, and optional message display
+- Added `journeyTargetUser` to Zustand store for tracking which user's journey to view
+- Created `/api/users/[id]/journey` endpoint: returns public profile stats, badges, flame points, and course list (without content)
+- Created `UserJourneyView.tsx` component: full profile header with avatar, stats grid, earned badges, course list with progress bars
+- Updated `Journey.tsx` to conditionally render `UserJourneyView` when `journeyTargetUser` is set
+- Updated `ShareCourseDialog.tsx` `handleViewJourney`: now sets target user in store and navigates to journey view instead of showing "coming soon" toast
+
+Stage Summary:
+- Shared courses now display correctly in Library (fixed API data field mismatch)
+- Users can now view a friend's learning journey by clicking "Voir le parcours" in the share dialog
+- Files: Library.tsx, ShareCourseDialog.tsx, Journey.tsx, UserJourneyView.tsx, store.ts, /api/users/[id]/journey/route.ts
+- Pushed as eb814f4
