@@ -36,10 +36,14 @@ export default function Library() {
     courseId: string;
     courseTitle: string;
     courseDescription: string;
-    sharedByFirstName: string;
-    sharedByLastName: string;
-    createdAt: string;
     chapterCount: number;
+    overallProgress: number;
+    courseCompleted: boolean;
+    message: string;
+    sharedBy: string;
+    sharedByName: string;
+    sharedAt: string;
+    wasUnread: boolean;
   }>>([]);
   const [loadingShared, setLoadingShared] = useState(false);
 
@@ -67,7 +71,7 @@ export default function Library() {
       const userId = useAppStore.getState().userId;
       const res = await fetch(`/api/courses/shared?userId=${userId}`);
       const data = await res.json();
-      if (res.ok) setSharedCourses(data.shares || []);
+      if (res.ok) setSharedCourses(data.sharedCourses || []);
     } catch { /* */ }
     finally { setLoadingShared(false); }
   };
@@ -206,13 +210,30 @@ export default function Library() {
                     </span>
                   </div>
                   <h3 className="text-lg font-extrabold mb-2 line-clamp-2">{sc.courseTitle}</h3>
-                  <p className="text-sm text-muted-foreground font-semibold mb-4">
+                  <p className="text-sm text-muted-foreground font-semibold mb-1">
                     {lang === "fr"
-                      ? `Par ${sc.sharedByFirstName} ${sc.sharedByLastName?.charAt(0) || ""}.`
-                      : `By ${sc.sharedByFirstName} ${sc.sharedByLastName?.charAt(0) || ""}.`}
+                      ? `Par ${sc.sharedByName}`
+                      : `By ${sc.sharedByName}`}
                   </p>
+                  {sc.message && (
+                    <p className="text-xs text-mauve-light/80 italic mb-2">"{sc.message}"</p>
+                  )}
+                  {sc.chapterCount > 0 && (
+                    <div className="mb-3">
+                      <div className="flex justify-between text-xs font-semibold text-muted-foreground mb-1.5">
+                        <span>{sc.chapterCount} {lang === "fr" ? "chapitres" : "chapters"}</span>
+                        <span>{sc.overallProgress}%</span>
+                      </div>
+                      <div className="w-full h-2.5 rounded-full bg-night overflow-hidden">
+                        <div
+                          className={`h-full rounded-full bg-gradient-to-r ${getProgressColor(sc.overallProgress)} transition-all duration-700`}
+                          style={{ width: `${sc.overallProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground/60 font-semibold">
-                    {new Date(sc.createdAt).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", { day: "numeric", month: "short", year: "numeric" })}
+                    {new Date(sc.sharedAt).toLocaleDateString(lang === "fr" ? "fr-FR" : "en-US", { day: "numeric", month: "short", year: "numeric" })}
                   </p>
                 </div>
               </div>

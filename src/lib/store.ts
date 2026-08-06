@@ -153,6 +153,9 @@ interface AppState {
   // Background generation tracking (survives page navigation)
   backgroundGeneration: { title: string; startedAt: number; userId: string } | null;
   setBackgroundGeneration: (v: { title: string; startedAt: number; userId: string } | null) => void;
+  // Journey target user (for viewing another user's learning path)
+  journeyTargetUser: { id: string; firstName: string; lastName: string; avatar?: string | null } | null;
+  setJourneyTargetUser: (v: { id: string; firstName: string; lastName: string; avatar?: string | null } | null) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -297,6 +300,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLegalPage: (page) => set({ legalPage: page }),
   // Background generation tracking (survives page navigation)
   backgroundGeneration: (typeof window !== "undefined" ? (() => { try { const v = localStorage.getItem("coursia-bg-generation"); return v ? JSON.parse(v) : null; } catch { return null; } })() : null) as { title: string; startedAt: number; userId: string } | null,
+  // Journey target user
+  journeyTargetUser: null as { id: string; firstName: string; lastName: string; avatar?: string | null } | null,
+  setJourneyTargetUser: (v) => set({ journeyTargetUser: v }),
   setBackgroundGeneration: (v) => {
     if (typeof window !== "undefined") {
       if (v) {

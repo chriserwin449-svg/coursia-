@@ -19,6 +19,7 @@ import {
 import { BADGE_DEFINITIONS } from "@/lib/badges";
 import CertificateCard from "@/components/coursia/CertificateCard";
 import CertificateViewer from "@/components/coursia/CertificateViewer";
+import UserJourneyView from "@/components/coursia/UserJourneyView";
 import { t } from "@/lib/i18n";
 import { useAppStore } from "@/lib/store";
 import { getCurrentFlameType, getFlameProgress, formatFlamePoints, type FlameReward } from "@/lib/flames";
@@ -64,6 +65,7 @@ export default function Journey() {
   const lang = useAppStore((s) => s.lang);
   const view = useAppStore((s) => s.view);
   const user = useAppStore((s) => s.user);
+  const journeyTargetUser = useAppStore((s) => s.journeyTargetUser);
   const tx = t(lang);
   const [stats, setStats] = useState<Stats | null>(null);
   const [badgeState, setBadgeState] = useState<BadgeState | null>(null);
@@ -189,6 +191,11 @@ export default function Journey() {
     useAppStore.getState().setView("viewer");
     setShowMyCourses(false);
   };
+
+  // If viewing another user's journey, delegate to UserJourneyView
+  if (journeyTargetUser) {
+    return <UserJourneyView />;
+  }
 
   if (loading) {
     return (

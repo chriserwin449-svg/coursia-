@@ -211,13 +211,16 @@ export default function ShareCourseDialog({
   };
 
   const handleViewJourney = () => {
-    // Close dialog and navigate to journey page
+    if (!selectedFriend) return;
+    // Set target user and navigate to journey view
+    useAppStore.getState().setJourneyTargetUser({
+      id: selectedFriend.id,
+      firstName: selectedFriend.firstName,
+      lastName: selectedFriend.lastName,
+      avatar: selectedFriend.avatar,
+    });
     onOpenChange(false);
-    toast.info(
-      lang === "fr"
-        ? `Parcours de ${selectedFriend?.firstName || ""} — fonctionnalité bientôt disponible !`
-        : `${selectedFriend?.firstName || ""}'s journey — coming soon!`
-    );
+    setView("journey");
   };
 
   // ── Avatar helper ──
