@@ -2,11 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
 
+async function ensureCourseShareTable(): Promise<void> {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl || dbUrl.startsWith("file:")) return;
+  try {
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "CourseShare" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "courseId" TEXT NOT NULL,
+        "sharedBy" TEXT NOT NULL,
+        "sharedWith" TEXT NOT NULL,
+        "message" TEXT,
+        "isRead" BOOLEAN NOT NULL DEFAULT false,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch { /* ignore */ }
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await ensureCourseShareTable();
+
     const userId = getUserIdFromRequest(request);
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -16,13 +36,13 @@ export async function POST(
     const body = await request.json();
     const { sharedWith, message } = body;
 
-    console.log(`[share] userId=${userId}, courseId=${id}, sharedWith=${sharedWith}`);
+    console.log(`[share] Attempt: userId=${userId}, courseId=${id}, sharedWith=${sharedWith}`);
 
     if (!sharedWith) {
       return NextResponse.json({ error: "sharedWith is required" }, { status: 400 });
     }
 
-    // Verify the course exists and belongs to the sharing user
+    // Verify the course exists
     const course = await db.course.findUnique({
       where: { id },
       select: { userId: true, title: true },
@@ -32,10 +52,23 @@ export async function POST(
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    if (course.userId !== userId) {
-      console.warn(`[share] Ownership check failed: course.userId=${course.userId}, request userId=${userId}`);
-      return NextResponse.json({ error: "You can only share your own courses" }, { status: 403 });
+    // Check authorization: user must be the course owner OR a recipient of a previous share
+    const isOwner = course.userId === userId;
+    let isRecipient = false;
+    if (!isOwner) {
+      const existingShare = await db.courseShare.findFirst({
+        where: { courseId: id, sharedWith: userId },
+        select: { id: true },
+      });
+      isRecipient = !!existingShare;
     }
+
+    if (!isOwner && !isRecipient) {
+      console.warn(`[share] Access denied: course.userId=${course.userId}, request userId=${userId}, isOwner=${isOwner}, isRecipient=${isRecipient}`);
+      return NextResponse.json({ error: "You can only share courses you own or have received" }, { status: 403 });
+    }
+
+    console.log(`[share] Access granted: isOwner=${isOwner}, isRecipient=${isRecipient}`);
 
     // Verify the recipient user exists
     const targetUser = await db.user.findUnique({
@@ -64,7 +97,7 @@ export async function POST(
       return NextResponse.json({ error: "Course already shared with this user" }, { status: 409 });
     }
 
-    // Create the share
+    // Create the share (sharedBy = original owner if forwarded, else the current user)
     const share = await db.courseShare.create({
       data: {
         courseId: id,
@@ -74,6 +107,8 @@ export async function POST(
         isRead: false,
       },
     });
+
+    console.log(`[share] Success: shareId=${share.id}, courseId=${id}, sharedBy=${userId}, sharedWith=${sharedWith}`);
 
     return NextResponse.json({
       success: true,

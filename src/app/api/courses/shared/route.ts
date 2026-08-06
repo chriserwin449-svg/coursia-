@@ -1,8 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+async function ensureCourseShareTable(): Promise<void> {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl || dbUrl.startsWith("file:")) return;
+  try {
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "CourseShare" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "courseId" TEXT NOT NULL,
+        "sharedBy" TEXT NOT NULL,
+        "sharedWith" TEXT NOT NULL,
+        "message" TEXT,
+        "isRead" BOOLEAN NOT NULL DEFAULT false,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch { /* ignore */ }
+}
+
 export async function GET(request: NextRequest) {
   try {
+    await ensureCourseShareTable();
+
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId");
 

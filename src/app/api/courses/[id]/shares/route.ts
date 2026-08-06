@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+async function ensureCourseShareTable(): Promise<void> {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl || dbUrl.startsWith("file:")) return;
+  try {
+    await db.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "CourseShare" (
+        "id" TEXT NOT NULL PRIMARY KEY,
+        "courseId" TEXT NOT NULL,
+        "sharedBy" TEXT NOT NULL,
+        "sharedWith" TEXT NOT NULL,
+        "message" TEXT,
+        "isRead" BOOLEAN NOT NULL DEFAULT false,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch { /* ignore */ }
+}
+
 /**
  * GET /api/courses/[id]/shares
  * Returns the list of users who have been shared this course.
@@ -11,6 +29,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    await ensureCourseShareTable();
+
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get("userId") || request.headers.get("Authorization")?.replace("Bearer ", "") || "";
 
@@ -30,7 +50,18 @@ export async function GET(
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    if (course.userId !== userId) {
+    // Check authorization: allow both course owner and recipients
+    const isOwner = course.userId === userId;
+    let isRecipient = false;
+    if (!isOwner) {
+      const existingShare = await db.courseShare.findFirst({
+        where: { courseId: id, sharedWith: userId },
+        select: { id: true },
+      });
+      isRecipient = !!existingShare;
+    }
+
+    if (!isOwner && !isRecipient) {
       return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     }
 
