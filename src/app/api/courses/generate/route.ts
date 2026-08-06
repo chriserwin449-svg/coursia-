@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import ZAI from "z-ai-web-dev-sdk";
-import { smartChatCompletion, classifyAIError, AllProvidersFailedError } from "@/lib/openai";
+import { smartChatCompletion, classifyAIError, AllProvidersFailedError, getZAI } from "@/lib/openai";
 import { MAX_SOURCE_LINKS, MAX_TOKENS, MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
 import { isAdmin } from "@/lib/admin";
 
@@ -1184,7 +1184,7 @@ export async function POST(request: NextRequest) {
     let scrapedPages: ScrapedPage[] = [];
 
     try {
-      zaiInstance = await ZAI.create();
+      zaiInstance = await getZAI();
 
       const [searchResults, scraped] = await Promise.all([
         deepSearch(zaiInstance, title, courseLang, level),
