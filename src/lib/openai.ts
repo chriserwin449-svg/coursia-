@@ -1,4 +1,3 @@
-import ZAI from "z-ai-web-dev-sdk";
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
 export type AIProvider = "zai" | "google" | "openai" | "groq" | "free";
@@ -11,13 +10,68 @@ interface ProviderInfo {
   model?: string;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ZAI CONFIGURATION — reads from /etc/.z-ai-config or env vars
+// The ZAI API REQUIRES: Authorization, X-Token, X-Chat-Id, X-User-Id headers
+// ═══════════════════════════════════════════════════════════════════════════
+
+let zaiConfigCache: {
+  baseUrl: string;
+  apiKey: string;
+  chatId: string;
+  userId: string;
+  token: string;
+} | null = null;
+
+async function loadZAIConfig() {
+  if (zaiConfigCache) return zaiConfigCache;
+
+  // Strategy 1: Read /etc/.z-ai-config (available in sandbox)
+  try {
+    const fs = await import('fs');
+    const raw = fs.readFileSync('/etc/.z-ai-config', 'utf-8').trim();
+    const cfg = JSON.parse(raw);
+    if (cfg.baseUrl && cfg.apiKey && cfg.token) {
+      console.log('[ZAI] Config loaded from /etc/.z-ai-config');
+      zaiConfigCache = {
+        baseUrl: cfg.baseUrl,
+        apiKey: cfg.apiKey,
+        chatId: cfg.chatId || "",
+        userId: cfg.userId || "",
+        token: cfg.token,
+      };
+      return zaiConfigCache;
+    }
+  } catch {
+    /* file not available */
+  }
+
+  // Strategy 2: Environment variables (production)
+  const token = process.env.ZAI_TOKEN;
+  const baseUrl = process.env.ZAI_BASE_URL || 'https://internal-api.z.ai/v1';
+  const apiKey = process.env.ZAI_API_KEY || 'Z.ai';
+  const chatId = process.env.ZAI_CHAT_ID || '';
+  const userId = process.env.ZAI_USER_ID || '';
+
+  if (!token) {
+    throw new Error(
+      'ZAI token not found. Set ZAI_TOKEN env var or ensure /etc/.z-ai-config exists. ' +
+      'Required env vars: ZAI_TOKEN, ZAI_CHAT_ID, ZAI_USER_ID (optional: ZAI_BASE_URL, ZAI_API_KEY)'
+    );
+  }
+
+  console.log('[ZAI] Config loaded from env vars');
+  zaiConfigCache = { baseUrl, apiKey, chatId, userId, token };
+  return zaiConfigCache;
+}
+
 export async function getActiveProvider(): Promise<ProviderInfo> {
   try {
-    const zai = await getZAI();
-    if (zai) {
-      return { provider: "zai", label: "Coursia AI", isFree: true, hasApiKey: true, model: "default" };
-    }
-  } catch { /* not available */ }
+    await loadZAIConfig();
+    return { provider: "zai", label: "Coursia AI", isFree: true, hasApiKey: true, model: "glm-4-plus" };
+  } catch {
+    /* ZAI not available, check others */
+  }
 
   const groqKey = process.env.GROQ_API_KEY;
   if (groqKey) {
@@ -40,6 +94,84 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
   return { provider: "free", label: "Free Tier (Coursia AI)", isFree: true, hasApiKey: false };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIRECT ZAI API CALLS — bypasses the SDK entirely
+// Uses fetch() directly to avoid config file dependency
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ZAI_CHAT_TIMEOUT = 60_000;
+
+/**
+ * Direct ZAI chat completion using fetch (no SDK dependency).
+ * Reads config from /etc/.z-ai-config or env vars.
+ */
+export async function getZAI() {
+  const config = await loadZAIConfig();
+  return {
+    config,
+    /** Call ZAI chat completions API directly */
+    chatCompletion: async (messages: Array<{ role: string; content: string }>, options?: { temperature?: number; maxTokens?: number }) => {
+      const url = `${config.baseUrl}/chat/completions`;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`,
+        "X-Z-AI-From": "Z",
+        "X-Token": config.token,
+      };
+      if (config.chatId) headers["X-Chat-Id"] = config.chatId;
+      if (config.userId) headers["X-User-Id"] = config.userId;
+
+      const body: Record<string, unknown> = {
+        messages,
+        thinking: { type: "disabled" },
+        ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
+        ...(options?.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
+      };
+
+      const response = await fetchWithTimeout(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        timeoutMs: ZAI_CHAT_TIMEOUT,
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => "");
+        throw new Error(`ZAI API error ${response.status}: ${errorBody.slice(0, 300)}`);
+      }
+
+      return response.json();
+    },
+    /** Call ZAI function invoke (web_search, page_reader, etc.) */
+    invokeFunction: async (functionName: string, params: Record<string, unknown>) => {
+      const url = `${config.baseUrl}/functions/invoke`;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`,
+        "X-Z-AI-From": "Z",
+        "X-Token": config.token,
+      };
+      if (config.chatId) headers["X-Chat-Id"] = config.chatId;
+      if (config.userId) headers["X-User-Id"] = config.userId;
+
+      const response = await fetchWithTimeout(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ function_name: functionName, arguments: params }),
+        timeoutMs: ZAI_CHAT_TIMEOUT,
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => "");
+        throw new Error(`ZAI function ${functionName} error ${response.status}: ${errorBody.slice(0, 300)}`);
+      }
+
+      const json = await response.json();
+      return json.result;
+    },
+  };
+}
+
 const EXTERNAL_API_TIMEOUT = 60_000;
 
 /**
@@ -49,7 +181,6 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Error class that preserves the last error from a failed provider attempt.
- * Used to propagate real error information instead of silently returning null.
  */
 export class AIProviderError extends Error {
   provider: string;
@@ -70,7 +201,6 @@ export class AIProviderError extends Error {
 
 /**
  * Error class thrown when ALL AI providers have failed.
- * Contains the list of provider errors for diagnostics.
  */
 export class AllProvidersFailedError extends Error {
   providerErrors: Array<{ provider: string; error: string }>;
@@ -86,7 +216,6 @@ export class AllProvidersFailedError extends Error {
 /**
  * Retry with exponential backoff — used by all provider calls.
  * Delays: 2s, 4s, 8s (4 total attempts).
- * IMPORTANT: Now throws AIProviderError on permanent failure instead of returning null.
  */
 async function retryWithBackoff<T>(
   fn: () => Promise<T | null>,
@@ -99,14 +228,12 @@ async function retryWithBackoff<T>(
     try {
       const result = await fn();
       if (result !== null && result !== undefined) return result;
-      // If result is null (empty response), retry
       if (attempt < maxRetries) {
-        const delay = 2000 * Math.pow(2, attempt); // 2s, 4s, 8s
+        const delay = 2000 * Math.pow(2, attempt);
         console.log(`[${label}] Empty/null response, retry ${attempt + 1}/${maxRetries} in ${delay}ms...`);
         await sleep(delay);
         continue;
       }
-      // All retries exhausted with empty responses
       lastError = new Error(`Empty/null response after ${maxRetries + 1} attempts`);
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
@@ -117,18 +244,16 @@ async function retryWithBackoff<T>(
         || msg.includes("502") || msg.includes("500");
 
       if (attempt < maxRetries && isRetryable) {
-        const delay = 2000 * Math.pow(2, attempt); // 2s, 4s, 8s
+        const delay = 2000 * Math.pow(2, attempt);
         console.log(`[${label}] Attempt ${attempt + 1} failed (${msg.slice(0, 120)}), retry in ${delay}ms...`);
         await sleep(delay);
         continue;
       }
       console.error(`[${label}] Attempt ${attempt + 1} FAILED permanently: ${msg.slice(0, 500)}`);
       if (lastError.stack) console.error(`[${label}] Stack: ${lastError.stack.slice(0, 500)}`);
-      // Throw instead of returning null — let the caller know what happened
       throw new AIProviderError(label, lastError, attempt + 1);
     }
   }
-  // All retries exhausted with empty/null responses
   throw new AIProviderError(label, lastError, maxRetries + 1);
 }
 
@@ -149,73 +274,9 @@ export function classifyAIError(error: unknown): string {
 }
 
 /**
- * Call z-ai SDK (primary provider — always available)
- * Uses singleton instance to avoid cold starts.
- *
- * ALWAYS uses direct instantiation with env vars or hardcoded defaults.
- * NEVER calls ZAI.create() which requires a .z-ai-config file that
- * may not exist on production deployments.
+ * Call ZAI chat API directly (no SDK, no config file needed).
+ * Uses fetch with headers from loadZAIConfig().
  */
-let zaiSingleton: Awaited<ReturnType<typeof ZAI.create>> | null = null;
-let zaiSingletonPromise: Promise<Awaited<ReturnType<typeof ZAI.create>>> | null = null;
-
-/**
- * Build ZAI config from environment variables or hardcoded defaults.
- * These defaults match the internal API endpoint used by the SDK.
- */
-async function buildZAIConfig() {
-  // Try reading /etc/.z-ai-config first (available in sandbox)
-  try {
-    const fs = await import('fs');
-    const raw = fs.readFileSync('/etc/.z-ai-config', 'utf-8').trim();
-    const fileConfig = JSON.parse(raw);
-    if (fileConfig.baseUrl && fileConfig.apiKey) {
-      console.log('[ZAI] Config loaded from /etc/.z-ai-config');
-      return fileConfig;
-    }
-  } catch {
-    /* file not available, use defaults */
-  }
-
-  // Fallback: env vars or hardcoded defaults
-  return {
-    baseUrl: process.env.ZAI_BASE_URL || 'https://internal-api.z.ai/v1',
-    apiKey: process.env.ZAI_API_KEY || 'Z.ai',
-    ...(process.env.ZAI_CHAT_ID ? { chatId: process.env.ZAI_CHAT_ID } : {}),
-    ...(process.env.ZAI_USER_ID ? { userId: process.env.ZAI_USER_ID } : {}),
-    ...(process.env.ZAI_TOKEN ? { token: process.env.ZAI_TOKEN } : {}),
-  };
-}
-
-/**
- * Get or create ZAI singleton. Uses direct instantiation to avoid .z-ai-config dependency.
- */
-export async function getZAI(): Promise<Awaited<ReturnType<typeof ZAI.create>>> {
-  if (zaiSingleton) return zaiSingleton;
-  if (!zaiSingletonPromise) {
-    zaiSingletonPromise = (async () => {
-      try {
-        const config = await buildZAIConfig();
-        console.log('[ZAI] Direct init with baseUrl:', config.baseUrl);
-        return new ZAI(config);
-      } catch (err) {
-        console.error('[ZAI] Direct instantiation also failed:', err instanceof Error ? err.message : String(err));
-        // Reset singleton to allow retry next call
-        zaiSingleton = null;
-        zaiSingletonPromise = null;
-        throw err;
-      }
-    })();
-  }
-  try {
-    zaiSingleton = await zaiSingletonPromise;
-  } catch {
-    zaiSingletonPromise = null;
-    throw new Error('ZAI SDK initialization failed — check ZAI_BASE_URL and ZAI_API_KEY env vars');
-  }
-  return zaiSingleton;
-}
-
 async function callZAI(
   messages: Array<{ role: string; content: string }>,
   options?: { temperature?: number; maxTokens?: number },
@@ -223,31 +284,20 @@ async function callZAI(
   return retryWithBackoff(async () => {
     try {
       const zai = await getZAI();
-      const completion = await zai.chat.completions.create({
-        messages: messages as Array<{ role: "user" | "system" | "assistant"; content: string }>,
-        thinking: { type: "disabled" },
-        // Pass temperature and max_tokens to SDK
-        ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
-        ...(options?.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
-      });
+      const completion = await zai.chatCompletion(messages, options);
       const content = completion.choices?.[0]?.message?.content || "";
       if (content && content.trim().length > 0) {
         console.log(`[ZAI] Success: ${content.length} chars`);
         return { content: content.trim() };
       }
-      console.warn("[ZAI] Empty response from SDK");
+      console.warn("[ZAI] Empty response from API");
       return null;
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
-      const errStack = error instanceof Error ? error.stack : "N/A";
-      console.error("[ZAI] ❌ Error details:");
-      console.error("  Message:", errMsg);
-      console.error("  Stack:", errStack);
-      console.error("  Request: maxTokens=${options?.maxTokens ?? 'default'}, temperature=${options?.temperature ?? 'default'}");
-      console.error("  Messages count:", messages.length, "| First msg role:", messages[0]?.role, "| First 100 chars:", messages[0]?.content?.slice(0, 100));
-      throw error; // re-throw for retryWithBackoff to handle
+      console.error("[ZAI] ❌ Error:", errMsg.slice(0, 500));
+      throw error;
     }
-  }, "ZAI", 3); // 3 retries with 2s, 4s, 8s backoff for 429 errors
+  }, "ZAI", 3);
 }
 
 /**
@@ -287,18 +337,16 @@ async function callGroq(
           const errorBody = await response.text().catch(() => "");
           console.error(`[Groq] Model ${model} failed (${response.status}): ${errorBody.slice(0, 300)}`);
           if (response.status === 404) continue;
-          // Throw so retryWithBackoff can handle it
           throw new Error(`Groq ${model} HTTP ${response.status}: ${errorBody.slice(0, 200)}`);
         }
       } catch (error) {
-        // If it's a 404, try next model
         const errMsg = error instanceof Error ? error.message : String(error);
         if (errMsg.includes("404")) {
           console.warn(`[Groq] Model ${model} not found, trying next...`);
           continue;
         }
         console.error(`[Groq] Model ${model} request failed:`, errMsg);
-        throw error; // re-throw for retryWithBackoff
+        throw error;
       }
     }
     return null;
@@ -360,11 +408,7 @@ async function callOpenAIWithFallback(
 
 /**
  * Smart AI chat completion with automatic provider routing.
- * Priority: z-ai SDK > Groq > OpenAI/Google > throws AllProvidersFailedError
- *
- * IMPORTANT: Now THROWS AllProvidersFailedError when ALL providers fail,
- * instead of silently returning empty content. This ensures callers can
- * distinguish between "AI failed" and "parsing failed".
+ * Priority: ZAI direct API > Groq > OpenAI/Google > throws AllProvidersFailedError
  */
 export async function smartChatCompletion(
   messages: Array<{ role: string; content: string }>,
@@ -374,18 +418,18 @@ export async function smartChatCompletion(
 
   const providerErrors: Array<{ provider: string; error: string }> = [];
 
-  // Priority 1: z-ai SDK (always available, works everywhere including Vercel)
-  console.log("[AI] Trying z-ai SDK as primary provider...");
+  // Priority 1: ZAI direct API (no SDK dependency)
+  console.log("[AI] Trying ZAI direct API as primary provider...");
   try {
     const zaiResult = await callZAI(messages, options);
     if (zaiResult) {
-      console.log(`[AI] z-ai SDK succeeded: ${zaiResult.content.length} chars`);
+      console.log(`[AI] ZAI succeeded: ${zaiResult.content.length} chars`);
       return { content: zaiResult.content, provider: "zai" as const };
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error(`[AI] z-ai SDK FAILED: ${msg.slice(0, 300)}`);
-    providerErrors.push({ provider: "ZAI SDK", error: msg });
+    console.error(`[AI] ZAI FAILED: ${msg.slice(0, 300)}`);
+    providerErrors.push({ provider: "ZAI", error: msg });
   }
 
   // Priority 2: Groq (free, fast)

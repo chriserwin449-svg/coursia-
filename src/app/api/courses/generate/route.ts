@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import ZAI from "z-ai-web-dev-sdk";
 import { smartChatCompletion, classifyAIError, AllProvidersFailedError, getZAI } from "@/lib/openai";
 import { MAX_SOURCE_LINKS, MAX_TOKENS, MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
 import { isAdmin } from "@/lib/admin";
@@ -90,11 +89,11 @@ interface SearchResult {
 }
 
 async function searchOnce(
-  zai: Awaited<ReturnType<typeof ZAI.create>>,
+  zai: Awaited<ReturnType<typeof getZAI>>,
   query: string,
 ): Promise<string> {
   try {
-    const results = await zai.functions.invoke("web_search", { query, num: 5 });
+    const results = await zai.invokeFunction("web_search", { query, num: 5 });
     if (!Array.isArray(results) || results.length === 0) return "";
     return results
       .slice(0, 4)
@@ -106,7 +105,7 @@ async function searchOnce(
 }
 
 async function deepSearch(
-  zai: Awaited<ReturnType<typeof ZAI.create>> | null,
+  zai: Awaited<ReturnType<typeof getZAI>> | null,
   topic: string,
   courseLang: string,
   level: number,
@@ -153,13 +152,13 @@ function htmlToPlainText(html: string): string {
     .replace(/\s+/g, " ").trim();
 }
 
-async function scrapeSourceLinks(zai: Awaited<ReturnType<typeof ZAI.create>>, sourceLinks: string[]): Promise<ScrapedPage[]> {
+async function scrapeSourceLinks(zai: Awaited<ReturnType<typeof getZAI>>, sourceLinks: string[]): Promise<ScrapedPage[]> {
   const results: ScrapedPage[] = [];
   for (let i = 0; i < Math.min(sourceLinks.length, MAX_SOURCE_LINKS); i++) {
     const url = sourceLinks[i];
     if (!url?.startsWith("http")) continue;
     try {
-      const result = await zai.functions.invoke("page_reader", { url });
+      const result = await zai.invokeFunction("page_reader", { url });
       const html = result.data?.html || "";
       const text = htmlToPlainText(html);
       const title = result.data?.title || url;
@@ -1179,7 +1178,7 @@ export async function POST(request: NextRequest) {
 
     // ── Step 0: Deep web search + source scraping (parallel) ──
     logStep("search_start");
-    let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
+    let zaiInstance: Awaited<ReturnType<typeof getZAI>> | null = null;
     let webContext = "";
     let scrapedPages: ScrapedPage[] = [];
 

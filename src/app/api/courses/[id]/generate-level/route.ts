@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import ZAI from "z-ai-web-dev-sdk";
 import { smartChatCompletion } from "@/lib/openai";
 import { MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
 import { isAdmin } from "@/lib/admin";
