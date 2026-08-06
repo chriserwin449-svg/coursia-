@@ -16,6 +16,8 @@ export async function POST(
     const body = await request.json();
     const { sharedWith, message } = body;
 
+    console.log(`[share] userId=${userId}, courseId=${id}, sharedWith=${sharedWith}`);
+
     if (!sharedWith) {
       return NextResponse.json({ error: "sharedWith is required" }, { status: 400 });
     }
@@ -31,6 +33,7 @@ export async function POST(
     }
 
     if (course.userId !== userId) {
+      console.warn(`[share] Ownership check failed: course.userId=${course.userId}, request userId=${userId}`);
       return NextResponse.json({ error: "You can only share your own courses" }, { status: 403 });
     }
 

@@ -56,7 +56,7 @@ export default function ShareCourseDialog({
   onOpenChange,
 }: ShareCourseDialogProps) {
   const lang = useAppStore((s) => s.lang);
-  const authToken = useAppStore((s) => s.authToken);
+  const userId = useAppStore((s) => s.userId);
   const setView = useAppStore((s) => s.setView);
 
   // Invite friend state
@@ -88,8 +88,8 @@ export default function ShareCourseDialog({
 
   const authHeaders = useCallback(
     () =>
-      authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
-    [authToken]
+      userId ? { Authorization: `Bearer ${userId}` } : undefined,
+    [userId]
   );
 
   // ── Fetch shared with list ──
