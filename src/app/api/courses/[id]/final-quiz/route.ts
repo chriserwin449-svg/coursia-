@@ -137,7 +137,8 @@ export async function PUT(
 ) {
   try {
     const { id: courseId } = await params;
-    const { answers } = await request.json();
+    const body = await request.json() as { answers?: unknown[]; userId?: string };
+    const { answers } = body;
 
     if (!Array.isArray(answers)) {
       return NextResponse.json({ error: "answers must be an array" }, { status: 400 });
@@ -187,7 +188,7 @@ export async function PUT(
     // Award bonus flame points on course completion (first pass only)
     // Harder earning: scaled bonus based on score
     if (passed && !courseProgress.flameAwarded) {
-      const userId = getUserIdFromRequest(request);
+      const userId = getUserIdFromRequest(request, body.userId);
       const bonusPoints = calculateCourseCompletionBonus(score);
       const settingsId = userId || "main";
       await db.appSettings.upsert({

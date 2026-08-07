@@ -1725,7 +1725,7 @@ function QuizPanel({
       const res = await fetch(url, {
         method: "PUT",
         headers,
-        body: JSON.stringify({ answers }),
+        body: JSON.stringify({ answers, userId }),
       });
       const data = await res.json();
       if (res.ok && data.result) {
