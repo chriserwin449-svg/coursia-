@@ -119,6 +119,27 @@ export async function POST(
       },
     });
 
+    // Create a notification for the recipient
+    try {
+      const sharer = await db.user.findUnique({
+        where: { id: userId },
+        select: { firstName: true, lastName: true },
+      });
+      const sharerName = sharer ? `${sharer.firstName} ${sharer.lastName}` : "Someone";
+      await db.notification.create({
+        data: {
+          userId: sharedWith,
+          type: "course_shared",
+          title: sharerName,
+          message: message || course.title,
+          data: JSON.stringify({ courseId: id, shareId: share.id, courseTitle: course.title, sharedBy: userId, sharedByName: sharerName }),
+          isRead: false,
+        },
+      });
+    } catch (notifErr) {
+      console.warn("[share] Failed to create notification:", notifErr);
+    }
+
     console.log(`[share] Success: shareId=${share.id}, courseId=${id}, sharedBy=${userId}, sharedWith=${sharedWith}`);
 
     return NextResponse.json({

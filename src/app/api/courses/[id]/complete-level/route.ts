@@ -56,7 +56,12 @@ export async function POST(
 
     // Get userId from body, header, or query param
     const userId = getUserIdFromRequest(request, bodyUserId);
-    const settingsId = userId || "main";
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const settingsId = userId;
 
     // Award flame points per-user
     await db.appSettings.upsert({
@@ -70,7 +75,7 @@ export async function POST(
         amount: bonusPoints,
         reason,
         courseId: id,
-        userId: userId || null,
+        userId: userId,
       },
     });
 

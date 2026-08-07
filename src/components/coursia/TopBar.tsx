@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Globe, Shuffle, Loader2 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
+import NotificationBell from "@/components/coursia/NotificationBell";
 
 export default function TopBar() {
   const lang = useAppStore((s) => s.lang);
@@ -113,6 +114,9 @@ export default function TopBar() {
         </button>
       </div>
       )}
+
+      {/* Notification bell */}
+      <NotificationBell />
 
       {/* UI language toggle */}
       <button

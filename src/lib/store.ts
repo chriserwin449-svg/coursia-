@@ -156,6 +156,27 @@ interface AppState {
   // Journey target user (for viewing another user's learning path)
   journeyTargetUser: { id: string; firstName: string; lastName: string; avatar?: string | null } | null;
   setJourneyTargetUser: (v: { id: string; firstName: string; lastName: string; avatar?: string | null } | null) => void;
+  // Notifications
+  notifications: Array<{
+    id: string;
+    type: string;
+    title: string;
+    message: string | null;
+    data: string | null;
+    isRead: boolean;
+    createdAt: string;
+  }>;
+  setNotifications: (n: Array<{
+    id: string;
+    type: string;
+    title: string;
+    message: string | null;
+    data: string | null;
+    isRead: boolean;
+    createdAt: string;
+  }>) => void;
+  unreadNotificationCount: number;
+  setUnreadNotificationCount: (n: number) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -303,6 +324,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Journey target user
   journeyTargetUser: null as { id: string; firstName: string; lastName: string; avatar?: string | null } | null,
   setJourneyTargetUser: (v) => set({ journeyTargetUser: v }),
+  // Notifications
+  notifications: [],
+  setNotifications: (n) => set({ notifications: n }),
+  unreadNotificationCount: 0,
+  setUnreadNotificationCount: (n) => set({ unreadNotificationCount: n }),
   setBackgroundGeneration: (v) => {
     if (typeof window !== "undefined") {
       if (v) {

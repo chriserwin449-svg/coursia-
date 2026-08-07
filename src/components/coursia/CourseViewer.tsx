@@ -174,9 +174,11 @@ export default function CourseViewer() {
   const startStudySession = useCallback(async (cId: string, chId?: string) => {
     try {
       const userId = useAppStore.getState().userId;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (userId) headers["Authorization"] = `Bearer ${userId}`;
       const res = await fetch("/api/study-time", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ action: "start", courseId: cId, chapterId: chId, userId }),
       });
       if (res.ok) {
@@ -211,10 +213,13 @@ export default function CourseViewer() {
   useEffect(() => {
     return () => {
       if (studySessionId) {
+        const uid = useAppStore.getState().userId;
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (uid) headers["Authorization"] = `Bearer ${uid}`;
         fetch("/api/study-time", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "end", sessionId: studySessionId, userId: useAppStore.getState().userId }),
+          headers,
+          body: JSON.stringify({ action: "end", sessionId: studySessionId, userId: uid }),
         }).catch(() => {});
       }
     };

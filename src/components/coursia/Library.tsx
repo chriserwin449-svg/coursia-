@@ -10,7 +10,9 @@ import {
   Search,
   Share2,
   Users,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import {
@@ -46,6 +48,8 @@ export default function Library() {
     wasUnread: boolean;
   }>>([]);
   const [loadingShared, setLoadingShared] = useState(false);
+  const [deleteShareTarget, setDeleteShareTarget] = useState<{ id: string; title: string } | null>(null);
+  const [deletingShare, setDeletingShare] = useState<string | null>(null);
 
   const lang = useAppStore((s) => s.lang);
   const tx = t(lang);
@@ -79,6 +83,23 @@ export default function Library() {
   useEffect(() => {
     if (showShared) fetchSharedCourses();
   }, [showShared]);
+
+  const deleteSharedCourse = async (shareId: string) => {
+    setDeletingShare(shareId);
+    setDeleteShareTarget(null);
+    try {
+      const userId = useAppStore.getState().userId;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (userId) headers["Authorization"] = `Bearer ${userId}`;
+      await fetch(`/api/courses/shared/${shareId}`, { method: "DELETE", headers });
+      setSharedCourses((prev) => prev.filter((sc) => sc.id !== shareId));
+      toast.success(lang === "fr" ? "Cours partagé supprimé" : "Shared course removed");
+    } catch {
+      toast.error(lang === "fr" ? "Erreur lors de la suppression" : "Failed to remove");
+    } finally {
+      setDeletingShare(null);
+    }
+  };
 
   const deleteCourse = async (id: string) => {
     setDeleting(id);
@@ -205,9 +226,26 @@ export default function Library() {
                     <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-mauve to-purple-600 flex items-center justify-center flex-shrink-0">
                       <Share2 className="w-6 h-6 text-white" />
                     </div>
+                    <div className="flex items-center gap-2">
                     <span className="text-xs font-bold px-3 py-1 rounded-full bg-mauve/10 text-mauve-light">
                       {lang === "fr" ? "Partagé" : "Shared"}
                     </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteShareTarget({ id: sc.id, title: sc.courseTitle });
+                      }}
+                      disabled={deletingShare === sc.id}
+                      className="p-2.5 rounded-xl hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-all cursor-pointer"
+                      title={lang === "fr" ? "Supprimer" : "Remove"}
+                    >
+                      {deletingShare === sc.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <X className="w-4 h-4" />
+                      )}
+                    </button>
+                    </div>
                   </div>
                   <h3 className="text-lg font-extrabold mb-2 line-clamp-2">{sc.courseTitle}</h3>
                   <p className="text-sm text-muted-foreground font-semibold mb-1">
@@ -404,6 +442,64 @@ export default function Library() {
                 </span>
               ) : (
                 lang === "fr" ? "Oui, supprimer" : "Yes, delete"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Delete Shared Course Confirmation Dialog ── */}
+      <AlertDialog
+        open={!!deleteShareTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteShareTarget(null);
+        }}
+      >
+        <AlertDialogContent className="glass rounded-3xl border-border sm:max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                <X className="w-5 h-5 text-destructive" />
+              </div>
+              <AlertDialogTitle className="text-xl font-extrabold text-foreground">
+                {lang === "fr" ? "Retirer ce cours ?" : "Remove this course?"}
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-base text-muted-foreground leading-relaxed pt-1">
+              {lang === "fr" ? (
+                <>
+                  Tu es sur le point de retirer <span className="font-bold text-foreground">&ldquo;{deleteShareTarget?.title}&rdquo;</span> de tes cours partagés.
+                  <br />
+                  Cette action est <span className="font-bold text-destructive">irréversible</span>. Le cours sera retiré de ta bibliothèque.
+                </>
+              ) : (
+                <>
+                  You are about to remove <span className="font-bold text-foreground">&ldquo;{deleteShareTarget?.title}&rdquo;</span> from your shared courses.
+                  <br />
+                  This action is <span className="font-bold text-destructive">irreversible</span>. The course will be removed from your library.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 sm:gap-3 pt-2">
+            <AlertDialogCancel
+              onClick={() => setDeleteShareTarget(null)}
+              className="rounded-full px-6 py-3 font-bold cursor-pointer text-muted-foreground hover:text-foreground"
+            >
+              {lang === "fr" ? "Annuler" : "Cancel"}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteShareTarget && deleteSharedCourse(deleteShareTarget.id)}
+              disabled={!!deletingShare}
+              className="rounded-full px-6 py-3 font-bold cursor-pointer bg-destructive text-white hover:bg-destructive/90 border-0"
+            >
+              {deletingShare ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {lang === "fr" ? "Suppression..." : "Removing..."}
+                </span>
+              ) : (
+                lang === "fr" ? "Oui, retirer" : "Yes, remove"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

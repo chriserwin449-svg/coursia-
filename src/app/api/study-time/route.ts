@@ -5,7 +5,7 @@ import { STUDY_TIME_GOOD_FLAMES, STUDY_TIME_SHORT_PENALTY, STUDY_TIME_GOOD_THRES
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get("Authorization")?.replace("Bearer ", "") || "";
+    const userId = getUserIdFromRequest(request);
     
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
         let reason = "";
 
         if (durationSeconds >= STUDY_TIME_GOOD_THRESHOLD) {
-          // Good study session (>= 10 min): +3 flames
+          // Good study session (>= 10 min): +5 flames
           flameDelta = STUDY_TIME_GOOD_FLAMES;
           reason = "study_time_good";
         } else if (durationSeconds < STUDY_TIME_SHORT_THRESHOLD) {
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (flameDelta !== 0 && userId) {
-          const settingsId = userId || "main";
+          const settingsId = userId;
           const settings = await db.appSettings.upsert({
             where: { id: settingsId },
             create: { id: settingsId, flamePoints: 0 },

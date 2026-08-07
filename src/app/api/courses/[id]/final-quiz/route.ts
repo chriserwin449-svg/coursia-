@@ -189,25 +189,27 @@ export async function PUT(
     // Harder earning: scaled bonus based on score
     if (passed && !courseProgress.flameAwarded) {
       const userId = getUserIdFromRequest(request, body.userId);
-      const bonusPoints = calculateCourseCompletionBonus(score);
-      const settingsId = userId || "main";
-      await db.appSettings.upsert({
-        where: { id: settingsId },
-        create: { id: settingsId, flamePoints: bonusPoints },
-        update: { flamePoints: { increment: bonusPoints } },
-      });
-      await db.flameTransaction.create({
-        data: {
-          amount: bonusPoints,
-          reason: "course_complete",
-          courseId,
-          userId: userId || null,
-        },
-      });
-      await db.courseProgress.update({
-        where: { courseId },
-        data: { flameAwarded: true },
-      });
+      if (userId) {
+        const bonusPoints = calculateCourseCompletionBonus(score);
+        const settingsId = userId;
+        await db.appSettings.upsert({
+          where: { id: settingsId },
+          create: { id: settingsId, flamePoints: bonusPoints },
+          update: { flamePoints: { increment: bonusPoints } },
+        });
+        await db.flameTransaction.create({
+          data: {
+            amount: bonusPoints,
+            reason: "course_complete",
+            courseId,
+            userId,
+          },
+        });
+        await db.courseProgress.update({
+          where: { courseId },
+          data: { flameAwarded: true },
+        });
+      }
     }
 
     return NextResponse.json({

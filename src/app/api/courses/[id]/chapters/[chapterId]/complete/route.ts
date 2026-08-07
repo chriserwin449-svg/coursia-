@@ -49,9 +49,9 @@ export async function POST(
     });
 
     // Award flame points if not already awarded
-    if (!progress.flameAwarded) {
+    if (!progress.flameAwarded && userId) {
       const flamePoints = CHAPTER_COMPLETE_FLAMES;
-      const settingsId = userId || "main";
+      const settingsId = userId;
       await db.appSettings.upsert({
         where: { id: settingsId },
         create: { id: settingsId, flamePoints },
