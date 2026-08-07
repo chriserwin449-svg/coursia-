@@ -9,6 +9,8 @@ import {
   Users,
   Eye,
   Send,
+  X,
+  Clock,
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { toast } from "sonner";
@@ -47,6 +49,63 @@ interface SharedUser {
   sharedAt: string;
 }
 
+// Search history entry (stored in localStorage)
+interface SearchHistoryEntry {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  username?: string | null;
+  avatar?: string | null;
+  searchedAt: number;
+}
+
+const HISTORY_KEY = "coursia-share-search-history";
+const MAX_HISTORY = 8;
+
+function loadHistory(): SearchHistoryEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveHistory(entries: SearchHistoryEntry[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, MAX_HISTORY)));
+  } catch { /* ignore */ }
+}
+
+function addToHistory(user: SearchResult) {
+  const history = loadHistory();
+  // Remove duplicate if exists
+  const filtered = history.filter((h) => h.id !== user.id);
+  // Add to front
+  filtered.unshift({
+    id: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    username: user.username,
+    avatar: user.avatar,
+    searchedAt: Date.now(),
+  });
+  saveHistory(filtered);
+}
+
+function removeFromHistory(userId: string) {
+  const history = loadHistory().filter((h) => h.id !== userId);
+  saveHistory(history);
+}
+
+function clearHistory() {
+  saveHistory([]);
+}
+
 type ShareState = "searching" | "selected" | "sending" | "sent";
 
 export default function ShareCourseDialog({
@@ -67,6 +126,9 @@ export default function ShareCourseDialog({
   const [shareState, setShareState] = useState<ShareState>("searching");
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Search history
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryEntry[]>([]);
+
   // Shared with state
   const [sharedWith, setSharedWith] = useState<SharedUser[]>([]);
   const [loadingShared, setLoadingShared] = useState(false);
@@ -77,6 +139,7 @@ export default function ShareCourseDialog({
     setIsSearching(false);
     setSelectedFriend(null);
     setShareState("searching");
+    setSearchHistory(loadHistory());
   }, []);
 
   useEffect(() => {
@@ -127,15 +190,11 @@ export default function ShareCourseDialog({
         );
         if (res.ok) {
           const data = await res.json();
-          console.log(`[ShareDialog] Search "${searchQuery}" -> ${data.users?.length || 0} results`);
           setResults((data.users || []).slice(0, 10));
         } else {
-          const errText = await res.text().catch(() => "");
-          console.error(`[ShareDialog] Search failed: ${res.status} ${errText}`);
           setResults([]);
         }
-      } catch (err) {
-        console.error(`[ShareDialog] Search network error:`, err);
+      } catch {
         setResults([]);
       } finally {
         setIsSearching(false);
@@ -156,8 +215,23 @@ export default function ShareCourseDialog({
   };
 
   const handleSelectFriend = (friend: SearchResult) => {
+    // Add to search history
+    addToHistory(friend);
+    setSearchHistory(loadHistory());
     setSelectedFriend(friend);
     setShareState("selected");
+  };
+
+  const handleRemoveHistory = (e: React.MouseEvent, historyUserId: string) => {
+    e.stopPropagation();
+    removeFromHistory(historyUserId);
+    setSearchHistory(loadHistory());
+  };
+
+  const handleClearHistory = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    clearHistory();
+    setSearchHistory([]);
   };
 
   const handleBack = () => {
@@ -212,7 +286,6 @@ export default function ShareCourseDialog({
 
   const handleViewJourney = () => {
     if (!selectedFriend) return;
-    // Set target user and navigate to journey view
     useAppStore.getState().setJourneyTargetUser({
       id: selectedFriend.id,
       firstName: selectedFriend.firstName,
@@ -224,7 +297,7 @@ export default function ShareCourseDialog({
   };
 
   // ── Avatar helper ──
-  const renderAvatar = (user: SearchResult | SharedUser, size: "sm" | "md") => {
+  const renderAvatar = (user: SearchResult | SharedUser | SearchHistoryEntry, size: "sm" | "md") => {
     const cls = size === "sm"
       ? "w-8 h-8 rounded-full object-cover flex-shrink-0 border border-purple-500/20"
       : "w-9 h-9 rounded-full object-cover flex-shrink-0 border-2 border-purple-500/30";
@@ -290,14 +363,16 @@ export default function ShareCourseDialog({
                   )}
                 </div>
 
-                {/* Results */}
+                {/* Results area */}
                 <div className="mt-2 max-h-64 overflow-y-auto custom-scrollbar">
+                  {/* Loading */}
                   {isSearching && results.length === 0 && query.length >= 2 && (
                     <div className="flex items-center justify-center py-6">
                       <Loader2 className="w-5 h-5 animate-spin text-purple-400" />
                     </div>
                   )}
 
+                  {/* No results */}
                   {!isSearching && query.length >= 2 && results.length === 0 && (
                     <div className="text-center py-6">
                       <p className="text-sm text-[#9b9bb0]">
@@ -308,6 +383,7 @@ export default function ShareCourseDialog({
                     </div>
                   )}
 
+                  {/* Search results */}
                   {results.map((user) => (
                     <button
                       key={user.id}
@@ -332,13 +408,63 @@ export default function ShareCourseDialog({
                     </button>
                   ))}
 
+                  {/* Empty query state — show search history */}
                   {!isSearching && query.length < 2 && (
-                    <div className="text-center py-6">
-                      <p className="text-sm text-[#9b9bb0]/60">
-                        {lang === "fr"
-                          ? "Tape au moins 2 caractères pour rechercher."
-                          : "Type at least 2 characters to search."}
-                      </p>
+                    <div>
+                      {searchHistory.length > 0 ? (
+                        <div>
+                          <div className="flex items-center justify-between mb-2 px-1">
+                            <p className="text-xs font-bold text-muted-foreground/60 flex items-center gap-1.5">
+                              <Clock className="w-3 h-3" />
+                              {lang === "fr" ? "Recherches récentes" : "Recent searches"}
+                            </p>
+                            <button
+                              onClick={handleClearHistory}
+                              className="text-xs text-muted-foreground/40 hover:text-red-400 transition-colors cursor-pointer"
+                            >
+                              {lang === "fr" ? "Tout effacer" : "Clear all"}
+                            </button>
+                          </div>
+                          <div className="space-y-0.5">
+                            {searchHistory.map((h) => (
+                              <div
+                                key={h.id}
+                                onClick={() => handleSelectFriend(h)}
+                                className="flex items-center gap-3 p-2 rounded-xl transition-all duration-150 hover:bg-[rgba(124,92,191,0.12)] cursor-pointer group"
+                              >
+                                {renderAvatar(h, "sm")}
+                                <div className="text-left flex-1 min-w-0">
+                                  <p className="text-sm font-semibold truncate group-hover:text-purple-300 transition-colors">
+                                    {h.firstName} {h.lastName}
+                                    {h.username && (
+                                      <span className="text-[#9b9bb0] text-xs ml-1.5">
+                                        @{h.username}
+                                      </span>
+                                    )}
+                                  </p>
+                                  <p className="text-xs text-[#9b9bb0] truncate">
+                                    {h.email}
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={(e) => handleRemoveHistory(e, h.id)}
+                                  className="p-1 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-muted-foreground/40 hover:text-red-400 transition-all cursor-pointer flex-shrink-0"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-6">
+                          <p className="text-sm text-[#9b9bb0]/60">
+                            {lang === "fr"
+                              ? "Tape au moins 2 caractères pour rechercher."
+                              : "Type at least 2 characters to search."}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
