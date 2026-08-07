@@ -9,7 +9,9 @@ export async function POST(
 ) {
   try {
     const { chapterId } = await params;
-    const userId = getUserIdFromRequest(request);
+    const body = await request.json().catch(() => ({}));
+    const bodyUserId = body?.userId as string | undefined;
+    const userId = getUserIdFromRequest(request, bodyUserId);
 
     const chapter = await db.chapter.findUnique({
       where: { id: chapterId },

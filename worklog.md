@@ -218,3 +218,28 @@ Stage Summary:
 - Users can now view a friend's learning journey by clicking "Voir le parcours" in the share dialog
 - Files: Library.tsx, ShareCourseDialog.tsx, Journey.tsx, UserJourneyView.tsx, store.ts, /api/users/[id]/journey/route.ts
 - Pushed as eb814f4
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix study time tracking, flame points earning, and course sharing authorization
+
+Work Log:
+- Analyzed uploaded screenshot (Journey/Mon Parcours page) showing 0 flame points and empty study time
+- Identified root cause of study time not tracking: `startStudySession` in CourseViewer didn't pass `userId` in request body, so sessions were created with `userId: null`. The GET endpoint filtered by userId, finding no matching sessions.
+- Identified root cause of flame points not earning: Level quiz PUT request didn't send Authorization header with userId, so the API couldn't identify the user and skipped awarding points. Also fixed a double body-read bug in the level-quiz PUT route.
+- Identified root cause of course sharing failing: Courses created before user login had `userId: null` in the Course table. The ownership check `course.userId === userId` always failed because `null !== "clx..."`.
+- Fixed `startStudySession` in CourseViewer.tsx to pass `userId` in body and `Authorization` header in `endStudySession`
+- Fixed `completeCurrentChapter` to also pass `userId` in body as fallback
+- Fixed `handleCompleteLevel` to pass `userId` in body for complete-level request
+- Fixed level-quiz PUT in CourseViewer to send Authorization header and userId in body
+- Fixed level-quiz PUT route to accept userId from body and eliminated double body-read bug
+- Fixed chapter-complete route to accept userId from body as fallback
+- Fixed share route: `isOwner` now also returns true when `course.userId` is null (course created before login)
+- Fixed shares GET route: same relaxed ownership check
+- Confirmed friend search history feature was already implemented in ShareCourseDialog
+
+Stage Summary:
+- Study time will now properly track per-user sessions (userId passed in start body)
+- Flame points will be awarded for chapter completion, level completion, and level quiz (userId properly passed)
+- Course sharing will work for all authenticated users regardless of when the course was created
+- Friend search history with "x" removal was already implemented from a previous session

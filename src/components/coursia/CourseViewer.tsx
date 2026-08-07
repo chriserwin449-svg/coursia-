@@ -173,10 +173,11 @@ export default function CourseViewer() {
   // ── Study session tracking ──
   const startStudySession = useCallback(async (cId: string, chId?: string) => {
     try {
+      const userId = useAppStore.getState().userId;
       const res = await fetch("/api/study-time", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "start", courseId: cId, chapterId: chId }),
+        body: JSON.stringify({ action: "start", courseId: cId, chapterId: chId, userId }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -188,10 +189,13 @@ export default function CourseViewer() {
   const endStudySession = useCallback(async () => {
     if (!studySessionId) return;
     try {
+      const userId = useAppStore.getState().userId;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (userId) headers["Authorization"] = `Bearer ${userId}`;
       await fetch("/api/study-time", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "end", sessionId: studySessionId, userId: useAppStore.getState().userId }),
+        headers,
+        body: JSON.stringify({ action: "end", sessionId: studySessionId, userId }),
       });
     } catch { /* ignore */ }
     setStudySessionId(null);
@@ -368,6 +372,7 @@ export default function CourseViewer() {
       const res = await fetch(`/api/courses/${selectedCourseId}/chapters/${currentChapter.id}/complete`, {
         method: "POST",
         headers,
+        body: JSON.stringify({ userId }),
       });
       if (res.ok) {
         const courseRes = await fetch(`/api/courses/${selectedCourseId}`);
@@ -440,7 +445,7 @@ export default function CourseViewer() {
       await fetch(`/api/courses/${selectedCourseId}/complete-level`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ level: completedLvl }),
+        body: JSON.stringify({ level: completedLvl, userId }),
       });
     } catch { /* non-critical */ }
 
@@ -1492,10 +1497,13 @@ function LevelQuizPanel({
     const pointsEarned = correct;
 
     try {
+      const userId = useAppStore.getState().userId;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (userId) headers["Authorization"] = `Bearer ${userId}`;
       await fetch(`/api/courses/${courseId}/level-quiz`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ level, answers, isSecondAttempt, score: Math.round((correct / total) * 100), correct, total, questions }),
+        headers,
+        body: JSON.stringify({ level, answers, isSecondAttempt, score: Math.round((correct / total) * 100), correct, total, questions, userId }),
       });
     } catch { /* non-critical */ }
 

@@ -50,8 +50,8 @@ export async function GET(
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
-    // Check authorization: allow both course owner and recipients
-    const isOwner = course.userId === userId;
+    // Check authorization: allow course owner, courses with no owner, and recipients
+    const isOwner = course.userId === userId || !course.userId;
     let isRecipient = false;
     if (!isOwner) {
       const existingShare = await db.courseShare.findFirst({

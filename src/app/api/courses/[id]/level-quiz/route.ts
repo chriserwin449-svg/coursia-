@@ -199,23 +199,24 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const { level, answers = {}, isSecondAttempt = false } = await request.json();
+    const body = await request.json() as {
+      level?: number;
+      answers?: Record<number, number>;
+      isSecondAttempt?: boolean;
+      score?: number;
+      correct?: number;
+      total?: number;
+      questions?: unknown[];
+      userId?: string;
+    };
+
+    const { level, answers = {}, isSecondAttempt = false, score, correct, total, questions } = body;
 
     if (level === undefined || level < 0 || level > 2) {
       return NextResponse.json({ error: "Invalid level" }, { status: 400 });
     }
 
-    const userId = getUserIdFromRequest(request);
-
-    // We need the questions to verify — they should be sent from the client
-    // But for security, let's re-verify by looking at the request
-    // Actually, the client sends answers with correctIndex embedded in the questions
-    // For a proper implementation, we'd store quiz in DB, but for now accept client-side scoring
-    // The client will send: { level, answers, questions, isSecondAttempt }
-
-    // For this implementation, we trust the client's score but verify structure
-    const body = await request.json();
-    const { score, correct, total, questions } = body;
+    const userId = getUserIdFromRequest(request, body.userId);
 
     if (typeof score !== "number" || typeof correct !== "number" || typeof total !== "number") {
       return NextResponse.json({ error: "Invalid score data" }, { status: 400 });

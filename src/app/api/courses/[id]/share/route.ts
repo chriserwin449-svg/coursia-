@@ -53,8 +53,8 @@ export async function POST(
     }
 
     // Authorization check:
-    // 1) Owner check
-    const isOwner = course.userId === userId;
+    // 1) Owner check — also allow if course has no owner (created before login)
+    const isOwner = course.userId === userId || !course.userId;
 
     // 2) Recipient check (with error tolerance — fail-open if table/query fails)
     let isRecipient = false;
