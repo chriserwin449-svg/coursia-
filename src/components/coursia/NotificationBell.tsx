@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, BookOpen, Check, CheckCheck, X, Share2 } from "lucide-react";
+import { Bell, Share2, Award, Flame, CreditCard, AlertTriangle, Trophy, CheckCheck } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 
 interface NotificationData {
@@ -10,7 +10,36 @@ interface NotificationData {
   courseTitle?: string;
   sharedBy?: string;
   sharedByName?: string;
+  certificateId?: string;
+  badgeName?: string;
+  completedCourses?: number;
+  points?: number;
+  tierId?: string;
+  plan?: string;
+  endDate?: string;
 }
+
+const NOTIF_ICONS: Record<string, React.ReactNode> = {
+  course_shared: <Share2 className="w-4 h-4 text-mauve-light" />,
+  certificate_earned: <Trophy className="w-4 h-4 text-gold" />,
+  badge_earned: <Award className="w-4 h-4 text-gold" />,
+  flame_tier_up: <Flame className="w-4 h-4 text-orange-400" />,
+  payment_success: <CreditCard className="w-4 h-4 text-green-400" />,
+  subscription_expired: <AlertTriangle className="w-4 h-4 text-destructive" />,
+  subscription_expiring: <AlertTriangle className="w-4 h-4 text-gold" />,
+  subscription_canceled: <AlertTriangle className="w-4 h-4 text-destructive" />,
+};
+
+const NOTIF_BG: Record<string, string> = {
+  course_shared: "bg-gradient-to-br from-mauve/20 to-purple-500/20",
+  certificate_earned: "bg-gradient-to-br from-gold/20 to-yellow-500/20",
+  badge_earned: "bg-gradient-to-br from-gold/20 to-yellow-600/20",
+  flame_tier_up: "bg-gradient-to-br from-orange-500/20 to-red-500/20",
+  payment_success: "bg-gradient-to-br from-green-500/20 to-emerald-500/20",
+  subscription_expired: "bg-gradient-to-br from-red-500/20 to-destructive/20",
+  subscription_expiring: "bg-gradient-to-br from-gold/20 to-orange-500/20",
+  subscription_canceled: "bg-gradient-to-br from-red-500/20 to-destructive/20",
+};
 
 export default function NotificationBell() {
   const lang = useAppStore((s) => s.lang);
@@ -39,19 +68,16 @@ export default function NotificationBell() {
     }
   }, [userId, setNotifications, setUnreadNotificationCount]);
 
-  // Fetch notifications on mount and periodically
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30_000); // Every 30s
+    const interval = setInterval(fetchNotifications, 30_000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 
-  // Also refetch when dropdown opens
   useEffect(() => {
     if (open) fetchNotifications();
   }, [open, fetchNotifications]);
 
-  // Close dropdown on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -74,7 +100,6 @@ export default function NotificationBell() {
         headers,
         body: JSON.stringify({ notificationId }),
       });
-      // Update local state
       setNotifications(notifications.map((n) =>
         n.id === notificationId ? { ...n, isRead: true } : n
       ));
@@ -102,12 +127,10 @@ export default function NotificationBell() {
   };
 
   const handleNotificationClick = async (notif: typeof notifications[0]) => {
-    // Mark as read
     if (!notif.isRead) {
       await markAsRead(notif.id);
     }
 
-    // Handle navigation based on type
     if (notif.type === "course_shared") {
       try {
         const data: NotificationData = notif.data ? JSON.parse(notif.data) : {};
@@ -116,9 +139,13 @@ export default function NotificationBell() {
           useAppStore.getState().setView("viewer");
           setOpen(false);
         }
-      } catch {
-        // ignore parse errors
-      }
+      } catch { /* ignore */ }
+    } else if (notif.type === "flame_tier_up" || notif.type === "badge_earned") {
+      useAppStore.getState().setView("journey");
+      setOpen(false);
+    } else if (notif.type === "payment_success" || notif.type === "subscription_expired" || notif.type === "subscription_canceled") {
+      useAppStore.getState().setView("offers");
+      setOpen(false);
     }
   };
 
@@ -144,6 +171,31 @@ export default function NotificationBell() {
     return date.toLocaleDateString("en-US", { day: "numeric", month: "short" });
   };
 
+  const getNotificationLabel = (notif: typeof notifications[0]) => {
+    if (notif.type === "course_shared") {
+      return <><span className="text-mauve-light">{notif.title}</span> {lang === "fr" ? "t'a partagé un cours" : "shared a course with you"}</>;
+    }
+    if (notif.type === "flame_tier_up") {
+      return <>{lang === "fr" ? "Nouveau palier de flammes !" : "New flame tier!"}</>;
+    }
+    if (notif.type === "badge_earned") {
+      return <>{lang === "fr" ? "Nouveau badge débloqué !" : "New badge unlocked!"}</>;
+    }
+    if (notif.type === "certificate_earned") {
+      return <>{lang === "fr" ? "Certificat obtenu !" : "Certificate earned!"}</>;
+    }
+    if (notif.type === "payment_success") {
+      return <>{lang === "fr" ? "Abonnement activé" : "Subscription activated"}</>;
+    }
+    if (notif.type === "subscription_expired") {
+      return <>{lang === "fr" ? "Abonnement expiré" : "Subscription expired"}</>;
+    }
+    if (notif.type === "subscription_canceled") {
+      return <>{lang === "fr" ? "Abonnement annulé" : "Subscription canceled"}</>;
+    }
+    return <>{notif.title}</>;
+  };
+
   return (
     <div ref={dropdownRef} className="relative">
       {/* Bell button */}
@@ -160,9 +212,9 @@ export default function NotificationBell() {
         )}
       </button>
 
-      {/* Dropdown panel */}
+      {/* Dropdown panel — mobile-friendly */}
       {open && (
-        <div className="absolute right-0 top-12 w-80 sm:w-96 z-50 glass rounded-2xl border border-border shadow-2xl animate-fade-in-slide-up overflow-hidden">
+        <div className="fixed inset-x-0 top-[52px] z-50 sm:absolute sm:inset-auto sm:right-0 sm:top-12 sm:w-80 sm:rounded-2xl glass border-b sm:border sm:border-border shadow-2xl animate-fade-in-slide-up overflow-hidden sm:max-h-[28rem]">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">
@@ -183,7 +235,7 @@ export default function NotificationBell() {
                 title={lang === "fr" ? "Tout marquer comme lu" : "Mark all as read"}
               >
                 <CheckCheck className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">
+                <span className="sm:inline">
                   {lang === "fr" ? "Tout lire" : "Read all"}
                 </span>
               </button>
@@ -191,7 +243,7 @@ export default function NotificationBell() {
           </div>
 
           {/* Notification list */}
-          <div className="max-h-96 overflow-y-auto custom-scrollbar">
+          <div className="max-h-[50vh] sm:max-h-72 overflow-y-auto custom-scrollbar">
             {notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-muted-foreground/50">
                 <Bell className="w-8 h-8 mb-3 opacity-40" />
@@ -200,79 +252,58 @@ export default function NotificationBell() {
                 </p>
                 <p className="text-xs mt-1 opacity-60">
                   {lang === "fr"
-                    ? "Quand quelqu'un te partagera un cours, tu le verras ici"
-                    : "When someone shares a course with you, you'll see it here"}
+                    ? "Tes accomplissements apparaîtront ici"
+                    : "Your achievements will appear here"}
                 </p>
               </div>
             ) : (
-              notifications.map((notif) => {
-                let notifData: NotificationData = {};
-                try {
-                  notifData = notif.data ? JSON.parse(notif.data) : {};
-                } catch { /* ignore */ }
-
-                return (
-                  <div
-                    key={notif.id}
-                    onClick={() => handleNotificationClick(notif)}
-                    className={`flex items-start gap-3 px-4 py-3 transition-colors cursor-pointer border-b border-border/50 last:border-0 ${
-                      notif.isRead
-                        ? "hover:bg-white/5"
-                        : "bg-mauve/5 hover:bg-mauve/10"
-                    }`}
-                  >
-                    {/* Icon */}
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${
-                      notif.type === "course_shared"
-                        ? "bg-gradient-to-br from-mauve/20 to-purple-500/20"
-                        : "bg-mauve/10"
-                    }`}>
-                      {notif.type === "course_shared" ? (
-                        <Share2 className="w-4 h-4 text-mauve-light" />
-                      ) : (
-                        <BookOpen className="w-4 h-4 text-mauve-light" />
-                      )}
-                    </div>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-foreground">
-                        {notif.type === "course_shared" && (
-                          <span className="text-mauve-light">{notif.title}</span>
-                        )}
-                        {notif.type === "course_shared" && (
-                          lang === "fr"
-                            ? " t'a partagé un cours"
-                            : " shared a course with you"
-                        )}
-                        {notif.type !== "course_shared" && notif.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground font-semibold truncate mt-0.5">
-                        {notif.type === "course_shared"
-                          ? (notif.message || notifData.courseTitle || "")
-                          : notif.message}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground/50 font-semibold mt-1">
-                        {formatTimeAgo(notif.createdAt)}
-                      </p>
-                    </div>
-
-                    {/* Unread indicator */}
-                    {!notif.isRead && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          markAsRead(notif.id);
-                        }}
-                        className="flex-shrink-0 mt-0.5 p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-                        title={lang === "fr" ? "Marquer comme lu" : "Mark as read"}
-                      >
-                        <div className="w-2 h-2 rounded-full bg-mauve" />
-                      </button>
-                    )}
+              notifications.map((notif) => (
+                <div
+                  key={notif.id}
+                  onClick={() => handleNotificationClick(notif)}
+                  className={`flex items-start gap-3 px-4 py-3 transition-colors cursor-pointer border-b border-border/50 last:border-0 ${
+                    notif.isRead
+                      ? "hover:bg-white/5"
+                      : "bg-mauve/5 hover:bg-mauve/10"
+                  }`}
+                >
+                  {/* Icon */}
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                    NOTIF_BG[notif.type] || "bg-mauve/10"
+                  }`}>
+                    {NOTIF_ICONS[notif.type] || <Bell className="w-4 h-4 text-mauve-light" />}
                   </div>
-                );
-              })
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-foreground">
+                      {getNotificationLabel(notif)}
+                    </p>
+                    {notif.message && (
+                      <p className="text-xs text-muted-foreground font-semibold truncate mt-0.5">
+                        {notif.message}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground/50 font-semibold mt-1">
+                      {formatTimeAgo(notif.createdAt)}
+                    </p>
+                  </div>
+
+                  {/* Unread indicator */}
+                  {!notif.isRead && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        markAsRead(notif.id);
+                      }}
+                      className="flex-shrink-0 mt-0.5 p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                      title={lang === "fr" ? "Marquer comme lu" : "Mark as read"}
+                    >
+                      <div className="w-2 h-2 rounded-full bg-mauve" />
+                    </button>
+                  )}
+                </div>
+              ))
             )}
           </div>
         </div>

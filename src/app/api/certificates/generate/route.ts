@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
+import { createNotification } from "@/lib/create-notification";
 
 function generateCertificateId(): string {
   const hex = Array.from({ length: 8 }, () =>
@@ -86,6 +87,15 @@ export async function POST(request: NextRequest) {
         totalLevels,
         certificateId,
       },
+    });
+
+    // Notify user
+    await createNotification({
+      userId,
+      type: "certificate_earned",
+      title: course.title,
+      message: `Certificate earned — score: ${progress.score}%`,
+      data: { courseId, certificateId: certificate.certificateId, courseTitle: course.title },
     });
 
     return NextResponse.json({

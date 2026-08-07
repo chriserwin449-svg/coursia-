@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { LEVEL_COMPLETE_FLAMES, COURSE_MASTERY_FLAMES } from "@/lib/flames";
+import { LEVEL_COMPLETE_FLAMES, COURSE_MASTERY_FLAMES, getCurrentFlameType } from "@/lib/flames";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
+import { createNotification } from "@/lib/create-notification";
 
 export async function POST(
   request: NextRequest,
@@ -88,6 +89,16 @@ export async function POST(
         flameAwardedLevels: JSON.stringify(updatedAwarded),
       },
     });
+
+    // Check for flame tier upgrade
+    const updated = await db.appSettings.findUnique({ where: { id: userId } });
+    if (updated) {
+      const prevType = getCurrentFlameType(updated.flamePoints - bonusPoints);
+      const newType = getCurrentFlameType(updated.flamePoints);
+      if (prevType.id !== newType.id) {
+        await createNotification({ userId, type: "flame_tier_up", title: `${newType.emoji} ${newType.name}`, message: `You reached ${updated.flamePoints} flame points!`, data: { points: updated.flamePoints, tierId: newType.id } });
+      }
+    }
 
     return NextResponse.json({
       success: true,

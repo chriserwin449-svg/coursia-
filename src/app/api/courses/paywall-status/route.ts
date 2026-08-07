@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isAdmin, DAILY_LIMIT_ADMIN } from "@/lib/admin";
+import { createNotification } from "@/lib/create-notification";
 
 async function migrateColumn(table: string, col: string, colDef: string): Promise<void> {
   try {
@@ -234,6 +235,14 @@ export async function GET(request: NextRequest) {
           await db.user.update({
             where: { id: userId },
             data: { subscriptionStatus: "expired" },
+          });
+          // Notify user about expiration
+          await createNotification({
+            userId,
+            type: "subscription_expired",
+            title: "Subscription Expired",
+            message: `Your ${user.subscriptionPlan} plan ended on ${endDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+            data: { plan: user.subscriptionPlan, endDate: endDate.toISOString() },
           });
         } catch { /* fall through to grace period */ }
       } else {

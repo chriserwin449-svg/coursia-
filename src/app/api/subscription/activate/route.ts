@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getPayPalConfig, getSubscriptionDetails } from "@/lib/paypal";
+import { createNotification } from "@/lib/create-notification";
 
 // ─── Security headers ────────────────────────────────────────────────────
 function securityHeaders(): HeadersInit {
@@ -247,6 +248,15 @@ export async function POST(request: NextRequest) {
       plan,
       subscriptionId: resolvedSubscriptionId.slice(0, 12) + "...",
       endDate: endDate.toISOString(),
+    });
+
+    // Notify user
+    await createNotification({
+      userId: targetUserId,
+      type: "payment_success",
+      title: plan === "annual" ? "Annual Plan" : "Monthly Plan",
+      message: `Subscription activated — ends ${endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
+      data: { plan, endDate: endDate.toISOString() },
     });
 
     return NextResponse.json(

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { CHAPTER_COMPLETE_FLAMES } from "@/lib/flames";
+import { CHAPTER_COMPLETE_FLAMES, getCurrentFlameType } from "@/lib/flames";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
+import { createNotification } from "@/lib/create-notification";
 
 export async function POST(
   request: NextRequest,
@@ -70,6 +71,16 @@ export async function POST(
         where: { chapterId },
         data: { flameAwarded: true },
       });
+
+      // Check for flame tier upgrade
+      const updated = await db.appSettings.findUnique({ where: { id: settingsId } });
+      if (updated) {
+        const prevType = getCurrentFlameType(updated.flamePoints - flamePoints);
+        const newType = getCurrentFlameType(updated.flamePoints);
+        if (prevType.id !== newType.id) {
+          await createNotification({ userId, type: "flame_tier_up", title: `${newType.emoji} ${newType.name}`, message: `You reached ${updated.flamePoints} flame points!`, data: { points: updated.flamePoints, tierId: newType.id } });
+        }
+      }
     }
 
     // Count total completed chapters in course

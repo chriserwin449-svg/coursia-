@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { smartChatCompletion } from "@/lib/openai";
 import { calculateCourseCompletionBonus } from "@/lib/flames";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
+import { getCurrentFlameType } from "@/lib/flames";
+import { createNotification } from "@/lib/create-notification";
 
 export async function POST(
   _request: NextRequest,
@@ -209,7 +211,45 @@ export async function PUT(
           where: { courseId },
           data: { flameAwarded: true },
         });
+
+        // Check for flame tier upgrade
+        const updatedSettings = await db.appSettings.findUnique({ where: { id: userId } });
+        if (updatedSettings) {
+          const prevType = getCurrentFlameType(updatedSettings.flamePoints - bonusPoints);
+          const newType = getCurrentFlameType(updatedSettings.flamePoints);
+          if (prevType.id !== newType.id) {
+            await createNotification({
+              userId,
+              type: "flame_tier_up",
+              title: `${newType.emoji} ${newType.name}`,
+              message: `You reached ${updatedSettings.flamePoints} flame points!`,
+              data: { points: updatedSettings.flamePoints, tierId: newType.id },
+            });
+          }
+        }
       }
+    }
+
+    // Check for badge earned (course completion crossed a threshold)
+    if (passed && userId) {
+      try {
+        const { BADGE_DEFINITIONS } = await import("@/lib/badges");
+        const completedCount = await db.courseProgress.count({
+          where: { completed: true },
+        });
+        const prevCount = completedCount - 1;
+        for (const badge of BADGE_DEFINITIONS) {
+          if (prevCount < badge.threshold && completedCount >= badge.threshold) {
+            await createNotification({
+              userId,
+              type: "badge_earned",
+              title: `${badge.emoji} ${badge.name}`,
+              message: badge.descriptionEn,
+              data: { badgeName: badge.name, completedCourses: completedCount },
+            });
+          }
+        }
+      } catch { /* ignore badge check */ }
     }
 
     return NextResponse.json({
