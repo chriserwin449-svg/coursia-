@@ -363,6 +363,29 @@ export default function AuthPage() {
                   </>
                 )}
               </button>
+
+              {/* Legal notice — register only */}
+              {!isLogin && (
+                <p className="text-[11px] text-muted-foreground/50 text-center leading-relaxed mt-1">
+                  {tx.auth.legalNotice}
+                  <button
+                    type="button"
+                    onClick={() => { useAppStore.getState().setLegalPage("terms"); }}
+                    className="text-muted-foreground/70 hover:text-mauve-light underline underline-offset-2 transition-colors cursor-pointer"
+                  >
+                    {tx.auth.termsLink}
+                  </button>
+                  {tx.auth.legalAnd}
+                  <button
+                    type="button"
+                    onClick={() => { useAppStore.getState().setLegalPage("privacy"); }}
+                    className="text-muted-foreground/70 hover:text-mauve-light underline underline-offset-2 transition-colors cursor-pointer"
+                  >
+                    {tx.auth.privacyLink}
+                  </button>
+                  {tx.auth.legalSuffix}
+                </p>
+              )}
             </form>
 
             {/* Toggle login/register */}

@@ -154,6 +154,11 @@ const fr = {
     createMyAccount: "Créer mon Compte",
     backToHome: "Retour à l'accueil",
     confirmationEmail: "Un email de confirmation a été envoyé. Vérifie ta boîte mail et clique sur le lien.",
+    legalNotice: "En créant un compte, vous acceptez nos ",
+    termsLink: "Conditions Générales d'Utilisation",
+    legalAnd: " et notre ",
+    privacyLink: "Politique de Confidentialité",
+    legalSuffix: ".",
   },
   payment: {
     success: "Paiement réussi ! Ton abonnement est maintenant actif.",
@@ -603,6 +608,11 @@ const en = {
     createMyAccount: "Create Account",
     backToHome: "Back to home",
     confirmationEmail: "A confirmation email was sent. Check your inbox and click the link.",
+    legalNotice: "By creating an account, you agree to our ",
+    termsLink: "Terms of Service",
+    legalAnd: " and our ",
+    privacyLink: "Privacy Policy",
+    legalSuffix: ".",
   },
   payment: {
     success: "Payment successful! Your subscription is now active.",
