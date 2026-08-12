@@ -49,56 +49,44 @@ export default function AuthPage() {
   // Validation helpers
   const isValid = code.length >= 4 && code === confirmCode;
 
-  // ── Google OAuth ──
-  const handleGoogleSignIn = async () => {
+  // ── Google OAuth (direct flow — no NextAuth intermediate page) ──
+  const handleGoogleSignIn = () => {
     setGoogleLoading(true);
     setError("");
-    try {
-      const res = await fetch("/api/auth/csrf", { cache: "no-store" });
-      const csrfData = await res.json();
-      const csrfToken = csrfData.csrfToken;
-      const callbackUrl = encodeURIComponent(window.location.origin + "/?googleAuth=1");
-      window.location.href = `/api/auth/signin/google?csrfToken=${csrfToken}&callbackUrl=${callbackUrl}`;
-    } catch {
-      setError(lang === "fr" ? "Erreur de connexion Google" : "Google sign-in error");
-      setGoogleLoading(false);
-    }
+    window.location.href = "/api/auth/google-signin";
   };
 
-  // Handle redirect back from Google OAuth
+  // Handle redirect back from Google OAuth — read auth data from cookie
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("googleAuth") === "1") {
+    const googleAuth = params.get("googleAuth");
+    const googleError = params.get("googleError");
+
+    if (googleError) {
+      setError(lang === "fr"
+        ? "Erreur de connexion Google. Veuillez réessayer."
+        : "Google sign-in failed. Please try again.");
+      window.history.replaceState({}, "", "/");
+      return;
+    }
+
+    if (googleAuth === "1") {
+      // Read auth data from the httpOnly cookie via a small API
       const doGoogleCallback = async () => {
         try {
-          const sessionRes = await fetch("/api/auth/session");
-          const sessionData = await sessionRes.json();
-          if (sessionData.session?.user) {
-            const gUser = sessionData.session.user;
-            const nameParts = (gUser.name || "").split(" ");
-            const cbRes = await fetch("/api/auth/google/callback", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                email: gUser.email,
-                name: gUser.name,
-                given_name: gUser.firstName || nameParts[0],
-                family_name: gUser.lastName || nameParts.slice(1).join(" "),
-                picture: gUser.image,
-              }),
-            });
-            const cbData = await cbRes.json();
-            if (cbRes.ok && cbData.user) {
-              setUser(cbData.user);
-              if (cbData.token) setAuthToken(cbData.token);
-              if (typeof window !== "undefined") {
-                localStorage.setItem("coursia-user-data", JSON.stringify(cbData.user));
-              }
-              setView("create");
-              window.history.replaceState({}, "", "/");
-            } else {
-              setError(cbData.error || (lang === "fr" ? "Erreur Google Auth" : "Google Auth error"));
+          const res = await fetch("/api/auth/google-me");
+          const data = await res.json();
+          if (res.ok && data.user) {
+            setUser(data.user);
+            if (data.token) setAuthToken(data.token);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("coursia-user-data", JSON.stringify(data.user));
             }
+            setView("create");
+            trackEvent({ name: data.isNewUser ? "signup_google" : "login_google" });
+            window.history.replaceState({}, "", "/");
+          } else {
+            setError(data.error || (lang === "fr" ? "Erreur Google Auth" : "Google Auth error"));
           }
         } catch {
           setError(lang === "fr" ? "Erreur Google Auth" : "Google Auth error");
