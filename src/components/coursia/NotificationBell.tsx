@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, Share2, Award, Flame, CreditCard, AlertTriangle, Trophy, CheckCheck } from "lucide-react";
+import { Bell, Share2, Award, Flame, CreditCard, AlertTriangle, Trophy, CheckCheck, Trash2 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 
 interface NotificationData {
@@ -17,6 +17,7 @@ interface NotificationData {
   tierId?: string;
   plan?: string;
   endDate?: string;
+  reason?: string;
 }
 
 const NOTIF_ICONS: Record<string, React.ReactNode> = {
@@ -24,6 +25,7 @@ const NOTIF_ICONS: Record<string, React.ReactNode> = {
   certificate_earned: <Trophy className="w-4 h-4 text-gold" />,
   badge_earned: <Award className="w-4 h-4 text-gold" />,
   flame_tier_up: <Flame className="w-4 h-4 text-orange-400" />,
+  flame_points_earned: <Flame className="w-4 h-4 text-orange-400" />,
   payment_success: <CreditCard className="w-4 h-4 text-green-400" />,
   subscription_expired: <AlertTriangle className="w-4 h-4 text-destructive" />,
   subscription_expiring: <AlertTriangle className="w-4 h-4 text-gold" />,
@@ -35,6 +37,7 @@ const NOTIF_BG: Record<string, string> = {
   certificate_earned: "bg-gradient-to-br from-gold/20 to-yellow-500/20",
   badge_earned: "bg-gradient-to-br from-gold/20 to-yellow-600/20",
   flame_tier_up: "bg-gradient-to-br from-orange-500/20 to-red-500/20",
+  flame_points_earned: "bg-gradient-to-br from-orange-500/15 to-amber-500/15",
   payment_success: "bg-gradient-to-br from-green-500/20 to-emerald-500/20",
   subscription_expired: "bg-gradient-to-br from-red-500/20 to-destructive/20",
   subscription_expiring: "bg-gradient-to-br from-gold/20 to-orange-500/20",
@@ -57,7 +60,7 @@ export default function NotificationBell() {
     try {
       const headers: Record<string, string> = {};
       headers["Authorization"] = `Bearer ${userId}`;
-      const res = await fetch("/api/notifications?limit=20", { headers });
+      const res = await fetch("/api/notifications?limit=30", { headers });
       const data = await res.json();
       if (res.ok) {
         setNotifications(data.notifications || []);
@@ -126,6 +129,42 @@ export default function NotificationBell() {
     }
   };
 
+  const deleteNotification = async (e: React.MouseEvent, notificationId: string) => {
+    e.stopPropagation();
+    if (!userId) return;
+    try {
+      const headers: Record<string, string> = {};
+      headers["Authorization"] = `Bearer ${userId}`;
+      await fetch(`/api/notifications?id=${notificationId}`, {
+        method: "DELETE",
+        headers,
+      });
+      const wasUnread = notifications.find((n) => n.id === notificationId)?.isRead === false;
+      setNotifications(notifications.filter((n) => n.id !== notificationId));
+      if (wasUnread) {
+        setUnreadNotificationCount(Math.max(0, unreadCount - 1));
+      }
+    } catch {
+      // silent
+    }
+  };
+
+  const clearAllNotifications = async () => {
+    if (!userId) return;
+    try {
+      const headers: Record<string, string> = {};
+      headers["Authorization"] = `Bearer ${userId}`;
+      await fetch("/api/notifications?clearAll=true", {
+        method: "DELETE",
+        headers,
+      });
+      setNotifications([]);
+      setUnreadNotificationCount(0);
+    } catch {
+      // silent
+    }
+  };
+
   const handleNotificationClick = async (notif: typeof notifications[0]) => {
     if (!notif.isRead) {
       await markAsRead(notif.id);
@@ -140,7 +179,7 @@ export default function NotificationBell() {
           setOpen(false);
         }
       } catch { /* ignore */ }
-    } else if (notif.type === "flame_tier_up" || notif.type === "badge_earned") {
+    } else if (notif.type === "flame_tier_up" || notif.type === "badge_earned" || notif.type === "flame_points_earned") {
       useAppStore.getState().setView("journey");
       setOpen(false);
     } else if (notif.type === "payment_success" || notif.type === "subscription_expired" || notif.type === "subscription_canceled") {
@@ -178,6 +217,9 @@ export default function NotificationBell() {
     if (notif.type === "flame_tier_up") {
       return <>{lang === "fr" ? "Nouveau palier de flammes !" : "New flame tier!"}</>;
     }
+    if (notif.type === "flame_points_earned") {
+      return <>{lang === "fr" ? "Points de flamme gagnés !" : "Flame points earned!"}</>;
+    }
     if (notif.type === "badge_earned") {
       return <>{lang === "fr" ? "Nouveau badge débloqué !" : "New badge unlocked!"}</>;
     }
@@ -212,9 +254,9 @@ export default function NotificationBell() {
         )}
       </button>
 
-      {/* Dropdown panel — mobile-friendly */}
+      {/* Dropdown panel — mobile-friendly, compact */}
       {open && (
-        <div className="fixed inset-x-0 top-[52px] z-50 sm:absolute sm:inset-auto sm:right-0 sm:top-12 sm:w-80 sm:rounded-2xl glass border-b sm:border sm:border-border shadow-2xl animate-fade-in-slide-up overflow-hidden sm:max-h-[28rem]">
+        <div className="absolute right-0 sm:right-0 top-12 z-50 w-[calc(100vw-3rem)] sm:w-80 max-w-sm rounded-2xl glass border border-border shadow-2xl animate-fade-in-slide-up overflow-hidden max-h-[70vh] sm:max-h-[28rem]">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">
@@ -228,22 +270,33 @@ export default function NotificationBell() {
                 </span>
               )}
             </div>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllRead}
-                className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-mauve-light transition-colors cursor-pointer"
-                title={lang === "fr" ? "Tout marquer comme lu" : "Mark all as read"}
-              >
-                <CheckCheck className="w-3.5 h-3.5" />
-                <span className="sm:inline">
-                  {lang === "fr" ? "Tout lire" : "Read all"}
-                </span>
-              </button>
-            )}
+            <div className="flex items-center gap-1">
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-mauve-light transition-colors cursor-pointer px-2 py-1 rounded-lg hover:bg-white/5"
+                  title={lang === "fr" ? "Tout marquer comme lu" : "Mark all as read"}
+                >
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">
+                    {lang === "fr" ? "Tout lire" : "Read all"}
+                  </span>
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={clearAllNotifications}
+                  className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-destructive transition-colors cursor-pointer px-2 py-1 rounded-lg hover:bg-destructive/5"
+                  title={lang === "fr" ? "Tout supprimer" : "Clear all"}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Notification list */}
-          <div className="max-h-[50vh] sm:max-h-72 overflow-y-auto custom-scrollbar">
+          <div className="max-h-[60vh] sm:max-h-72 overflow-y-auto custom-scrollbar">
             {notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-muted-foreground/50">
                 <Bell className="w-8 h-8 mb-3 opacity-40" />
@@ -261,14 +314,14 @@ export default function NotificationBell() {
                 <div
                   key={notif.id}
                   onClick={() => handleNotificationClick(notif)}
-                  className={`flex items-start gap-3 px-4 py-3 transition-colors cursor-pointer border-b border-border/50 last:border-0 ${
+                  className={`flex items-start gap-3 px-4 py-3 transition-colors cursor-pointer border-b border-border/50 last:border-0 group ${
                     notif.isRead
                       ? "hover:bg-white/5"
                       : "bg-mauve/5 hover:bg-mauve/10"
                   }`}
                 >
                   {/* Icon */}
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${
+                  <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${
                     NOTIF_BG[notif.type] || "bg-mauve/10"
                   }`}>
                     {NOTIF_ICONS[notif.type] || <Bell className="w-4 h-4 text-mauve-light" />}
@@ -289,19 +342,28 @@ export default function NotificationBell() {
                     </p>
                   </div>
 
-                  {/* Unread indicator */}
-                  {!notif.isRead && (
+                  {/* Actions */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {!notif.isRead && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          markAsRead(notif.id);
+                        }}
+                        className="p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
+                        title={lang === "fr" ? "Marquer comme lu" : "Mark as read"}
+                      >
+                        <div className="w-2 h-2 rounded-full bg-mauve" />
+                      </button>
+                    )}
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        markAsRead(notif.id);
-                      }}
-                      className="flex-shrink-0 mt-0.5 p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-                      title={lang === "fr" ? "Marquer comme lu" : "Mark as read"}
+                      onClick={(e) => deleteNotification(e, notif.id)}
+                      className="p-1 rounded-lg hover:bg-destructive/20 text-muted-foreground/30 hover:text-destructive transition-colors cursor-pointer opacity-0 group-hover:opacity-100"
+                      title={lang === "fr" ? "Supprimer" : "Delete"}
                     >
-                      <div className="w-2 h-2 rounded-full bg-mauve" />
+                      <Trash2 className="w-3 h-3" />
                     </button>
-                  )}
+                  </div>
                 </div>
               ))
             )}

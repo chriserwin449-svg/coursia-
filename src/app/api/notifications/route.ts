@@ -104,3 +104,40 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Failed to update notification" }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const userId = getUserIdFromRequest(request);
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const notificationId = searchParams.get("id");
+
+    if (notificationId) {
+      // Delete a specific notification
+      const deleted = await db.notification.deleteMany({
+        where: { id: notificationId, userId },
+      });
+      if (deleted.count === 0) {
+        return NextResponse.json({ error: "Notification not found" }, { status: 404 });
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    const clearAll = searchParams.get("clearAll") === "true";
+    if (clearAll) {
+      // Delete all notifications for this user
+      await db.notification.deleteMany({
+        where: { userId },
+      });
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ error: "id or clearAll required" }, { status: 400 });
+  } catch (error) {
+    console.error("[notifications DELETE] Error:", error);
+    return NextResponse.json({ error: "Failed to delete notification" }, { status: 500 });
+  }
+}

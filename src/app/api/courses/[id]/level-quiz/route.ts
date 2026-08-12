@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { smartChatCompletion } from "@/lib/openai";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
+import { getCurrentFlameType } from "@/lib/flames";
 
 const LEVEL_QUIZ_QUESTIONS = 7;
 const PASS_THRESHOLD = 4; // Need 4/7 to pass
@@ -243,6 +244,20 @@ export async function PUT(
             userId,
           },
         });
+
+        // Check for tier upgrade and notify
+        const updatedSettings = await db.appSettings.findUnique({ where: { id: userId } });
+        if (updatedSettings) {
+          const prevType = getCurrentFlameType(updatedSettings.flamePoints - pointsEarned);
+          const newType = getCurrentFlameType(updatedSettings.flamePoints);
+          if (prevType.id !== newType.id) {
+            const { createNotification } = await import("@/lib/create-notification");
+            await createNotification({ userId, type: "flame_tier_up", title: `${newType.emoji} ${newType.name}`, message: `You reached ${updatedSettings.flamePoints} flame points!`, data: { points: updatedSettings.flamePoints, tierId: newType.id } });
+          }
+          // Notify flame points earned
+          const { createNotification } = await import("@/lib/create-notification");
+          await createNotification({ userId, type: "flame_points_earned", title: `🔥 +${pointsEarned}`, message: `Level quiz passed! +${pointsEarned} flame points`, data: { points: pointsEarned, reason: isSecondAttempt ? "level_quiz_second_attempt" : "level_quiz", courseId: id } });
+        }
       } catch (err) {
         console.error("[level-quiz] Error awarding points:", err);
       }

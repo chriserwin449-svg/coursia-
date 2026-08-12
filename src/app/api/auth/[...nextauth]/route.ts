@@ -1,5 +1,6 @@
-import NextAuth from "next-auth";
+import NextAuth, { type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import { db } from "@/lib/db";
 import { createHash } from "crypto";
 
@@ -17,6 +18,7 @@ declare module "next-auth" {
   interface User {
     firstName?: string;
     lastName?: string;
+    googleId?: string;
   }
 }
 
@@ -25,10 +27,11 @@ declare module "next-auth/jwt" {
     firstName?: string;
     lastName?: string;
     id?: string;
+    googleId?: string;
   }
 }
 
-const handler = NextAuth({
+const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -59,13 +62,27 @@ const handler = NextAuth({
         };
       },
     }),
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      allowDangerousEmailAccountCreation: true,
+    }),
   ],
+  pages: {
+    signIn: undefined, // Use default NextAuth sign-in page, but we'll handle it client-side
+  },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         token.id = user.id;
         token.firstName = user.firstName;
         token.lastName = user.lastName;
+      }
+      if (account?.provider === "google") {
+        token.googleId = account.providerAccountId;
+        token.googleEmail = token.email;
+        token.googleName = token.name;
+        token.googleImage = token.picture;
       }
       return token;
     },
@@ -79,6 +96,9 @@ const handler = NextAuth({
     },
   },
   secret: process.env.NEXTAUTH_SECRET || "coursia-nextauth-secret-2025",
-});
+};
+
+const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };
+export { authOptions };

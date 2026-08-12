@@ -143,6 +143,9 @@ export default function Journey() {
         } catch { /* silent */ }
       };
       refetchFlames();
+      // Poll flame data every 8 seconds while on Journey page
+      const interval = setInterval(refetchFlames, 8000);
+      return () => clearInterval(interval);
     }
   }, [view, loading]);
 

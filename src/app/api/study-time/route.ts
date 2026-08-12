@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getUserIdFromRequest } from "@/lib/get-user-id";
-import { STUDY_TIME_GOOD_FLAMES, STUDY_TIME_SHORT_PENALTY, STUDY_TIME_GOOD_THRESHOLD, STUDY_TIME_SHORT_THRESHOLD } from "@/lib/flames";
+import { STUDY_TIME_GOOD_FLAMES, STUDY_TIME_SHORT_PENALTY, STUDY_TIME_GOOD_THRESHOLD, STUDY_TIME_SHORT_THRESHOLD, getCurrentFlameType } from "@/lib/flames";
 
 export async function GET(request: NextRequest) {
   try {
@@ -202,6 +202,23 @@ export async function POST(request: NextRequest) {
             where: { id: sessionId },
             data: { flameAwarded: true },
           });
+
+          // Notify flame points earned/lost
+          try {
+            const { createNotification } = await import("@/lib/create-notification");
+            if (flameDelta > 0) {
+              await createNotification({ userId, type: "flame_points_earned", title: `🔥 +${flameDelta}`, message: `Good study session! +${flameDelta} flame points`, data: { points: flameDelta, reason: "study_time_good", courseId: session.courseId } });
+            }
+            // Check for tier upgrade
+            const updatedSettings = await db.appSettings.findUnique({ where: { id: userId } });
+            if (updatedSettings) {
+              const prevType = getCurrentFlameType(updatedSettings.flamePoints - flameDelta);
+              const newType = getCurrentFlameType(updatedSettings.flamePoints);
+              if (prevType.id !== newType.id) {
+                await createNotification({ userId, type: "flame_tier_up", title: `${newType.emoji} ${newType.name}`, message: `You reached ${updatedSettings.flamePoints} flame points!`, data: { points: updatedSettings.flamePoints, tierId: newType.id } });
+              }
+            }
+          } catch { /* silent */ }
 
           return NextResponse.json({ success: true, durationSeconds, flameDelta, newTotal });
         } else if (flameDelta !== 0 && !userId) {

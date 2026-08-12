@@ -15,8 +15,25 @@ export async function GET(request: NextRequest) {
   try {
     const userId = getUserIdFromRequest(request);
 
+    // If no userId, return zeroed state (don't fall back to "main")
+    if (!userId) {
+      const flameType = getCurrentFlameType(0);
+      const flameProgress = getFlameProgress(0);
+      return NextResponse.json({
+        flamePoints: 0,
+        flameType,
+        flameProgress,
+        rewards: FLAME_REWARDS.map((r) => ({ ...r, isEarned: false })),
+        courseCreationCost: COURSE_CREATION_COST,
+        hasSubscription: false,
+        totalEarned: 0,
+        totalSpent: 0,
+        transactions: [],
+      });
+    }
+
     // 1. Get or create per-user AppSettings row
-    const settingsId = userId || "main";
+    const settingsId = userId;
     const settings = await db.appSettings.upsert({
       where: { id: settingsId },
       create: { id: settingsId, flamePoints: 0 },
@@ -24,9 +41,8 @@ export async function GET(request: NextRequest) {
     });
 
     // 2. Get flame transactions for THIS USER (newest first, last 20)
-    const where = userId ? { userId } : {};
     const allTransactions = await db.flameTransaction.findMany({
-      where,
+      where: { userId },
       orderBy: { createdAt: "desc" },
     });
 
@@ -44,7 +60,16 @@ export async function GET(request: NextRequest) {
       isEarned: settings.flamePoints >= reward.points,
     }));
 
-    // 4. Build response
+    // 4. Check subscription status
+    let hasSubscription = false;
+    try {
+      const userRecord = await db.user.findUnique({ where: { id: userId } });
+      if (userRecord) {
+        hasSubscription = userRecord.subscriptionStatus === "active";
+      }
+    } catch { /* ignore */ }
+
+    // 5. Build response
     const flamePoints = settings.flamePoints;
     const flameType = getCurrentFlameType(flamePoints);
     const flameProgress = getFlameProgress(flamePoints);
@@ -55,7 +80,7 @@ export async function GET(request: NextRequest) {
       flameProgress,
       rewards,
       courseCreationCost: COURSE_CREATION_COST,
-      hasSubscription: false, // Checked per-user now, not globally
+      hasSubscription,
       totalEarned,
       totalSpent,
       transactions,
@@ -93,7 +118,10 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = getUserIdFromRequest(request, bodyUserId);
-    const settingsId = userId || "main";
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const settingsId = userId;
 
     // Get or create per-user AppSettings
     const settings = await db.appSettings.upsert({

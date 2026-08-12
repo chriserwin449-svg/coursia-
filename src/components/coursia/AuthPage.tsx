@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trackEvent } from "@/lib/analytics";
 import {
   Mail,
@@ -15,6 +15,15 @@ import {
 import { useAppStore } from "@/lib/store";
 import { t } from "@/lib/i18n";
 import CoursiaLogo from "@/components/coursia/CoursiaLogo";
+
+const GOOGLE_ICON = (
+  <svg className="w-5 h-5" viewBox="0 0 24 24">
+    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+  </svg>
+);
 
 export default function AuthPage() {
   const lang = useAppStore((s) => s.lang);
@@ -34,10 +43,70 @@ export default function AuthPage() {
   const [showCode, setShowCode] = useState(false);
   const [showConfirmCode, setShowConfirmCode] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
 
   // Validation helpers
   const isValid = code.length >= 4 && code === confirmCode;
+
+  // ── Google OAuth ──
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/auth/csrf", { cache: "no-store" });
+      const csrfData = await res.json();
+      const csrfToken = csrfData.csrfToken;
+      const callbackUrl = encodeURIComponent(window.location.origin + "/?googleAuth=1");
+      window.location.href = `/api/auth/signin/google?csrfToken=${csrfToken}&callbackUrl=${callbackUrl}`;
+    } catch {
+      setError(lang === "fr" ? "Erreur de connexion Google" : "Google sign-in error");
+      setGoogleLoading(false);
+    }
+  };
+
+  // Handle redirect back from Google OAuth
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("googleAuth") === "1") {
+      const doGoogleCallback = async () => {
+        try {
+          const sessionRes = await fetch("/api/auth/session");
+          const sessionData = await sessionRes.json();
+          if (sessionData.session?.user) {
+            const gUser = sessionData.session.user;
+            const nameParts = (gUser.name || "").split(" ");
+            const cbRes = await fetch("/api/auth/google/callback", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                email: gUser.email,
+                name: gUser.name,
+                given_name: gUser.firstName || nameParts[0],
+                family_name: gUser.lastName || nameParts.slice(1).join(" "),
+                picture: gUser.image,
+              }),
+            });
+            const cbData = await cbRes.json();
+            if (cbRes.ok && cbData.user) {
+              setUser(cbData.user);
+              if (cbData.token) setAuthToken(cbData.token);
+              if (typeof window !== "undefined") {
+                localStorage.setItem("coursia-user-data", JSON.stringify(cbData.user));
+              }
+              setView("create");
+              window.history.replaceState({}, "", "/");
+            } else {
+              setError(cbData.error || (lang === "fr" ? "Erreur Google Auth" : "Google Auth error"));
+            }
+          }
+        } catch {
+          setError(lang === "fr" ? "Erreur Google Auth" : "Google Auth error");
+        }
+      };
+      doGoogleCallback();
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,22 +114,13 @@ export default function AuthPage() {
     setLoading(true);
 
     try {
-      // Frontend validation for registration
       if (!isLogin) {
-        if (code.length < 4) {
-          setError(tx.auth.codeMin4Error);
-          return;
-        }
-        if (code !== confirmCode) {
-          setError(tx.auth.codesMismatchError);
-          return;
-        }
+        if (code.length < 4) { setError(tx.auth.codeMin4Error); return; }
+        if (code !== confirmCode) { setError(tx.auth.codesMismatchError); return; }
       }
 
       const endpoint = isLogin ? "/api/auth/login" : "/api/auth/register";
-      const body = isLogin
-        ? { email, password: code }
-        : { email, password: code, firstName, lastName };
+      const body = isLogin ? { email, password: code } : { email, password: code, firstName, lastName };
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -71,66 +131,43 @@ export default function AuthPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        if (data.error === "user_not_found") {
-          setError("user_not_found");
-        } else if (data.error === "wrong_password") {
-          setError(tx.auth.wrongCode);
-        } else if (data.error === "email_not_confirmed") {
-          setError(tx.auth.checkEmailConfirm);
-        } else {
+        if (data.error === "user_not_found") { setError("user_not_found"); }
+        else if (data.error === "wrong_password") { setError(tx.auth.wrongCode); }
+        else if (data.error === "email_not_confirmed") { setError(tx.auth.checkEmailConfirm); }
+        else {
           const debugInfo = data.debug ? `\n\n[${data.debug}]` : "";
           setError(data.error + debugInfo || tx.common.error);
-          if (data.debug) {
-            console.error("[AuthPage] Server debug:", data.debug);
-          }
+          if (data.debug) console.error("[AuthPage] Server debug:", data.debug);
         }
         return;
       }
 
-      // Save auth data
       setUser(data.user);
-      if (data.token) {
-        setAuthToken(data.token);
-      }
+      if (data.token) setAuthToken(data.token);
 
-      // Persist user data for session restoration
       if (typeof window !== "undefined" && data.user) {
         localStorage.setItem("coursia-user-data", JSON.stringify(data.user));
       }
 
-      // ── Handle pending invite: redirect to shared course after auth ──
-      const pendingInvite = typeof window !== "undefined"
-        ? localStorage.getItem("coursia-pending-invite")
-        : null;
-
+      const pendingInvite = typeof window !== "undefined" ? localStorage.getItem("coursia-pending-invite") : null;
       if (pendingInvite && data.user) {
         try {
-          // Accept the invite (creates CourseShare) and get the courseId
           const inviteRes = await fetch(`/api/invite/${pendingInvite}`, {
             method: "POST",
             headers: { Authorization: `Bearer ${data.user.id}` },
           });
           const inviteData = await inviteRes.json();
-
           if (inviteRes.ok && inviteData.courseId) {
-            // Clear pending invite
             localStorage.removeItem("coursia-pending-invite");
-            // Navigate directly to the shared course
             setSelectedCourseId(inviteData.courseId);
             setView("viewer");
-            // Track conversion
             trackEvent({ name: isLogin ? "login" : "signup" });
             return;
           }
-        } catch {
-          // If invite fails, fall through to normal navigation
-        }
+        } catch { /* fall through */ }
       }
 
-      // Default navigation: go to create page
       setView("create");
-
-      // Track conversion event
       trackEvent({ name: isLogin ? "login" : "signup" });
     } catch {
       setError(tx.auth.connectionError);
@@ -147,7 +184,7 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen bg-night flex flex-col">
-      {/* Language toggle - top right */}
+      {/* Language toggle */}
       <div className="fixed top-4 right-4 z-50">
         <button
           onClick={() => setLang(lang === "fr" ? "en" : "fr")}
@@ -165,8 +202,7 @@ export default function AuthPage() {
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
-            backgroundImage:
-              "linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)",
+            backgroundImage: "linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)",
             backgroundSize: "60px 60px",
           }}
         />
@@ -304,9 +340,7 @@ export default function AuthPage() {
               {/* Error */}
               {error && error === "user_not_found" && (
                 <div className="p-4 rounded-2xl bg-mauve/10 border border-mauve/20 animate-fade-in">
-                  <p className="text-sm font-bold text-mauve-light mb-2">
-                    {tx.auth.noAccountFound}
-                  </p>
+                  <p className="text-sm font-bold text-mauve-light mb-2">{tx.auth.noAccountFound}</p>
                   <button
                     type="button"
                     onClick={toggleMode}
@@ -342,26 +376,36 @@ export default function AuthPage() {
                 className="w-full flex items-center justify-center gap-3 py-4 rounded-full bg-gradient-to-r from-mauve to-mauve-dark text-white font-bold hover:from-mauve-light hover:to-mauve transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-lg shadow-mauve/25 hover:shadow-mauve/40 hover:scale-[1.01] active:scale-[0.99]"
               >
                 {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>{tx.common.loading}</span>
-                  </>
+                  <><Loader2 className="w-5 h-5 animate-spin" /><span>{tx.common.loading}</span></>
                 ) : (
                   <>
                     {isLogin ? (
-                      <>
-                        <Sparkles className="w-5 h-5" />
-                        <span>{tx.auth.signIn}</span>
-                      </>
+                      <><Sparkles className="w-5 h-5" /><span>{tx.auth.signIn}</span></>
                     ) : (
-                      <>
-                        <Sparkles className="w-5 h-5" />
-                        <span>{tx.auth.createMyAccount}</span>
-                      </>
+                      <><Sparkles className="w-5 h-5" /><span>{tx.auth.createMyAccount}</span></>
                     )}
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
+              </button>
+
+              {/* Google Sign-In Divider */}
+              <div className="relative flex items-center justify-center my-2">
+                <div className="absolute inset-x-0 h-px bg-border" />
+                <span className="relative bg-transparent px-4 text-[11px] font-bold text-muted-foreground/50">
+                  {lang === "fr" ? "ou continuer avec" : "or continue with"}
+                </span>
+              </div>
+
+              {/* Google Button */}
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={googleLoading}
+                className="w-full flex items-center justify-center gap-3 py-3.5 rounded-full bg-white/5 border border-border text-foreground font-bold hover:bg-white/10 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+              >
+                {googleLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : GOOGLE_ICON}
+                <span>{lang === "fr" ? "Continuer avec Google" : "Continue with Google"}</span>
               </button>
 
               {/* Legal notice — register only */}

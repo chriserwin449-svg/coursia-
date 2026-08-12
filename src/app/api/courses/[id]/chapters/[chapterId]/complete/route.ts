@@ -80,6 +80,8 @@ export async function POST(
         if (prevType.id !== newType.id) {
           await createNotification({ userId, type: "flame_tier_up", title: `${newType.emoji} ${newType.name}`, message: `You reached ${updated.flamePoints} flame points!`, data: { points: updated.flamePoints, tierId: newType.id } });
         }
+        // Notify flame points earned
+        await createNotification({ userId, type: "flame_points_earned", title: `🔥 +${flamePoints}`, message: `Chapter completed! +${flamePoints} flame points`, data: { points: flamePoints, reason: "chapter_complete", courseId: chapter.courseId } });
       }
     }
 

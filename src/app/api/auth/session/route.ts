@@ -1,17 +1,20 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-export async function GET() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    return NextResponse.json({ user: null });
+/**
+ * GET /api/auth/session
+ * Returns the current NextAuth session (used after Google OAuth to extract user info).
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user) {
+      return NextResponse.json({ error: "No session" }, { status: 401 });
+    }
+    return NextResponse.json({ session });
+  } catch (error) {
+    console.error("[auth-session] Error:", error);
+    return NextResponse.json({ error: "Failed to get session" }, { status: 500 });
   }
-  return NextResponse.json({
-    user: {
-      id: session.user.id,
-      name: session.user.name,
-      email: session.user.email,
-    },
-  });
 }

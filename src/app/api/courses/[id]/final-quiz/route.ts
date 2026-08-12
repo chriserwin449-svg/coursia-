@@ -226,6 +226,14 @@ export async function PUT(
               data: { points: updatedSettings.flamePoints, tierId: newType.id },
             });
           }
+          // Notify flame points earned
+          await createNotification({
+            userId,
+            type: "flame_points_earned",
+            title: `🔥 +${bonusPoints}`,
+            message: `Final quiz passed! +${bonusPoints} flame points`,
+            data: { points: bonusPoints, reason: "course_complete", courseId },
+          });
         }
       }
     }
