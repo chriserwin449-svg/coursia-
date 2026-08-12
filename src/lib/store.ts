@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { identifyUser, resetUser } from "./posthog";
 
-export type AppView = "landing" | "auth" | "create" | "library" | "viewer" | "journey" | "offers";
+export type AppView = "landing" | "auth" | "create" | "library" | "viewer" | "journey" | "offers" | "notifications";
 export type AppLang = "fr" | "en";
 
 export interface UserData {

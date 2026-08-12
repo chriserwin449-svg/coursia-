@@ -145,8 +145,8 @@ export default function LegalPage({ type }: { type: "privacy" | "terms" }) {
                 <section>
                   <h3 className="text-xl font-bold text-foreground mb-4">9. {lang === "fr" ? "Contact" : "Contact"}</h3>
                   <p>{lang === "fr"
-                    ? "Pour toute question concernant cette politique de confidentialité, contactez-nous à : support@coursia.app"
-                    : "For any questions regarding this privacy policy, contact us at: support@coursia.app"}</p>
+                    ? "Pour toute question concernant cette politique de confidentialité, contactez-nous à : hellocoursia@gmail.com"
+                    : "For any questions regarding this privacy policy, contact us at: hellocoursia@gmail.com"}</p>
                 </section>
               </div>
             </>
@@ -253,8 +253,8 @@ export default function LegalPage({ type }: { type: "privacy" | "terms" }) {
                 <section>
                   <h3 className="text-xl font-bold text-foreground mb-4">11. {lang === "fr" ? "Contact" : "Contact"}</h3>
                   <p>{lang === "fr"
-                    ? "Pour toute question concernant ces Conditions d\'utilisation, contactez-nous à : support@coursia.app"
-                    : "For any questions regarding these Terms of Use, contact us at: support@coursia.app"}</p>
+                    ? "Pour toute question concernant ces Conditions d\'utilisation, contactez-nous à : hellocoursia@gmail.com"
+                    : "For any questions regarding these Terms of Use, contact us at: hellocoursia@gmail.com"}</p>
                 </section>
               </div>
             </>

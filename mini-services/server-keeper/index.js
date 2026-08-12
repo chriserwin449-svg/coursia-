@@ -15,7 +15,7 @@ function startServer() {
   }
   
   log('Starting Next.js dev server...');
-  serverProcess = spawn('npx', ['next', 'dev', '-p', '3000'], {
+  serverProcess = spawn('bun', ['run', 'dev'], {
     cwd: '/home/z/my-project',
     env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=512' },
     stdio: ['ignore', 'pipe', 'pipe'],

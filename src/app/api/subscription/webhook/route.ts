@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyWebhookSignature } from "@/lib/paypal";
+import { createNotification } from "@/lib/create-notification";
 
 // ─── Security headers ────────────────────────────────────────────────────
 function securityHeaders(): HeadersInit {
@@ -138,13 +139,24 @@ async function activateSubscription(
       `[webhook] Subscription activated for user ${userId.slice(0, 8)}..., plan=${plan}, subId=${subscriptionId.slice(0, 12)}..., ends=${endDate.toISOString()}`
     );
 
+    // Notify user of subscription activation
+    try {
+      const planNames: Record<string, string> = { monthly: "Mensuel", annual: "Annuel" };
+      await createNotification({
+        userId,
+        type: "payment_success",
+        title: `${planNames[plan] || plan} Plan`,
+        message: `Your ${plan} subscription has been activated successfully!`,
+        data: { plan, subscriptionId },
+      });
+    } catch { /* silent */ }
+
     return { activated: true, wasAlreadyActive: false };
   } catch (error) {
     console.error("[webhook] Failed to activate subscription:", error);
     return { activated: false, wasAlreadyActive: false };
   }
 }
-
 // ─── Extend subscription end date on recurring payment ───────────────────
 // Called when PAYMENT.SALE.COMPLETED fires for an existing subscription.
 // This is the recurring billing event — extends the user's access for another cycle.
@@ -218,6 +230,16 @@ async function markSubscriptionStatus(
       where: { id: user.id },
       data: { subscriptionStatus: status },
     });
+
+    // Notify user of subscription status change
+    try {
+      const notifType = status === "canceled" ? "subscription_canceled" : "subscription_expired";
+      const title = status === "canceled" ? "Subscription canceled" : "Subscription expired";
+      const message = status === "canceled"
+        ? "Your subscription has been canceled. You can reactivate anytime."
+        : "Your subscription has expired. Renew to continue enjoying premium features.";
+      await createNotification({ userId: user.id, type: notifType, title, message, data: { subscriptionId, status } });
+    } catch { /* silent */ }
 
     console.log(
       `[webhook] Subscription ${status} for user ${user.id.slice(0, 8)}... (sub ${subscriptionId.slice(0, 12)}...)`

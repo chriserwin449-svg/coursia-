@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Bell, Share2, Award, Flame, CreditCard, AlertTriangle, Trophy, CheckCheck, Trash2 } from "lucide-react";
+import { Bell, Share2, Award, Flame, CreditCard, AlertTriangle, Trophy, CheckCheck, Trash2, ChevronRight } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 
 interface NotificationData {
@@ -367,6 +367,16 @@ export default function NotificationBell() {
                 </div>
               ))
             )}
+          </div>
+          {/* See all notifications link */}
+          <div className="border-t border-border">
+            <button
+              onClick={() => { setOpen(false); useAppStore.getState().setView("notifications"); }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold text-mauve-light hover:bg-mauve/5 transition-colors cursor-pointer"
+            >
+              {lang === "fr" ? "Voir toutes les notifications" : "See all notifications"}
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}
