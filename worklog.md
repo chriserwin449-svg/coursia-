@@ -57,3 +57,33 @@ Stage Summary:
 - Payment/subscription notifications now sent via webhook (payment_success, subscription_canceled, subscription_expired)
 - Google OAuth env vars configured (needs real Google Console credentials to be functional)
 - All previous features verified working (delete shared course, flame bar, notification badge)
+---
+Task ID: 3
+Agent: Main
+Task: Fix Google OAuth direct flow + redesign mobile LP hero
+
+Work Log:
+- Fixed Google OAuth to use direct flow (no NextAuth intermediate page)
+  - Created /api/auth/google-signin/route.ts — direct redirect to Google consent screen
+  - Created /api/auth/google-callback/route.ts — handles code exchange, user creation, sets cookie
+  - Created /api/auth/google-me/route.ts — reads auth cookie, returns user+token to client
+  - Updated AuthPage.tsx handleGoogleSignIn → simple redirect to /api/auth/google-signin
+  - Updated AuthPage.tsx useEffect for ?googleAuth=1 → reads from /api/auth/google-me instead of NextAuth session
+  - Added googleError handling in URL params
+- Updated Google OAuth credentials in .env with exact user-provided Client ID
+- Redesigned mobile LP hero section:
+  - Reduced top padding on mobile (pt-28 → pt-20 sm:pt-28)
+  - Added 3 feature badges (heroBadges) between description and CTA (hidden on mobile, visible sm+)
+  - Enlarged CTA button (text-lg sm:text-xl, py-5, gap-2.5)
+  - Fixed ArrowRight icon wrapping issue with flex-shrink-0
+  - Added compact topic input field below CTA button in hero
+  - Added quick topic tags (4 of 6) below input
+  - Added trust assertion "No credit card required" with mauve left border
+  - Bottom generate CTA section unchanged and consistent
+- Pushed all changes to GitHub (3 commits: d83d899, a655ddf)
+
+Stage Summary:
+- Google OAuth now uses direct flow — user goes straight from "Continue with Google" to Google consent screen
+- Mobile LP hero now has: badges → CTA → topic input → trust assertion
+- Flow: user types topic → Générer → auth → topic pre-filled in create page
+- All changes pushed to GitHub
