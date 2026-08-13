@@ -8,6 +8,7 @@ import crypto from "crypto";
 export async function GET(request: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   if (!clientId) {
+    console.error("[google-signin] GOOGLE_CLIENT_ID is not set. Env keys:", Object.keys(process.env).filter(k => k.includes("GOOGLE") || k.includes("NEXTAUTH")));
     return NextResponse.json({ error: "Google OAuth not configured" }, { status: 500 });
   }
 

@@ -435,25 +435,28 @@ export default function LandingPage() {
               </button>
             </div>
 
-            {/* Topic Input — compact hero version */}
+            {/* Topic Input — compact hero version with rotating glow border */}
             <div className="lp-stagger max-w-md mb-4" style={{ transitionDelay: '420ms' }}>
-              <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white/[0.04] border border-white/[0.08] focus-within:border-mauve/40 transition-colors overflow-hidden">
-                <Sparkles className="w-4 h-4 text-mauve-light flex-shrink-0 ml-2" />
-                <input
-                  type="text"
-                  value={topicInput}
-                  onChange={(e) => setTopicInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleGenerateFromLP(); }}
-                  placeholder={lang === "fr" ? "Apprendre Python pour le développement web..." : "Learn Python for web development..."}
-                  className="flex-1 min-w-0 bg-transparent text-foreground placeholder:text-muted-foreground/50 text-sm font-medium focus:outline-none py-2.5 px-2"
-                />
-                <button
-                  onClick={handleGenerateFromLP}
-                  className="hero-premium-btn flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 rounded-xl text-white text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap flex-shrink-0"
-                >
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>{lang === "fr" ? "Générer" : "Generate"}</span>
-                </button>
+              <div className="generate-glow rounded-2xl bg-white/[0.04] border border-white/[0.08] focus-within:border-mauve/40 transition-colors overflow-hidden relative">
+                <div className="generate-glow-border absolute inset-0 rounded-2xl pointer-events-none" />
+                <div className="flex items-center gap-2 p-1.5 relative z-10">
+                  <Sparkles className="w-4 h-4 text-mauve-light flex-shrink-0 ml-2" />
+                  <input
+                    type="text"
+                    value={topicInput}
+                    onChange={(e) => setTopicInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleGenerateFromLP(); }}
+                    placeholder={lang === "fr" ? "Apprendre Python pour le développement web..." : "Learn Python for web development..."}
+                    className="flex-1 min-w-0 bg-transparent text-foreground placeholder:text-muted-foreground/50 text-sm font-medium focus:outline-none py-2.5 px-2"
+                  />
+                  <button
+                    onClick={handleGenerateFromLP}
+                    className="hero-premium-btn flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 rounded-xl text-white text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap flex-shrink-0"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>{lang === "fr" ? "Générer" : "Generate"}</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -470,11 +473,10 @@ export default function LandingPage() {
               ))}
             </div>
 
-            {/* Trust assertion — with rotating mauve glow border */}
+            {/* Trust assertion */}
             <div className="lp-stagger max-w-md" style={{ transitionDelay: '540ms' }}>
-              <div className="assertion-glow rounded-xl bg-white/[0.03] border border-mauve/20 px-4 py-3 relative overflow-hidden">
-                <div className="assertion-glow-border absolute inset-0 rounded-xl pointer-events-none" />
-                <p className="text-xs text-center text-muted-foreground/60 leading-relaxed relative z-10">
+              <div className="rounded-xl bg-white/[0.03] border-l-2 border-l-mauve/60 px-4 py-3">
+                <p className="text-xs text-center text-muted-foreground/60 leading-relaxed">
                   {lang === "fr"
                     ? "Aucune carte de crédit requise \u2022 Gratuit pour le premier cours"
                     : "No credit card required \u2022 Free for the first course"}
@@ -1113,22 +1115,23 @@ export default function LandingPage() {
         }
         .animate-fade-in-slide-up { animation: fade-in-slide-up 0.35s ease-out; }
 
-        /* ── Assertion Rotating Glow Border ── */
-        .assertion-glow-border {
+        /* ── Generate Input Rotating Glow Border ── */
+        .generate-glow-border {
           background: conic-gradient(
             from var(--glow-angle, 0deg),
             transparent 0%,
-            rgba(124, 92, 191, 0.6) 10%,
-            rgba(167, 139, 250, 0.8) 20%,
-            transparent 35%,
+            rgba(124, 92, 191, 0.5) 8%,
+            rgba(167, 139, 250, 0.8) 15%,
+            rgba(124, 92, 191, 0.4) 22%,
+            transparent 32%,
             transparent 100%
           );
-          animation: assertion-glow-spin 3s linear infinite;
+          animation: generate-glow-spin 3s linear infinite;
           mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
           mask-composite: exclude;
           -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
           -webkit-mask-composite: xor;
-          padding: 1.5px;
+          padding: 2px;
           border-radius: inherit;
         }
         @property --glow-angle {
@@ -1136,11 +1139,11 @@ export default function LandingPage() {
           initial-value: 0deg;
           inherits: false;
         }
-        @keyframes assertion-glow-spin {
+        @keyframes generate-glow-spin {
           to { --glow-angle: 360deg; }
         }
-        .assertion-glow {
-          box-shadow: 0 0 20px rgba(124, 92, 191, 0.08), 0 0 40px rgba(124, 92, 191, 0.04);
+        .generate-glow {
+          box-shadow: 0 0 15px rgba(124, 92, 191, 0.1), 0 0 30px rgba(124, 92, 191, 0.05);
         }
 
       `}</style>
