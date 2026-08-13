@@ -403,16 +403,18 @@ export default function LandingPage() {
               {tx.landing.heroSubtitleAlt}
             </p>
 
-            {/* Feature Badges */}
+            {/* Feature Badges — colorful */}
             <div className="lp-stagger hidden sm:flex items-stretch gap-3 mb-8 max-w-md" style={{ transitionDelay: '300ms' }}>
-              {heroBadges.map((badge) => {
+              {heroBadges.map((badge, i) => {
                 const Icon = badge.icon;
+                const gradients = ['from-mauve/20 to-purple-600/10 border-mauve/30', 'from-pink-500/15 to-rose-600/10 border-pink-500/25', 'from-orange-500/15 to-amber-600/10 border-orange-500/25'];
+                const iconColors = ['text-mauve-light', 'text-pink-400', 'text-orange-400'];
                 return (
                   <div
                     key={badge.label}
-                    className="flex-1 flex flex-col items-center gap-1.5 px-3 py-3 rounded-2xl bg-white/[0.04] backdrop-blur-sm border border-white/[0.07] text-center"
+                    className={`flex-1 flex flex-col items-center gap-1.5 px-3 py-3 rounded-2xl bg-gradient-to-br ${gradients[i]} backdrop-blur-sm border text-center`}
                   >
-                    <Icon className="w-4 h-4 text-mauve-light" />
+                    <Icon className={`w-4 h-4 ${iconColors[i]}`} />
                     <span className="text-xs font-bold text-foreground leading-tight">{badge.label}</span>
                     <span className="text-[10px] text-muted-foreground/60 leading-snug">{badge.sub}</span>
                   </div>
@@ -468,10 +470,11 @@ export default function LandingPage() {
               ))}
             </div>
 
-            {/* Trust assertion */}
+            {/* Trust assertion — with rotating mauve glow border */}
             <div className="lp-stagger max-w-md" style={{ transitionDelay: '540ms' }}>
-              <div className="rounded-xl bg-white/[0.03] border-l-2 border-l-mauve/60 px-4 py-3">
-                <p className="text-xs text-center text-muted-foreground/60 leading-relaxed">
+              <div className="assertion-glow rounded-xl bg-white/[0.03] border border-mauve/20 px-4 py-3 relative overflow-hidden">
+                <div className="assertion-glow-border absolute inset-0 rounded-xl pointer-events-none" />
+                <p className="text-xs text-center text-muted-foreground/60 leading-relaxed relative z-10">
                   {lang === "fr"
                     ? "Aucune carte de crédit requise \u2022 Gratuit pour le premier cours"
                     : "No credit card required \u2022 Free for the first course"}
@@ -1109,6 +1112,36 @@ export default function LandingPage() {
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
         .animate-fade-in-slide-up { animation: fade-in-slide-up 0.35s ease-out; }
+
+        /* ── Assertion Rotating Glow Border ── */
+        .assertion-glow-border {
+          background: conic-gradient(
+            from var(--glow-angle, 0deg),
+            transparent 0%,
+            rgba(124, 92, 191, 0.6) 10%,
+            rgba(167, 139, 250, 0.8) 20%,
+            transparent 35%,
+            transparent 100%
+          );
+          animation: assertion-glow-spin 3s linear infinite;
+          mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          mask-composite: exclude;
+          -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+          -webkit-mask-composite: xor;
+          padding: 1.5px;
+          border-radius: inherit;
+        }
+        @property --glow-angle {
+          syntax: '<angle>';
+          initial-value: 0deg;
+          inherits: false;
+        }
+        @keyframes assertion-glow-spin {
+          to { --glow-angle: 360deg; }
+        }
+        .assertion-glow {
+          box-shadow: 0 0 20px rgba(124, 92, 191, 0.08), 0 0 40px rgba(124, 92, 191, 0.04);
+        }
 
       `}</style>
     </div>
