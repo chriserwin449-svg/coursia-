@@ -366,7 +366,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ===== HERO SECTION ===== */}
-      <section id="hero" className="lp-section relative overflow-hidden min-h-screen flex items-center px-4 pt-28 pb-20">
+      <section id="hero" className="lp-section relative overflow-hidden min-h-screen flex items-center px-4 pt-20 sm:pt-28 pb-20">
         {/* Grid + Intensified Halos */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div id="hero-grid" className="absolute inset-0 hero-grid"></div>
@@ -399,21 +399,84 @@ export default function LandingPage() {
             </h1>
 
             {/* Description */}
-            <p className="lp-stagger text-lg sm:text-xl text-muted-foreground/80 mb-8 max-w-lg leading-relaxed" style={{ transitionDelay: '240ms' }}>
+            <p className="lp-stagger text-lg sm:text-xl text-muted-foreground/80 mb-6 max-w-lg leading-relaxed" style={{ transitionDelay: '240ms' }}>
               {tx.landing.heroSubtitleAlt}
             </p>
 
+            {/* Feature Badges */}
+            <div className="lp-stagger hidden sm:flex items-stretch gap-3 mb-8 max-w-md" style={{ transitionDelay: '300ms' }}>
+              {heroBadges.map((badge) => {
+                const Icon = badge.icon;
+                return (
+                  <div
+                    key={badge.label}
+                    className="flex-1 flex flex-col items-center gap-1.5 px-3 py-3 rounded-2xl bg-white/[0.04] backdrop-blur-sm border border-white/[0.07] text-center"
+                  >
+                    <Icon className="w-4 h-4 text-mauve-light" />
+                    <span className="text-xs font-bold text-foreground leading-tight">{badge.label}</span>
+                    <span className="text-[10px] text-muted-foreground/60 leading-snug">{badge.sub}</span>
+                  </div>
+                );
+              })}
+            </div>
+
             {/* CTA Button — rounded-full to match navbar */}
-            <div className="lp-stagger max-w-md mb-8" style={{ transitionDelay: '360ms' }}>
+            <div className="lp-stagger max-w-md mb-6" style={{ transitionDelay: '360ms' }}>
               <button
                 onClick={() => user ? setView("create") : setView("auth")}
-                className="hero-premium-btn w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-full text-white font-bold text-base whitespace-nowrap cursor-pointer"
+                className="hero-premium-btn w-full inline-flex items-center justify-center gap-2.5 px-6 py-5 rounded-full text-white font-bold text-lg sm:text-xl whitespace-nowrap cursor-pointer"
               >
-                <span className="relative z-10 flex items-center gap-2">
+                <span className="relative z-10 flex items-center gap-2.5">
                   {tx.landing.startFree}
-                  <ArrowRight className="w-5 h-5" />
+                  <ArrowRight className="w-5 h-5 flex-shrink-0" />
                 </span>
               </button>
+            </div>
+
+            {/* Topic Input — compact hero version */}
+            <div className="lp-stagger max-w-md mb-4" style={{ transitionDelay: '420ms' }}>
+              <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white/[0.04] border border-white/[0.08] focus-within:border-mauve/40 transition-colors overflow-hidden">
+                <Sparkles className="w-4 h-4 text-mauve-light flex-shrink-0 ml-2" />
+                <input
+                  type="text"
+                  value={topicInput}
+                  onChange={(e) => setTopicInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleGenerateFromLP(); }}
+                  placeholder={lang === "fr" ? "Apprendre Python pour le développement web..." : "Learn Python for web development..."}
+                  className="flex-1 min-w-0 bg-transparent text-foreground placeholder:text-muted-foreground/50 text-sm font-medium focus:outline-none py-2.5 px-2"
+                />
+                <button
+                  onClick={handleGenerateFromLP}
+                  className="hero-premium-btn flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-2.5 rounded-xl text-white text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap flex-shrink-0"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>{lang === "fr" ? "Générer" : "Generate"}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick topic tags */}
+            <div className="lp-stagger flex flex-wrap gap-2 max-w-md mb-6" style={{ transitionDelay: '480ms' }}>
+              {quickTopics.slice(0, 4).map((topic) => (
+                <button
+                  key={topic}
+                  onClick={() => { setTopicInput(topic); }}
+                  className="px-3 py-1.5 rounded-full bg-mauve/10 border border-mauve/20 text-xs text-mauve-light font-medium hover:bg-mauve/20 hover:border-mauve/30 transition-all cursor-pointer"
+                >
+                  {topic}
+                </button>
+              ))}
+            </div>
+
+            {/* Trust assertion */}
+            <div className="lp-stagger max-w-md" style={{ transitionDelay: '540ms' }}>
+              <div className="rounded-xl bg-white/[0.03] border-l-2 border-l-mauve/60 px-4 py-3">
+                <p className="text-xs text-center text-muted-foreground/60 leading-relaxed">
+                  {lang === "fr"
+                    ? "Aucune carte de crédit requise \u2022 Gratuit pour le premier cours"
+                    : "No credit card required \u2022 Free for the first course"}
+                </p>
+              </div>
             </div>
           </div>
 
