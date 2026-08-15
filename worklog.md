@@ -87,3 +87,28 @@ Stage Summary:
 - Mobile LP hero now has: badges → CTA → topic input → trust assertion
 - Flow: user types topic → Générer → auth → topic pre-filled in create page
 - All changes pushed to GitHub
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix Google OAuth authentication, verify LP glow changes, push to GitHub
+
+Work Log:
+- Investigated .env file being repeatedly wiped between sessions (sandbox session management issue)
+- Restored .env with Google OAuth credentials (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
+- Created restore-env.sh script for automatic .env restoration
+- Fixed google-signin/route.ts: redirect_uri now uses NEXTAUTH_URL or x-forwarded headers instead of request origin
+- Fixed google-callback/route.ts: consistent redirect_uri for token exchange, dynamic return URL for final redirect
+- Fixed redirect_uri_mismatch error caused by 127.0.0.1 vs localhost mismatch
+- Added debug logging to OAuth routes
+- Verified LP visual changes already in place: glow on topic input, simple assertion border
+- Verified via VLM screenshot analysis that glow is on input field and assertion has simple left border
+- Tested Google OAuth flow via agent-browser - redirect to Google works correctly
+- Committed and pushed to GitHub
+
+Stage Summary:
+- .env restored with Google credentials (may need re-restoration on new session)
+- Google OAuth code fixed: redirect_uri now correctly uses NEXTAUTH_URL (http://localhost:3000)
+- USER ACTION NEEDED: Must add `http://localhost:3000/api/auth/google-callback` to Google Cloud Console Authorized Redirect URIs
+- LP glow changes confirmed working: rotating mauve glow on input section, simple border-left on assertion
+- Pushed commit bd66bbc to main
