@@ -387,20 +387,20 @@ export default function AuthPage() {
 
               {/* Google Sign-In Divider */}
               <div className="relative flex items-center justify-center my-4">
-                <div className="absolute inset-x-0 h-px bg-border" />
-                <span className="relative bg-night px-4 text-[11px] font-bold text-muted-foreground/50">
+                <div className="absolute inset-x-0 h-px bg-white/10" />
+                <span className="relative bg-night px-4 text-[11px] font-bold text-white/60">
                   {lang === "fr" ? "ou continuer avec" : "or continue with"}
                 </span>
               </div>
 
-              {/* Google Button */}
+              {/* Google Button — White */}
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={googleLoading}
-                className="w-full flex items-center justify-center gap-3 py-4 rounded-full bg-white/5 border border-border text-foreground font-bold hover:bg-white/10 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+                className="w-full flex items-center justify-center gap-3 py-3.5 rounded-full bg-white text-neutral-800 font-semibold hover:bg-white/90 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:scale-[1.01] active:scale-[0.99] shadow-lg shadow-black/10"
               >
-                {googleLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : GOOGLE_ICON}
+                {googleLoading ? <Loader2 className="w-5 h-5 animate-spin text-neutral-500" /> : GOOGLE_ICON}
                 <span className="text-sm">{lang === "fr" ? "Continuer avec Google" : "Continue with Google"}</span>
               </button>
 
