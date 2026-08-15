@@ -160,3 +160,29 @@ Stage Summary:
 - Credentials loaded from google-oauth.json which persists across sessions
 - Flame deduction for course creation now functional (100 flames per course after free limit)
 - Pushed commit 801d74c to GitHub after cleaning secret history
+
+---
+Task ID: 2
+Agent: Main
+Task: Fix Google OAuth (revert to NextAuth flow) + investigate Flames bar
+
+Work Log:
+- Found "Google OAuth non configuré" error source: custom route `/api/auth/google-signin/route.ts` (created in previous session)
+- Discovered project uses NextAuth.js (not Supabase Auth) with GoogleProvider in `[...nextauth]/route.ts`
+- Found original AuthPage.tsx Google OAuth flow used NextAuth's CSRF + signin endpoint
+- Reverted `AuthPage.tsx` `handleGoogleSignIn` to use `/api/auth/csrf` → `/api/auth/signin/google` flow
+- Reverted `useEffect` to use `/api/auth/session` → `/api/auth/google/callback` (POST) flow
+- Removed custom routes: `google-signin`, `google-callback` (GET), `google-me`, `debug-redirect`
+- Updated `.env` NEXTAUTH_URL to `https://coursia.app`
+- Investigated Flames bar thoroughly:
+  - Verified `/api/flames` API returns correct data (flamePoints, flameProgress, flameType, rewards, transactions)
+  - Verified `getFlameProgress()` calculates percentage correctly
+  - Tested bar with 0 points and 50 points - both display correctly
+  - Bar updates via 8-second polling when on Journey page
+  - Visual rendering confirmed: gradient fill, glow effects, percentage text all correct
+- Flames bar is working correctly - data flow, API, and rendering are all functioning properly
+
+Stage Summary:
+- Google OAuth: Reverted to NextAuth flow, removed all custom OAuth routes
+- Flames bar: Verified working correctly, no code changes needed
+- User needs to configure Google Cloud Console OAuth redirect URI: `https://coursia.app/api/auth/callback/google`

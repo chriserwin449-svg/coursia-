@@ -49,47 +49,57 @@ export default function AuthPage() {
   // Validation helpers
   const isValid = code.length >= 4 && code === confirmCode;
 
-  // ── Google OAuth (direct flow — no NextAuth intermediate page) ──
-  // Pass the browser's origin as baseUrl so the server builds the correct redirect_uri
-  // that matches what the user's browser sees (external Preview Panel URL).
-  const handleGoogleSignIn = () => {
+  // ── Google OAuth via NextAuth ──
+  const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     setError("");
-    const baseUrl = window.location.origin;
-    window.location.href = `/api/auth/google-signin?baseUrl=${encodeURIComponent(baseUrl)}`;
+    try {
+      const res = await fetch("/api/auth/csrf", { cache: "no-store" });
+      const csrfData = await res.json();
+      const csrfToken = csrfData.csrfToken;
+      const callbackUrl = encodeURIComponent(window.location.origin + "/?googleAuth=1");
+      window.location.href = `/api/auth/signin/google?csrfToken=${csrfToken}&callbackUrl=${callbackUrl}`;
+    } catch {
+      setError(lang === "fr" ? "Erreur de connexion Google" : "Google sign-in error");
+      setGoogleLoading(false);
+    }
   };
 
-  // Handle redirect back from Google OAuth — read auth data from cookie
+  // Handle redirect back from Google OAuth — get session then create/link user
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const googleAuth = params.get("googleAuth");
-    const googleError = params.get("googleError");
-
-    if (googleError) {
-      setError(lang === "fr"
-        ? "Erreur de connexion Google. Veuillez réessayer."
-        : "Google sign-in failed. Please try again.");
-      window.history.replaceState({}, "", "/");
-      return;
-    }
-
-    if (googleAuth === "1") {
-      // Read auth data from the httpOnly cookie via a small API
+    if (params.get("googleAuth") === "1") {
       const doGoogleCallback = async () => {
         try {
-          const res = await fetch("/api/auth/google-me");
-          const data = await res.json();
-          if (res.ok && data.user) {
-            setUser(data.user);
-            if (data.token) setAuthToken(data.token);
-            if (typeof window !== "undefined") {
-              localStorage.setItem("coursia-user-data", JSON.stringify(data.user));
+          const sessionRes = await fetch("/api/auth/session");
+          const sessionData = await sessionRes.json();
+          if (sessionData.session?.user) {
+            const gUser = sessionData.session.user;
+            const nameParts = (gUser.name || "").split(" ");
+            const cbRes = await fetch("/api/auth/google/callback", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                email: gUser.email,
+                name: gUser.name,
+                given_name: gUser.firstName || nameParts[0],
+                family_name: gUser.lastName || nameParts.slice(1).join(" "),
+                picture: gUser.image,
+              }),
+            });
+            const cbData = await cbRes.json();
+            if (cbRes.ok && cbData.user) {
+              setUser(cbData.user);
+              if (cbData.token) setAuthToken(cbData.token);
+              if (typeof window !== "undefined") {
+                localStorage.setItem("coursia-user-data", JSON.stringify(cbData.user));
+              }
+              setView("create");
+              trackEvent({ name: cbData.isNewUser ? "signup_google" : "login_google" });
+              window.history.replaceState({}, "", "/");
+            } else {
+              setError(cbData.error || (lang === "fr" ? "Erreur Google Auth" : "Google Auth error"));
             }
-            setView("create");
-            trackEvent({ name: data.isNewUser ? "signup_google" : "login_google" });
-            window.history.replaceState({}, "", "/");
-          } else {
-            setError(data.error || (lang === "fr" ? "Erreur Google Auth" : "Google Auth error"));
           }
         } catch {
           setError(lang === "fr" ? "Erreur Google Auth" : "Google Auth error");
