@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { signIn } from "next-auth/react";
 import { trackEvent } from "@/lib/analytics";
 import {
   Mail,
@@ -49,21 +50,15 @@ export default function AuthPage() {
   // Validation helpers
   const isValid = code.length >= 4 && code === confirmCode;
 
-  // ── Google OAuth via NextAuth ──
-  const handleGoogleSignIn = async () => {
+  // ── Google OAuth via NextAuth (direct redirect, no intermediate page) ──
+  const handleGoogleSignIn = useCallback(() => {
     setGoogleLoading(true);
     setError("");
-    try {
-      const res = await fetch("/api/auth/csrf", { cache: "no-store" });
-      const csrfData = await res.json();
-      const csrfToken = csrfData.csrfToken;
-      const callbackUrl = encodeURIComponent(window.location.origin + "/?googleAuth=1");
-      window.location.href = `/api/auth/signin/google?csrfToken=${csrfToken}&callbackUrl=${callbackUrl}`;
-    } catch {
-      setError(lang === "fr" ? "Erreur de connexion Google" : "Google sign-in error");
-      setGoogleLoading(false);
-    }
-  };
+    signIn("google", {
+      callbackUrl: `${window.location.origin}/?googleAuth=1`,
+      redirect: true,
+    });
+  }, []);
 
   // Handle redirect back from Google OAuth — get session then create/link user
   useEffect(() => {
@@ -391,9 +386,9 @@ export default function AuthPage() {
               </button>
 
               {/* Google Sign-In Divider */}
-              <div className="relative flex items-center justify-center my-2">
+              <div className="relative flex items-center justify-center my-4">
                 <div className="absolute inset-x-0 h-px bg-border" />
-                <span className="relative bg-transparent px-4 text-[11px] font-bold text-muted-foreground/50">
+                <span className="relative bg-night px-4 text-[11px] font-bold text-muted-foreground/50">
                   {lang === "fr" ? "ou continuer avec" : "or continue with"}
                 </span>
               </div>
@@ -403,10 +398,10 @@ export default function AuthPage() {
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={googleLoading}
-                className="w-full flex items-center justify-center gap-3 py-3.5 rounded-full bg-white/5 border border-border text-foreground font-bold hover:bg-white/10 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+                className="w-full flex items-center justify-center gap-3 py-4 rounded-full bg-white/5 border border-border text-foreground font-bold hover:bg-white/10 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
               >
                 {googleLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : GOOGLE_ICON}
-                <span>{lang === "fr" ? "Continuer avec Google" : "Continue with Google"}</span>
+                <span className="text-sm">{lang === "fr" ? "Continuer avec Google" : "Continue with Google"}</span>
               </button>
 
               {/* Legal notice — register only */}
