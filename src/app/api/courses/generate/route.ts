@@ -4,6 +4,7 @@ import { smartChatCompletion, classifyAIError, AllProvidersFailedError, getZAI }
 import { MAX_SOURCE_LINKS, MAX_TOKENS, MIN_CHAPTERS, MAX_CHAPTERS } from "@/lib/constants";
 import { isAdmin } from "@/lib/admin";
 import { ensureSchemaUpToDate } from "@/lib/auto-migrate";
+import { COURSE_CREATION_COST } from "@/lib/flames";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COLUMN MIGRATION (ensure freeCourseUsed & hasCardOnFile exist)
@@ -900,6 +901,7 @@ export async function POST(request: NextRequest) {
       await ensureFreeCourseColumn();
 
       let freeSlotClaimed = false;
+      let chargedFlames = false;
       try {
         let canGenerate = false;
         await db.$transaction(async (tx) => {
@@ -912,9 +914,21 @@ export async function POST(request: NextRequest) {
             canGenerate = true;
             return;
           }
-          // Free course already used → BLOCK
+          // Free course already used → check flame balance
           if (user?.freeCourseUsed) {
-            canGenerate = false;
+            const settings = await tx.appSettings.findUnique({ where: { id: userId } });
+            const balance = settings?.flamePoints ?? 0;
+            if (balance < COURSE_CREATION_COST) {
+              canGenerate = false;
+              return;
+            }
+            // Deduct flames atomically
+            await tx.appSettings.update({
+              where: { id: userId },
+              data: { flamePoints: balance - COURSE_CREATION_COST },
+            });
+            chargedFlames = true;
+            canGenerate = true;
             return;
           }
           // First free course → claim the slot ATOMICALLY (prevents race conditions)
@@ -926,10 +940,10 @@ export async function POST(request: NextRequest) {
           freeSlotClaimed = true;
         });
         if (!canGenerate) {
-          console.log(`[generate] Free limit reached for user ${userId}: freeCourseUsed=true, subscription not active`);
-          return NextResponse.json({ error: "FREE_LIMIT", requiresSubscription: true }, { status: 403 });
+          console.log(`[generate] Free limit reached for user ${userId}: no free slot and insufficient flames`);
+          return NextResponse.json({ error: "FREE_LIMIT", requiresSubscription: true, requiresFlames: COURSE_CREATION_COST }, { status: 403 });
         }
-        console.log(`[generate] User quota OK: freeCourseUsed now claimed for user ${userId}`);
+        console.log(`[generate] User quota OK: freeCourseUsed=${freeSlotClaimed} chargedFlames=${chargedFlames} for user ${userId}`);
       } catch (dbError) {
         const errMsg = dbError instanceof Error ? dbError.message : String(dbError);
         console.error("[generate] DB error checking quota:", errMsg);
@@ -1075,6 +1089,10 @@ export async function POST(request: NextRequest) {
       }
       console.log(`[generate] Fallback succeeded: ${fallbackResult.chapters.length} chapters`);
       const course = await saveCourse(title, level, userId, sourceLinks, fallbackResult.description, fallbackResult.chapters, scrapedPages.length);
+      if (chargedFlames && userId) {
+        await db.course.update({ where: { id: course.id }, data: { flameCost: COURSE_CREATION_COST } });
+        await db.flameTransaction.create({ data: { amount: -COURSE_CREATION_COST, reason: "course_creation", userId, courseId: course.id } });
+      }
       logStep("save_end");
       logDuration("start", "save_end");
       console.log(`[generate] ═══ TOTAL TIME: ${((Date.now() - startTime) / 1000).toFixed(1)}s ═══`);
@@ -1161,6 +1179,10 @@ export async function POST(request: NextRequest) {
     // ── Step 3: Save ──
     logStep("save_start");
     const course = await saveCourse(title, level, userId, sourceLinks, outline.description, generatedChapters, scrapedPages.length);
+    if (chargedFlames && userId) {
+      await db.course.update({ where: { id: course.id }, data: { flameCost: COURSE_CREATION_COST } });
+      await db.flameTransaction.create({ data: { amount: -COURSE_CREATION_COST, reason: "course_creation", userId, courseId: course.id } });
+    }
     logStep("save_end");
     logDuration("save_start", "save_end");
     logDuration("start", "save_end");

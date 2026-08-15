@@ -69,3 +69,6 @@ tool-results/
 
 # uploads
 upload/
+
+# Google OAuth secrets (NOT in repo — contains credentials)
+google-oauth.json

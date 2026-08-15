@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import crypto from "crypto";
+import { getGoogleOAuthCredentials } from "@/lib/google-oauth-config";
 
 function generateToken(userId: string): string {
   return crypto.randomBytes(32).toString("hex");
@@ -55,8 +56,7 @@ export async function GET(request: NextRequest) {
     console.log("[google-callback] Token exchange redirect_uri:", redirectUri, "| returnBase:", returnBase);
 
     // Exchange code for access token
-    const clientId = process.env.GOOGLE_CLIENT_ID || "";
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
+    const { clientId, clientSecret } = getGoogleOAuthCredentials();
 
     if (!clientId || !clientSecret) {
       console.error("[google-callback] Missing Google credentials");

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { getGoogleOAuthCredentials } from "@/lib/google-oauth-config";
 
 /**
  * GET /api/auth/google-signin?baseUrl=<origin>
@@ -9,9 +10,9 @@ import crypto from "crypto";
  * sees, which is required for Google OAuth to work through reverse proxies.
  */
 export async function GET(request: NextRequest) {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const { clientId } = getGoogleOAuthCredentials();
   if (!clientId) {
-    console.error("[google-signin] GOOGLE_CLIENT_ID missing.");
+    console.error("[google-signin] No GOOGLE_CLIENT_ID available.");
     return NextResponse.json({ error: "Google OAuth non configuré" }, { status: 500 });
   }
 
