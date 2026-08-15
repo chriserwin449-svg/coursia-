@@ -23,24 +23,30 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get("state");
     const error = searchParams.get("error");
 
-    const origin = request.headers.get("origin") || process.env.NEXTAUTH_URL || "http://localhost:3000";
+    // Use NEXTAUTH_URL for redirect_uri in token exchange — must match the one used in signin
+    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+    // For the final redirect back to the app, use the request host
+    const requestHost = request.headers.get("host") || "localhost:3000";
+    const requestProto = request.headers.get("x-forwarded-proto") || "http";
+    const returnBase = `${requestProto}://${requestHost.replace(/:\d+$/, "")}`;
 
     if (error) {
       console.error("[google-callback] Google error:", error);
-      return NextResponse.redirect(`${origin}/?googleError=${encodeURIComponent(error)}`);
+      return NextResponse.redirect(`${returnBase}/?googleError=${encodeURIComponent(error)}`);
     }
 
     // Verify state
     const storedState = request.cookies.get("google_oauth_state")?.value;
     if (!code || !state || state !== storedState) {
-      console.error("[google-callback] Invalid state");
-      return NextResponse.redirect(`${origin}/?googleError=invalid_state`);
+      console.error("[google-callback] Invalid state. Stored:", storedState?.substring(0, 8), "Received:", state?.substring(0, 8));
+      return NextResponse.redirect(`${returnBase}/?googleError=invalid_state`);
     }
 
-    // Exchange code for access token
+    // Exchange code for access token — redirect_uri must match the one from signin
     const clientId = process.env.GOOGLE_CLIENT_ID || "";
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
-    const redirectUri = `${origin}/api/auth/google-callback`;
+    const redirectUri = `${baseUrl}/api/auth/google-callback`;
+    console.log("[google-callback] Exchanging token with redirect_uri:", redirectUri);
 
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -57,7 +63,7 @@ export async function GET(request: NextRequest) {
     const tokens = await tokenRes.json();
     if (!tokens.access_token) {
       console.error("[google-callback] Token exchange failed:", tokens);
-      return NextResponse.redirect(`${origin}/?googleError=token_failed`);
+      return NextResponse.redirect(`${returnBase}/?googleError=token_failed`);
     }
 
     // Get user info from Google
@@ -68,7 +74,7 @@ export async function GET(request: NextRequest) {
 
     if (!gUser.email) {
       console.error("[google-callback] No email from Google");
-      return NextResponse.redirect(`${origin}/?googleError=no_email`);
+      return NextResponse.redirect(`${returnBase}/?googleError=no_email`);
     }
 
     const emailLower = gUser.email.toLowerCase().trim();
@@ -134,7 +140,7 @@ export async function GET(request: NextRequest) {
         console.log(`✅ [google-callback] New user created via Google: ${emailLower}`);
       } catch (err) {
         console.error("[google-callback] User creation error:", err);
-        return NextResponse.redirect(`${origin}/?googleError=create_failed`);
+        return NextResponse.redirect(`${returnBase}/?googleError=create_failed`);
       }
     }
 
@@ -154,7 +160,7 @@ export async function GET(request: NextRequest) {
       isNewUser,
     });
 
-    const response = NextResponse.redirect(`${origin}/?googleAuth=1`);
+    const response = NextResponse.redirect(`${returnBase}/?googleAuth=1`);
     response.cookies.delete("google_oauth_state");
     response.cookies.set("google_auth_data", Buffer.from(authPayload).toString("base64"), {
       httpOnly: true,
@@ -167,7 +173,7 @@ export async function GET(request: NextRequest) {
     return response;
   } catch (error) {
     console.error("[google-callback] Unhandled error:", error);
-    const origin = request.headers.get("origin") || process.env.NEXTAUTH_URL || "http://localhost:3000";
-    return NextResponse.redirect(`${origin}/?googleError=server_error`);
+    const fallbackUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+    return NextResponse.redirect(`${fallbackUrl}/?googleError=server_error`);
   }
 }
