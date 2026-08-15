@@ -23,10 +23,8 @@ export async function GET(request: NextRequest) {
     const state = searchParams.get("state");
     const error = searchParams.get("error");
 
-    // Use NEXTAUTH_URL for redirect_uri in token exchange — must match the one used in signin
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    // For the final redirect back to the app, use the request host
-    const requestHost = request.headers.get("host") || "localhost:3000";
+    // Detect return URL from request host (what the user's browser will accept)
+    const requestHost = request.headers.get("host") || "localhost";
     const requestProto = request.headers.get("x-forwarded-proto") || "http";
     const returnBase = `${requestProto}://${requestHost.replace(/:\d+$/, "")}`;
 
@@ -38,15 +36,32 @@ export async function GET(request: NextRequest) {
     // Verify state
     const storedState = request.cookies.get("google_oauth_state")?.value;
     if (!code || !state || state !== storedState) {
-      console.error("[google-callback] Invalid state. Stored:", storedState?.substring(0, 8), "Received:", state?.substring(0, 8));
+      console.error("[google-callback] State mismatch. Stored:", storedState?.substring(0, 8), "Got:", state?.substring(0, 8));
       return NextResponse.redirect(`${returnBase}/?googleError=invalid_state`);
     }
 
-    // Exchange code for access token — redirect_uri must match the one from signin
+    // Build redirect_uri for token exchange — must match what was used in signin
+    // Priority: X-Forwarded-Host > NEXTAUTH_URL > request host
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    let tokenExchangeBase: string;
+    if (forwardedHost) {
+      const proto = request.headers.get("x-forwarded-proto") || "https";
+      tokenExchangeBase = `${proto}://${forwardedHost.replace(/:\d+$/, "")}`;
+    } else {
+      tokenExchangeBase = process.env.NEXTAUTH_URL || returnBase;
+    }
+
+    const redirectUri = `${tokenExchangeBase}/api/auth/google-callback`;
+    console.log("[google-callback] Token exchange redirect_uri:", redirectUri, "| returnBase:", returnBase);
+
+    // Exchange code for access token
     const clientId = process.env.GOOGLE_CLIENT_ID || "";
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
-    const redirectUri = `${baseUrl}/api/auth/google-callback`;
-    console.log("[google-callback] Exchanging token with redirect_uri:", redirectUri);
+
+    if (!clientId || !clientSecret) {
+      console.error("[google-callback] Missing Google credentials");
+      return NextResponse.redirect(`${returnBase}/?googleError=not_configured`);
+    }
 
     const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
       method: "POST",
@@ -62,7 +77,7 @@ export async function GET(request: NextRequest) {
 
     const tokens = await tokenRes.json();
     if (!tokens.access_token) {
-      console.error("[google-callback] Token exchange failed:", tokens);
+      console.error("[google-callback] Token exchange failed:", JSON.stringify(tokens));
       return NextResponse.redirect(`${returnBase}/?googleError=token_failed`);
     }
 

@@ -2,39 +2,49 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
 /**
- * GET /api/auth/google-signin
- * Direct redirect to Google OAuth — skips NextAuth's intermediate page.
+ * GET /api/auth/google-signin?baseUrl=<origin>
+ *
+ * The client passes its `window.location.origin` as `baseUrl` query param.
+ * This ensures the redirect_uri matches the external URL the user's browser
+ * sees, which is required for Google OAuth to work through reverse proxies.
  */
 export async function GET(request: NextRequest) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   if (!clientId) {
-    console.error("[google-signin] GOOGLE_CLIENT_ID is not set. Env keys:", Object.keys(process.env).filter(k => k.includes("GOOGLE") || k.includes("NEXTAUTH")));
+    console.error("[google-signin] GOOGLE_CLIENT_ID missing.");
     return NextResponse.json({ error: "Google OAuth non configuré" }, { status: 500 });
   }
 
-  // Build base URL:
-  // 1. If behind a reverse proxy (Caddy), use forwarded headers for the external URL
-  // 2. Otherwise fall back to NEXTAUTH_URL or localhost
-  const forwardedProto = request.headers.get("x-forwarded-proto") || "http";
-  const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || "localhost:3000";
-  
-  // Check if we're behind a proxy (forwarded host differs from direct access)
-  const directHost = request.headers.get("host") || "localhost:3000";
-  const hasForwardedHeaders = request.headers.get("x-forwarded-host") !== null;
-  
-  let baseUrl: string;
-  if (hasForwardedHeaders && request.headers.get("x-forwarded-host") !== directHost) {
-    // Behind a reverse proxy — use the external URL
-    const host = forwardedHost.replace(/:\d+$/, "");
-    baseUrl = `${forwardedProto}://${host}`;
-  } else {
-    // Direct access or no proxy — use NEXTAUTH_URL
-    baseUrl = process.env.NEXTAUTH_URL || `http://${directHost.replace(/:\d+$/, "")}`;
+  // 1. Use client-provided baseUrl (from query param) — most reliable for external access
+  // 2. Fall back to X-Forwarded-Host header
+  // 3. Fall back to NEXTAUTH_URL env var
+  // 4. Fall back to request Host header
+  const { searchParams } = new URL(request.url);
+  let baseUrl = searchParams.get("baseUrl") || "";
+
+  if (!baseUrl) {
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    if (forwardedHost) {
+      const proto = request.headers.get("x-forwarded-proto") || "https";
+      baseUrl = `${proto}://${forwardedHost.replace(/:\d+$/, "")}`;
+    }
   }
-  
+
+  if (!baseUrl) {
+    baseUrl = process.env.NEXTAUTH_URL || "";
+  }
+
+  if (!baseUrl) {
+    const host = request.headers.get("host") || "localhost:3000";
+    baseUrl = `http://${host.replace(/:\d+$/, "")}`;
+  }
+
+  // Clean up: remove trailing slash
+  baseUrl = baseUrl.replace(/\/+$/, "");
+
   const redirectUri = `${baseUrl}/api/auth/google-callback`;
 
-  console.log("[google-signin] redirect_uri:", redirectUri, "| host:", directHost, "| forwarded:", forwardedHost, "| proto:", forwardedProto);
+  console.log("[google-signin] redirect_uri:", redirectUri);
 
   const state = crypto.randomBytes(32).toString("hex");
 

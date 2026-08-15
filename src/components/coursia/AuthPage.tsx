@@ -50,10 +50,13 @@ export default function AuthPage() {
   const isValid = code.length >= 4 && code === confirmCode;
 
   // ── Google OAuth (direct flow — no NextAuth intermediate page) ──
+  // Pass the browser's origin as baseUrl so the server builds the correct redirect_uri
+  // that matches what the user's browser sees (external Preview Panel URL).
   const handleGoogleSignIn = () => {
     setGoogleLoading(true);
     setError("");
-    window.location.href = "/api/auth/google-signin";
+    const baseUrl = window.location.origin;
+    window.location.href = `/api/auth/google-signin?baseUrl=${encodeURIComponent(baseUrl)}`;
   };
 
   // Handle redirect back from Google OAuth — read auth data from cookie
