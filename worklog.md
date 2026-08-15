@@ -186,3 +186,33 @@ Stage Summary:
 - Google OAuth: Reverted to NextAuth flow, removed all custom OAuth routes
 - Flames bar: Verified working correctly, no code changes needed
 - User needs to configure Google Cloud Console OAuth redirect URI: `https://coursia.app/api/auth/callback/google`
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: White Google button + TikTok-style viral trend carousels
+
+Work Log:
+- Fixed AuthPage.tsx Google button: changed from dark transparent (bg-white/5 border-border) to pure white background (bg-white text-neutral-800) with subtle shadow
+- Updated "ou continuer avec" divider line and text to white/10 and white/60 for visibility
+- Created TikTok-style trend carousel section in LandingPage.tsx with:
+  - 6 conversation-style social proof cards (both FR and EN)
+  - Each card: profile header with avatar emoji, verified badge, username, timestamp
+  - Chat-style messages between friend and Coursia user showing learning journey
+  - Topic badge with color gradient (Piano, Video Editing, Pastry, Python, Design, Finance)
+  - Engagement bar with likes, comments, shares, send icons
+  - Auto-advance carousel (5s interval) with AnimatePresence transitions
+  - Dot indicators and desktop navigation arrows (ChevronLeft/ChevronRight)
+  - CTA card after carousel: "Et toi, c'est quand?" with flame icons and CTA button
+- Added "Tendances"/"Trends" link to desktop navbar and mobile dropdown
+- Added new imports (Heart, Share2, Play, ChevronLeft, ChevronRight, MessageCircle, Send)
+- Added CSS for trend-card hover effects
+- Verified via browser: Google button confirmed white (rgb 255,255,255) with dark text, carousel auto-advances, all elements render correctly, no console errors
+- Pushed commit 76bc1e5 to GitHub
+
+Stage Summary:
+- Google sign-in button is now white with dark text as requested
+- TikTok-style trend carousels added with 6 conversation-style viral social proof cards
+- CTA section "Et toi, c'est quand?" placed after carousel
+- Navigation links updated to include "Tendances"/"Trends"
+- All changes verified working in browser, pushed to GitHub
