@@ -277,17 +277,18 @@ export default function AppShell() {
   const setHasNotification = useAppStore((s) => s.setHasNotification);
   const notificationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [googleAuthenticating, setGoogleAuthenticating] = useState(false);
 
-  // ── Handle Google OAuth callback at AppShell level (always mounted) ──
-  // This runs BEFORE the LandingPage renders, so user never sees the LP flash
+  // ── Synchronous Google OAuth detection (BEFORE first render, no LP flash) ──
+  const [googleAuthenticating, setGoogleAuthenticating] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const isGoogleAuth = new URLSearchParams(window.location.search).get("googleAuth") === "1";
+    if (isGoogleAuth) window.history.replaceState({}, "", "/");
+    return isGoogleAuth;
+  });
+
+  // ── Process Google OAuth callback ──
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("googleAuth") !== "1") return;
-
-    setGoogleAuthenticating(true);
-    window.history.replaceState({}, "", "/");
+    if (!googleAuthenticating) return;
 
     const doGoogleCallback = async () => {
       try {
