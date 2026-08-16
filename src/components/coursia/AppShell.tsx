@@ -266,14 +266,73 @@ function MobileSlideOver({ open, onClose }: { open: boolean; onClose: () => void
 
 export default function AppShell() {
   const view = useAppStore((s) => s.view);
+  const setView = useAppStore((s) => s.setView);
   const legalPage = useAppStore((s) => s.legalPage);
   const collapsed = useAppStore((s) => s.sidebarCollapsed);
+  const lang = useAppStore((s) => s.lang);
   const user = useAppStore((s) => s.user);
+  const setUser = useAppStore((s) => s.setUser);
   const setAuthToken = useAppStore((s) => s.setAuthToken);
   const userId = useAppStore((s) => s.userId);
   const setHasNotification = useAppStore((s) => s.setHasNotification);
   const notificationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [googleAuthenticating, setGoogleAuthenticating] = useState(false);
+
+  // ── Handle Google OAuth callback at AppShell level (always mounted) ──
+  // This runs BEFORE the LandingPage renders, so user never sees the LP flash
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("googleAuth") !== "1") return;
+
+    setGoogleAuthenticating(true);
+    window.history.replaceState({}, "", "/");
+
+    const doGoogleCallback = async () => {
+      try {
+        const sessionRes = await fetch("/api/auth/session");
+        const sessionData = await sessionRes.json();
+        if (sessionData.session?.user) {
+          const gUser = sessionData.session.user;
+          const nameParts = (gUser.name || "").split(" ");
+          const cbRes = await fetch("/api/auth/google/callback", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: gUser.email,
+              name: gUser.name,
+              given_name: gUser.firstName || nameParts[0],
+              family_name: gUser.lastName || nameParts.slice(1).join(" "),
+              picture: gUser.image,
+            }),
+          });
+          const cbData = await cbRes.json();
+          if (cbRes.ok && cbData.user) {
+            setUser(cbData.user);
+            if (cbData.token) setAuthToken(cbData.token);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("coursia-user-data", JSON.stringify(cbData.user));
+            }
+            setView("create");
+            trackEvent({ name: cbData.isNewUser ? "signup_google" : "login_google" });
+          } else {
+            console.error("[googleAuth] Callback failed:", cbData.error);
+            setView("auth");
+          }
+        } else {
+          console.error("[googleAuth] No session found");
+          setView("auth");
+        }
+      } catch (err) {
+        console.error("[googleAuth] Error:", err);
+        setView("auth");
+      } finally {
+        setGoogleAuthenticating(false);
+      }
+    };
+    doGoogleCallback();
+  }, []);
 
   // Restore session (validates token with server and restores user data)
   useSession();
@@ -588,6 +647,25 @@ export default function AppShell() {
       }
     }
   }, []);
+
+  // ── Google auth loading screen (prevents LP flash) ──
+  if (googleAuthenticating) {
+    return (
+      <div className="min-h-screen bg-night flex flex-col items-center justify-center gap-6">
+        <div className="relative">
+          <div className="w-16 h-16 rounded-full border-4 border-muted-foreground/20 border-t-mauve-light animate-spin" />
+        </div>
+        <div className="text-center space-y-2">
+          <p className="text-lg font-bold text-foreground">
+            {lang === "fr" ? "Connexion en cours..." : "Signing in..."}
+          </p>
+          <p className="text-sm text-muted-foreground/50">
+            {lang === "fr" ? "Connexion via Google" : "Connecting with Google"}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-night">
