@@ -250,3 +250,29 @@ Stage Summary:
 - Security headers and caching in place
 - PWA manifest added for mobile signals
 - All changes pushed to GitHub
+---
+Task ID: 1
+Agent: Main Agent
+Task: Remove TikTok carousel section + Redesign LegalPage (Privacy & Terms)
+
+Work Log:
+- Checked LandingPage.tsx for TikTok carousel section - found it was already removed in previous session
+- Read example CGU page from crediacreation.com/cgu for design reference (dark theme, card-based, bold typography, colored bars, icon-enhanced lists)
+- Read existing LegalPage.tsx (basic layout with simple sections and bullet lists)
+- Completely redesigned LegalPage.tsx with Credia-inspired aesthetic:
+  - Big bold uppercase italic title with mauve accent color
+  - Card-based layout with subtle bg-white/[0.03] and border-white/[0.08]
+  - Section headers with mauve left bar indicator (w-1 h-6 bg-mauve-light rounded-full)
+  - Icon-enhanced list items with colored icons (mint for positive, amber for warnings, red for critical)
+  - Warning/alert boxes (amber for important notices, red for critical warnings)
+  - Reusable SectionBlock and ListItem components
+  - Contact section with highlighted email in mauve box
+  - "Retour à l'accueil" link with arrow animation
+  - Fully bilingual (FR/EN)
+- Verified: no new ESLint errors, Next.js compilation successful, server returns HTTP 200
+
+Stage Summary:
+- TikTok carousel was already removed from LandingPage.tsx
+- LegalPage.tsx completely redesigned with premium dark-theme aesthetic
+- Both privacy policy and terms of use pages updated
+- Design matches Credia CGU example style adapted to Coursia brand colors
