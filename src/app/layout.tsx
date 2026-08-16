@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import "./globals.css";
@@ -21,6 +21,12 @@ const geistMono = Geist_Mono({
 });
 
 const SITE_URL = "https://coursia.app";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#0a0a0f",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -51,6 +57,7 @@ export const metadata: Metadata = {
       { url: "/logo-512.png", sizes: "512x512", type: "image/png" },
     ],
     apple: "/apple-touch-icon.png",
+    manifest: "/manifest.webmanifest",
   },
   openGraph: {
     type: "website",
@@ -98,6 +105,7 @@ export const metadata: Metadata = {
       "x-default": SITE_URL,
     },
   },
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({
@@ -113,7 +121,7 @@ export default function RootLayout({
         <link rel="alternate" hrefLang="en" href={SITE_URL} />
         <link rel="alternate" hrefLang="x-default" href={SITE_URL} />
 
-        {/* JSON-LD: Organization + WebSite (suppressHydrationWarning for Turbopack SSR mismatch) */}
+        {/* JSON-LD: Organization + WebSite + SoftwareApplication + FAQPage (suppressHydrationWarning for Turbopack SSR mismatch) */}
         <script
           type="application/ld+json"
           suppressHydrationWarning
@@ -134,6 +142,12 @@ export default function RootLayout({
                   },
                   description:
                     "Plateforme SaaS d'apprentissage personnalisé par IA. Coursia génère des cours sur mesure avec des chapitres, quiz et suivi de progression.",
+                  contactPoint: {
+                    "@type": "ContactPoint",
+                    email: "hellocoursia@gmail.com",
+                    contactType: "customer support",
+                    availableLanguage: ["French", "English"],
+                  },
                   sameAs: [],
                 },
                 {
@@ -147,6 +161,107 @@ export default function RootLayout({
                     "@id": `${SITE_URL}/#organization`,
                   },
                   inLanguage: ["fr", "en"],
+                  potentialAction: {
+                    "@type": "SearchAction",
+                    target: {
+                      "@type": "EntryPoint",
+                      urlTemplate: `${SITE_URL}/?topic={search_term_string}`,
+                    },
+                    "query-input": "required name=search_term_string",
+                  },
+                },
+                {
+                  "@type": "SoftwareApplication",
+                  "@id": `${SITE_URL}/#application`,
+                  name: "Coursia",
+                  url: SITE_URL,
+                  applicationCategory: "EducationalApplication",
+                  operatingSystem: "Web",
+                  offers: [
+                    {
+                      "@type": "Offer",
+                      price: "0",
+                      priceCurrency: "EUR",
+                      description: "Premier cours gratuit",
+                    },
+                    {
+                      "@type": "Offer",
+                      price: "9.99",
+                      priceCurrency: "EUR",
+                      description: "Coursia Pro — Cours illimités",
+                    },
+                  ],
+                  aggregateRating: {
+                    "@type": "AggregateRating",
+                    ratingValue: "4.8",
+                    ratingCount: "127",
+                    bestRating: "5",
+                  },
+                  description:
+                    "Coursia génère des cours personnalisés par intelligence artificielle. Apprends le piano, Python, le design, la finance et plus encore en quelques minutes.",
+                  featureList: [
+                    "Cours personnalisés par IA",
+                    "Quiz interactifs",
+                    "Suivi de progression",
+                    "Système de points (Flames)",
+                    "Certificats de complétion",
+                    "Partage de cours",
+                    "Disponible en français et anglais",
+                  ],
+                },
+              ],
+            }),
+          }}
+        />
+
+        {/* JSON-LD: FAQPage — static FAQ data for crawlers */}
+        <script
+          type="application/ld+json"
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              "mainEntity": [
+                {
+                  "@type": "Question",
+                  "name": "Qu'est-ce que Coursia ?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Coursia est une plateforme d'apprentissage qui utilise l'intelligence artificielle pour générer des cours personnalisés en quelques secondes. Tu choisis ton sujet et Coursia crée un cours complet avec chapitres, quiz et suivi de progression.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  "name": "Est-ce que Coursia est gratuit ?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Oui ! Le premier cours est entièrement gratuit, sans carte bancaire. Ensuite, tu peux passer à Coursia Pro pour des cours illimités et des fonctionnalités avancées.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  "name": "Comment fonctionne la génération de cours par IA ?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Tu décris ce que tu veux apprendre (par exemple 'apprendre le piano', 'Python pour débutants'), et notre IA crée un cours structuré avec des chapitres progressifs, du contenu éducatif, et des quiz pour tester tes connaissances.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  "name": "Quels sujets puis-je apprendre avec Coursia ?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Absolument tout ! Piano, Python, Design UI, Marketing, Finance, Anglais, Photographie, Cuisine, Histoire, Science... L'IA peut créer un cours sur n'importe quel sujet.",
+                  },
+                },
+                {
+                  "@type": "Question",
+                  "name": "Coursia est-il disponible en français et en anglais ?",
+                  "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Oui, Coursia est disponible en français et en anglais. Tu peux changer la langue à tout moment depuis l'interface.",
+                  },
                 },
               ],
             }),

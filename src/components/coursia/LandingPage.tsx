@@ -649,14 +649,16 @@ export default function LandingPage() {
 
             {/* Title — typewriter */}
             <h1 className="lp-stagger text-3xl sm:text-4xl md:text-5xl lg:text-[3.5rem] xl:text-7xl font-extrabold leading-[1.1] mb-6 tracking-tight min-h-[2.4em] sm:min-h-[2.2em]" style={{ transitionDelay: '120ms' }}>
-              <span className="text-foreground">{line1}</span>
+              {/* Full text always in DOM for SEO/crawlers (sr-only), visual typewriter is below */}
+              <span className="sr-only">{heading1} {heading2}</span>
+              <span aria-hidden="true" className="text-foreground">{line1}</span>
               {line2 && (
                 <>
                   <br />
-                  <span className="hero-gradient-text">{line2}</span>
+                  <span aria-hidden="true" className="hero-gradient-text">{line2}</span>
                 </>
               )}
-              {showCursor && <span className="hero-typewriter-cursor" />}
+              {showCursor && <span className="hero-typewriter-cursor" aria-hidden="true" />}
             </h1>
 
             {/* Description */}
