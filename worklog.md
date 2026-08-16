@@ -276,3 +276,22 @@ Stage Summary:
 - LegalPage.tsx completely redesigned with premium dark-theme aesthetic
 - Both privacy policy and terms of use pages updated
 - Design matches Credia CGU example style adapted to Coursia brand colors
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix Google OAuth redirect + Push to GitHub
+
+Work Log:
+- Diagnosed issue: Google OAuth callback redirected to /?googleAuth=1, LP rendered first because default view is "landing" and AuthPage useEffect only fires when view === "auth"
+- Moved Google auth callback handling from AuthPage to AppShell (always mounted)
+- Added googleAuthenticating state to show loading spinner during auth
+- When googleAuth=1 detected: immediately set googleAuthenticating=true (shows spinner instead of LP), clean URL, fetch session, call callback API, setUser, setView("create")
+- On error: redirect to auth page
+- Added setView and setUser to AppShell store reads, lang for bilingual loading text
+- Verified: no new lint errors
+- Pushed to GitHub (commit dc5961f)
+
+Stage Summary:
+- Google auth now goes directly to create page with no LP flash
+- Loading spinner shows during Google authentication
+- All changes pushed to GitHub
