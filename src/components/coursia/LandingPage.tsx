@@ -268,14 +268,24 @@ export default function LandingPage() {
             </a>
           </div>
 
-          {/* Mobile hamburger menu button */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/10 transition-all duration-200 cursor-pointer"
-            aria-label="Open menu"
-          >
-            <Menu className="w-5 h-5 text-foreground" />
-          </button>
+          {/* Mobile: lang toggle + hamburger */}
+          <div className="flex md:hidden items-center gap-1">
+            <button
+              onClick={() => setLang(lang === "fr" ? "en" : "fr")}
+              title={lang === "fr" ? "Switch to English" : "Passer en Français"}
+              className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/10 transition-all duration-200 cursor-pointer"
+              aria-label="Change language"
+            >
+              <Globe className="w-5 h-5 text-muted-foreground/70" />
+            </button>
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/10 transition-all duration-200 cursor-pointer"
+              aria-label="Open menu"
+            >
+              <Menu className="w-5 h-5 text-foreground" />
+            </button>
+          </div>
 
           {/* Right: lang toggle + CTA (desktop) */}
           <div className="hidden md:flex items-center gap-2">
