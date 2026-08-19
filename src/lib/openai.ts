@@ -291,11 +291,22 @@ async function callGroq(
   messages: Array<{ role: string; content: string }>,
   options?: { temperature?: number; maxTokens?: number },
 ): Promise<{ content: string } | null> {
-  const models = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
+  // Models ordered by preference. Llama removed — deprecated on Groq (Aug 2025).
+  // groq/compound-mini is FREE with 131K context, 8K max output.
+  const models = [
+    'openai/gpt-oss-120b',
+    'groq/compound-mini',
+    'groq/compound',
+  ];
 
-  return retryWithBackoff(async () => {
-    for (const model of models) {
+  const errors: string[] = [];
+
+  for (const model of models) {
+    let lastErr = '';
+    // Each model gets up to 2 retries (1 initial + 1 retry) for retryable errors only
+    for (let attempt = 0; attempt <= 1; attempt++) {
       try {
+        console.log(`[Groq] Trying model ${model} (attempt ${attempt + 1})...`);
         const response = await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
@@ -305,26 +316,56 @@ async function callGroq(
         if (response.ok) {
           const data = await response.json();
           const content = data.choices?.[0]?.message?.content || '';
-          if (content && content.trim().length > 0) return { content: content.trim() };
-          console.warn(`[Groq] Model ${model}: empty response`);
+          if (content && content.trim().length > 0) {
+            console.log(`[Groq] SUCCESS with ${model}: ${content.length} chars`);
+            return { content: content.trim() };
+          }
+          console.warn(`[Groq] Model ${model}: OK response but empty content, moving to next model`);
+          lastErr = `Model ${model}: empty response`;
+          break; // don't retry empty content, try next model
         } else {
           const errorBody = await response.text().catch(() => '');
-          console.error(`[Groq] Model ${model} HTTP ${response.status}: ${errorBody.slice(0, 500)}`);
-          console.error(`[Groq] Full error body: ${errorBody.slice(0, 1000)}`);
-          if (response.status === 404) {
-            console.warn(`[Groq] Model ${model} not found (404), trying next model...`);
+          const httpErr = `Model ${model} HTTP ${response.status}: ${errorBody.slice(0, 300)}`;
+          console.error(`[Groq] ${httpErr}`);
+          lastErr = httpErr;
+
+          // Non-retryable errors → skip to next model immediately
+          if (response.status === 404 || response.status === 401 || response.status === 403 || response.status === 400) {
+            console.warn(`[Groq] ${model} failed with ${response.status} (not retryable), trying next model...`);
+            break;
+          }
+          // Retryable: 429, 500, 502, 503, timeout
+          if (attempt < 1) {
+            const delay = 2000 * Math.pow(2, attempt);
+            console.log(`[Groq] ${model} retryable error, retry in ${delay}ms...`);
+            await sleep(delay);
             continue;
           }
-          throw new Error(`Groq ${model} HTTP ${response.status}: ${errorBody.slice(0, 500)}`);
+          break; // out of retries for this model
         }
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : String(error);
-        if (errMsg.includes('404')) continue;
-        throw error;
+        lastErr = `Model ${model}: ${errMsg.slice(0, 300)}`;
+        console.error(`[Groq] ${lastErr}`);
+
+        const isRetryable = errMsg.includes('429') || errMsg.includes('timeout') || errMsg.includes('ECONNRESET')
+          || errMsg.includes('503') || errMsg.includes('502') || errMsg.includes('500');
+        if (attempt < 1 && isRetryable) {
+          const delay = 2000 * Math.pow(2, attempt);
+          console.log(`[Groq] ${model} fetch error, retry in ${delay}ms...`);
+          await sleep(delay);
+          continue;
+        }
+        break;
       }
     }
-    return null;
-  }, 'Groq', 3);
+    errors.push(lastErr);
+  }
+
+  // All models exhausted
+  const joined = errors.join(' | ');
+  console.error(`[Groq] ALL MODELS FAILED: ${joined}`);
+  throw new Error(joined);
 }
 
 async function callOpenAIWithFallback(

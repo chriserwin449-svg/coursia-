@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+const GROQ_MODELS = ["openai/gpt-oss-120b", "groq/compound-mini", "groq/compound"];
+
 export async function GET() {
   const results: Record<string, unknown> = {};
 
@@ -12,35 +14,45 @@ export async function GET() {
     : "NOT SET";
   results.DATABASE_URL = process.env.DATABASE_URL ? "SET" : "NOT SET";
 
-  // Test Groq API
+  // Test EACH Groq model individually
   const groqKey = process.env.GROQ_API_KEY;
   if (groqKey) {
-    try {
-      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
-        body: JSON.stringify({
-          model: "openai/gpt-oss-120b",
-          messages: [
-            { role: "system", content: "Respond ONLY with valid JSON." },
-            { role: "user", content: 'Return: {"status":"ok"}' },
-          ],
-          max_tokens: 50,
-        }),
-      });
-
-      results.groqStatus = response.status;
-      results.groqStatusText = response.statusText;
-      const text = await response.text();
-      results.groqResponse = text.slice(0, 1000);
-
+    results.groqTests = {};
+    for (const model of GROQ_MODELS) {
       try {
-        const json = JSON.parse(text);
-        results.groqContent = json.choices?.[0]?.message?.content?.slice(0, 200) || "EMPTY";
-        results.groqError = json.error;
-      } catch { /* not JSON */ }
-    } catch (e) {
-      results.groqFetchError = e instanceof Error ? e.message : String(e);
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: "Respond ONLY with valid JSON." },
+              { role: "user", content: 'Return: {"status":"ok"}' },
+            ],
+            max_tokens: 50,
+          }),
+        });
+
+        const text = await response.text();
+        let content = "";
+        let apiError = null;
+        try {
+          const json = JSON.parse(text);
+          content = json.choices?.[0]?.message?.content?.slice(0, 200) || "EMPTY";
+          apiError = json.error;
+        } catch { /* not JSON */ }
+
+        (results.groqTests as Record<string, unknown>)[model] = {
+          status: response.status,
+          content,
+          error: apiError,
+          responsePreview: text.slice(0, 500),
+        };
+      } catch (e) {
+        (results.groqTests as Record<string, unknown>)[model] = {
+          fetchError: e instanceof Error ? e.message : String(e),
+        };
+      }
     }
   }
 
