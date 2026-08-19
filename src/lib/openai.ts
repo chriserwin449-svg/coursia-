@@ -199,7 +199,7 @@ export class AllProvidersFailedError extends Error {
   providerErrors: Array<{ provider: string; error: string }>;
 
   constructor(providerErrors: Array<{ provider: string; error: string }>) {
-    const summary = providerErrors.map((e) => `${e.provider}: ${e.error.slice(0, 100)}`).join(' | ');
+    const summary = providerErrors.map((e) => `${e.provider}: ${e.error.slice(0, 300)}`).join(' | ');
     super(`ALL AI providers failed: ${summary}`);
     this.name = 'AllProvidersFailedError';
     this.providerErrors = providerErrors;
@@ -291,7 +291,7 @@ async function callGroq(
   messages: Array<{ role: string; content: string }>,
   options?: { temperature?: number; maxTokens?: number },
 ): Promise<{ content: string } | null> {
-  const models = ['openai/gpt-oss-120b'];
+  const models = ['openai/gpt-oss-120b', 'llama-3.3-70b-versatile'];
 
   return retryWithBackoff(async () => {
     for (const model of models) {
@@ -309,9 +309,13 @@ async function callGroq(
           console.warn(`[Groq] Model ${model}: empty response`);
         } else {
           const errorBody = await response.text().catch(() => '');
-          console.error(`[Groq] Model ${model} failed (${response.status}): ${errorBody.slice(0, 300)}`);
-          if (response.status === 404) continue;
-          throw new Error(`Groq ${model} HTTP ${response.status}: ${errorBody.slice(0, 200)}`);
+          console.error(`[Groq] Model ${model} HTTP ${response.status}: ${errorBody.slice(0, 500)}`);
+          console.error(`[Groq] Full error body: ${errorBody.slice(0, 1000)}`);
+          if (response.status === 404) {
+            console.warn(`[Groq] Model ${model} not found (404), trying next model...`);
+            continue;
+          }
+          throw new Error(`Groq ${model} HTTP ${response.status}: ${errorBody.slice(0, 500)}`);
         }
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : String(error);
