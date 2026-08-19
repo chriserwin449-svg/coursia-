@@ -338,3 +338,29 @@ Stage Summary:
 - Fail-open security holes closed: quota and daily limit check failures now block generation (503)
 - Structured `[COURSE_GENERATION]` log lines added for monitoring/debugging
 - Subscribers no longer incorrectly marked as having used their free course
+---
+Task ID: 4
+Agent: Main Agent
+Task: Replace Groq model from llama-3.3-70b-versatile to openai/gpt-oss-120b
+
+Work Log:
+- Searched entire project for all references to old Llama model (llama-3.3-70b-versatile, llama-3.1-70b-versatile)
+- Found 4 references across 2 files:
+  1. src/lib/openai.ts line 81: getActiveProvider() GROQ_API_KEY branch
+  2. src/lib/openai.ts line 93: getActiveProvider() gsk_ prefix branch
+  3. src/lib/openai.ts line 294: callGroq() models array
+  4. src/app/api/test-ai/route.ts line 23: test endpoint
+- Replaced all 4 references with openai/gpt-oss-120b
+- Updated provider labels from 'Groq (Llama 3.3 70B)' to 'Groq (GPT-OSS 120B)'
+- Removed fallback model llama-3.1-70b-versatile (single model array now)
+- Verified: zero llama references remain in entire codebase
+- Verified: lint passes on modified files (no new errors)
+- Verified: Groq API format is OpenAI-compatible — openai/gpt-oss-120b uses same request/response format (choices[0].message.content)
+- Note: Cannot test Groq directly in sandbox (no GROQ_API_KEY in .env), but ZAI path confirmed working
+- Committed and pushed to GitHub (commit a2f4ffa)
+
+Stage Summary:
+- All 4 Llama model references replaced with openai/gpt-oss-120b
+- Labels updated to 'Groq (GPT-OSS 120B)'
+- No other code changes (auth, Supabase, frontend untouched)
+- Pushed to GitHub — user can test in production where GROQ_API_KEY is configured
