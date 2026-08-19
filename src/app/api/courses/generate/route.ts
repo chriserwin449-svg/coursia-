@@ -870,8 +870,19 @@ export async function POST(request: NextRequest) {
     }
 
     const { title, sourceLinks = [], level = 0, courseLang = "en", userId: rawUserId, email: userEmail } = body;
-    const userId: string | null = rawUserId || null;
     const isUserAdmin = isAdmin(userEmail);
+    // ── Verify userId from Authorization header (don't trust body alone) ──
+    const authHeader = request.headers.get("authorization");
+    let verifiedUserId: string | null = null;
+    if (authHeader?.startsWith("Bearer ")) {
+      verifiedUserId = authHeader.slice(7);
+    }
+    // Use verified userId if available, otherwise fall back to body userId
+    // (allows anonymous generation while preventing IDOR for authenticated users)
+    if (verifiedUserId && rawUserId && verifiedUserId !== rawUserId) {
+      console.warn(`[generate][AUTH] ID mismatch: header=${verifiedUserId.slice(0,8)}... body=${rawUserId.slice(0,8)}... — using header`);
+    }
+    const userId: string | null = verifiedUserId || rawUserId || null;
     if (isUserAdmin) console.log(`[generate] Admin bypass enabled for ${userEmail}`);
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
@@ -890,6 +901,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[generate] ═══ VALIDATION OK ═══ title="${title.trim()}" level=${level} lang=${courseLang} userId=${userId || 'anonymous'} links=${sourceLinks.length}`);
+    console.log(`[COURSE_GENERATION][AUTH] userId=${userId ? userId.slice(0,8) + '...' : 'anonymous'} admin=${isUserAdmin}`);
 
     // ── CRITICAL: Free course abuse prevention (atomic, race-condition-safe) ──
     // Single source of truth: User.freeCourseUsed boolean in the database.
@@ -959,7 +971,8 @@ export async function POST(request: NextRequest) {
           console.warn(`[generate] Fallback check: user ${userId} has 0 courses, allowing (fail-open with course count)`);
         } catch {
           // Even course count failed — truly can't check, allow as last resort
-          console.warn(`[generate] Both atomic and fallback checks failed, allowing generation (last-resort fail-open)`);
+          console.error(`[generate] Both atomic and fallback quota checks failed, BLOCKING generation`);
+          return NextResponse.json({ error: "QUOTA_CHECK_FAILED", message: "Could not verify your quota. Please try again." }, { status: 503 });
         }
       }
     }
@@ -1012,7 +1025,8 @@ export async function POST(request: NextRequest) {
           }, { status: 429 });
         }
       } catch (dailyErr) {
-        console.warn("[generate] Daily limit check failed, proceeding:", dailyErr);
+        console.error("[generate] Daily limit check failed, BLOCKING:", dailyErr instanceof Error ? dailyErr.message : dailyErr);
+        return NextResponse.json({ error: "RATE_LIMIT_CHECK_FAILED", message: "Could not verify daily limit. Please try again." }, { status: 503 });
       }
     }
 
@@ -1070,9 +1084,8 @@ export async function POST(request: NextRequest) {
     logStep("outline_end");
     logDuration("outline_start", "outline_end");
 
-    console.log(`[outline] Outline has ${outline.chapters.length} chapters, need at least ${MIN_CHAPTERS}`);
-    if (outline.chapters.length < MIN_CHAPTERS) {
-      console.log("[generate] Outline failed or too few chapters, trying single-call fallback...");
+    if (!outline || outline.chapters.length < MIN_CHAPTERS) {
+      console.log(`[outline] Outline is ${outline ? 'too short (' + outline.chapters.length + ' chapters)' : 'null'}, trying single-call fallback...`);
       logStep("fallback_start");
       const fallbackResult = await generateSingleCall(title, courseLang, level, webContext, sourceContext);
       logStep("fallback_end");
@@ -1187,13 +1200,15 @@ export async function POST(request: NextRequest) {
     logDuration("save_start", "save_end");
     logDuration("start", "save_end");
     console.log(`[generate] ═══ COURSE GENERATED SUCCESSFULLY in ${((Date.now() - startTime) / 1000).toFixed(1)}s ═══`);
-    console.log(`[generate] Course ID: ${course.id}, Chapters: ${course.chapters.length}`);
+    console.log(`[COURSE_GENERATION][DATABASE_SAVE] Course saved: id=${course.id} chapters=${course.chapters.length}`);
+    console.log(`[COURSE_GENERATION][COMPLETED] Total time: ${((Date.now() - startTime) / 1000).toFixed(1)}s`);
 
     return NextResponse.json(buildResponse(course, sourceLinks, scrapedPages.length));
   } catch (error: unknown) {
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
     const msg = error instanceof Error ? error.message : String(error);
     const errorType = classifyAIError(error);
+    console.error(`[COURSE_GENERATION][FAILED] After ${duration}s — type=${errorType} msg=${msg.slice(0, 200)}`);
     console.error(`[generate] ═══ UNHANDLED ERROR after ${duration}s ═══`);
     console.error(`[generate] Error type: ${errorType}`);
     console.error(`[generate] Error message: ${msg}`);

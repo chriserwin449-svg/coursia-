@@ -98,7 +98,10 @@ export default function BackgroundGenerationPoller() {
         notifiedRef.current = true;
         setBackgroundGeneration(null);
         setIsGenerating(false);
-        setFreeCourseUsed(true);
+        // Only mark free course as used for non-subscribers
+        if (!useAppStore.getState().hasSubscription) {
+          setFreeCourseUsed(true);
+        }
 
         // Refresh courses list in store
         setCourses(list);

@@ -522,9 +522,13 @@ export default function CreateCourse() {
     const abortController = new AbortController();
     const fetchTimeout = setTimeout(() => abortController.abort(), 10 * 60_000);
 
+    const reqHeaders: Record<string, string> = { "Content-Type": "application/json" };
+    const uid = useAppStore.getState().userId;
+    if (uid) reqHeaders["Authorization"] = `Bearer ${uid}`;
+
     fetch("/api/courses/generate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: reqHeaders,
       body: JSON.stringify(payload),
       signal: abortController.signal,
     }).then(async (res) => {
@@ -543,8 +547,11 @@ export default function CreateCourse() {
             setIsGenerating(false);
             setBackgroundGeneration(null);
             setCanCreateCourse(false);
-            setLocalFreeCourseUsed(true);
-            useAppStore.getState().setFreeCourseUsed(true);
+            // Only mark free course as used for non-subscribers
+            if (!useAppStore.getState().hasSubscription) {
+              setLocalFreeCourseUsed(true);
+              useAppStore.getState().setFreeCourseUsed(true);
+            }
             // Refresh courses list
             const coursesRes = await fetch(`/api/courses?userId=${useAppStore.getState().userId || ''}`);
             if (coursesRes.ok) {

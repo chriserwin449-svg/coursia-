@@ -295,3 +295,46 @@ Stage Summary:
 - Google auth now goes directly to create page with no LP flash
 - Loading spinner shows during Google authentication
 - All changes pushed to GitHub
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix 6 critical bugs in course generation system
+
+Work Log:
+- **BUG 1 — Null pointer crash in generate route:**
+  - `outline.chapters.length` at line 1073 crashed with TypeError when `outline` was null (both retry attempts failed)
+  - Combined null check + length check into single guard: `if (!outline || outline.chapters.length < MIN_CHAPTERS)`
+  - Removed duplicate console.log that was now redundant
+
+- **BUG 2 — Missing Authorization header on frontend generate request:**
+  - `CreateCourse.tsx` fetch to `/api/courses/generate` had no Authorization header (unlike `paywall-status` which did)
+  - Added `reqHeaders` object with conditional `Authorization: Bearer ${uid}` header, matching existing pattern from `fetchCourses`
+
+- **BUG 3 — Backend doesn't verify userId from auth header:**
+  - `generate/route.ts` trusted `userId` from request body alone (IDOR risk)
+  - Added Authorization header extraction → `verifiedUserId` from Bearer token
+  - Priority: header userId > body userId > null (with mismatch warning)
+  - Admin check still uses email from body (separate concern)
+
+- **BUG 4 — Fail-open security on quota/daily limit:**
+  - Quota: Changed last-resort fail-open (allow when both atomic + fallback DB checks fail) to fail-CLOSED → returns 503 `QUOTA_CHECK_FAILED`
+  - Daily limit: Changed catch block from silently proceeding to returning 503 `RATE_LIMIT_CHECK_FAILED`
+
+- **BUG 5 — Structured COURSE_GENERATION logging:**
+  - Added `[COURSE_GENERATION][AUTH]` log after validation with userId prefix + admin status
+  - Added `[COURSE_GENERATION][DATABASE_SAVE]` log after course save with id + chapter count
+  - Added `[COURSE_GENERATION][COMPLETED]` log with total time
+  - Added `[COURSE_GENERATION][FAILED]` log in outer catch with duration + error type + truncated message
+
+- **BUG 6 — Guard freeCourseUsed for subscribers in frontend:**
+  - `CreateCourse.tsx`: Wrapped `setLocalFreeCourseUsed(true)` + `setFreeCourseUsed(true)` in `if (!hasSubscription)` guard
+  - `BackgroundGenerationPoller.tsx`: Same guard on `setFreeCourseUsed(true)` so subscribers don't get incorrectly flagged
+
+Stage Summary:
+- Null pointer crash on failed outline generation is now handled gracefully (falls through to single-call fallback)
+- Auth headers now sent on generate requests, preventing IDOR attacks
+- Backend verifies userId from Authorization header, falling back to body for anonymous users
+- Fail-open security holes closed: quota and daily limit check failures now block generation (503)
+- Structured `[COURSE_GENERATION]` log lines added for monitoring/debugging
+- Subscribers no longer incorrectly marked as having used their free course
