@@ -20,7 +20,7 @@ export async function GET() {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
         body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
+          model: "openai/gpt-oss-120b",
           messages: [
             { role: "system", content: "Respond ONLY with valid JSON." },
             { role: "user", content: 'Return: {"status":"ok"}' },

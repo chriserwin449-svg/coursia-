@@ -78,7 +78,7 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
 
   const groqKey = process.env.GROQ_API_KEY;
   if (groqKey) {
-    return { provider: "groq", label: "Groq (Llama 3.3 70B)", isFree: true, hasApiKey: true, model: "llama-3.3-70b-versatile" };
+    return { provider: "groq", label: "Groq (GPT-OSS 120B)", isFree: true, hasApiKey: true, model: "openai/gpt-oss-120b" };
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
@@ -90,7 +90,7 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
       return { provider: "openai", label: "OpenAI GPT-4o", isFree: false, hasApiKey: true, model: "gpt-4o" };
     }
     if (apiKey.startsWith("gsk_")) {
-      return { provider: "groq", label: "Groq (Llama 3.3 70B)", isFree: true, hasApiKey: true, model: "llama-3.3-70b-versatile" };
+      return { provider: "groq", label: "Groq (GPT-OSS 120B)", isFree: true, hasApiKey: true, model: "openai/gpt-oss-120b" };
     }
   }
 
@@ -291,7 +291,7 @@ async function callGroq(
   messages: Array<{ role: string; content: string }>,
   options?: { temperature?: number; maxTokens?: number },
 ): Promise<{ content: string } | null> {
-  const models = ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile'];
+  const models = ['openai/gpt-oss-120b'];
 
   return retryWithBackoff(async () => {
     for (const model of models) {
