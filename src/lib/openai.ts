@@ -286,46 +286,119 @@ async function callZAI(
   }, 'ZAI', 3);
 }
 
+/**
+ * Groq TPM-aware caller with dynamic rate limiting.
+ *
+ * FREE TIER CONSTRAINTS (org_01kst877rzetp89zmg9bmfznq2, on_demand):
+ * - TPM limit: 8,000 tokens per minute
+ * - Each request's (prompt_tokens + max_tokens) must stay well under 8,000
+ * - Between calls: wait based on tokens used + remaining quota from headers
+ *
+ * Models (tested Aug 2025):
+ * - openai/gpt-oss-120b: REASONING model, works but reasoning tokens eat budget
+ * - openai/gpt-oss-20b: BLOCKED (403) at org level
+ * - groq/compound-mini: BLOCKED (403) at org level
+ * - groq/compound: BLOCKED (403) at org level
+ * - qwen/qwen3-27b: standard model (non-reasoning), should work
+ */
+
+const GROQ_TPM_LIMIT = 8000;
+const GROQ_MAX_TOKENS = 3500;       // max_tokens per request (leaves ~4000 for prompt)
+const GROQ_MIN_DELAY_MS = 30_000;    // minimum 30s between calls (8000 TPM / ~4000 per call)
+const GROQ_MAX_DELAY_MS = 60_000;    // safety cap
+let lastGroqCallTime = 0;
+let lastGroqTokensUsed = 0;
+
 async function callGroq(
   apiKey: string,
   messages: Array<{ role: string; content: string }>,
   options?: { temperature?: number; maxTokens?: number },
 ): Promise<{ content: string } | null> {
-  // gpt-oss-120b is a REASONING model (has `reasoning` field) — needs high max_tokens (16384+)
-  // to avoid finish_reason="length" with empty content (all tokens consumed by reasoning).
-  // gpt-oss-20b is a smaller standard model — reliable fallback.
-  // groq/compound-mini and groq/compound are BLOCKED at org level (403).
+  // Models ordered by preference. 120b is reasoning (fragile but capable),
+  // qwen3-27b is standard (reliable, no reasoning overhead).
   const models = [
     'openai/gpt-oss-120b',
-    'openai/gpt-oss-20b',
+    'qwen/qwen3-27b',
   ];
 
   const errors: string[] = [];
 
+  // Enforce minimum delay between Groq calls (TPM rate limiting)
+  const now = Date.now();
+  const timeSinceLastCall = now - lastGroqCallTime;
+  if (timeSinceLastCall < GROQ_MIN_DELAY_MS && lastGroqTokensUsed > 0) {
+    // Calculate dynamic delay: if we used ~5000 tokens, need ~37.5s to reset at 8000/min
+    const dynamicDelay = Math.min(
+      Math.max(
+        Math.ceil((lastGroqTokensUsed / GROQ_TPM_LIMIT) * 60_000),
+        GROQ_MIN_DELAY_MS,
+      ),
+      GROQ_MAX_DELAY_MS,
+    );
+    const remaining = dynamicDelay - timeSinceLastCall;
+    if (remaining > 0) {
+      console.log(`[Groq] TPM rate limit: waiting ${remaining}ms (${lastGroqTokensUsed} tokens used ${Math.round(timeSinceLastCall / 1000)}s ago)`);
+      await sleep(remaining);
+    }
+  }
+
   for (const model of models) {
     let lastErr = '';
-    // gpt-oss-120b (reasoning model) needs significantly more max_tokens
     const isReasoningModel = model.includes('gpt-oss-120b');
-    const effectiveMaxTokens = options?.maxTokens
-      ? Math.max(options.maxTokens, isReasoningModel ? 16384 : 8192)
-      : (isReasoningModel ? 16384 : 8192);
+    // Cap max_tokens to stay under TPM limit even with large prompts
+    const effectiveMaxTokens = Math.min(
+      options?.maxTokens ?? GROQ_MAX_TOKENS,
+      GROQ_MAX_TOKENS,
+    );
 
-    // Each model gets up to 2 retries (1 initial + 1 retry) for retryable errors only
+    // Each model gets 1 retry for retryable errors only
     for (let attempt = 0; attempt <= 1; attempt++) {
       try {
-        console.log(`[Groq] Trying model ${model} (attempt ${attempt + 1}, max_tokens=${effectiveMaxTokens})...`);
+        console.log(`[Groq] Trying ${model} (attempt ${attempt + 1}, max_tokens=${effectiveMaxTokens})...`);
+
+        // Build request body — reasoning model gets effort=low to reduce reasoning token waste
+        const body: Record<string, unknown> = {
+          model,
+          messages,
+          temperature: options?.temperature ?? 0.7,
+          max_tokens: effectiveMaxTokens,
+        };
+        if (isReasoningModel) {
+          (body as Record<string, unknown>).reasoning = { effort: 'low' };
+        }
+
         const response = await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ model, messages, temperature: options?.temperature ?? 0.7, max_tokens: effectiveMaxTokens }),
+          body: JSON.stringify(body),
           timeoutMs: EXTERNAL_API_TIMEOUT,
         });
+
+        // Read rate limit headers for dynamic delay calculation
+        const rateLimitRemaining = parseInt(response.headers.get('x-ratelimit-remaining-tokens') || '0', 10);
+        const rateLimitLimit = parseInt(response.headers.get('x-ratelimit-limit-tokens') || String(GROQ_TPM_LIMIT), 10);
+        if (rateLimitLimit > 0) {
+          console.log(`[Groq] Rate limit: ${rateLimitRemaining}/${rateLimitLimit} tokens remaining`);
+        }
+
+        // Track tokens for TPM delay (from response or estimated)
+        let tokensUsedThisCall = effectiveMaxTokens; // conservative estimate
+
         if (response.ok) {
           const data = await response.json();
           const choice = data.choices?.[0];
           const content = choice?.message?.content || '';
-          const reasoning = choice?.message?.reasoning || '';
+          const reasoning = (choice?.message as Record<string, unknown> | undefined)?.reasoning || '';
           const finishReason = choice?.finish_reason || '';
+
+          // Track actual token usage from response
+          const usage = data.usage;
+          if (usage) {
+            tokensUsedThisCall = (usage.total_tokens || usage.prompt_tokens + usage.completion_tokens || effectiveMaxTokens);
+          }
+          lastGroqCallTime = Date.now();
+          lastGroqTokensUsed = tokensUsedThisCall;
+          console.log(`[Groq] Tokens used: ${tokensUsedThisCall} (prompt=${usage?.prompt_tokens}, completion=${usage?.completion_tokens})`);
 
           // Case 1: Normal response with content
           if (content && content.trim().length > 0) {
@@ -333,44 +406,41 @@ async function callGroq(
             return { content: content.trim() };
           }
 
-          // Case 2: Reasoning model returned empty content (finish_reason=length means tokens exhausted)
-          // Try to extract the answer from the reasoning field as last resort
-          if (isReasoningModel && finishReason === 'length' && reasoning && reasoning.trim().length > 0) {
-            console.warn(`[Groq] ${model}: content empty (finish_reason=length), extracting from reasoning field (${reasoning.length} chars)`);
-            // The reasoning field contains the model's thinking — try to find JSON or the actual answer
-            const extracted = extractAnswerFromReasoning(reasoning);
+          // Case 2: Reasoning model — content empty but reasoning has content
+          if (isReasoningModel && finishReason === 'length' && reasoning && typeof reasoning === 'string' && reasoning.trim().length > 0) {
+            console.warn(`[Groq] ${model}: content empty (finish_reason=length), trying reasoning extraction (${(reasoning as string).length} chars)`);
+            const extracted = extractAnswerFromReasoning(reasoning as string);
             if (extracted && extracted.trim().length > 0) {
               console.log(`[Groq] ${model}: Extracted ${extracted.length} chars from reasoning`);
               return { content: extracted.trim() };
             }
-            lastErr = `Model ${model}: content empty, reasoning field had no extractable answer (finish_reason=length, max_tokens=${effectiveMaxTokens})`;
-            console.warn(`[Groq] ${lastErr}`);
-            break; // don't retry, try next model
           }
 
-          // Case 3: Empty content, no reasoning to fall back on
-          console.warn(`[Groq] Model ${model}: OK response but empty content (finish_reason=${finishReason}), moving to next model`);
+          // Case 3: Empty content, no reasoning fallback
+          console.warn(`[Groq] ${model}: OK but empty content (finish_reason=${finishReason}), next model`);
           lastErr = `Model ${model}: empty response (finish_reason=${finishReason})`;
-          break; // don't retry empty content, try next model
+          break;
         } else {
           const errorBody = await response.text().catch(() => '');
           const httpErr = `Model ${model} HTTP ${response.status}: ${errorBody.slice(0, 300)}`;
           console.error(`[Groq] ${httpErr}`);
           lastErr = httpErr;
+          lastGroqCallTime = Date.now();
+          lastGroqTokensUsed = effectiveMaxTokens;
 
-          // Non-retryable errors → skip to next model immediately
-          if (response.status === 404 || response.status === 401 || response.status === 403 || response.status === 400) {
+          // Non-retryable → skip to next model
+          if (response.status === 404 || response.status === 401 || response.status === 403 || response.status === 400 || response.status === 413) {
             console.warn(`[Groq] ${model} failed with ${response.status} (not retryable), trying next model...`);
             break;
           }
-          // Retryable: 429, 500, 502, 503, timeout
+          // Retryable: 429, 500, 502, 503
           if (attempt < 1) {
             const delay = 2000 * Math.pow(2, attempt);
             console.log(`[Groq] ${model} retryable error, retry in ${delay}ms...`);
             await sleep(delay);
             continue;
           }
-          break; // out of retries for this model
+          break;
         }
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : String(error);
@@ -391,7 +461,6 @@ async function callGroq(
     errors.push(lastErr);
   }
 
-  // All models exhausted
   const joined = errors.join(' | ');
   console.error(`[Groq] ALL MODELS FAILED: ${joined}`);
   throw new Error(joined);
@@ -399,37 +468,19 @@ async function callGroq(
 
 /**
  * Attempts to extract a useful answer from a reasoning model's reasoning field.
- * The reasoning field contains the model's chain-of-thought. We look for:
- * 1. A JSON block (```json ... ``` or { ... })
- * 2. The last paragraph or sentence (often contains the conclusion)
  */
 function extractAnswerFromReasoning(reasoning: string): string | null {
-  // Strategy 1: Look for JSON code block
   const jsonBlockMatch = reasoning.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (jsonBlockMatch) {
     const candidate = jsonBlockMatch[1].trim();
-    if (candidate.startsWith('{') || candidate.startsWith('[')) {
-      return candidate;
-    }
+    if (candidate.startsWith('{') || candidate.startsWith('[')) return candidate;
   }
-
-  // Strategy 2: Look for raw JSON object/array at the end of reasoning
   const trailingJsonMatch = reasoning.match(/([\[{][\s\S]*[\]}])\s*$/);
   if (trailingJsonMatch) {
     const candidate = trailingJsonMatch[1].trim();
-    try {
-      JSON.parse(candidate);
-      return candidate;
-    } catch {
-      // not valid JSON, continue
-    }
+    try { JSON.parse(candidate); return candidate; } catch { /* not valid JSON */ }
   }
-
-  // Strategy 3: Return last 2000 chars as a fallback (often contains the conclusion)
-  if (reasoning.length > 200) {
-    return reasoning.slice(-2000);
-  }
-
+  if (reasoning.length > 200) return reasoning.slice(-2000);
   return reasoning;
 }
 

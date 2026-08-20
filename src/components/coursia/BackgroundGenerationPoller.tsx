@@ -28,6 +28,7 @@ export default function BackgroundGenerationPoller() {
   const setIsGenerating = useAppStore((s) => s.setIsGenerating);
   const setCourses = useAppStore((s) => s.setCourses);
   const setFreeCourseUsed = useAppStore((s) => s.setFreeCourseUsed);
+  const setGenerationProgress = useAppStore((s) => s.setGenerationProgress);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const notifiedRef = useRef(false);
@@ -44,7 +45,7 @@ export default function BackgroundGenerationPoller() {
     notifiedRef.current = false;
 
     const POLL_INTERVAL_MS = 8_000; // Poll every 8 seconds
-    const MAX_AGE_MS = 6 * 60_000; // 6 minutes safety net (generation targets <120s, but rate limiting can add delays)
+    const MAX_AGE_MS = 8 * 60_000; // 8 minutes (Groq free tier needs ~35s between calls, 6 calls + delays)
 
     intervalRef.current = setInterval(async () => {
       const pending = useAppStore.getState().backgroundGeneration;
@@ -85,10 +86,22 @@ export default function BackgroundGenerationPoller() {
           return;
         }
 
-        // Check if still pending (no chapters or __PENDING__ description)
-        const isPending = match.description?.startsWith("__PENDING__") || (match.chapters?.length || 0) === 0;
-        if (isPending) {
-          console.log("[bg-poller] Course found but still pending (generating...), waiting...");
+        // Check if still pending — parse __PENDING__|total|done format
+        const desc = match.description || '';
+        const pendingMatch = desc.match(/^__PENDING__\|(\d+)\|(\d+)$/);
+        if (pendingMatch) {
+          const total = parseInt(pendingMatch[1], 10);
+          const done = parseInt(pendingMatch[2], 10);
+          console.log(`[bg-poller] Progress: ${done}/${total} chapters done`);
+          setGenerationProgress({ total, done });
+          return;
+        }
+
+        // Also check by chapter count vs 0 chapters
+        const chapterCount = match.chapters?.length || 0;
+        if (desc.startsWith('__PENDING__') && chapterCount === 0) {
+          console.log('[bg-poller] Course found, still generating (outline phase)...');
+          setGenerationProgress({ total: 0, done: 0 });
           return;
         }
 
@@ -98,6 +111,7 @@ export default function BackgroundGenerationPoller() {
         notifiedRef.current = true;
         setBackgroundGeneration(null);
         setIsGenerating(false);
+        setGenerationProgress(null);
         // Only mark free course as used for non-subscribers
         if (!useAppStore.getState().hasSubscription) {
           setFreeCourseUsed(true);
@@ -143,7 +157,7 @@ export default function BackgroundGenerationPoller() {
         console.warn("[bg-poller] Poll error:", err);
       }
     }, POLL_INTERVAL_MS);
-  }, [stopPolling, setBackgroundGeneration, setIsGenerating, setCourses, setFreeCourseUsed, setSelectedCourseId, setView, lang]);
+  }, [stopPolling, setBackgroundGeneration, setIsGenerating, setCourses, setFreeCourseUsed, setSelectedCourseId, setView, setGenerationProgress, lang]);
 
   // Start / stop polling based on bg state
   useEffect(() => {

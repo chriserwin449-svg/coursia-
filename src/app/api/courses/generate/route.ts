@@ -27,9 +27,10 @@ async function ensureFreeCourseColumn(): Promise<void> {
   } catch { /* non-critical */ }
 }
 
-// Vercel serverless function timeout — course generation needs 120s
-// (web search + AI outline + 4-6 AI chapter generations)
-export const maxDuration = 120;
+// Vercel serverless function timeout — course generation needs 300s
+// With Groq free tier (8000 TPM), 30-40s delays between calls are needed.
+// 6 calls × 40s delay + 6 × 30s generation = ~400s worst case. 300s is max on Pro plan.
+export const maxDuration = 300;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -1114,7 +1115,23 @@ export async function POST(request: NextRequest) {
 
     console.log(`[outline] ${outline.chapters.length} chapters planned`);
 
-    // ── Step 2: Generate each chapter individually ──
+    // ── Step 2: Save course IMMEDIATELY with PENDING status ──
+    // This allows the frontend poller to track progress via chapter count
+    // Format: __PENDING__|totalChapters|completedChapters
+    logStep("save_pending_start");
+    const pendingCourse = await db.course.create({
+      data: {
+        title: title.trim(),
+        description: `__PENDING__|${outline.chapters.length}|0`,
+        sourceLinks: JSON.stringify(sourceLinks),
+        level, flameCost: 0, userId: userId || null,
+      },
+    });
+    await db.courseProgress.upsert({ where: { courseId: pendingCourse.id }, create: { courseId: pendingCourse.id }, update: {} });
+    console.log(`[generate] Pending course saved: id=${pendingCourse.id} (${outline.chapters.length} chapters planned)`);
+    logStep("save_pending_end");
+
+    // ── Step 3: Generate each chapter and save incrementally ──
     logStep("chapters_start");
     let generatedChapters: Array<{ title: string; content: string; summary: string }> = [];
 
@@ -1123,13 +1140,19 @@ export async function POST(request: NextRequest) {
       console.log(`[generate] ── Chapter ${i + 1}/${outline.chapters.length}: "${ch.title}" ──`);
       const chStart = Date.now();
 
+      // Update progress description: __PENDING__|5|0 → __PENDING__|5|1 → __PENDING__|5|2
+      await db.course.update({
+        where: { id: pendingCourse.id },
+        data: { description: `__PENDING__|${outline.chapters.length}|${i}` },
+      }).catch((e) => console.warn(`[generate] Progress update failed (non-critical):`, e?.message || e));
+
       // Attempt 1: Full prompt with research context
       let chapter = await withRetry(
         () => generateChapter(title, courseLang, level, i, outline.chapters.length, ch, webContext, sourceContext),
         1, // 1 retry (2 attempts total)
       );
 
-      // Attempt 2: Without research context (smaller prompt = faster, less likely to fail)
+      // Attempt 2: Without research context (smaller prompt = fits TPM better)
       if (!chapter) {
         console.log(`[chapter-${i + 1}] Attempt 1 failed, trying without research context...`);
         chapter = await withRetry(
@@ -1149,6 +1172,18 @@ export async function POST(request: NextRequest) {
         if (!quality.passed) console.log(`[chapter-${i + 1}] Quality issues: ${quality.issues.join(", ")} (${quality.wordCount} words, ${quality.headingCount} headings)`);
         else console.log(`[chapter-${i + 1}] Quality OK (${quality.wordCount} words, ${quality.headingCount} headings)`);
         generatedChapters.push(chapter);
+
+        // Save this chapter to DB immediately (incremental save)
+        await db.chapter.create({
+          data: {
+            courseId: pendingCourse.id,
+            title: chapter.title,
+            content: chapter.content,
+            summary: chapter.summary,
+            order: i + 1,
+            level,
+          },
+        }).catch((e) => console.warn(`[chapter-${i + 1}] DB save failed (non-critical):`, e?.message || e));
       } else {
         console.error(`[chapter-${i + 1}] ALL 3 ATTEMPTS FAILED — chapter will be missing!`);
       }
@@ -1166,7 +1201,6 @@ export async function POST(request: NextRequest) {
       if (fallbackResult && fallbackResult.chapters.length > generatedChapters.length) {
         console.log(`[generate] Fallback produced ${fallbackResult.chapters.length} chapters (better than ${generatedChapters.length}), using fallback result`);
         generatedChapters = fallbackResult.chapters;
-        // Use fallback description if it's better
         if (fallbackResult.description && fallbackResult.description.length > (outline.description?.length || 0)) {
           outline.description = fallbackResult.description;
         }
@@ -1179,6 +1213,8 @@ export async function POST(request: NextRequest) {
 
     if (generatedChapters.length === 0) {
       console.error("[generate] ALL GENERATION METHODS FAILED — no chapters at all");
+      // Clean up the pending course
+      await db.course.delete({ where: { id: pendingCourse.id } }).catch(() => {});
       return NextResponse.json({
         error: "AI_GENERATION_FAILED",
         message: "The AI could not generate any course chapters. Please try again.",
@@ -1189,16 +1225,19 @@ export async function POST(request: NextRequest) {
     logStep("chapters_end");
     logDuration("chapters_start", "chapters_end");
 
-    // ── Step 3: Save ──
-    logStep("save_start");
-    const course = await saveCourse(title, level, userId, sourceLinks, outline.description, generatedChapters, scrapedPages.length);
+    // ── Step 4: Finalize — update the pending course with real description ──
+    logStep("finalize_start");
+    const course = await db.course.update({
+      where: { id: pendingCourse.id },
+      data: { description: outline.description || '' },
+      include: { chapters: { orderBy: { order: "asc" } } },
+    });
     if (chargedFlames && userId) {
       await db.course.update({ where: { id: course.id }, data: { flameCost: COURSE_CREATION_COST } });
       await db.flameTransaction.create({ data: { amount: -COURSE_CREATION_COST, reason: "course_creation", userId, courseId: course.id } });
     }
-    logStep("save_end");
-    logDuration("save_start", "save_end");
-    logDuration("start", "save_end");
+    logStep("finalize_end");
+    logDuration("start", "finalize_end");
     console.log(`[generate] ═══ COURSE GENERATED SUCCESSFULLY in ${((Date.now() - startTime) / 1000).toFixed(1)}s ═══`);
     console.log(`[COURSE_GENERATION][DATABASE_SAVE] Course saved: id=${course.id} chapters=${course.chapters.length}`);
     console.log(`[COURSE_GENERATION][COMPLETED] Total time: ${((Date.now() - startTime) / 1000).toFixed(1)}s`);

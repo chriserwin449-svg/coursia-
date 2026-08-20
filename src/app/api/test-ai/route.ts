@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
 
 // Must match the models in callGroq() in openai.ts
-const GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
-
-// gpt-oss-120b is a reasoning model that needs high max_tokens
-function getMaxTokensForModel(model: string): number {
-  return model.includes('gpt-oss-120b') ? 16384 : 8192;
-}
+const GROQ_MODELS = ["openai/gpt-oss-120b", "qwen/qwen3-27b"];
 
 export async function GET() {
   const results: Record<string, unknown> = {};
@@ -26,24 +21,30 @@ export async function GET() {
     results.groqTests = {};
     for (const model of GROQ_MODELS) {
       try {
-        const maxTokens = getMaxTokensForModel(model);
+        const isReasoning = model.includes('gpt-oss-120b');
+        const body: Record<string, unknown> = {
+          model,
+          messages: [
+            { role: "system", content: "Respond ONLY with valid JSON." },
+            { role: "user", content: 'Return: {"status":"ok"}' },
+          ],
+          max_tokens: 3500,
+        };
+        if (isReasoning) {
+          body.reasoning = { effort: 'low' };
+        }
+
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
-          body: JSON.stringify({
-            model,
-            messages: [
-              { role: "system", content: "Respond ONLY with valid JSON." },
-              { role: "user", content: 'Return: {"status":"ok"}' },
-            ],
-            max_tokens: maxTokens,
-          }),
+          body: JSON.stringify(body),
         });
 
         const text = await response.text();
         let content = "";
         let reasoning = "";
         let finishReason = "";
+        let usage = null;
         let apiError = null;
         try {
           const json = JSON.parse(text);
@@ -51,15 +52,17 @@ export async function GET() {
           content = choice?.message?.content || "";
           reasoning = choice?.message?.reasoning || "";
           finishReason = choice?.finish_reason || "";
+          usage = json.usage;
           apiError = json.error;
         } catch { /* not JSON */ }
 
         (results.groqTests as Record<string, unknown>)[model] = {
           status: response.status,
           content: content ? content.slice(0, 200) : "EMPTY",
-          reasoning: reasoning ? `${reasoning.length} chars, preview: ${reasoning.slice(0, 150)}...` : "NONE",
+          reasoning: reasoning ? `${reasoning.length} chars, preview: ${String(reasoning).slice(0, 150)}...` : "NONE",
           finishReason,
-          maxTokensUsed: maxTokens,
+          usage: usage ? { prompt: usage.prompt_tokens, completion: usage.completion_tokens, total: usage.total_tokens } : null,
+          rateLimitRemaining: response.headers.get('x-ratelimit-remaining-tokens'),
           error: apiError,
           responsePreview: text.slice(0, 500),
         };

@@ -30,6 +30,7 @@ export default function CreateCourse() {
   const setIsGenerating = useAppStore((s) => s.setIsGenerating);
   const backgroundGeneration = useAppStore((s) => s.backgroundGeneration);
   const setBackgroundGeneration = useAppStore((s) => s.setBackgroundGeneration);
+  const generationProgress = useAppStore((s) => s.generationProgress);
 
   const [title, setTitle] = useState("");
   const [links, setLinks] = useState<string[]>([]);
@@ -930,7 +931,12 @@ export default function CreateCourse() {
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
                 <span className="flex items-center gap-2">
-                  <span>{progressMessages[generationStep]}</span>
+                  <span>{generationProgress?.total
+                    ? (lang === "fr"
+                      ? `Chapitre ${Math.min(generationProgress.done + 1, generationProgress.total)} sur ${generationProgress.total}...`
+                      : `Chapter ${Math.min(generationProgress.done + 1, generationProgress.total)} of ${generationProgress.total}...`)
+                    : progressMessages[generationStep]
+                  }</span>
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
                 </span>
               </>
