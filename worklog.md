@@ -364,3 +364,31 @@ Stage Summary:
 - Labels updated to 'Groq (GPT-OSS 120B)'
 - No other code changes (auth, Supabase, frontend untouched)
 - Pushed to GitHub — user can test in production where GROQ_API_KEY is configured
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Fix Groq reasoning model empty content + add gpt-oss-20b fallback
+
+Work Log:
+- Analyzed Vercel test-ai results from production:
+  - openai/gpt-oss-120b: HTTP 200 BUT content="" with finish_reason="length" — reasoning model consumed all 4096 max_tokens on reasoning field, leaving content empty
+  - groq/compound-mini: 403 — blocked at org level
+  - groq/compound: 403 — blocked at org level
+- Root cause: gpt-oss-120b is a REASONING model (OpenAI o-series on Groq) that puts chain-of-thought in `reasoning` field. With max_tokens=4096, all tokens consumed by reasoning, content field stays empty.
+- Fix 1: Increased max_tokens to 16384 for reasoning model (gpt-oss-120b)
+- Fix 2: Added openai/gpt-oss-20b as fallback model (standard, non-reasoning, 8192 max_tokens)
+- Fix 3: Removed blocked compound models from model list entirely
+- Fix 4: Added reasoning field extraction: when content is empty + finish_reason=length + reasoning exists, attempts to extract JSON/answer from reasoning field (3 strategies: JSON code block, trailing JSON, last 2000 chars)
+- Fix 5: Updated test-ai endpoint to test correct model list with model-specific max_tokens and capture reasoning field
+- Traced all execution scenarios (A-F) to verify logic correctness
+- Verified no remaining llama or compound references in src/
+- Verified lint passes on modified files
+- Committed and pushed to GitHub (commit effca1c)
+
+Stage Summary:
+- callGroq now uses: openai/gpt-oss-120b (16384 tokens) → openai/gpt-oss-20b (8192 tokens)
+- Reasoning model empty content handled via reasoning field extraction
+- Blocked compound models completely removed
+- test-ai endpoint updated to match new model list
+- Pushed to GitHub — user should test /api/test-ai in production after Vercel deploys
