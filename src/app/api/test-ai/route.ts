@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 
-const GROQ_MODELS = ["openai/gpt-oss-120b", "groq/compound-mini", "groq/compound"];
+// Must match the models in callGroq() in openai.ts
+const GROQ_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
+
+// gpt-oss-120b is a reasoning model that needs high max_tokens
+function getMaxTokensForModel(model: string): number {
+  return model.includes('gpt-oss-120b') ? 16384 : 8192;
+}
 
 export async function GET() {
   const results: Record<string, unknown> = {};
@@ -20,6 +26,7 @@ export async function GET() {
     results.groqTests = {};
     for (const model of GROQ_MODELS) {
       try {
+        const maxTokens = getMaxTokensForModel(model);
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
@@ -29,22 +36,30 @@ export async function GET() {
               { role: "system", content: "Respond ONLY with valid JSON." },
               { role: "user", content: 'Return: {"status":"ok"}' },
             ],
-            max_tokens: 50,
+            max_tokens: maxTokens,
           }),
         });
 
         const text = await response.text();
         let content = "";
+        let reasoning = "";
+        let finishReason = "";
         let apiError = null;
         try {
           const json = JSON.parse(text);
-          content = json.choices?.[0]?.message?.content?.slice(0, 200) || "EMPTY";
+          const choice = json.choices?.[0];
+          content = choice?.message?.content || "";
+          reasoning = choice?.message?.reasoning || "";
+          finishReason = choice?.finish_reason || "";
           apiError = json.error;
         } catch { /* not JSON */ }
 
         (results.groqTests as Record<string, unknown>)[model] = {
           status: response.status,
-          content,
+          content: content ? content.slice(0, 200) : "EMPTY",
+          reasoning: reasoning ? `${reasoning.length} chars, preview: ${reasoning.slice(0, 150)}...` : "NONE",
+          finishReason,
+          maxTokensUsed: maxTokens,
           error: apiError,
           responsePreview: text.slice(0, 500),
         };
@@ -65,7 +80,7 @@ export async function GET() {
     const completion = await smartChatCompletion([
       { role: "system", content: "Respond ONLY with valid JSON." },
       { role: "user", content: 'Return: {"status":"ok"}' },
-    ], { maxTokens: 50 });
+    ], { maxTokens: 100 });
 
     results.smartContent = completion.content ? completion.content.slice(0, 200) : "EMPTY";
     results.smartProviderUsed = completion.provider;

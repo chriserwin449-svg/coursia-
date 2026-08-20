@@ -291,37 +291,66 @@ async function callGroq(
   messages: Array<{ role: string; content: string }>,
   options?: { temperature?: number; maxTokens?: number },
 ): Promise<{ content: string } | null> {
-  // Models ordered by preference. Llama removed — deprecated on Groq (Aug 2025).
-  // groq/compound-mini is FREE with 131K context, 8K max output.
+  // gpt-oss-120b is a REASONING model (has `reasoning` field) — needs high max_tokens (16384+)
+  // to avoid finish_reason="length" with empty content (all tokens consumed by reasoning).
+  // gpt-oss-20b is a smaller standard model — reliable fallback.
+  // groq/compound-mini and groq/compound are BLOCKED at org level (403).
   const models = [
     'openai/gpt-oss-120b',
-    'groq/compound-mini',
-    'groq/compound',
+    'openai/gpt-oss-20b',
   ];
 
   const errors: string[] = [];
 
   for (const model of models) {
     let lastErr = '';
+    // gpt-oss-120b (reasoning model) needs significantly more max_tokens
+    const isReasoningModel = model.includes('gpt-oss-120b');
+    const effectiveMaxTokens = options?.maxTokens
+      ? Math.max(options.maxTokens, isReasoningModel ? 16384 : 8192)
+      : (isReasoningModel ? 16384 : 8192);
+
     // Each model gets up to 2 retries (1 initial + 1 retry) for retryable errors only
     for (let attempt = 0; attempt <= 1; attempt++) {
       try {
-        console.log(`[Groq] Trying model ${model} (attempt ${attempt + 1})...`);
+        console.log(`[Groq] Trying model ${model} (attempt ${attempt + 1}, max_tokens=${effectiveMaxTokens})...`);
         const response = await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ model, messages, temperature: options?.temperature ?? 0.7, max_tokens: options?.maxTokens ?? 4096 }),
+          body: JSON.stringify({ model, messages, temperature: options?.temperature ?? 0.7, max_tokens: effectiveMaxTokens }),
           timeoutMs: EXTERNAL_API_TIMEOUT,
         });
         if (response.ok) {
           const data = await response.json();
-          const content = data.choices?.[0]?.message?.content || '';
+          const choice = data.choices?.[0];
+          const content = choice?.message?.content || '';
+          const reasoning = choice?.message?.reasoning || '';
+          const finishReason = choice?.finish_reason || '';
+
+          // Case 1: Normal response with content
           if (content && content.trim().length > 0) {
             console.log(`[Groq] SUCCESS with ${model}: ${content.length} chars`);
             return { content: content.trim() };
           }
-          console.warn(`[Groq] Model ${model}: OK response but empty content, moving to next model`);
-          lastErr = `Model ${model}: empty response`;
+
+          // Case 2: Reasoning model returned empty content (finish_reason=length means tokens exhausted)
+          // Try to extract the answer from the reasoning field as last resort
+          if (isReasoningModel && finishReason === 'length' && reasoning && reasoning.trim().length > 0) {
+            console.warn(`[Groq] ${model}: content empty (finish_reason=length), extracting from reasoning field (${reasoning.length} chars)`);
+            // The reasoning field contains the model's thinking — try to find JSON or the actual answer
+            const extracted = extractAnswerFromReasoning(reasoning);
+            if (extracted && extracted.trim().length > 0) {
+              console.log(`[Groq] ${model}: Extracted ${extracted.length} chars from reasoning`);
+              return { content: extracted.trim() };
+            }
+            lastErr = `Model ${model}: content empty, reasoning field had no extractable answer (finish_reason=length, max_tokens=${effectiveMaxTokens})`;
+            console.warn(`[Groq] ${lastErr}`);
+            break; // don't retry, try next model
+          }
+
+          // Case 3: Empty content, no reasoning to fall back on
+          console.warn(`[Groq] Model ${model}: OK response but empty content (finish_reason=${finishReason}), moving to next model`);
+          lastErr = `Model ${model}: empty response (finish_reason=${finishReason})`;
           break; // don't retry empty content, try next model
         } else {
           const errorBody = await response.text().catch(() => '');
@@ -366,6 +395,42 @@ async function callGroq(
   const joined = errors.join(' | ');
   console.error(`[Groq] ALL MODELS FAILED: ${joined}`);
   throw new Error(joined);
+}
+
+/**
+ * Attempts to extract a useful answer from a reasoning model's reasoning field.
+ * The reasoning field contains the model's chain-of-thought. We look for:
+ * 1. A JSON block (```json ... ``` or { ... })
+ * 2. The last paragraph or sentence (often contains the conclusion)
+ */
+function extractAnswerFromReasoning(reasoning: string): string | null {
+  // Strategy 1: Look for JSON code block
+  const jsonBlockMatch = reasoning.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (jsonBlockMatch) {
+    const candidate = jsonBlockMatch[1].trim();
+    if (candidate.startsWith('{') || candidate.startsWith('[')) {
+      return candidate;
+    }
+  }
+
+  // Strategy 2: Look for raw JSON object/array at the end of reasoning
+  const trailingJsonMatch = reasoning.match(/([\[{][\s\S]*[\]}])\s*$/);
+  if (trailingJsonMatch) {
+    const candidate = trailingJsonMatch[1].trim();
+    try {
+      JSON.parse(candidate);
+      return candidate;
+    } catch {
+      // not valid JSON, continue
+    }
+  }
+
+  // Strategy 3: Return last 2000 chars as a fallback (often contains the conclusion)
+  if (reasoning.length > 200) {
+    return reasoning.slice(-2000);
+  }
+
+  return reasoning;
 }
 
 async function callOpenAIWithFallback(
