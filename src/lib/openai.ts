@@ -1,6 +1,6 @@
 import { fetchWithTimeout } from "@/lib/fetch-timeout";
 
-export type AIProvider = "zai" | "google" | "openai" | "groq" | "free";
+export type AIProvider = "zai" | "openrouter" | "google" | "openai" | "groq" | "free";
 
 interface ProviderInfo {
   provider: AIProvider;
@@ -74,6 +74,12 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
     return { provider: "zai", label: "Coursia AI", isFree: true, hasApiKey: true, model: "glm-4-plus" };
   } catch {
     /* ZAI not available */
+  }
+
+  // OpenRouter — FREE, no credit card, available from Africa
+  const openrouterKey = process.env.OPENROUTER_API_KEY;
+  if (openrouterKey) {
+    return { provider: "openrouter", label: "OpenRouter (Nemotron Ultra 550B)", isFree: true, hasApiKey: true, model: "nvidia/nemotron-3-ultra-550b-a55b:free" };
   }
 
   const groqKey = process.env.GROQ_API_KEY;
@@ -470,6 +476,122 @@ async function callGroq(
   throw new Error(joined);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// OPENROUTER — Free models, no credit card, no TPM limit like Groq
+// API is 100% OpenAI-compatible. Models rotate — check openrouter.ai/collections/free-models
+// Rate limits: 50 req/day (free) or 1000 req/day (with $10 credit)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+
+async function callOpenRouter(
+  apiKey: string,
+  messages: Array<{ role: string; content: string }>,
+  options?: { temperature?: number; maxTokens?: number },
+): Promise<{ content: string } | null> {
+  // Free models ordered by quality for French course generation:
+  // 1. Nemotron Ultra 550B — largest free model, excellent quality
+  // 2. Nemotron Super 120B — great quality, fast
+  // 3. Gemma 4 31B IT — Google quality, good in French
+  // 4. Nemotron 3.5 Lightning — fast, huge context window
+  // 5. OpenRouter free — default fallback
+  const models = [
+    'nvidia/nemotron-3-ultra-550b-a55b:free',
+    'nvidia/nemotron-3-super-120b-a12b:free',
+    'google/gemma-4-31b-it:free',
+    'nvidia/nemotron-3.5-lightning:free',
+    'openrouter/free',
+  ];
+
+  const errors: string[] = [];
+
+  for (const model of models) {
+    let lastErr = '';
+    const effectiveMaxTokens = Math.min(
+      options?.maxTokens ?? 4000,
+      4000,
+    );
+
+    for (let attempt = 0; attempt <= 1; attempt++) {
+      try {
+        console.log(`[OpenRouter] Trying ${model} (attempt ${attempt + 1}, max_tokens=${effectiveMaxTokens})...`);
+
+        const body: Record<string, unknown> = {
+          model,
+          messages,
+          temperature: options?.temperature ?? 0.7,
+          max_tokens: effectiveMaxTokens,
+        };
+
+        const response = await fetchWithTimeout(OPENROUTER_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            'HTTP-Referer': 'https://coursia.app',
+            'X-Title': 'Coursia',
+          },
+          body: JSON.stringify(body),
+          timeoutMs: EXTERNAL_API_TIMEOUT,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const content = data.choices?.[0]?.message?.content || '';
+          const finishReason = data.choices?.[0]?.finish_reason || '';
+
+          if (content && content.trim().length > 0) {
+            console.log(`[OpenRouter] SUCCESS with ${model}: ${content.length} chars (finish=${finishReason})`);
+            return { content: content.trim() };
+          }
+
+          console.warn(`[OpenRouter] ${model}: OK but empty content (finish_reason=${finishReason}), next model`);
+          lastErr = `Model ${model}: empty response (finish_reason=${finishReason})`;
+          break;
+        } else {
+          const errorBody = await response.text().catch(() => '');
+          const httpErr = `Model ${model} HTTP ${response.status}: ${errorBody.slice(0, 300)}`;
+          console.error(`[OpenRouter] ${httpErr}`);
+          lastErr = httpErr;
+
+          // Non-retryable → skip to next model
+          if (response.status === 404 || response.status === 401 || response.status === 403 || response.status === 400) {
+            console.warn(`[OpenRouter] ${model} failed with ${response.status} (not retryable), trying next model...`);
+            break;
+          }
+          // Retryable: 429, 500, 502, 503
+          if (attempt < 1) {
+            const delay = 2000 * Math.pow(2, attempt);
+            console.log(`[OpenRouter] ${model} retryable error, retry in ${delay}ms...`);
+            await sleep(delay);
+            continue;
+          }
+          break;
+        }
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : String(error);
+        lastErr = `Model ${model}: ${errMsg.slice(0, 300)}`;
+        console.error(`[OpenRouter] ${lastErr}`);
+
+        const isRetryable = errMsg.includes('429') || errMsg.includes('timeout') || errMsg.includes('ECONNRESET')
+          || errMsg.includes('503') || errMsg.includes('502') || errMsg.includes('500');
+        if (attempt < 1 && isRetryable) {
+          const delay = 2000 * Math.pow(2, attempt);
+          console.log(`[OpenRouter] ${model} fetch error, retry in ${delay}ms...`);
+          await sleep(delay);
+          continue;
+        }
+        break;
+      }
+    }
+    errors.push(lastErr);
+  }
+
+  const joined = errors.join(' | ');
+  console.error(`[OpenRouter] ALL MODELS FAILED: ${joined}`);
+  throw new Error(joined);
+}
+
 /**
  * Attempts to extract a useful answer from a reasoning model's reasoning field.
  */
@@ -552,7 +674,25 @@ export async function smartChatCompletion(
     providerErrors.push({ provider: 'ZAI', error: msg });
   }
 
-  // Priority 2: Groq
+  // Priority 2: OpenRouter (free, no TPM limit, works from RDC)
+  const openrouterKey = process.env.OPENROUTER_API_KEY;
+  if (openrouterKey) {
+    console.log('[AI] Trying OpenRouter...');
+    try {
+      const result = await callOpenRouter(openrouterKey, messages, options);
+      if (result) {
+        console.log(`[AI] OpenRouter succeeded: ${result.content.length} chars`);
+        return { content: result.content, provider: 'openrouter' as const };
+      }
+      providerErrors.push({ provider: 'OpenRouter', error: 'Returned empty response' });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[AI] OpenRouter FAILED: ${msg.slice(0, 300)}`);
+      providerErrors.push({ provider: 'OpenRouter', error: msg });
+    }
+  }
+
+  // Priority 3: Groq
   const groqKey = process.env.GROQ_API_KEY;
   if (groqKey) {
     console.log('[AI] Trying Groq...');
@@ -572,7 +712,7 @@ export async function smartChatCompletion(
     providerErrors.push({ provider: 'Groq', error: 'No GROQ_API_KEY configured' });
   }
 
-  // Priority 3: OPENAI_API_KEY (Gemini or OpenAI)
+  // Priority 4: OPENAI_API_KEY (Gemini or OpenAI)
   const apiKey = process.env.OPENAI_API_KEY;
   if (apiKey) {
     if (apiKey.startsWith('AIza') || apiKey.startsWith('AQ.')) {
