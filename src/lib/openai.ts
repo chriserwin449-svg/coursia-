@@ -78,7 +78,7 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
 
   const groqKey = process.env.GROQ_API_KEY;
   if (groqKey) {
-    return { provider: "groq", label: "Groq (GPT-OSS 120B)", isFree: true, hasApiKey: true, model: "openai/gpt-oss-120b" };
+    return { provider: "groq", label: "Groq (Qwen 3.6 27B)", isFree: true, hasApiKey: true, model: "qwen/qwen3.6-27b" };
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
@@ -90,7 +90,7 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
       return { provider: "openai", label: "OpenAI GPT-4o", isFree: false, hasApiKey: true, model: "gpt-4o" };
     }
     if (apiKey.startsWith("gsk_")) {
-      return { provider: "groq", label: "Groq (GPT-OSS 120B)", isFree: true, hasApiKey: true, model: "openai/gpt-oss-120b" };
+      return { provider: "groq", label: "Groq (Qwen 3.6 27B)", isFree: true, hasApiKey: true, model: "qwen/qwen3.6-27b" };
     }
   }
 
@@ -295,11 +295,13 @@ async function callZAI(
  * - Between calls: wait based on tokens used + remaining quota from headers
  *
  * Models (tested Aug 2025):
- * - openai/gpt-oss-120b: REASONING model, works but reasoning tokens eat budget
+ * - qwen/qwen3.6-27b: NON-reasoning, fast, good quality, BEST CHOICE for TPM-constrained
+ * - llama-3.3-70b-versatile: NON-reasoning, 70B params, high quality
+ * - llama/llama-4-scout-17b-16e-instruct: NON-reasoning, Llama 4, newer
+ * - openai/gpt-oss-120b: REASONING model, works but reasoning tokens eat budget (LAST RESORT)
  * - openai/gpt-oss-20b: BLOCKED (403) at org level
  * - groq/compound-mini: BLOCKED (403) at org level
  * - groq/compound: BLOCKED (403) at org level
- * - qwen/qwen3-27b: standard model (non-reasoning), should work
  */
 
 const GROQ_TPM_LIMIT = 8000;
@@ -314,11 +316,13 @@ async function callGroq(
   messages: Array<{ role: string; content: string }>,
   options?: { temperature?: number; maxTokens?: number },
 ): Promise<{ content: string } | null> {
-  // Models ordered by preference. 120b is reasoning (fragile but capable),
-  // qwen3-27b is standard (reliable, no reasoning overhead).
+  // Models ordered by preference: non-reasoning first (reliable under TPM limit),
+  // reasoning models last (fragile, reasoning tokens waste budget).
   const models = [
+    'qwen/qwen3.6-27b',
+    'llama-3.3-70b-versatile',
+    'llama/llama-4-scout-17b-16e-instruct',
     'openai/gpt-oss-120b',
-    'qwen/qwen3-27b',
   ];
 
   const errors: string[] = [];

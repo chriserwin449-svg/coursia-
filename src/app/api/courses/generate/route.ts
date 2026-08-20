@@ -884,6 +884,7 @@ export async function POST(request: NextRequest) {
       console.warn(`[generate][AUTH] ID mismatch: header=${verifiedUserId.slice(0,8)}... body=${rawUserId.slice(0,8)}... — using header`);
     }
     const userId: string | null = verifiedUserId || rawUserId || null;
+    let chargedFlames = false;
     if (isUserAdmin) console.log(`[generate] Admin bypass enabled for ${userEmail}`);
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
@@ -914,7 +915,6 @@ export async function POST(request: NextRequest) {
       await ensureFreeCourseColumn();
 
       let freeSlotClaimed = false;
-      let chargedFlames = false;
       try {
         let canGenerate = false;
         await db.$transaction(async (tx) => {
