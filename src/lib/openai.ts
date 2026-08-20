@@ -310,7 +310,7 @@ async function callGroq(
         const response = await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({ model, messages, temperature: options?.temperature ?? 0.7, max_tokens: options?.maxTokens ?? 8192 }),
+          body: JSON.stringify({ model, messages, temperature: options?.temperature ?? 0.7, max_tokens: options?.maxTokens ?? 4096 }),
           timeoutMs: EXTERNAL_API_TIMEOUT,
         });
         if (response.ok) {
