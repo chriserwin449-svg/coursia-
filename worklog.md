@@ -411,3 +411,26 @@ Stage Summary:
 - Courses will now have content because think tags are stripped before JSON parsing
 - MAX_TOKENS increased to 8000 to give enough room for thinking (~2K) + actual JSON output (~6K)
 - Diagnostic logs will help debug if the issue persists
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix 413 error + ensure courses generate with content
+
+Work Log:
+- Diagnosed 413 root cause: MAX_TOKENS=8000 (from previous commit) + prompt size exceeded qwen3.6-27b context window
+- Before previous commit: MAX_TOKENS=4096 worked (courses generated) but content empty due to think tags
+- After previous commit: MAX_TOKENS=8000 caused 413 (request too large)
+- Reverted MAX_TOKENS to 4096 in constants.ts
+- Reverted GROQ_MAX_TOKENS to 4096 in openai.ts
+- Added 413 auto-recovery: when 413 received, halves currentMaxTokens and retries immediately
+- Added 413 to retryable error list in catch block
+- Think tag stripping from previous commit preserved (the actual fix for empty content)
+- Committed 14a2d49 and pushed to GitHub
+
+Stage Summary:
+- MAX_TOKENS back to 4096 (same value that was working before)
+- Think tag stripping active (new fix for empty content issue)
+- 413 auto-recovery prevents future request-too-large failures
+- Zero new lint errors
+
