@@ -392,3 +392,22 @@ Stage Summary:
 - Blocked compound models completely removed
 - test-ai endpoint updated to match new model list
 - Pushed to GitHub — user should test /api/test-ai in production after Vercel deploys
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix empty chapter content in generated courses
+
+Work Log:
+- Diagnosed root cause: qwen/qwen3.6-27b is a reasoning model that wraps chain-of-thought in  tags
+- The actual JSON response comes AFTER the closing  tag
+- Without stripping, JSON extractors failed: direct parse failed (starts with tag, not JSON), brace-matching found braces inside thinking text
+- Fixed openai.ts: Added THINK_OPEN/THINK_CLOSE constants and stripping logic in callGroq() response handler
+- Fixed constants.ts: MAX_TOKENS 4096 -> 8000 (thinking tokens consume ~2K, leaving too little for actual content)
+- Added diagnostic logging to extractChapter() for future debugging (raw response preview, failure logging)
+- Committed d4620c3 and pushed to GitHub
+
+Stage Summary:
+- Courses will now have content because think tags are stripped before JSON parsing
+- MAX_TOKENS increased to 8000 to give enough room for thinking (~2K) + actual JSON output (~6K)
+- Diagnostic logs will help debug if the issue persists
