@@ -264,8 +264,29 @@ async function callGroq(
       if (response.ok) {
         const data = await response.json();
         const choice = data.choices?.[0];
-        const content = choice?.message?.content || '';
+        let rawContent = choice?.message?.content || '';
         const finishReason = choice?.finish_reason || '';
+
+        // Qwen 3 (and other reasoning models) wraps thinking in <think>...</think> tags.
+        // The actual response comes AFTER the closing </think> tag.
+        // We must strip the thinking block so downstream JSON parsers work.
+        const THINK_OPEN = '<think>';
+        const THINK_CLOSE = '</think>';
+        if (rawContent.includes(THINK_OPEN)) {
+          const thinkEnd = rawContent.lastIndexOf(THINK_CLOSE);
+          if (thinkEnd !== -1) {
+            const afterThink = rawContent.slice(thinkEnd + THINK_CLOSE.length).trim();
+            if (afterThink.length > 0) {
+              console.log(`[Groq] Stripped <think> block (${rawContent.length - afterThink.length} chars of thinking removed)`);
+              rawContent = afterThink;
+            } else {
+              // Thinking consumed all output — nothing useful after </think>
+              console.warn(`[Groq] Model returned ONLY thinking content (no actual response after </think>)`);
+            }
+          }
+        }
+
+        const content = rawContent.trim();
 
         const usage = data.usage;
         if (usage) {

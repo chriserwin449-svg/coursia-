@@ -663,6 +663,9 @@ async function generateChapter(
 
 function extractChapter(text: string): { title: string; content: string; summary: string } | null {
   let cleaned = text.trim();
+  // Diagnostic: log first 200 chars of raw AI response for debugging
+  console.log(`[extractChapter] Raw response (${text.length} chars): ${text.slice(0, 200).replace(/\n/g, '\\n')}`);
+
   const cb = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (cb) cleaned = cb[1].trim();
 
@@ -723,6 +726,7 @@ function extractChapter(text: string): { title: string; content: string; summary
     }
   }
 
+  console.error(`[extractChapter] ALL STRATEGIES FAILED. First 300 chars: ${cleaned.slice(0, 300).replace(/\n/g, '\\n')}`);
   return null;
 }
 
