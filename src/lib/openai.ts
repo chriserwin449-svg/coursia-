@@ -310,10 +310,10 @@ async function callZAI(
  * - groq/compound: BLOCKED (403) at org level
  */
 
-const GROQ_TPM_LIMIT = 8000;
-const GROQ_MAX_TOKENS = 3500;       // max_tokens per request (leaves ~4000 for prompt)
-const GROQ_MIN_DELAY_MS = 30_000;    // minimum 30s between calls (8000 TPM / ~4000 per call)
-const GROQ_MAX_DELAY_MS = 60_000;    // safety cap
+const GROQ_TPM_LIMIT = 30000;
+const GROQ_MAX_TOKENS = 4000;       // max_tokens per request (leaves ~4000 for prompt)
+const GROQ_MIN_DELAY_MS = 5_000;    // minimum 30s between calls (8000 TPM / ~4000 per call)
+const GROQ_MAX_DELAY_MS = 15_000;    // safety cap
 let lastGroqCallTime = 0;
 let lastGroqTokensUsed = 0;
 
