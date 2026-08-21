@@ -200,8 +200,8 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
 
 const GROQ_TPM_LIMIT = 30000;
 const GROQ_MAX_TOKENS = 4096;       // cap for qwen3 (prompt + thinking + output must fit model context)
-const GROQ_MIN_DELAY_MS = 15_000;      // 15s minimum (12K tokens per call needs ~24s at 30K TPM)
-const GROQ_MAX_DELAY_MS = 30_000;      // safety cap
+const GROQ_MIN_DELAY_MS = 5_000;       // 5s minimum (with /no_think, ~5K tokens per call needs ~10s at 30K TPM)
+const GROQ_MAX_DELAY_MS = 15_000;      // safety cap
 let lastGroqCallTime = 0;
 let lastGroqTokensUsed = 0;
 
@@ -244,9 +244,17 @@ async function callGroq(
     try {
       console.log(`[Groq] Calling ${model} (attempt ${attempt + 1}, max_tokens=${currentMaxTokens})...`);
 
+      // Qwen 3 is a reasoning model that wastes 50-70% of output tokens on thinking.
+      // /no_think disables chain-of-thought, making ALL tokens available for actual content.
+      const noThinkMessages = model.includes('qwen')
+        ? messages.map((m, i) => i === messages.length - 1 && m.role === 'user'
+            ? { ...m, content: m.content + '\n/no_think' }
+            : m)
+        : messages;
+
       const body: Record<string, unknown> = {
         model,
-        messages,
+        messages: noThinkMessages,
         temperature: options?.temperature ?? 0.7,
         max_tokens: currentMaxTokens,
       };
