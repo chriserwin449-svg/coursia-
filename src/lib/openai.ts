@@ -199,9 +199,9 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const GROQ_TPM_LIMIT = 30000;
-const GROQ_MAX_TOKENS = 4000;
-const GROQ_MIN_DELAY_MS = 5_000;
-const GROQ_MAX_DELAY_MS = 15_000;
+const GROQ_MAX_TOKENS = 8000;       // enough for full chapter content (prompt ~4K + output 8K = 12K < 30K TPM)
+const GROQ_MIN_DELAY_MS = 15_000;      // 15s minimum (12K tokens per call needs ~24s at 30K TPM)
+const GROQ_MAX_DELAY_MS = 30_000;      // safety cap
 let lastGroqCallTime = 0;
 let lastGroqTokensUsed = 0;
 
