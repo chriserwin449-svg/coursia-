@@ -84,7 +84,7 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
 
   const groqKey = process.env.GROQ_API_KEY;
   if (groqKey) {
-    return { provider: "groq", label: "Groq (Qwen 3.6 27B)", isFree: true, hasApiKey: true, model: "qwen/qwen3.6-27b" };
+    return { provider: "groq", label: "Groq (Llama 3.3 70B)", isFree: true, hasApiKey: true, model: "llama-3.3-70b-versatile" };
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
@@ -96,7 +96,7 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
       return { provider: "openai", label: "OpenAI GPT-4o", isFree: false, hasApiKey: true, model: "gpt-4o" };
     }
     if (apiKey.startsWith("gsk_")) {
-      return { provider: "groq", label: "Groq (Qwen 3.6 27B)", isFree: true, hasApiKey: true, model: "qwen/qwen3.6-27b" };
+      return { provider: "groq", label: "Groq (Llama 3.3 70B)", isFree: true, hasApiKey: true, model: "llama-3.3-70b-versatile" };
     }
   }
 
@@ -325,9 +325,9 @@ async function callGroq(
   // Models ordered by preference: non-reasoning first (reliable under TPM limit),
   // reasoning models last (fragile, reasoning tokens waste budget).
   const models = [
-    'qwen/qwen3.6-27b',
     'llama-3.3-70b-versatile',
-    'llama/llama-4-scout-17b-16e-instruct',
+    'llama-4-scout-17b-16e-instruct',
+    'qwen/qwen3.6-27b',
     'openai/gpt-oss-120b',
   ];
 
