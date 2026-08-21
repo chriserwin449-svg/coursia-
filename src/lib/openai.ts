@@ -199,7 +199,7 @@ export async function getActiveProvider(): Promise<ProviderInfo> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const GROQ_TPM_LIMIT = 30000;
-const GROQ_MAX_TOKENS = 8000;       // enough for full chapter content (prompt ~4K + output 8K = 12K < 30K TPM)
+const GROQ_MAX_TOKENS = 4096;       // cap for qwen3 (prompt + thinking + output must fit model context)
 const GROQ_MIN_DELAY_MS = 15_000;      // 15s minimum (12K tokens per call needs ~24s at 30K TPM)
 const GROQ_MAX_DELAY_MS = 30_000;      // safety cap
 let lastGroqCallTime = 0;
@@ -215,7 +215,7 @@ async function callGroq(
   }
 
   const model = process.env.GROQ_MODEL || 'qwen/qwen3.6-27b';
-  const effectiveMaxTokens = Math.min(
+  let currentMaxTokens = Math.min(
     options?.maxTokens ?? GROQ_MAX_TOKENS,
     GROQ_MAX_TOKENS,
   );
@@ -242,13 +242,13 @@ async function callGroq(
   let lastErr = '';
   for (let attempt = 0; attempt <= 2; attempt++) {
     try {
-      console.log(`[Groq] Calling ${model} (attempt ${attempt + 1}, max_tokens=${effectiveMaxTokens})...`);
+      console.log(`[Groq] Calling ${model} (attempt ${attempt + 1}, max_tokens=${currentMaxTokens})...`);
 
       const body: Record<string, unknown> = {
         model,
         messages,
         temperature: options?.temperature ?? 0.7,
-        max_tokens: effectiveMaxTokens,
+        max_tokens: currentMaxTokens,
       };
 
       const response = await fetchWithTimeout('https://api.groq.com/openai/v1/chat/completions', {
@@ -259,7 +259,7 @@ async function callGroq(
       });
 
       // Track tokens for TPM delay
-      let tokensUsedThisCall = effectiveMaxTokens;
+      let tokensUsedThisCall = currentMaxTokens;
 
       if (response.ok) {
         const data = await response.json();
@@ -290,7 +290,7 @@ async function callGroq(
 
         const usage = data.usage;
         if (usage) {
-          tokensUsedThisCall = usage.total_tokens || usage.prompt_tokens + usage.completion_tokens || effectiveMaxTokens;
+          tokensUsedThisCall = usage.total_tokens || usage.prompt_tokens + usage.completion_tokens || currentMaxTokens;
         }
         lastGroqCallTime = Date.now();
         lastGroqTokensUsed = tokensUsedThisCall;
@@ -312,8 +312,20 @@ async function callGroq(
         lastErr = `HTTP ${response.status}: ${errorBody.slice(0, 300)}`;
         console.error(`[Groq] Error: ${lastErr}`);
         lastGroqCallTime = Date.now();
-        lastGroqTokensUsed = effectiveMaxTokens;
+        lastGroqTokensUsed = currentMaxTokens;
 
+        // 413: Request too large — halve max_tokens and retry immediately
+        if (response.status === 413) {
+          const reduced = Math.max(Math.floor(currentMaxTokens / 2), 1024);
+          if (reduced < currentMaxTokens) {
+            console.log(`[Groq] 413 Request too large, reducing max_tokens: ${currentMaxTokens} -> ${reduced}`);
+            currentMaxTokens = reduced;
+            lastGroqCallTime = Date.now();
+            lastGroqTokensUsed = currentMaxTokens;
+            if (attempt < 2) continue;
+          }
+          throw new AIProviderError('Groq', new Error(lastErr), attempt + 1);
+        }
         // Non-retryable
         if (response.status === 401 || response.status === 403 || response.status === 404) {
           throw new AIProviderError('Groq', new Error(lastErr), attempt + 1);
@@ -331,9 +343,17 @@ async function callGroq(
       if (error instanceof AIProviderError) throw error;
       lastErr = error instanceof Error ? error.message : String(error);
       console.error(`[Groq] Attempt ${attempt + 1} error: ${lastErr.slice(0, 300)}`);
-      const isRetryable = lastErr.includes('429') || lastErr.includes('timeout') || lastErr.includes('ECONNRESET')
+      const isRetryable = lastErr.includes('429') || lastErr.includes('413') || lastErr.includes('timeout') || lastErr.includes('ECONNRESET')
         || lastErr.includes('503') || lastErr.includes('502') || lastErr.includes('500');
       const is429 = lastErr.includes('429');
+      const is413 = lastErr.includes('413');
+      if (is413 && attempt < 2) {
+        const reduced = Math.max(Math.floor(currentMaxTokens / 2), 1024);
+        if (reduced < currentMaxTokens) {
+          console.log(`[Groq] 413 in catch, reducing max_tokens: ${currentMaxTokens} -> ${reduced}`);
+          currentMaxTokens = reduced;
+        }
+      }
       if (attempt < 2 && isRetryable) {
         const delay = is429 ? 20_000 * (attempt + 1) : 3000 * Math.pow(2, attempt);
         console.log(`[Groq] ${is429 ? 'Rate limited' : 'Error'}, waiting ${delay / 1000}s...`);

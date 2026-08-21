@@ -26,7 +26,7 @@ export const MIN_WORDS_PER_CHAPTER = 400;
 export const MAX_SOURCE_LINKS = 3;
 export const SCRAPED_TEXT_MAX_LENGTH = 4000;
 export const SCRAPED_TEXT_MIN_LENGTH = 50;
-export const MAX_TOKENS = 8000; // Qwen 3 uses thinking tokens, so we need headroom (thinking ~2K + output ~6K)
+export const MAX_TOKENS = 4096; // Kept low for qwen3 reasoning model (thinking consumes ~1-2K of this)
 export const AI_RETRY_COUNT = 2;
 export const AI_RETRY_BACKOFF_MS = 2000;
 
