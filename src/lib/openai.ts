@@ -297,10 +297,11 @@ async function callGroq(
         if (response.status === 401 || response.status === 403 || response.status === 404) {
           throw new AIProviderError('Groq', new Error(lastErr), attempt + 1);
         }
-        // Retryable: 429, 500, 502, 503
+        // Retryable: 429 (rate limit — wait longer), 500, 502, 503
         if (attempt < 2) {
-          const delay = 3000 * Math.pow(2, attempt);
-          console.log(`[Groq] Retryable error, waiting ${delay}ms...`);
+          const is429 = response.status === 429;
+          const delay = is429 ? 20_000 * (attempt + 1) : 3000 * Math.pow(2, attempt);
+          console.log(`[Groq] ${is429 ? 'Rate limited' : 'Retryable error'}, waiting ${delay / 1000}s...`);
           await sleep(delay);
           continue;
         }
@@ -311,8 +312,10 @@ async function callGroq(
       console.error(`[Groq] Attempt ${attempt + 1} error: ${lastErr.slice(0, 300)}`);
       const isRetryable = lastErr.includes('429') || lastErr.includes('timeout') || lastErr.includes('ECONNRESET')
         || lastErr.includes('503') || lastErr.includes('502') || lastErr.includes('500');
+      const is429 = lastErr.includes('429');
       if (attempt < 2 && isRetryable) {
-        const delay = 3000 * Math.pow(2, attempt);
+        const delay = is429 ? 20_000 * (attempt + 1) : 3000 * Math.pow(2, attempt);
+        console.log(`[Groq] ${is429 ? 'Rate limited' : 'Error'}, waiting ${delay / 1000}s...`);
         await sleep(delay);
         continue;
       }
